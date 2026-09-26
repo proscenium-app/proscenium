@@ -228,7 +228,7 @@ The maintainer, 2026-09-25: "There's never going to be a human pass. Find your w
 
 <a id="REL-1"></a>
 
-**REL-1 — Withdrawn 2026-09-25.** It read: “The release contract: one universal Proscenium that launches correctly on every Mac from Sonoma up, Apple silicon and Intel alike; proven on those Macs by CI rather than by inference; signed, notarized and self-updating.” No machine this project uses can launch it on Sonoma or on Intel hardware. Replaced by [REL-122](release-engineering.md#REL-122), which says what is proven and what is not.
+**REL-1 — Withdrawn 2026-09-25.** It read: “The release contract: one universal Proscenium that launches correctly on every Mac from Sonoma up, Apple silicon and Intel alike; proven on those Macs by CI rather than by inference; signed, notarized and self-updating.” No machine this project uses can launch it on Sonoma or on Intel hardware. Replaced by [REL-122](#REL-122), itself withdrawn on 2026-09-26, which says what is proven and what is not.
 
 <a id="CICD-37"></a>
 
@@ -244,7 +244,7 @@ The maintainer, 2026-09-25: "There's never going to be a human pass. Find your w
 
 <a id="SERV-129"></a>
 
-**SERV-129 — Withdrawn 2026-09-25.** It read: “Launch day. The 0.9.x copy on the second account updates to 1.0.0 through `updates.proscenium.ink`. With that host blocked, it updates through GitHub.” A person drove the second account. Replaced by [SERV-260](services-and-feedback.md#SERV-260).
+**SERV-129 — Withdrawn 2026-09-25.** It read: “Launch day. The 0.9.x copy on the second account updates to 1.0.0 through `updates.proscenium.ink`. With that host blocked, it updates through GitHub.” A person drove the second account. Replaced by [SERV-260](#SERV-260), itself withdrawn on 2026-09-26.
 
 <a id="SHIP-D7-second-account"></a>
 
@@ -267,3 +267,65 @@ The maintainer made the alpha track his own: "I want to limit who can access alp
 **SET-31 — Withdrawn 2026-09-25.** Replaced by [SET-37](../app/preferences-and-help/settings.md#SET-37), the tracks a writer is offered, [SET-38](../app/preferences-and-help/settings.md#SET-38), the key, and [SET-39](../app/preferences-and-help/settings.md#SET-39), alpha without one. Original contract:
 
 > **Updates › Update track** — Stable (the default), Beta or Alpha, each with one plain sentence saying what arrives on it. A note says, only while it is true, that moving to a slower track waits for that track to pass the version already installed, because Proscenium never installs an older one. The setting is `updateTrack` in `settings.json`; what each track is and what a change of track does is [the CI/CD plan's Tracks].
+
+## Withdrawn 2026-09-26: the update proof, from 1.0.0 on
+
+The update proof could not start from a copy that was already built. A release build takes no input but a person's, and the route that would have driven one was not taken. So the proof builds the version updated from out of its own tag, and it can prove only from a version that carries it, 1.0.0 and later. Each requirement below counted the launch-day update, 0.9.x to 1.0.0, as proven.
+
+<a id="CICD-58"></a>
+
+**CICD-58 — Withdrawn 2026-09-26.** It read: “**"Stable update proof": the update a writer's copy makes, made by the build host.** A `workflow_dispatch` workflow on the Mini's runner, behind the lock and inside the self-test's bench, takes a from-version and a to-version. It puts a copy of the from-version in a scratch location under a scratch HOME whose `settings.json` turns reports off, so the launch is not counted. It opens a scratch play, types a line through the harness, and presses Check Now and then Restart to Update against the real `updates.proscenium.ink`. It passes only when the copy comes back as the to-version, notarized and running, with the line in the play. It runs against stable on launch day, and against the alpha track before then. It replaces the second-account update check of docs/engineering/release-engineering.md#SHIP-D104 and docs/engineering/release-engineering.md#SHIP-D109.” Replaced by the same workflow, which builds the version updated from out of its own tag and so proves only from 1.0.0 on, and not on alpha, whose one key stays on the maintainer's Mac.
+
+<a id="SERV-260"></a>
+
+**SERV-260 — Withdrawn 2026-09-26.** It read: “**Launch day.** The Stable update proof ([release-engineering.md#SHIP-D104](release-engineering.md#SHIP-D104), step 8) updates a copy of the last 0.9.x to 1.0.0 through `updates.proscenium.ink`. The updater's way to GitHub with that host unreachable is proven by its native tests and the rehearsal that ran it headless. It replaces SERV-129 (docs/engineering/withdrawn-requirements.md#SERV-129), which a person ran on a second macOS account.” Replaced by [SERV-264](services-and-feedback.md#SERV-264).
+
+<a id="REL-122"></a>
+
+**REL-122 — Withdrawn 2026-09-26.** It read: “**The release contract:** one universal Proscenium, meant to launch correctly on every Mac from Sonoma up, Apple silicon and Intel alike; signed, notarized and self-updating. What is proven, and by what, is the machine's alone, and no release waits on a person: the frontend against the floor's Safari on every run (`check:webkit-floor`); the native app on the build host's macOS on Apple silicon, and its Intel slice under Rosetta, launch to export; the update itself on the build host, by the Stable update proof (launch day, step 8). A native launch on Sonoma and a launch on Intel hardware are not proven, because no machine this project uses can give either, and the release record says so. This replaces REL-1 (docs/engineering/withdrawn-requirements.md#REL-1), whose "proven on those Macs by CI" no machine this project uses can give for Sonoma or Intel hardware.” Replaced by [REL-123](release-engineering.md#REL-123).
+
+## Withdrawn 2026-09-25: importing into an open play
+
+The maintainer, 2026-09-25: "import off of the plays page to make a new play, import within a play to make a binder or a new script or whatever. So two functions." Import on the Plays screen still makes a play; inside a play it adds a script or a binder document to that play ([docs/app/importing/document-import.md#IMPT-D13](../app/importing/document-import.md#IMPT-D13)).
+
+<a id="IMPT-1"></a>
+
+**IMPT-1 — Withdrawn 2026-09-25.** Replaced by [IMPT-93](../app/importing/document-import.md#IMPT-93). Original contract:
+
+ Import reads local source files, presents a correctable interpretation, and creates a new play only on confirmation.
+
+<a id="IMPT-6"></a>
+
+**IMPT-6 — Withdrawn 2026-09-25.** Replaced by [IMPT-94](../app/importing/document-import.md#IMPT-94). Original contract:
+
+ Nothing is written until **Create New Play**.
+
+<a id="IMPT-7"></a>
+
+**IMPT-7 — Withdrawn 2026-09-25.** Replaced by [IMPT-101](../app/importing/document-import.md#IMPT-101). Original contract:
+
+ The import creates a separate play. It does not append to or replace an open script, and never overwrites an existing file.
+
+<a id="IMPT-37"></a>
+
+**IMPT-37 — Withdrawn 2026-09-25.** Replaced by [IMPT-96](../app/importing/document-import.md#IMPT-96). Original contract:
+
+ The destination is the current Plays folder, displayed in review. Choosing the folder remains the existing onboarding/Settings action. Import does not quietly switch it. A Finder request waits until a Plays folder exists.
+
+<a id="IMPT-39"></a>
+
+**IMPT-39 — Withdrawn 2026-09-25.** Replaced by [IMPT-102](../app/importing/document-import.md#IMPT-102). Original contract:
+
+ Heading: **Import a Draft**. Subtitle: **Review your draft before creating a play.**
+
+<a id="IMPT-50"></a>
+
+**IMPT-50 — Withdrawn 2026-09-25.** Replaced by [IMPT-97](../app/importing/document-import.md#IMPT-97). Original contract:
+
+ Editable **New play name**; visible Plays folder; **Choose Different Files…**.
+
+<a id="IMPT-55"></a>
+
+**IMPT-55 — Withdrawn 2026-09-25.** Replaced by [IMPT-99](../app/importing/document-import.md#IMPT-99). Original contract:
+
+ Fixed footer: the create/copy consequence, Cancel, optional Skip This File, and **Create New Play**.

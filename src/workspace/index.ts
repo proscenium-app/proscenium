@@ -48,6 +48,7 @@ export {
   newFolder,
   newMaterial,
   newScript,
+  importIntoPlay,
   deleteItem,
   duplicateItem,
   commitBinder,

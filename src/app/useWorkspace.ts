@@ -141,6 +141,7 @@ import {
   newFolder,
   newMaterial,
   newScript,
+  importIntoPlay,
   playsFolderHint as hintFor,
   playsFolderRefusal,
   providerKind,
@@ -697,6 +698,13 @@ export interface Workspace {
     opts?: { name?: boolean },
   ) => void;
   createScript: (parentId: string | null, title: string, atIndex?: number) => void;
+  /**
+   * An imported document added to the open play as a new script or binder
+   * document, its source kept under Originals, and opened
+   * (docs/app/importing/document-import.md#IMPT-98). False when nothing was
+   * filed; the reason is on the error line.
+   */
+  addImport: (kind: "script" | "document", title: string, content: string, keep: KeptFile, parentId?: string | null) => Promise<boolean>;
   /** Copy a file beside itself and open the copy. Files only, never folders. */
   duplicate: (id: string) => void;
   /** Show one binder item in the OS file manager. */
@@ -3484,6 +3492,26 @@ export function useWorkspace(): Workspace {
     },
     [runBinderOp, selectItem],
   );
+  const addImport = useCallback(
+    async (kind: "script" | "document", title: string, content: string, keep: KeptFile, parentId: string | null = null): Promise<boolean> => {
+      try {
+        const res = await runBinderOp((c) => importIntoPlay(c, kind, title, content, keep, parentId));
+        // A refusal is already on the error line (binderOpNow); an op dropped,
+        // because the play is read-only or another opened meanwhile, is not.
+        if (!res) setError("binder operation failed: the play is read-only or was closed, so nothing was added.");
+        if (!res?.ok || !res.createdId) return false;
+        const item = findById(res.play.binder, res.createdId);
+        if (item) selectItem(item);
+        // Opened on its page with its name already set, as New leaves a page.
+        setJustCreated({ id: res.createdId, name: false });
+        return true;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        return false;
+      }
+    },
+    [runBinderOp, selectItem],
+  );
   /**
    * Show one binder row's file in the OS file manager. A no-op where the host
    * has none (browser dev, mobile) — the binder hides the affordance off
@@ -4671,6 +4699,7 @@ export function useWorkspace(): Workspace {
     createFolder,
     createMaterial,
     createScript,
+    addImport,
     duplicate,
     revealItem,
     canReveal,

@@ -79,6 +79,9 @@ const vaultMock = {
     store.set(rel, content);
     return hashOf(content);
   },
+  async createBinary(rel: string, base64: string) {
+    return this.create(rel, atob(base64));
+  },
 };
 
 mock.module("../storage", () => ({ vault: vaultMock }));
@@ -93,6 +96,7 @@ const {
   duplicateItem,
   reorderItem,
   restoreBinderItem,
+  importIntoPlay,
 } = await import("./binder-apply");
 const { titleOf } = await import("./binder");
 const { recoverBinderMoves, applyRelocation, decodeRelocation } = await import("./binder-relocation");
@@ -452,5 +456,76 @@ describe("binder-apply disk mapping", () => {
     const r = await newMaterial(ctx(), "chars", "character", "Sophie");
     expect(r.ok).toBe(true);
     expect(store.get(PLAY_PATH)!).not.toContain('"title"');
+  });
+});
+
+// docs/app/importing/document-import.md#IMPT-98
+describe("an import added to the open play", () => {
+  const kept = { name: "Tide.docx", base64: btoa("PK\u0003\u0004 the source") };
+  const rowAt = (binder: PlayFile["binder"], path: string) =>
+    binder.flatMap((it) => [it, ...(it.children ?? [])]).find((it) => it.path === path);
+
+  it("a script lands at the play root, its source kept under Originals, and the binder is written last", async () => {
+    const out = await importIntoPlay(ctx(), "script", "Tide", "Title: Tide\n\nMARA\nHello.\n", kept);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(store.get("Tide.fountain")).toBe("Title: Tide\n\nMARA\nHello.\n");
+    expect(store.get("Originals/Tide.docx")).toBe("PK\u0003\u0004 the source");
+    expect(out.play.binder.find((it) => it.id === out.createdId)).toMatchObject({ type: "script", path: "Tide.fountain" });
+    const originals = out.play.binder.find((it) => it.type === "folder" && it.path === "Originals");
+    expect(originals?.children).toEqual([expect.objectContaining({ type: "reference", path: "Originals/Tide.docx" })]);
+    // Written through the guarded play-file writer: the manifest on disk says so too.
+    expect(store.get(PLAY_PATH)).toContain("Originals/Tide.docx");
+  });
+
+  it("a refused play-file write leaves the new files unlisted, never a row that names nothing", async () => {
+    refuseManifest = true;
+    const before = store.get(PLAY_PATH);
+    const out = await importIntoPlay(ctx(), "script", "Tide", "Title: Tide\n", kept);
+    expect(out.ok).toBe(false);
+    expect(store.get(PLAY_PATH)).toBe(before);
+    // Written before the binder: the next reconcile files them where they lie.
+    expect(store.has("Tide.fountain")).toBe(true);
+    expect(store.has("Originals/Tide.docx")).toBe(true);
+  });
+
+  it("a document goes in Notes; nothing already there is written over", async () => {
+    store.set("Notes/Tide.md", "the writer's own note\n");
+    store.set("Originals/Tide.docx", "an earlier import\n");
+    const out = await importIntoPlay(ctx(), "document", "Tide", "# Tide\n\nA note.\n", kept);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(store.get("Notes/Tide.md")).toBe("the writer's own note\n");
+    expect(store.get("Notes/Tide 2.md")).toBe("# Tide\n\nA note.\n");
+    expect(store.get("Originals/Tide.docx")).toBe("an earlier import\n");
+    expect(store.get("Originals/Tide 2.docx")).toBe("PK\u0003\u0004 the source");
+    const notes = out.play.binder.find((it) => it.id === "notes");
+    expect(notes?.children?.map((c) => c.path)).toEqual(["Notes/Tide 2.md"]);
+    expect(rowAt(out.play.binder, "Notes/Tide 2.md")?.type).toBe("document");
+  });
+
+  it("imported into a folder, a script or a document lands in that folder, at its end", async () => {
+    const script = await importIntoPlay(ctx(), "script", "Tide", "Title: Tide\n", kept, "chars");
+    expect(script.ok).toBe(true);
+    if (!script.ok) return;
+    expect(store.has("Characters/Tide.fountain")).toBe(true);
+    expect(script.play.binder.find((it) => it.id === "chars")?.children?.map((c) => c.path)).toEqual(["Characters/Mara.md", "Characters/Tide.fountain"]);
+    seedRef = { play: script.play, hash: script.hash };
+    const doc = await importIntoPlay(ctx(), "document", "Tide", "Words.\n", kept, "chars");
+    expect(doc.ok).toBe(true);
+    if (!doc.ok) return;
+    // A document filed among the characters is still a document, not a sheet.
+    const kids = doc.play.binder.find((it) => it.id === "chars")?.children ?? [];
+    expect(kids[kids.length - 1]).toMatchObject({ type: "document", path: "Characters/Tide.md" });
+    expect(store.has("Originals/Tide 2.docx")).toBe(true);
+  });
+
+  it("a play without a Notes folder row gets one; a zipped Pages package keeps both extensions", async () => {
+    seedRef.play.binder = seedRef.play.binder.filter((it) => it.id !== "notes");
+    const out = await importIntoPlay(ctx(), "document", "Harbor", "Words.\n", { name: "Harbor.pages.zip", base64: btoa("PK") });
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.play.binder.find((it) => it.type === "folder" && it.path === "Notes")?.children?.[0]?.path).toBe("Notes/Harbor.md");
+    expect(store.has("Originals/Harbor.pages.zip")).toBe(true);
   });
 });

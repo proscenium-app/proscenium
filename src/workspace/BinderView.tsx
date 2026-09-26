@@ -97,6 +97,12 @@ export interface BinderProps {
     opts?: { name?: boolean },
   ) => void;
   onNewScript: (parentId: string | null, title: string, atIndex?: number) => void;
+  /** Import a draft into this play as a script or a document, into `parentId`'s
+   * folder when there is one (docs/app/importing/document-import.md#IMPT-95). */
+  onImport?: (parentId: string | null) => void;
+  /** Files dropped from Finder onto the binder: the same review, aimed at the
+   * folder they were dropped on (docs/app/importing/document-import.md#IMPT-95). */
+  onImportFiles?: (files: File[], parentId: string | null) => void;
   /** Jump to the Cast surface (a pinned shortcut above the tree). */
   onOpenCast?: () => void;
   /** Highlight the Cast shortcut when that surface is showing. */
@@ -119,7 +125,8 @@ export interface BinderProps {
  * Four entries, down from six, because there are four things (schema.ts):
  * Document is the default and comes first — it is what nearly every new file
  * actually is, and putting it first means the common case is the top of the
- * menu rather than a choice between five near-synonyms.
+ * menu rather than a choice between five near-synonyms. Import… comes last:
+ * not a fifth thing, but a way to make one of them from a file the writer has.
  *
  * A document is written in at once: its page takes the cursor, and its name
  * waits in the page's header, F2 or a double-click (docs/app/preferences-and-help/accessibility.md#A11Y-4). A character
@@ -151,7 +158,22 @@ const CREATE_KINDS: {
     hint: "A folder on disk and in the binder",
     run: (p, id, at) => p.onNewFolder(id, "New Folder", at),
   },
+  {
+    label: "Import…",
+    hint: "A script or document from a file you have",
+    // Into the folder it was chosen from; at the end of it, so several files
+    // keep the order they were chosen in.
+    run: (p, id) => p.onImport?.(id),
+  },
 ];
+
+/**
+ * A drag from outside the app carrying files, over a binder that can import
+ * them. A drag of the binder's own rows carries no files and sets `dragId`.
+ */
+function fromFinder(e: React.DragEvent, dragId: string | null, p: Pick<BinderProps, "onImportFiles" | "readOnly">): boolean {
+  return !dragId && !!p.onImportFiles && !p.readOnly && e.dataTransfer.types.includes("Files");
+}
 
 /** Binder item type → icon, resolving the old type names through the normalizer. */
 function iconKindFor(type: string): IconKind {
@@ -531,7 +553,12 @@ export function Binder(props: BinderProps) {
 
   useEffect(() => {
     if (!menu) return;
-    const close = () => setMenu(null);
+    // A click in a menu is the menu's own: its rows choose and close it, and
+    // the row that opens New's submenu must not close it.
+    const close = (e: Event) => {
+      if (e.type === "click" && (e.target as Element | null)?.closest?.(".menu")) return;
+      setMenu(null);
+    };
     window.addEventListener("click", close);
     window.addEventListener("blur", close);
     return () => {
@@ -619,12 +646,21 @@ export function Binder(props: BinderProps) {
         }}
         onKeyDown={onKeyDown}
         onDragOver={(e) => {
+          if (fromFinder(e, dragId, props)) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            return;
+          }
           if (!dragId) return;
           e.preventDefault();
           dragOver(null, "after");
         }}
         onDrop={(e) => {
           e.preventDefault();
+          if (fromFinder(e, dragId, props)) {
+            props.onImportFiles?.([...e.dataTransfer.files], null);
+            return;
+          }
           commitDrop(null, "after");
         }}
         onDragLeave={(e) => {
@@ -838,6 +874,13 @@ function BinderNode(p: NodeProps) {
         }}
         onDragEnd={p.clearDrag}
         onDragOver={(e) => {
+          if (fromFinder(e, p.dragId, actions)) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = "copy";
+            if (isFolder) p.dragOver(item.id, "inside");
+            return;
+          }
           if (!p.dragId) return;
           e.preventDefault();
           e.stopPropagation();
@@ -849,6 +892,12 @@ function BinderNode(p: NodeProps) {
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (fromFinder(e, p.dragId, actions)) {
+            p.clearDrag();
+            // On a folder, into it; on a file, beside it, in its folder.
+            actions.onImportFiles?.([...e.dataTransfer.files], isFolder ? item.id : p.parentId);
+            return;
+          }
           const where = whereIn(e.currentTarget.getBoundingClientRect(), e.clientY, isFolder);
           p.commitDrop(item.id, where);
         }}
@@ -1034,14 +1083,21 @@ function BinderNode(p: NodeProps) {
               className="binder__emptyfolder"
               style={{ paddingLeft: `${1.9 + depth * 0.85}rem` }}
               onDragOver={(e) => {
-                if (!p.dragId) return;
+                const files = fromFinder(e, p.dragId, actions);
+                if (!p.dragId && !files) return;
                 e.preventDefault();
                 e.stopPropagation();
+                if (files) e.dataTransfer.dropEffect = "copy";
                 p.dragOver(item.id, "inside");
               }}
               onDrop={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                if (fromFinder(e, p.dragId, actions)) {
+                  p.clearDrag();
+                  actions.onImportFiles?.([...e.dataTransfer.files], item.id);
+                  return;
+                }
                 p.commitDrop(item.id, "inside");
               }}
             >

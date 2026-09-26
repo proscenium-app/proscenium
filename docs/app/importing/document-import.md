@@ -10,9 +10,11 @@ Import converts a source into a new play after review. The requirements below co
 
 <a id="IMPT-D100"></a>
 
-<a id="IMPT-1"></a>
+**IMPT-1 — Withdrawn 2026-09-25.** Replaced by [IMPT-93](#IMPT-93): an import can now add to the open play as well as make a new one. The original wording is kept in [withdrawn requirements](../../engineering/withdrawn-requirements.md#IMPT-1).
 
-**IMPT-1** Import reads local source files, presents a correctable interpretation, and creates a new play only on confirmation.
+<a id="IMPT-93"></a>
+
+**IMPT-93** Import reads local source files, presents a correctable interpretation, and only on confirmation creates something new: a play, from the Plays screen, or a script or binder document in the open play ([IMPT-95](#IMPT-95)).
 
 <a id="IMPT-D1"></a>
 
@@ -42,9 +44,12 @@ Fountain syntax to fix an import.
 #### Non-negotiable promises
 
 - <a id="IMPT-5"></a> **IMPT-5** The chosen source is read only. Its bytes are copied into the new play.
-- <a id="IMPT-6"></a> **IMPT-6** Nothing is written until **Create New Play**.
-- <a id="IMPT-7"></a> **IMPT-7** The import creates a separate play. It does not append to or replace an open
-  script, and never overwrites an existing file.
+- **IMPT-6 — Withdrawn 2026-09-25.** Replaced by [IMPT-94](#IMPT-94), which names the commands that add to a play ([withdrawn wording](../../engineering/withdrawn-requirements.md#IMPT-6)).
+- <a id="IMPT-94"></a> **IMPT-94** Nothing is written until **Create New Play**, or **Add Script** or **Add Document** in a play.
+- **IMPT-7 — Withdrawn 2026-09-25.** Replaced by [IMPT-101](#IMPT-101): an import may now add to the open play ([withdrawn wording](../../engineering/withdrawn-requirements.md#IMPT-7)).
+- <a id="IMPT-101"></a> **IMPT-101** An import creates something new: a separate play, or a new script or
+  document in the open play. It never appends to or replaces an existing script
+  or document, and never overwrites a file.
 - <a id="IMPT-8"></a> **IMPT-8** Reading is deterministic, local and cancellable. No accounts or AI.
 - <a id="IMPT-9"></a> **IMPT-9** Recognized source elements, inferred elements and manual choices are
   distinguishable. Unrecognized elements retain their text.
@@ -227,24 +232,85 @@ of them ([IMPT-86](#IMPT-86)).
 router. In particular, opening a kept original never creates another play.
 An existing Fountain script still opens in its own play.
 
-<a id="IMPT-37"></a>
+**IMPT-37 — Withdrawn 2026-09-25.** Replaced by [IMPT-96](#IMPT-96), which adds the open play as a destination ([withdrawn wording](../../engineering/withdrawn-requirements.md#IMPT-37)).
 
-**IMPT-37** The destination is the current Plays folder, displayed in review. Choosing the
-folder remains the existing onboarding/Settings action. Import does not quietly
-switch it. A Finder request waits until a Plays folder exists.
+<a id="IMPT-96"></a>
+
+**IMPT-96** The destination is displayed in review. From the Plays screen, and for a file
+opened from Finder, it is the current Plays folder. Choosing that folder remains
+the existing onboarding/Settings action, import does not quietly switch it, and a
+Finder request waits until a Plays folder exists. Imported inside a play, the
+destination is that play.
 
 <a id="IMPT-38"></a>
 
 **IMPT-38** The review uses a wide, temporary document sheet, like Export. One sheet serves imports from both Plays and an open play without implying a persistent import draft. The sheet keeps the current
 writing mounted, owns focus during this transaction and can be cancelled.
 
+<a id="IMPT-D13"></a>
+
+### Importing into an open play
+
+<a id="IMPT-95"></a>
+
+**IMPT-95** Import follows where the writer is. On the Plays screen, and for a file opened
+from Finder, it makes a new play. Inside a play, **File → Import a Draft…** (⌘⇧I),
+**Import…** in the binder's New menu, and files dropped on the binder add to
+that play instead: the draft becomes a new script or a binder document there,
+reviewed first in the same sheet. Import… goes where New would: into the folder
+chosen or right-clicked, or beside the file chosen, in its folder. A drop goes
+into the folder it lands on, or the folder of the file it lands on; one on the
+binder's open space goes to the play itself. The review names the folder.
+
+<a id="IMPT-98"></a>
+
+**IMPT-98** Adding to a play writes in the scaffold's order ([IMPT-71](#IMPT-71)): the source
+under the play's `Originals/` first, then the new script or document at the end
+of the folder it was imported into, and the binder last. With no folder named, a
+script goes at the play's root and a document in its Notes folder. Every file is created,
+never written over; a name already taken gets the next free one (`Tide 2.md`).
+Notes and Originals are added to the binder if the play has none yet. A failure
+before the binder write leaves at most files the binder does not list yet, which
+the next reconcile files where they lie; the review stays open and says what
+happened. After success the new script or document opens on its page, and the
+announcement says the original is in Originals.
+
+<a id="IMPT-100"></a>
+
+**IMPT-100** A binder document is written as Markdown by the prose editor's own serializer
+([WORK-51](../organizing/workspace-model.md#WORK-51)). Headings come from the
+source's styles: Title is a first-level heading, Heading or Heading 1 the second,
+and so on down; a script's own act and scene headings, and the sections the
+readers append (text boxes, footnotes, comments), are headings too. Every other
+paragraph is a paragraph. Bold and italic carry. Markdown has no underline, so
+underlined words keep their text and lose the line, and the review says so when
+the draft has any. Line breaks stay; a tab becomes a space. In a document's
+review the summary counts headings, and the element filter, reading choice and
+element corrections of the script review ([IMPT-51](#IMPT-51),
+[IMPT-53](#IMPT-53), [IMPT-57](#IMPT-57)) give way to how each paragraph will
+read, Heading or Paragraph. A new play and a new script keep the script review.
+
+<a id="IMPT-103"></a>
+
+**IMPT-103** Acceptance coverage for importing into a play: the binder operation's order,
+Notes and Originals made when missing, unique names beside existing files, a
+refused play-file write leaving no row that names nothing, and a zipped Pages
+package keeping both extensions; the document conversion's headings, emphasis,
+escaping and read-back; the Add as default for a styled script, a Fountain file,
+notes and an unstyled two-hander; importing into a named folder; and smoke through
+the binder's New menu, the menu command, a folder's own menu (by keyboard) and a
+file dropped on a folder, adding a script and documents to an open play.
+
 <a id="IMPT-D5"></a>
 
 ### Screen one: choose a draft
 
-<a id="IMPT-39"></a>
+**IMPT-39 — Withdrawn 2026-09-25.** Replaced by [IMPT-102](#IMPT-102), which gives the subtitle for an import into a play ([withdrawn wording](../../engineering/withdrawn-requirements.md#IMPT-39)).
 
-**IMPT-39** Heading: **Import a Draft**. Subtitle: **Review your draft before creating a play.**
+<a id="IMPT-102"></a>
+
+**IMPT-102** Heading: **Import a Draft**. Subtitle: **Review your draft before creating a
+play.**, or in a play, **Review your draft before adding it to** the play's name.
 
 <a id="IMPT-40"></a>
 
@@ -282,7 +348,15 @@ copy uses the shared 13px UI scale. The drop area uses a neutral field surface.
 **IMPT-48** Hierarchy from top to bottom:
 
 1. <a id="IMPT-49"></a> **IMPT-49** **Review Your Draft**, with source filename and detected format.
-2. <a id="IMPT-50"></a> **IMPT-50** Editable **New play name**; visible Plays folder; **Choose Different Files…**.
+2. **IMPT-50 — Withdrawn 2026-09-25.** Replaced by [IMPT-97](#IMPT-97) ([withdrawn wording](../../engineering/withdrawn-requirements.md#IMPT-50)).
+   <a id="IMPT-97"></a> **IMPT-97** An editable name: **New play name**, or in a play **New script name** or
+   **Document name**. Beside it, the Plays folder; in a play, the play's name and
+   **Add as** (**New Script** or **Binder Document**). **Choose Different Files…**.
+   Add as starts at New Script when the source names script elements (a Fountain
+   or `.fdx` file, or a paragraph styled Character, Dialogue or Scene Heading), or
+   when cues read from the text appear at least three times and dialogue makes up
+   a quarter of the paragraphs; otherwise at Binder Document. The writer can
+   change it before adding.
 3. <a id="IMPT-51"></a> **IMPT-51** A compact sentence-like summary: paragraphs, scene headings, distinct
    character cues, inferred/unrecognized count. These are interpretation counts,
    not proof that every part of the source was imported.
@@ -290,8 +364,9 @@ copy uses the shared 13px UI scale. The drop area uses a neutral field surface.
    reading path, before the preview and commit button.
 5. <a id="IMPT-53"></a> **IMPT-53** Find text; **Inferred or Unrecognized Only**; an unstyled-text reading choice.
 6. <a id="IMPT-54"></a> **IMPT-54** Paragraph preview beside the correction inspector.
-7. <a id="IMPT-55"></a> **IMPT-55** Fixed footer: the create/copy consequence, Cancel, optional Skip This File,
-   and **Create New Play**.
+7. **IMPT-55 — Withdrawn 2026-09-25.** Replaced by [IMPT-99](#IMPT-99) ([withdrawn wording](../../engineering/withdrawn-requirements.md#IMPT-55)).
+   <a id="IMPT-99"></a> **IMPT-99** Fixed footer: the create/copy consequence, Cancel, optional Skip This File,
+   and **Create New Play**, or in a play **Add Script** or **Add Document**.
 
 <a id="IMPT-D102"></a>
 

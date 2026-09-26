@@ -340,13 +340,15 @@ reports.
    The app already holds these addresses, so a copy built before a route goes
    live loses only what that route receives. The sheet says so, and keeps the
    writer's words.
-3. <a id="SERV-260"></a> **SERV-260** **Launch day.** The Stable update proof
-   ([release-engineering.md#SHIP-D104](release-engineering.md#SHIP-D104), step 8) updates a copy of the last
-   0.9.x to 1.0.0 through `updates.proscenium.ink`. The updater's way to GitHub
-   with that host unreachable is proven by its native tests and the rehearsal
-   that ran it headless. It
-   replaces SERV-129 (docs/engineering/withdrawn-requirements.md#SERV-129), which
-   a person ran on a second macOS account.
+3. <a id="SERV-264"></a> **SERV-264** **Launch day.** The first update through
+   `updates.proscenium.ink` on stable, 0.9.x to 1.0.0, is not proven by a machine:
+   the update proof builds the version updated from, and no 0.9.x carries it.
+   From 1.0.1 on, the update proof on the build host updates a copy of the
+   release before to the new one through that host
+   ([release-engineering.md#SHIP-D109](release-engineering.md#SHIP-D109), step 7).
+   The updater's way to GitHub with that host unreachable is proven by its
+   native tests and the rehearsal that ran it headless. It replaces SERV-260
+   (docs/engineering/withdrawn-requirements.md#SERV-260).
 
 <a id="SERV-D105"></a>
 

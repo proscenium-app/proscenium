@@ -105,6 +105,9 @@ fn say(line: &str) {
 /// must never have one.
 pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
     let builder = PluginBuilder::new("selftest");
+    if begin_proof() {
+        return proof_plugin(builder);
+    }
     if !begin() {
         return builder.build();
     }
@@ -142,6 +145,101 @@ pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
             }
         })
         .build()
+}
+
+// --- the update proof ---------------------------------------------------------
+
+/// scripts/update-proof/drive.js: what the proof does in the page.
+const PROOF_DRIVE: &str = include_str!("../../scripts/update-proof/drive.js");
+
+/// A run of the update proof: a self-test build of the version being updated
+/// from, started with `PROSCENIUM_UPDATE_PROOF=<log>` by the build host's proof
+/// script, which checks what the copy comes back as once the update is done. Unlike a self-test, its updater asks the real
+/// update service, which is the point, and the home it runs in is the one it
+/// was given, with the scratch play the script put there.
+struct Proof {
+    log: PathBuf,
+    line: String,
+    started: Instant,
+}
+
+static PROOF: OnceLock<Proof> = OnceLock::new();
+
+/// Whether this process is the update proof, whose updater asks the real service.
+pub fn proving_update() -> bool {
+    PROOF.get().is_some()
+}
+
+fn begin_proof() -> bool {
+    let Some(log) = std::env::var_os("PROSCENIUM_UPDATE_PROOF").map(PathBuf::from) else {
+        return false;
+    };
+    let line = std::env::var("PROSCENIUM_UPDATE_PROOF_LINE").unwrap_or_default();
+    if line.is_empty() || !line.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ' ') {
+        eprintln!("[update-proof] PROSCENIUM_UPDATE_PROOF_LINE must be letters, digits, spaces and hyphens");
+        std::process::exit(2);
+    }
+    let _ = PROOF.set(Proof { log, line, started: Instant::now() });
+    proof_say(&format!(
+        "v{} {} · macOS {} · HOME {}",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::ARCH,
+        macos_version(),
+        std::env::var("HOME").unwrap_or_default()
+    ));
+    true
+}
+
+/// One line of the proof's log, which the script reads after this process is gone.
+fn proof_say(line: &str) {
+    use std::io::Write as _;
+    let Some(proof) = PROOF.get() else { return };
+    let line = format!("[{:>7}ms] {line}\n", proof.started.elapsed().as_millis());
+    print!("[update-proof] {line}");
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&proof.log) {
+        let _ = f.write_all(line.as_bytes());
+    }
+}
+
+/// The proof's page runs drive.js, drawing and taking keys behind the locked
+/// screen as a self-test's page does.
+fn proof_plugin<R: Runtime>(builder: PluginBuilder<R>) -> TauriPlugin<R> {
+    builder
+        .js_init_script(PROOF_DRIVE)
+        .on_webview_ready(|webview| {
+            if webview.label() == "main" {
+                let _ = webview.with_webview(|platform| {
+                    let applied = native::keep_drawing(platform.inner());
+                    proof_say(&format!("drawing behind a locked screen: {applied}"));
+                });
+            }
+        })
+        .on_window_ready(|window| {
+            if window.label() == "main" {
+                if let Ok(ns_window) = window.ns_window() {
+                    if native::claim_key_status(ns_window) {
+                        proof_say("the screen is locked: the window stands in as key");
+                    }
+                }
+                let _ = window.set_focus();
+            }
+        })
+        .build()
+}
+
+/// What the proof's page needs: the line to type.
+#[tauri::command]
+pub fn selftest_proof_context() -> Result<Value, String> {
+    let proof = PROOF.get().ok_or("no update proof is running")?;
+    Ok(json!({ "line": proof.line }))
+}
+
+/// A line from the proof's page, into its log.
+#[tauri::command]
+pub fn selftest_proof_log(line: String) -> Result<(), String> {
+    PROOF.get().ok_or("no update proof is running")?;
+    proof_say(&line);
+    Ok(())
 }
 
 /// Read the environment and prepare the run, before anything resolves a path.

@@ -73,7 +73,9 @@ You need a Mac on macOS 14 or later, with:
 - Xcode's Command Line Tools (`xcode-select --install`);
 - Rust, through [rustup](https://rustup.rs). `rust-toolchain.toml` names the
   version, and rustup fetches it the first time you build;
-- [Bun](https://bun.sh) 1.3.14 and [Node.js](https://nodejs.org) 24.
+- [Bun](https://bun.sh) 1.3.14 and [Node.js](https://nodejs.org) 24;
+- [ripgrep](https://github.com/BurntSushi/ripgrep) (`brew install ripgrep`), which
+  two of the gates use.
 
 Then, from a clone of this repository:
 

@@ -18,6 +18,8 @@ import {
 } from "./model";
 import { guidance, SOURCE_GUIDES } from "./formats";
 import { zipPackage } from "./package";
+import { documentMarkdown, hasUnderline, headingLevel, looksLikeScript } from "./document";
+import { toDoc } from "../markdown/doc";
 import { HARBOR, harborPackage, harborPages } from "../../scripts/pages-sample.mjs";
 
 const w =
@@ -518,5 +520,62 @@ describe("a Pages document that cannot be read directly says what to do, before 
     expect(guidance("Draft.pages.zip")).toBeNull();
     expect(guidance("Draft.zip")).toContain("Unzip");
     expect(SOURCE_GUIDES.find((g) => g.name === "Pages")?.text).toContain("Export To › Word");
+  });
+});
+
+/*
+ * An import added to the open play as a binder document
+ * (docs/app/importing/document-import.md#IMPT-100), and which of the two it
+ * starts as (docs/app/importing/document-import.md#IMPT-97).
+ */
+describe("an import read as a binder document", () => {
+  const para = (text: string, style: string, marks: ("strong" | "em" | "underline")[] = []) => ({
+    style,
+    content: [{ type: "text" as const, text, ...(marks.length ? { marks: marks.map((type) => ({ type })) } : {}) }],
+  });
+  const docOf = (paragraphs: Parameters<typeof documentMarkdown>[0]["paragraphs"]) =>
+    ({ name: "Notes.docx", format: "Word", paragraphs, frontMatter: {}, notices: [] });
+
+  test("headings come from Title and Heading styles; bold and italic carry; underline keeps its words", () => {
+    const markdown = documentMarkdown(docOf([
+      para("Gull Island", "Title"),
+      para("Main characters", "Heading 1"),
+      para("Oriel", "Heading 2"),
+      para("A cartographer who never travels", "Body", ["strong"]),
+      para("or does she?", "Body", ["em"]),
+      para("underlined, and a *star* kept literal", "Body", ["underline"]),
+      para("Line one\nline two\twith a tab", "Body"),
+    ]));
+    expect(markdown).toBe(
+      "# Gull Island\n\n## Main characters\n\n### Oriel\n\n**A cartographer who never travels**\n\n_or does she?_\n\n" +
+        "underlined, and a \\*star\\* kept literal\n\nLine one\nline two with a tab\n",
+    );
+    // The editor reads it back as the same page: headings, emphasis and the literal star.
+    const back = toDoc(markdown).content!;
+    expect(back.map((n) => (n.type === "heading" ? `h${n.attrs?.level}` : n.type))).toEqual(["h1", "h2", "h3", "paragraph", "paragraph", "paragraph", "paragraph"]);
+    expect(back[5].content?.map((n) => n.text).join("")).toBe("underlined, and a *star* kept literal");
+    expect(hasUnderline(docOf([para("x", "Body", ["underline"])]))).toBe(true);
+  });
+
+  test("a script's own act and scene headings, and the readers' appended sections, become headings", () => {
+    const d = readDocument("Harbor.pages", harborPages());
+    const markdown = documentMarkdown(d);
+    expect(markdown.startsWith("## ACT ONE\n\n### Scene 1. The waiting room.\n\nA harbor office")).toBe(true);
+    expect(headingLevel({ style: "Footnotes", content: [] })).toBe(2);
+  });
+
+  test("a styled script or a Fountain file starts as a script; notes start as a document", () => {
+    const script = readDocument("Harbor.pages", harborPages());
+    expect(looksLikeScript(script, reviewLines(script, "detect", EMPTY_CORRECTIONS))).toBe(true);
+    const fountain = readDocument("Draft.fountain", strToU8("INT. PIER - DAY\n\nNELL\nHello.\n"));
+    expect(looksLikeScript(fountain, reviewLines(fountain, "detect", EMPTY_CORRECTIONS))).toBe(true);
+    // Planning notes in one body style: two capitalised lines are not a play.
+    const notes = readDocument("Notes.txt", strToU8(
+      ["Harbor town or inland?", "GULL ISLAND", "Fog most mornings, a ferry twice a day.", "ORIEL", "A cartographer who never travels.", "What does she want?", "To be asked.", "Salt on every window."].join("\n"),
+    ));
+    expect(looksLikeScript(notes, reviewLines(notes, "detect", EMPTY_CORRECTIONS))).toBe(false);
+    // An unstyled play carried by cues and dialogue, even a two-hander.
+    const play = readDocument("Play.txt", strToU8("MARA\nYou said it would wait.\nELI\nI said we had time.\nMARA\nThere is a difference."));
+    expect(looksLikeScript(play, reviewLines(play, "detect", EMPTY_CORRECTIONS))).toBe(true);
   });
 });

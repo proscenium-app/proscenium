@@ -5,12 +5,14 @@
  * First run: one question, answered with one click (docs/app/keeping-work/storage-and-file-format.md#STOR-D12).
  *
  * > **Where should your plays live?**
- * > ○ iCloud Drive *(recommended: your plays appear on your iPad too)*
+ * > ○ iCloud Drive *(recommended: your plays appear on your other Macs too)*
  * > ○ A folder I choose…
  *
  * The iCloud option is the app's own container, shown in Finder as
- * iCloud Drive › Proscenium. It needs no folder panel and no bookmark, which
- * is why it is the default and
+ * iCloud Drive › Proscenium on every Mac signed in to the same iCloud account.
+ * Its note names only what ships: there is no iPad version yet, so it does
+ * not promise one. It needs no folder panel and no
+ * bookmark, which is why it is the default and
  * `~/Documents/Plays` is not — nothing can create a folder under Documents
  * without the writer going through the panel anyway.
  *
@@ -92,7 +94,7 @@ export function WelcomeScreen({
             <button type="button" className="welcome__choice" onClick={onChooseCloud}>
               <span className="welcome__choiceName">iCloud Drive</span>
               <span className="welcome__choiceNote">
-                Recommended — your plays appear on your iPad too.
+                Recommended — your plays appear on your other Macs too.
               </span>
             </button>
           )}

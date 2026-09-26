@@ -10,9 +10,12 @@
  *   node scripts/build-app.mjs --selftest          the same for this Mac only, for iterating
  *
  *   node scripts/build-app.mjs --local             bun run app:install — this Mac's slice, no updater
+ *   node scripts/build-app.mjs --update-proof      the update proof's copy of this version: the self-test
+ *                                                  build under the real app's name and identifier, for
+ *                                                  the build host's proof only
  *
  * `--universal` builds `universal-apple-darwin`: one bundle for Apple silicon and
- * Intel, the loader picks the slice (docs/engineering/release-engineering.md#REL-122). `bun run app:install`
+ * Intel, the loader picks the slice (docs/engineering/release-engineering.md#REL-123). `bun run app:install`
  * stays host-only because a universal build compiles the crate twice.
  *
  * `--local` builds without default features, so without the updater, and with
@@ -29,6 +32,14 @@
  * a local install, because the CI runners have no certificate; the release
  * gate (`--release`, implied without `--selftest`) proves no self-test code
  * reached the shipped binary.
+ *
+ * `--update-proof` is that self-test build with one difference: the real app's
+ * name and bundle id. The update it installs is the real next version, whose
+ * archive the installer takes only for the app it was built for, so the copy
+ * that asks must be that app. Started with PROSCENIUM_UPDATE_PROOF, its updater
+ * asks the real service (src-tauri/src/selftest.rs). Only the build host's proof
+ * script builds it, into a scratch home that nothing else reads; like every
+ * self-test build it is never packaged or shipped.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -40,7 +51,8 @@ import { requireDiskFloor } from "./disk-floor.mjs";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const UNIVERSAL = args.includes("--universal");
-const SELFTEST = args.includes("--selftest");
+const PROOF = args.includes("--update-proof");
+const SELFTEST = args.includes("--selftest") || PROOF;
 const DMG = args.includes("--dmg");
 const LOCAL = args.includes("--local");
 
@@ -54,7 +66,7 @@ if (LOCAL && (SELFTEST || DMG || UNIVERSAL)) {
 }
 
 const conf = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
-const productName = SELFTEST ? "Proscenium Self-Test" : conf.productName;
+const productName = SELFTEST && !PROOF ? "Proscenium Self-Test" : conf.productName;
 
 const tauriArgs = ["build", "--bundles", DMG ? "app,dmg" : "app"];
 if (UNIVERSAL) tauriArgs.push("--target", "universal-apple-darwin");
@@ -82,7 +94,7 @@ if (SELFTEST) {
   // real config rather than restated — a window setting added there reaches
   // the self-test build without anyone remembering this file.
   const overlay = {
-    identifier: `${conf.identifier}.selftest`,
+    identifier: PROOF ? conf.identifier : `${conf.identifier}.selftest`,
     productName,
     // acceptFirstMouse: a click reaches the page even when the window is not
     // key, so a run survives someone clicking another app mid-test. The shipped

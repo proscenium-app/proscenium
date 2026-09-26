@@ -8,12 +8,12 @@ Initial allocation: 2026-09-21. Every integer in each inclusive range is permane
 | COMM | 1 | 49 |
 | EDIT | 1 | 171 |
 | FMT | 1 | 157 |
-| IMPT | 1 | 92 |
+| IMPT | 1 | 103 |
 | PLAT | 1 | 66 |
 | PRIV | 1 | 83 |
 | PROD | 1 | 30 |
-| REL | 1 | 122 |
-| SERV | 1 | 263 |
+| REL | 1 | 123 |
+| SERV | 1 | 264 |
 | SET | 1 | 39 |
 | STOR | 1 | 176 |
 | TUT | 1 | 10 |

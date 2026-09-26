@@ -288,7 +288,10 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
     // A self-test run asks no update service:
     // the pipeline's runs are not copies in use, and what a track publishes
     // must not change what a check sees.
-    if cfg!(feature = "selftest") {
+    // The one exception is the update proof: a self-test build started to ask,
+    // so the update a writer's copy takes is proven end to end on the build host.
+    #[cfg(feature = "selftest")]
+    if !crate::selftest::proving_update() {
         return Ok(None);
     }
     let key = key_for(track, || settings::update_track_key(app))?;

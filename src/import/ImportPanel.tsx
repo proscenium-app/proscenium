@@ -10,6 +10,7 @@ import { encodeBytes, type KeptFile } from "../storage/import-bytes";
 import { analyze } from "./analyze";
 import { guidance, IMPORT_ACCEPT, isPagesName, SOURCE_GUIDES } from "./formats";
 import { zipPackage } from "./package";
+import { documentMarkdown, hasUnderline, headingLevel, looksLikeScript } from "./document";
 import {
   documentTitle,
   ELEMENTS,
@@ -26,10 +27,24 @@ export type ImportSource = { file: File } | { path: string };
 export interface ImportRequest {
   sources: ImportSource[];
   finish?: () => void;
+  /** The open play the import goes into, by title
+   * (docs/app/importing/document-import.md#IMPT-96). A new play when absent. */
+  play?: string;
+  /** The binder folder it goes into, when Import… or a drop named one. */
+  parentId?: string | null;
+  /** That folder's name, for the review to show. */
+  folder?: string;
 }
+export type AddAs = "script" | "document";
+
 const sourceName = (source: ImportSource) =>
   "file" in source ? source.file.name : source.path.split(/[\\/]/).pop()!;
 const PAGE_SIZE = 50;
+/** How a paragraph reads in a binder document. */
+const documentLabel = (p: { style: string; kind?: BlockType; content: InlineNode[] }) => {
+  const level = headingLevel(p);
+  return level ? `Heading ${level}` : "Paragraph";
+};
 
 function Text({ content }: { content: InlineNode[] }) {
   return (
@@ -63,12 +78,14 @@ function Text({ content }: { content: InlineNode[] }) {
 }
 
 /** A temporary review transaction, using the same focus-owning sheet as Export.
- * The writing behind it remains mounted until an explicit Create New Play. */
+ * The writing behind it remains mounted until an explicit Create New Play, or
+ * Add Script or Add Document when the import goes into the open play. */
 export function ImportPanel({
   request,
   destination,
   onClose,
   onCreate,
+  onAdd,
 }: {
   request: ImportRequest;
   destination: string;
@@ -78,7 +95,10 @@ export function ImportPanel({
     script: string,
     original: KeptFile,
   ) => Promise<boolean>;
+  /** Adds to the open play when the request names one. */
+  onAdd?: (as: AddAs, title: string, content: string, original: KeptFile) => Promise<boolean>;
 }) {
+  const play = request.play;
   const [queue, setQueue] = useState(request.sources);
   const [doc, setDoc] = useState<ImportDocument | null>(null);
   const [original, setOriginal] = useState<Uint8Array | null>(null);
@@ -95,6 +115,7 @@ export function ImportPanel({
   const [search, setSearch] = useState("");
   const [made, setMade] = useState(0);
   const [sourceApp, setSourceApp] = useState("Pages");
+  const [addAs, setAddAs] = useState<AddAs>("script");
   const busy = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const titleInput = useRef<HTMLInputElement>(null);
@@ -137,6 +158,7 @@ export function ImportPanel({
       setDoc(document);
       setOriginal(bytes);
       setTitle(documentTitle(document));
+      if (play) setAddAs(looksLikeScript(document, reviewLines(document, "detect", EMPTY_CORRECTIONS)) ? "script" : "document");
       announce(
         `${name} is ready to review. ${document.paragraphs.length} paragraphs. Nothing has been imported yet.`,
       );
@@ -185,6 +207,8 @@ export function ImportPanel({
   const scenes = lines.filter(
     (p) => p.kind === "scene" || p.kind === "sceneHeading",
   ).length;
+  const headings = doc ? doc.paragraphs.filter((p) => headingLevel(p)).length : 0;
+  const asDocument = !!play && addAs === "document";
   const characters = new Set(
     lines
       .filter((p) => p.kind === "character")
@@ -211,19 +235,25 @@ export function ImportPanel({
     setSaving(true);
     setError("");
     try {
-      const script = makeScript(doc, title.trim(), reading, corrections);
-      const ok = await onCreate(title.trim(), script, {
-        name: doc.name,
-        base64: encodeBytes(original),
-      });
+      const kept = { name: doc.name, base64: encodeBytes(original) };
+      const content = asDocument
+        ? documentMarkdown(doc)
+        : makeScript(doc, title.trim(), reading, corrections);
+      const ok = play && onAdd
+        ? await onAdd(addAs, title.trim(), content, kept)
+        : await onCreate(title.trim(), content, kept);
       if (!ok) {
         setError(
-          "The play could not be created or opened. Your review is still here. Check the app’s save message before trying again; an incomplete folder may remain in your Plays folder.",
+          play
+            ? `“${title.trim()}” could not be added to ${play}. Your review is still here. Check the app’s message before trying again; the original may already be in the play's Originals folder.`
+            : "The play could not be created or opened. Your review is still here. Check the app’s save message before trying again; an incomplete folder may remain in your Plays folder.",
         );
         return;
       }
       announce(
-        `“${title.trim()}” was imported. The original is in its Originals folder.`,
+        play
+          ? `“${title.trim()}” was added to ${play} as ${asDocument ? "a document" : "a script"}. The original is in its Originals folder.`
+          : `“${title.trim()}” was imported. The original is in its Originals folder.`,
       );
       if (queue.length > 1) {
         setMade((n) => n + 1);
@@ -244,7 +274,9 @@ export function ImportPanel({
       subtitle={
         doc
           ? `${doc.name} · ${doc.format}${queue.length > 1 ? ` · ${queue.length} files remaining` : ""}`
-          : "Review your draft before creating a play."
+          : play
+            ? `Review your draft before adding it to ${play}.`
+            : "Review your draft before creating a play."
       }
       width={doc ? 1060 : 720}
       onClose={close}
@@ -252,9 +284,11 @@ export function ImportPanel({
         <>
           <span className="import-desk__footnote">
             {made ? `${made} imported. ` : ""}
-            {doc
-              ? "Creates a new play. Keeps a copy of the original."
-              : "Files are read on your device."}
+            {!doc
+              ? "Files are read on your device."
+              : play
+                ? `Adds ${asDocument ? "a document" : "a script"} to ${play}. Keeps a copy of the original.`
+                : "Creates a new play. Keeps a copy of the original."}
           </span>
           <Button disabled={saving} onClick={close}>
             {made ? "Done" : "Cancel"}
@@ -273,7 +307,15 @@ export function ImportPanel({
               disabled={saving || !title.trim()}
               onClick={() => void create()}
             >
-              {saving ? "Creating Play…" : "Create New Play"}
+              {play
+                ? saving
+                  ? "Adding…"
+                  : asDocument
+                    ? "Add Document"
+                    : "Add Script"
+                : saving
+                  ? "Creating Play…"
+                  : "Create New Play"}
             </Button>
           )}
         </>
@@ -366,7 +408,7 @@ export function ImportPanel({
           <>
             <div className="import-desk__destination">
               <label htmlFor="import-play-title">
-                New play name
+                {play ? (asDocument ? "Document name" : "New script name") : "New play name"}
                 <input
                   ref={titleInput}
                   id="import-play-title"
@@ -377,12 +419,31 @@ export function ImportPanel({
                   maxLength={120}
                 />
               </label>
-              <div>
-                <span className="import-desk__hint">In your Plays folder</span>
-                <p className="import-desk__path" title={destination}>
-                  {destination}
-                </p>
-              </div>
+              {play ? (
+                <div>
+                  <span className="import-desk__hint">
+                    In {play}
+                    {request.folder ? ` › ${request.folder}` : ""}
+                  </span>
+                  <PopupButton
+                    label="Add as"
+                    value={addAs}
+                    disabled={saving}
+                    options={[
+                      { value: "script", label: "New Script" },
+                      { value: "document", label: "Binder Document" },
+                    ]}
+                    onChange={setAddAs}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <span className="import-desk__hint">In your Plays folder</span>
+                  <p className="import-desk__path" title={destination}>
+                    {destination}
+                  </p>
+                </div>
+              )}
               <Button
                 disabled={saving}
                 onClick={() => fileInput.current?.click()}
@@ -392,15 +453,26 @@ export function ImportPanel({
             </div>
             <div className="import-desk__summary" aria-live="polite">
               <strong>{lines.length} paragraphs</strong>
-              <span>
-                {scenes} scene {scenes === 1 ? "heading" : "headings"}
-              </span>
-              <span>{characters} characters</span>
-              <span>
-                {toReview
-                  ? `${toReview} inferred or unrecognized`
-                  : "All elements come from the source or your choices"}
-              </span>
+              {asDocument ? (
+                <>
+                  <span>
+                    {headings} {headings === 1 ? "heading" : "headings"}
+                  </span>
+                  <span>Headings come from the source’s Title and Heading styles</span>
+                </>
+              ) : (
+                <>
+                  <span>
+                    {scenes} scene {scenes === 1 ? "heading" : "headings"}
+                  </span>
+                  <span>{characters} characters</span>
+                  <span>
+                    {toReview
+                      ? `${toReview} inferred or unrecognized`
+                      : "All elements come from the source or your choices"}
+                  </span>
+                </>
+              )}
             </div>
             <details className="import-desk__limits">
               <summary>
@@ -410,9 +482,9 @@ export function ImportPanel({
                   : ""}
               </summary>
               <p>
-                Your words and supported emphasis become an editable script.
-                Proscenium’s script format determines page layout. Your original
-                file is kept in Originals.
+                {asDocument
+                  ? `Your words, headings, bold and italic become a page in the binder that you edit like any note.${hasUnderline(doc) ? " Underlined words keep their text; a page has no underline." : ""} Your original file is kept in Originals.`
+                  : "Your words and supported emphasis become an editable script. Proscenium’s script format determines page layout. Your original file is kept in Originals."}
               </p>
               {doc.notices.length > 0 && (
                 <ul>
@@ -433,6 +505,7 @@ export function ImportPanel({
                   setPage(0);
                 }}
               />
+              {!asDocument && (
               <span className="import-desk__reviewfilter">
                 <Checkbox
                   on={reviewOnly}
@@ -444,6 +517,8 @@ export function ImportPanel({
                 />
                 <span>Inferred or Unrecognized Only</span>
               </span>
+              )}
+              {!asDocument && (
               <PopupButton
                 label="Unstyled text"
                 value={reading}
@@ -454,6 +529,7 @@ export function ImportPanel({
                 ]}
                 onChange={setReading}
               />
+              )}
             </div>
             <div className="import-desk__review">
               <section
@@ -462,7 +538,11 @@ export function ImportPanel({
               >
                 <div className="import-desk__previewhead">
                   <h3>Reading preview</h3>
-                  <span>Choose a paragraph to adjust its element.</span>
+                  <span>
+                    {asDocument
+                      ? "How each paragraph will read in the document."
+                      : "Choose a paragraph to adjust its element."}
+                  </span>
                 </div>
                 <div className="import-desk__lines">
                   {shown.length ? (
@@ -472,7 +552,7 @@ export function ImportPanel({
                         key={index}
                         className={`import-desk__line${selected === index ? " is-selected" : ""}`}
                         aria-pressed={selected === index}
-                        aria-label={`Paragraph ${index + 1}, ${ELEMENTS.find((e) => e.value === line.kind)?.label ?? line.kind}${line.review ? ", inferred or unrecognized" : ""}: ${paragraphText(line)}`}
+                        aria-label={`Paragraph ${index + 1}, ${asDocument ? documentLabel(line) : `${ELEMENTS.find((e) => e.value === line.kind)?.label ?? line.kind}${line.review ? ", inferred or unrecognized" : ""}`}: ${paragraphText(line)}`}
                         onClick={() => setSelected(index)}
                       >
                         <span className="import-desk__number">{index + 1}</span>
@@ -483,9 +563,9 @@ export function ImportPanel({
                           {line.kind === "pageBreak" && "Page break"}
                         </span>
                         <span className="import-desk__kind">
-                          {line.review ? "? " : ""}
-                          {ELEMENTS.find((e) => e.value === line.kind)?.label ??
-                            line.kind}
+                          {asDocument
+                            ? documentLabel(line)
+                            : `${line.review ? "? " : ""}${ELEMENTS.find((e) => e.value === line.kind)?.label ?? line.kind}`}
                         </span>
                       </button>
                     ))
@@ -521,7 +601,23 @@ export function ImportPanel({
                 className="import-desk__adjust"
                 aria-label="Adjust paragraph"
               >
-                {active && (
+                {active && asDocument && (
+                  <>
+                    <h3>Paragraph {selected + 1}</h3>
+                    <p className="import-desk__reason">{documentLabel(active)}</p>
+                    <p className="import-desk__excerpt">
+                      <Text content={active.content} />
+                    </p>
+                    <p className="import-desk__hint">
+                      Source style: {active.style}
+                    </p>
+                    <p className="import-desk__hint">
+                      A document keeps its words as written. Change a heading
+                      or anything else once it is in the binder.
+                    </p>
+                  </>
+                )}
+                {active && !asDocument && (
                   <>
                     <h3>Paragraph {selected + 1}</h3>
                     <p className="import-desk__reason">{active.reason}</p>

@@ -877,18 +877,17 @@ otherwise local.
 <a id="STOR-131"></a>
 
 **STOR-131** **Default: the app's own iCloud Drive container**, shown in Finder as
-iCloud Drive › Proscenium. It needs no folder picker, syncs to an iPad running
-the app with no setup
-there either, and is a real folder the writer can open, copy, or move things
-out of. When iCloud Drive is unavailable (not signed in, or disabled), the
-container is not offered.
+iCloud Drive › Proscenium. It needs no folder picker, syncs to the writer's
+other Macs with no setup there either, and is a real folder the writer can
+open, copy, or move things out of. When iCloud Drive is unavailable (not
+signed in, or disabled), the container is not offered.
 
 <a id="STOR-132"></a>
 
 **STOR-132** **One question**, on a welcome screen, answered with one click:
 
 > **Where should your plays live?**
-> ○ iCloud Drive *(recommended: your plays appear on your iPad too)*
+> ○ iCloud Drive *(recommended: your plays appear on your other Macs too)*
 > ○ A folder I choose…
 
 <a id="STOR-133"></a>

@@ -149,7 +149,11 @@ function AppShell() {
   /* Plays, scripts and .fdx files opened from Finder (docs/app/keeping-work/storage-and-file-format.md#STOR-D5). */
   const [importQueue, setImportQueue] = useState<(ImportRequest & { id: number })[]>([]);
   const importId = useRef(0);
-  const beginImport = useCallback((sources: ImportSource[] = []) => {
+  /* Import follows where the writer is (docs/app/importing/document-import.md#IMPT-95):
+     on the Plays screen it makes a play; in a play it adds a script or a
+     binder document to that play. Finder always makes a play. */
+  const openPlayTitle = ws.mode === "workspace" && ws.playTitle ? ws.playTitle : undefined;
+  const beginImport = useCallback((sources: ImportSource[] = [], play?: string, parentId: string | null = null) => {
     if (!ws.vaultRoot) {
       toast({ kind: "plain", title: "Choose where your plays live first", detail: "Then use Import a Draft to bring your writing here." });
       return Promise.resolve();
@@ -160,15 +164,16 @@ function AppShell() {
     }
     return new Promise<void>(finish => {
       const id = ++importId.current;
-      setImportQueue(q => [...q, { id, sources, finish }]);
+      const folder = parentId ? findBinderItem(ws.binder, parentId) : null;
+      setImportQueue(q => [...q, { id, sources, finish, play, parentId, folder: folder ? titleOf(folder) : undefined }]);
     });
-  }, [ws.vaultRoot, toast]);
+  }, [ws.vaultRoot, ws.binder, toast]);
   const finderOpens = useFinderOpens(ws, toast, path => beginImport([{ path }]));
   useEffect(() => {
-    const open = () => { void beginImport(); };
+    const open = () => { void beginImport([], openPlayTitle); };
     window.addEventListener("proscenium:import-draft", open);
     return () => window.removeEventListener("proscenium:import-draft", open);
-  }, [beginImport]);
+  }, [beginImport, openPlayTitle]);
   /* Where the writer was last, on the empty screen — the one fact that turns
      "open a folder" from a question into a reminder. */
   const [lastVault, setLastVault] = useState<string | null>(null);
@@ -958,6 +963,8 @@ function AppShell() {
             onNewFolder={ws.createFolder}
             onNewMaterial={ws.createMaterial}
             onNewScript={ws.createScript}
+            onImport={(parentId) => void beginImport([], ws.playTitle, parentId)}
+            onImportFiles={(files, parentId) => void beginImport(files.map((file) => ({ file })), ws.playTitle, parentId)}
             onOpenCast={ws.scriptTitle ? () => ws.setView("cast") : undefined}
             castActive={visibleSurfaces.some((s) => s.kind === "cast")}
             newlyFiled={ws.newlyFiled}
@@ -1140,6 +1147,7 @@ function AppShell() {
 
       {importQueue[0] && <ImportPanel key={importQueue[0].id} request={importQueue[0]}
         destination={ws.vaultRoot ?? "Plays"} onCreate={ws.createPlayFrom}
+        onAdd={(as, title, content, kept) => ws.addImport(as, title, content, kept, importQueue[0]?.parentId ?? null)}
         onClose={() => { importQueue[0]?.finish?.(); setImportQueue(q => q.slice(1)); }} />}
       <AppDialogs
         ws={ws}

@@ -6253,6 +6253,97 @@ export function smokeChecks({ audit, hold }) {
         await page.evaluate(() => window.dispatchEvent(new Event("focus")));
       },
     },
+    {
+      // docs/app/importing/document-import.md#IMPT-95 and
+      // docs/app/importing/document-import.md#IMPT-103: in a play,
+      // import adds to that play. A styled script arrives through the binder's
+      // New menu as a new script; notes arrive through the menu command
+      // (⌘⇧I) as a binder document. Each keeps its source under Originals.
+      // Last, because it adds to the play every later check would share.
+      name: "document import · into the open play, as a script and as a document",
+      async run(page) {
+        await walkIntoPlay(page);
+        const choose = (name, base64) => page.evaluate(({ name, base64 }) => {
+          const input = document.querySelector('.import-desk input[type="file"]');
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))], name));
+          input.files = transfer.files;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+        }, { name, base64 });
+        await page.locator('[data-tutorial="binder-new"]').click();
+        await page.locator('.menu [data-menu-id="new:import…"]').click();
+        await page.waitForSelector(".import-desk__choose");
+        if (!/before adding it to /.test(await page.locator(".sheet__sub").innerText())) throw new Error("import in a play does not say it adds to the play");
+        await choose("Harbor.pages", toBase64(harborPages()));
+        await page.waitForSelector(".import-desk__review", { timeout: 10000 });
+        if (!(await page.getByRole("button", { name: "Add as: New Script" }).count())) throw new Error("a styled script did not start as a new script");
+        await audit(page, "document import · into a play");
+        await page.getByRole("button", { name: "Add Script", exact: true }).click();
+        await page.waitForSelector(".import-desk", { state: "detached", timeout: 10000 });
+        await until(page, "the imported script open", () =>
+          [...document.querySelectorAll(".ProseMirror")].some((pm) => pm.textContent?.includes("There is a difference.")));
+
+        await page.evaluate(() => window.dispatchEvent(new Event("proscenium:import-draft")));
+        await page.waitForSelector(".import-desk__choose");
+        await choose("Gull Island notes.txt", toBase64(new TextEncoder().encode(
+          "Harbor town or inland?\nGull Island, fog most mornings.\nWhat does the ferry bring?\nNothing anyone ordered.")));
+        await page.waitForSelector(".import-desk__review", { timeout: 10000 });
+        if (!(await page.getByRole("button", { name: "Add as: Binder Document" }).count())) throw new Error("notes did not start as a binder document");
+        if (await page.getByRole("button", { name: /inferred or unrecognized/ }).count()) throw new Error("a document is being read as script elements");
+        await page.getByRole("button", { name: "Add Document", exact: true }).click();
+        await page.waitForSelector(".import-desk", { state: "detached", timeout: 10000 });
+        await until(page, "the imported notes open as a page", () =>
+          [...document.querySelectorAll(".ProseMirror")].some((pm) => pm.textContent?.includes("Nothing anyone ordered.")));
+        await until(page, "the notes and the kept originals in the binder", () => {
+          const labels = [...document.querySelectorAll(".binder .binder__label")].map((l) => l.textContent);
+          return labels.includes("Gull Island notes") && labels.includes("Originals");
+        });
+
+        // Import… from a folder's own menu files into that folder, and so does
+        // a file dropped on it from Finder.
+        const row = (label) => page.evaluate((label) => {
+          const el = [...document.querySelectorAll(".binder .binder__label")].find((l) => l.textContent === label)?.closest("[draggable]");
+          const r = el?.getBoundingClientRect();
+          return r ? { x: r.left + 12, y: r.top + r.height / 2 } : null;
+        }, label);
+        // Runs in the page, through `until`: the row's nearest folder is the one named.
+        const inFolder = ({ label, folder }) => {
+          const item = [...document.querySelectorAll(".binder .binder__label")].find((l) => l.textContent === label);
+          const holder = item?.closest("ul")?.closest("li");
+          return holder?.querySelector(".binder__label")?.textContent === folder;
+        };
+        const at = await row("Characters");
+        if (!at) throw new Error("the play has no Characters folder to import into");
+        await page.evaluate(({ x, y }) => {
+          const el = document.elementFromPoint(x, y)?.closest("[draggable]");
+          el?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+        }, at);
+        // By pointer, the way it broke: a click on New closed every menu,
+        // because the binder shut its row menu on any click in the window.
+        await page.getByRole("menuitem", { name: "New", exact: true }).click();
+        await page.getByRole("menuitem", { name: "Import…", exact: true }).click();
+        await page.waitForSelector(".import-desk__choose");
+        await choose("Cast notes.txt", toBase64(new TextEncoder().encode("Who is Mara before the flood?\nShe keeps the ferry timetable.")));
+        await page.waitForSelector(".import-desk__review", { timeout: 10000 });
+        if (!(await page.locator(".import-desk__destination").innerText()).includes("› Characters")) throw new Error("the review does not say the draft goes into Characters");
+        await page.getByRole("button", { name: "Add Document", exact: true }).click();
+        await page.waitForSelector(".import-desk", { state: "detached", timeout: 10000 });
+        await until(page, "the notes filed in Characters", inFolder, { label: "Cast notes", folder: "Characters" });
+
+        await page.evaluate(({ x, y, base64 }) => {
+          const el = document.elementFromPoint(x, y)?.closest("[draggable]");
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))], "Jonah notes.txt"));
+          for (const type of ["dragenter", "dragover", "drop"])
+            el?.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y, dataTransfer: transfer }));
+        }, { ...(await row("Characters")), base64: toBase64(new TextEncoder().encode("Jonah never learned to swim.\nHe says so twice.")) });
+        await page.waitForSelector(".import-desk__review", { timeout: 10000 });
+        if (!(await page.locator(".import-desk__destination").innerText()).includes("› Characters")) throw new Error("a drop on Characters does not go into Characters");
+        await page.getByRole("button", { name: "Add Document", exact: true }).click();
+        await page.waitForSelector(".import-desk", { state: "detached", timeout: 10000 });
+        await until(page, "the dropped notes filed in Characters", inFolder, { label: "Jonah notes", folder: "Characters" });
+      },
+    },
   ];
 }
 

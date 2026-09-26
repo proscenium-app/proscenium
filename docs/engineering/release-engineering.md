@@ -10,20 +10,22 @@ Release requirements cover build artifacts, compatibility, signing, updates and 
 
 <a id="REL-D100"></a>
 
-<a id="REL-122"></a>
+<a id="REL-123"></a>
 
-**REL-122** **The release contract:** one universal Proscenium, meant to launch correctly on
+**REL-123** **The release contract:** one universal Proscenium, meant to launch correctly on
 every Mac from Sonoma up, Apple silicon and Intel alike; signed, notarized and
 self-updating. What is proven, and by what, is the machine's alone, and no
 release waits on a person: the frontend against the floor's Safari on every run
 (`check:webkit-floor`); the native app on the build host's macOS on Apple
 silicon, and its Intel slice under Rosetta, launch to export; the update itself
-on the build host, by the Stable update proof ([launch day](#SHIP-D104), step 8).
+on the build host, by the Stable update proof ([every release](#SHIP-D109), step 7),
+from 1.0.0 on. The first update through the real address, 0.9.x to 1.0.0, is
+not proven: the proof builds the version updated from, and no 0.9.x carries it.
 A native launch on Sonoma and a launch on Intel hardware are not proven, because
 no machine this project uses can give either, and the release record says so.
-This replaces REL-1
-(docs/engineering/withdrawn-requirements.md#REL-1), whose "proven on those Macs
-by CI" no machine this project uses can give for Sonoma or Intel hardware.
+This replaces REL-122
+(docs/engineering/withdrawn-requirements.md#REL-122), which counted that first
+update as proven.
 
 <a id="REL-D1"></a>
 
@@ -739,8 +741,8 @@ never been tried with this app. Prove it before building anything else on it
    `brctl status iCloud.org.habiby.proscenium` finds it and reports its sync.
    The maintainer's own Mac runs the signed alpha, so a session reads it there,
    from files, with no window touched.
-5. Write the results into the release proof record under
-   `docs/backstage/records/`. Nothing is published before launch.
+5. Write the results into the release's proof record. Nothing is published
+   before launch.
 
 No person opens the build to check it: there is no human pass (the
 maintainer's decision, 2026-09-25). A person on a second macOS account used
@@ -771,8 +773,8 @@ In this order, once T5's clean tree is ready (the public-repository pass, docs/e
 4. *Maintainer:* make the Homebrew token (below), and the release job's token for
    `proscenium-app/proscenium` (Contents read and write on that one repository),
    which the build host needs to draft a release there: its runner's own token cannot write to the public repository.
-5. *Agent:* make sure the Tagged release run of the last 0.9.x kept its files,
-   because step 8 starts from its DMG.
+5. ~~*Agent:* make sure the Tagged release run of the last 0.9.x kept its files~~:
+   nothing starts from a 0.9.x DMG (step 8).
 6. *Agent:* `bun run version 1.0.0` if it is not already, tag `v1.0.0`, push
    the tag, then `node scripts/release.mjs --publish`. It refuses unless the
    tag on GitHub is exactly the tree it builds.
@@ -781,13 +783,11 @@ In this order, once T5's clean tree is ready (the public-repository pass, docs/e
    the website's privacy page (its launch deploy, the website repository's
    SPEC.md, privacy section): 1.0 is the first distributed copy that sends automatic reports,
    and the page must be public before it does.
-8. *Agent:* run the **Stable update proof** workflow on the build host from the
-   last 0.9.x to 1.0.0 and read its report. It installs the older copy under a
-   scratch home with reports off, types a line into a scratch play, and presses
-   Check Now and Restart to Update against the real update address. It passes
-   only when the copy came back as 1.0.0, notarized and running, with the line
-   in its play. This is the first update through the real address on the stable
-   track, so it passes before anyone is told about the release.
+8. *Agent:* nothing to run, and nothing to wait for. The Stable update proof
+   builds the version updated from out of its own tag, and no 0.9.x carries it,
+   so the first update through the real address on stable, 0.9.x to 1.0.0, is
+   unproven, and the release record says so. The proof runs from 1.0.1 on
+   ([every release](#SHIP-D109), step 7).
 
 <a id="SHIP-D105"></a>
 
@@ -858,10 +858,14 @@ full name is how Homebrew 6 lets someone trust a single cask from a tap.
    - `Proscenium_1.0.1_universal.dmg`
    - `Proscenium_1.0.1_universal.app.tar.gz` and its `.sig` (what the updater downloads)
    - `latest.json` (what the updater reads), `notes.md`, `SHA256SUMS`, `build.json`
-7. *Agent,* for 1.0.0 and for any release that changes signing, entitlements or
-   the updater: setup step 7's file checks on the draft's app, and, once the
-   release is published, the Stable update proof (step 8 of launch day) from the
-   release before it.
+7. *Agent,* for every release: setup step 7's file checks on the draft's app,
+   and, once the release is published, the **Stable update proof** workflow on
+   the build host (`from`: the release before it, `to`: this one), whose report
+   must say proven. It builds the release before from its tag as a test copy
+   with the app's real identity, lets that copy update itself through the real
+   update address, with a line typed just before Restart to Update, and passes
+   only when the scratch folder holds this release, notarized and running, with
+   the line in the play. 1.0.0 has no release before it that carries the proof.
 
 <a id="SHIP-D110"></a>
 

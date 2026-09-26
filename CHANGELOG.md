@@ -12,7 +12,7 @@ that version's section.
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-09-25
+## [1.0.0] - 2026-09-26
 
 ### Added
 
@@ -25,6 +25,10 @@ that version's section.
 - Pages documents import directly. Open or drop a `.pages` file and it reaches
   the same review as a Word document, styles, tables and footnotes included,
   without exporting it to Word first.
+- Import into a play. Inside a play, File › Import a Draft…, Import… in the
+  binder's New menu, or a file dropped on the binder adds the draft to that play
+  as a new script or a page in the binder, in the folder you chose, with the
+  original kept in Originals. The Plays screen still makes a new play.
 - Act-scene-page numbers. In a format's header or footer, Insert now offers
   `II-3-67` and `2-3-67` whole, along with the act number, the act in Roman
   numerals, the scene number and the draft date. The numbers come from your
@@ -54,6 +58,11 @@ that version's section.
 
 ### Fixed
 
+- The first-run screen no longer says your plays will appear on an iPad.
+  There is no iPad version yet. Choosing iCloud Drive keeps your plays on
+  your other Macs.
+- Clicking New in the binder's right-click menu opens its list of things to
+  add, instead of closing the menu.
 - macOS writing suggestions no longer swallow letters as you type in
   Proscenium's text fields, such as Send Feedback's message and the fields in
   Settings.

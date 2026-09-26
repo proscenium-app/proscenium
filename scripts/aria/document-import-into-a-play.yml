@@ -1,0 +1,135 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Mara"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes, <n> pending": Changes
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara Rename “Mara” Actions for “Mara”" [level=2] [selected]:
+        - text: Mara
+        - button "Rename “Mara”"
+        - button "Actions for “Mara”"
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: in Characters
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Cast":
+      - button "Cast"
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+    - listitem "Mara":
+      - button "Mara"
+      - button "Close Mara"
+  - button "Add a surface to this pane"
+  - textbox "File name"
+  - text: character protagonist act-1 act-2
+  - button "Edit Tags"
+  - status
+  - group "View":
+    - button "Page" [pressed]
+    - button "Source"
+  - toolbar "Formatting":
+    - 'button "Paragraph style: Body Text"': Body Text
+    - button "Bold"
+    - button "Italic"
+    - button "Inline code":
+      - img
+    - button "Link":
+      - img
+    - button "Bulleted list":
+      - img
+    - button "Numbered list":
+      - img
+    - button "Insert table":
+      - img
+    - button "Insert divider":
+      - img
+  - heading "MARA" [level=1]
+  - paragraph: A hydrologist, early 40s. Measures everything and trusts nothing she can't measure. Came home to bury her mother and stayed to fight the house.
+  - paragraph:
+    - strong: "Wants:"
+    - text: to stop the dripping — the literal pipe, and everything it stands in for.
+    - strong: "Fears:"
+    - text: that quiet is just absence, not peace.
+    - strong: "Voice:"
+    - text: short sentences. Precise nouns. Doesn't finish the sentimental ones. WORDS KEPT NOWHERE
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Review Your Draft":
+  - heading "Review Your Draft" [level=2]
+  - text: Harbor.pages · Pages New script name
+  - textbox "New script name"
+  - text: In The Weight of Water › Characters
+  - 'button "Add as: New Script"': New Script
+  - button "Choose Different Files…"
+  - strong: 13 paragraphs
+  - text: 1 scene heading 2 characters All elements come from the source or your choices
+  - group: What carries across · 1 note
+  - textbox "Find text in import"
+  - checkbox "Inferred or Unrecognized Only"
+  - text: Inferred or Unrecognized Only
+  - 'button "Unstyled text: Recognize Script Elements"': Recognize Script Elements
+  - region "Paragraph preview":
+    - heading "Reading preview" [level=3]
+    - text: Choose a paragraph to adjust its element.
+    - 'button "Paragraph 1, Act: ACT ONE" [pressed]': 1 ACT ONE Act
+    - 'button "Paragraph 2, Scene: Scene 1. The waiting room."': 2 Scene 1. The waiting room. Scene
+    - 'button "Paragraph 3, Stage Direction: A harbor office after the last ferry."': 3 A harbor office after the last ferry. Stage Direction
+    - 'button "Paragraph 4, Stage Direction: Rain at the windows."': 4 Rain at the windows. Stage Direction
+    - 'button "Paragraph 5, Character: MARA"': 5 MARA Character
+    - 'button "Paragraph 6, Dialogue: You said it would wait."': 6 You said it would wait. Dialogue
+    - 'button "Paragraph 7, Character: ELI"': 7 ELI Character
+    - 'button "Paragraph 8, Parenthetical: (folding the timetable)"': 8 (folding the timetable) Parenthetical
+    - 'button "Paragraph 9, Dialogue: I said we had time."': 9 I said we had time. Dialogue
+    - 'button "Paragraph 10, Stage Direction: She sets down a small blue suitcase."': 10 She sets down a small blue suitcase. Stage Direction
+    - 'button "Paragraph 11, Character: MARA"': 11 MARA Character
+    - 'button "Paragraph 12, Dialogue: There is a difference."': 12 There is a difference. Dialogue
+    - 'button "Paragraph 13, Stage Direction: LIGHTS OUT."': 13 LIGHTS OUT. Stage Direction
+    - button "Previous" [disabled]
+    - text: 1–13 of 13
+    - button "Next" [disabled]
+  - complementary "Adjust paragraph":
+    - heading "Paragraph 1" [level=3]
+    - paragraph: "Source style: Act"
+    - paragraph: ACT ONE
+    - 'button "Element: Act"': Act
+    - paragraph: "Source style: Act"
+    - button "Use for This Source Style"
+    - paragraph: Applies to 1 paragraph. Individual corrections take priority.
+    - button "Reset All Corrections" [disabled]
+  - text: Adds a script to The Weight of Water. Keeps a copy of the original.
+  - button "Cancel"
+  - button "Add Script"
+  - status
+  - alert

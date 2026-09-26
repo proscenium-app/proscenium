@@ -1167,6 +1167,10 @@ pub fn run() {
             #[cfg(feature = "selftest")]
             selftest::selftest_reveals,
             #[cfg(feature = "selftest")]
+            selftest::selftest_proof_context,
+            #[cfg(feature = "selftest")]
+            selftest::selftest_proof_log,
+            #[cfg(feature = "selftest")]
             selftest::selftest_done,
             opens_take,
             opened_facts,

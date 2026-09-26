@@ -42,6 +42,7 @@ import {
   type ScriptData,
 } from "./play-file";
 import { fileName, titleFromFileName } from "./filename";
+import type { KeptFile } from "../storage/import-bytes";
 import { ulid } from "./ulid";
 import { BINDER_CHANGED, reconcileDelta, removeKnown, requireParent, restoreSubtree } from "./binder-rebase";
 import { applyRelocation, type BinderRelocation } from "./binder-relocation";
@@ -331,6 +332,68 @@ export async function newMaterial(
   const item: BinderItem = { id, type: kind, path };
   const res = await addAt(ctx, parentId, item, atIndex);
   return res.ok ? { ...res, createdId: id } : res;
+}
+
+/** The top-level folder row at `path` in `binder`, made if there is none. */
+function withFolder(binder: BinderItem[], path: string): { binder: BinderItem[]; id: string } {
+  const found = binder.find((it) => it.type === "folder" && sameFileOnDisk(it.path, path));
+  if (found) return { binder, id: found.id };
+  const id = ulid();
+  return { binder: insert(binder, null, { id, type: "folder", path, children: [] }, Infinity), id };
+}
+
+/**
+ * Bring an imported document into the open play
+ * (docs/app/importing/document-import.md#IMPT-98), as a new script or a new
+ * binder document, with its source kept beside it.
+ *
+ * The order is the scaffold's (docs/app/importing/document-import.md#IMPT-71):
+ * the source under `Originals/` first, then the new script or document, and the
+ * binder last. Every file is created, never written over; a name already taken
+ * gets the next free one. A failure before the binder write leaves at most a
+ * file the binder does not list yet, which the next reconcile files where it
+ * lies, never a row that names nothing.
+ *
+ * A script lands where `parentId` says, the play root by default. A document
+ * goes in the Notes folder unless a parent is given; Notes and Originals are
+ * made as rows if the play has none yet.
+ */
+export async function importIntoPlay(
+  ctx: BinderContext,
+  kind: "script" | "document",
+  title: string,
+  content: string,
+  original: KeptFile,
+  parentId: string | null = null,
+  atIndex = Infinity,
+): Promise<ApplyResult & { keptPath?: string }> {
+  const ext = original.name.match(/\.[a-z0-9]+$/i)?.[0] ?? "";
+  const stem = original.name.slice(0, original.name.length - ext.length) || original.name;
+  // A package kept as `Name.pages.zip` keeps both extensions.
+  const keptName = /\.pages\.zip$/i.test(original.name)
+    ? `${fileName(original.name.slice(0, -".pages.zip".length))}.pages.zip`
+    : fileName(stem) + ext;
+  const keptPath = await freshPath(joinp("Originals", keptName));
+  if (original.base64 !== undefined) await vault.createBinary(keptPath, original.base64);
+  else await vault.create(keptPath, original.content);
+
+  const parentPath = parentId ? findItem(ctx.play.binder, parentId)?.item.path : undefined;
+  const dir = parentPath ?? (kind === "document" ? defaultDirFor("document") : "");
+  const path = await freshPath(joinp(dir, fileName(title) + (kind === "script" ? ".fountain" : ".md")));
+  await vault.create(path, content);
+
+  const id = ulid();
+  const res = await commit(ctx, (play) => {
+    let binder = play.binder;
+    let parent = parentId;
+    if (parentId) requireParent(binder, parentId, parentPath);
+    else if (kind === "document") ({ binder, id: parent } = withFolder(binder, dir));
+    binder = insert(binder, parent, { id, type: kind, path }, parent === parentId ? atIndex : Infinity);
+    const originals = withFolder(binder, "Originals");
+    binder = insert(originals.binder, originals.id, { id: ulid(), type: "reference", path: keptPath }, Infinity);
+    return withBinder(play, binder);
+  });
+  return res.ok ? { ...res, createdId: id, keptPath } : res;
 }
 
 /**
