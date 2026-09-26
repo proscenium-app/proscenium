@@ -1,0 +1,139 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast" [selected]
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Board":
+      - button "Board"
+    - listitem "Cast":
+      - button "Cast"
+      - button "Close Cast"
+  - button "Add a surface to this pane"
+  - heading "Characters Page" [level=1]
+  - paragraph: Edit the page your readers will see. Cast tools and private notes are below.
+  - group "Printed characters page":
+    - toolbar "Formatting":
+      - 'button "Paragraph style: Heading 1"': Heading 1
+      - button "Bold"
+      - button "Italic"
+      - 'button "Text alignment: Align Left"': Align Left
+      - button "Bulleted list":
+        - img
+      - button "Numbered list":
+        - img
+    - heading "Characters" [level=1]
+    - paragraph:
+      - strong: MARA
+      - text: — a hydrologist, 40s
+    - paragraph:
+      - strong: JONAH
+      - text: — her brother, 30s
+  - group: Page Options
+  - heading "Cast Tools" [level=2]
+  - paragraph: Names, private notes, appearances and sides.
+  - group "MARA":
+    - text: MARA
+    - textbox "Name — MARA"
+    - textbox "Description — MARA"
+    - button "Remove MARA"
+    - button "Move MARA up" [disabled]
+    - button "Move MARA down"
+    - text: 3 lines · 2 scenes Appears in ACT ONE · SCENE 1, ACT TWO · SCENE 1
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - group "JONAH":
+    - text: JONAH
+    - textbox "Name — JONAH"
+    - textbox "Description — JONAH"
+    - button "Remove JONAH"
+    - button "Move JONAH up"
+    - button "Move JONAH down" [disabled]
+    - text: 2 lines · 2 scenes Appears in ACT ONE · SCENE 1, ACT ONE · SCENE 2
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - button "Add Character"
+  - heading "Who’s on stage" [level=3]
+  - paragraph: A mark where a character speaks. Read across for a part’s shape, down for how full a scene is.
+  - table:
+    - rowgroup:
+      - row "Act ACT ONE ACT TWO Total":
+        - columnheader "Act"
+        - columnheader "ACT ONE"
+        - columnheader "ACT TWO"
+        - columnheader "Total"
+      - row "Character SCENE 1 SCENE 2 SCENE 1 Scenes":
+        - columnheader "Character"
+        - columnheader "SCENE 1":
+          - button "SCENE 1"
+        - columnheader "SCENE 2":
+          - button "SCENE 2"
+        - columnheader "SCENE 1":
+          - button "SCENE 1"
+        - columnheader "Scenes"
+    - rowgroup:
+      - row "JONAH speaks speaks silent 2":
+        - rowheader "JONAH"
+        - cell "speaks"
+        - cell "speaks"
+        - cell "silent"
+        - cell "2"
+      - row "MARA speaks silent, between entrances speaks 2":
+        - rowheader "MARA"
+        - cell "speaks"
+        - cell "silent, between entrances"
+        - cell "speaks"
+        - cell "2"
+    - rowgroup:
+      - row "On stage 2 1 1":
+        - rowheader "On stage"
+        - cell "2"
+        - cell "1"
+        - cell "1"
+        - cell
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: 1 format warning Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert

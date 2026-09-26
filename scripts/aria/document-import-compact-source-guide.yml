@@ -1,0 +1,53 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main:
+  - heading "sample-vault" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - button "Import a Draft…"
+  - heading "Plays" [level=2]
+  - paragraph: 2 plays · sample-vault
+  - paragraph: Your plays live in a folder on this Mac only. They will not appear on other devices.
+  - table "Plays":
+    - 'row "The Lighthouse Not counted Status for The Lighthouse: No Status —"':
+      - cell "The Lighthouse":
+        - button "The Lighthouse"
+        - textbox "Logline for The Lighthouse"
+      - cell "Not counted"
+      - 'cell "Status for The Lighthouse: No Status"':
+        - 'button "Status for The Lighthouse: No Status"': No Status
+      - cell "—"
+    - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. 2 pages Status for The Weight of Water: drafting <date and time>"':
+      - cell "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull.":
+        - button "The Weight of Water"
+        - textbox "Logline for The Weight of Water"
+      - cell "2 pages"
+      - 'cell "Status for The Weight of Water: drafting"':
+        - 'button "Status for The Weight of Water: drafting"': drafting
+      - cell "<date and time>"
+    - row "Play Progress Status Modified":
+      - columnheader "Play"
+      - columnheader "Progress"
+      - columnheader "Status"
+      - columnheader "Modified"
+- contentinfo:
+  - button "/dev/sample-vault"
+- status
+- alert
+- dialog "Import a Draft":
+  - heading "Import a Draft" [level=2]
+  - text: Review your draft before creating a play.
+  - heading "Choose a draft to bring in" [level=3]
+  - paragraph: Drop your file here, or choose it below. The original stays untouched.
+  - button "Choose Files…"
+  - paragraph: Word (.docx), Pages, OpenDocument (.odt), RTF, text, Markdown, Fountain and Final Draft.
+  - paragraph: Bringing several drafts? Choose them together and review each before it becomes a separate play.
+  - heading "Coming from another app?" [level=3]
+  - 'button "Source App: Scrivener"': Scrivener
+  - text: Compile or export
+  - paragraph: Use File › Compile for the whole draft, in Binder order. Choose Final Draft or Fountain for a script, or Word (.docx) or RTF for other drafts. To bring one document, use File › Export › Files. A .scriv project needs this export first.
+  - text: Files are read on your device.
+  - button "Cancel"
+  - status
+  - alert

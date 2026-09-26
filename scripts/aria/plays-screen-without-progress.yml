@@ -1,0 +1,34 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main:
+  - heading "sample-vault" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - button "Import a Draft…"
+  - heading "Plays" [level=2]
+  - paragraph: 2 plays · sample-vault
+  - paragraph: Your plays live in a folder on this Mac only. They will not appear on other devices.
+  - table "Plays":
+    - 'row "The Lighthouse Status for The Lighthouse: drafting <date and time>"':
+      - cell "The Lighthouse":
+        - button "The Lighthouse"
+        - textbox "Logline for The Lighthouse"
+      - 'cell "Status for The Lighthouse: drafting"':
+        - 'button "Status for The Lighthouse: drafting"': drafting
+      - cell "<date and time>"
+    - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. Status for The Weight of Water: drafting Today, <time>"':
+      - cell "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull.":
+        - button "The Weight of Water"
+        - textbox "Logline for The Weight of Water"
+      - 'cell "Status for The Weight of Water: drafting"':
+        - 'button "Status for The Weight of Water: drafting"': drafting
+      - cell "Today, <time>"
+    - row "Play Status Modified":
+      - columnheader "Play"
+      - columnheader "Status"
+      - columnheader "Modified"
+- contentinfo:
+  - button "/dev/sample-vault"
+- status
+- alert

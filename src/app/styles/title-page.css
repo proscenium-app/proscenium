@@ -1,0 +1,29 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Title Page (docs/engineering/design-system.md#UI-D106) ---------------------------------------------------- */
+.titlepage {
+  padding: var(--s-6) var(--s-7) var(--s-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.frontpage-editor { border: 0.5px solid var(--rule-strong); border-radius: var(--r-control); background: var(--paper); }
+.frontpage-editor .prose-host { padding: var(--s-6); min-height: 160px; }
+.frontpage-editor .prose { outline: none; }
+.frontpage-editor .fmt { flex-wrap: wrap; }
+.castview__page-options summary { cursor: pointer; color: var(--ink-2); }
+.castview__page-options > button { margin-top: var(--s-4); }
+.titlepage__note {
+  margin: 0 0 0 94px;
+  font-size: var(--t-mini);
+  line-height: 1.5;
+  color: var(--ash);
+}
+
+
+.card__footspacer {
+  flex: 1;
+}
+

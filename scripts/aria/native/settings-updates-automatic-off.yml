@@ -1,0 +1,32 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General" [selected]
+    - tab "Appearance" [selected]
+    - tab "Writing" [selected]
+    - tab "Formats" [selected]
+    - tab "Keyboard Shortcuts" [selected]
+    - tab "Help & Feedback" [selected]
+    - tab "Privacy" [selected]
+    - tab "Updates" [selected]
+    - tab "About" [selected]
+  - tabpanel "Updates"
+    - heading "Updates" [level=3]
+    - heading "AUTOMATIC UPDATES" [level=4]
+    - none
+      - switch "Check for updates automatically"
+    - paragraph
+    - heading "UPDATE TRACK" [level=4]
+    - button "Track: Stable" [haspopup]
+    - paragraph
+    - paragraph
+      - button "Have a key?"
+    - heading "THIS VERSION" [level=4]
+    - button "Check Now"
+    - status [live=polite]
+    - paragraph
+      - link "Release notes"
+    - paragraph
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

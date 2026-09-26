@@ -1,0 +1,67 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Second Draft"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes, <n> pending" [selected]: Changes
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - button "1 new file filed ✓"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+    - treeitem "Second Draft ● Rename “Second Draft” Actions for “Second Draft”" [level=1] [selected]:
+      - text: Second Draft ●
+      - button "Rename “Second Draft”"
+      - button "Actions for “Second Draft”"
+    - group "Scenes in Second Draft":
+      - treeitem "Scene 1" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Cast":
+      - button "Cast"
+    - listitem "Changes":
+      - button "Changes"
+      - button "Close Changes"
+  - button "Add a surface to this pane"
+  - heading "Copies kept during a save" [level=3]
+  - button "Saved copy of Second Draft.fountain <date>, <time>"
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Saved copy of Second Draft.fountain":
+  - heading "Saved copy of Second Draft.fountain" [level=2]
+  - paragraph: This copy was kept when a file changed during a save or a save was interrupted. You can select and copy its words. Reading it does not change your play.
+  - textbox "Saved words from Second Draft.fountain"
+  - button "Close"
+  - status
+  - alert

@@ -1,0 +1,113 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Every gate on every push and pull request, on GitHub's hosted macOS runners,
+# which are free for a public repository. A pull request learns here what to
+# fix; the change is checked again, natively, before it is released.
+#
+# Nothing here signs, publishes or runs the app natively: no secret is read,
+# the token is read-only, and a first-time contributor's run waits for a
+# maintainer's approval.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    name: Gates
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      # The versions every other build of Proscenium uses.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.15.0"
+      # rust-toolchain.toml names the channel, components and targets.
+      - name: Rust
+        run: rustup toolchain install
+
+      - name: Install
+        id: install
+        run: bun install --frozen-lockfile
+
+      - name: Chromium for smoke
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bunx playwright install chromium
+
+      # Every gate runs whenever the install worked, even after another gate
+      # fails, so a run reports all of them.
+      - name: bun test ./src
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun test ./src
+      - name: typecheck
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run typecheck
+      - name: check:layout
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:layout
+      - name: check:design
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:design
+      - name: check:spdx
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:spdx
+      - name: check:network
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:network
+      - name: check:names
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:names
+      - name: check:docs
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:docs
+      - name: check:version
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:version
+      - name: check:webkit-floor
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run check:webkit-floor
+      # smoke builds dist/, which the Rust steps below compile against.
+      - name: smoke
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bun run smoke -- --shots
+      - name: cargo test
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: cargo clippy
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+      - name: The update service's types and tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: cd services/edge && bun install --frozen-lockfile && bun run typecheck && bun test ./test
+      - name: Licenses (reuse lint)
+        if: ${{ !cancelled() }}
+        run: pipx run "reuse[charset-normalizer]==6.2.0" lint
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: smoke-screenshots
+          path: .smoke/
+          include-hidden-files: true
+          retention-days: 5

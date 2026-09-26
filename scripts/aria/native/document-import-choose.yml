@@ -1,0 +1,13 @@
+- dialog "Import a Draft"
+  - heading "Import a Draft" [level=2]
+  - heading "Choose a draft to bring in" [level=3]
+  - paragraph
+  - button "Choose Files…"
+  - paragraph
+  - paragraph
+  - heading "Coming from another app?" [level=3]
+  - button "Source App: Pages" [haspopup]
+  - paragraph [live=polite]: Choose your .pages document. Its paragraph styles, emphasis, tables and text boxes carry across, and it stays as it is. If it has a password or tracked changes, choose File › Export To › Word in Pages and bring the .docx here.
+  - button "Cancel"
+  - status [live=polite]
+  - alert [live=assertive]

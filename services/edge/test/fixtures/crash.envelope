@@ -1,0 +1,3 @@
+{"event_id":"f17cbfa4-3761-44e4-b4cf-ff6c2537960f"}
+{"type":"event","length":306}
+{"event_id":"f17cbfa4376144e4b4cfff6c2537960f","level":"fatal","platform":"javascript","timestamp":1789689600,"release":"1.0.0","exception":{"values":[{"type":"TypeError","stacktrace":{"frames":[{"module":"webview","lineno":1,"colno":234}]}}]},"tags":{"app_platform":"darwin","arch":"aarch64","os":"15.6"}}

@@ -1,0 +1,505 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/*
+ * Courier Prime — the bundled script face (open-questions Q12). OFL 1.1,
+ * © 2015 The Courier Prime Project Authors (quoteunquoteapps); license text
+ * lives beside the files in src/ui/fonts/OFL.txt. Files are self-hosted (no
+ * network fetch) so the editor renders the intended face fully offline; the
+ * monospace stack in --font-script remains as a fallback. Vite fingerprints and
+ * inlines these url()s into dist/assets at build.
+ */
+@font-face {
+  font-family: "Courier Prime";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../ui/fonts/CourierPrime-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Courier Prime";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../ui/fonts/CourierPrime-Italic.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Courier Prime";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../ui/fonts/CourierPrime-Bold.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Courier Prime";
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../../ui/fonts/CourierPrime-BoldItalic.woff2") format("woff2");
+}
+
+/*
+ * ── Design system v2 ──────────────────────────────────────────────────────
+ *
+ * Apple's structure, Proscenium's palette (docs/engineering/design-system.md#UI-D100). Every
+ * measurable decision below is a token; the rest of this file may only read
+ * them. `bun run check:design` fails the build on a chrome font-size, radius
+ * or spacing step outside these scales — the audit counted thirty type sizes
+ * and twenty-eight spacings before it, and without a gate they come back.
+ *
+ * Layers: L0 desk (flat) · L1 sheet · L2 card · L3 rail · L4 toolbar/status
+ * (opaque) · L5 menu/popover/sheet — the only vibrancy. Rails are separated
+ * by hairlines, NEVER by shadow.
+ */
+:root {
+  /* Surfaces ------------------------------------------------------------ */
+  --paper: #fcf8ef; /* sheets, cards, popover base, fields */
+  --chrome: #f0e7d2; /* toolbar, status bar */
+  --rail: #ebe1c9; /* binder, inspector */
+  --desk: #dcd2c0; /* the well the sheets sit on — flat, never textured */
+  --desk-deep: #d0c5b0; /* the band between sheets */
+  --cream: #f4ecd8; /* default card hue, field tint, table header band */
+  --field: #fffdf8; /* text-field fill */
+
+  /* Labels -------------------------------------------------------------- */
+  --ink: #1f2933; /* primary label, script text */
+  --ink-2: #565c65; /* secondary label — slate */
+  /* Tertiary label and icons at rest — pencil. It was #8A8F98, which is 2.2:1
+     on the desk and 2.5:1 on the rails: the binder's hints, the inspector's
+     section labels and the status bar's path were unreadable at low vision,
+     and WCAG 1.4.3 asks 4.5:1 of all of them. At 4.5:1 on the darkest surface a
+     tertiary grey IS as dark as the secondary one, so the two are told apart by
+     hue — warm pencil beside cool slate — and by size, never by faintness. */
+  --ash: #625a52;
+  --icon: #3d4650; /* icon-button glyphs */
+  --placeholder: #736a5d; /* 4.5:1 on a field; a hint is text too */
+  /* Faint: disabled controls (WCAG exempts them) and glyphs that only mark an
+     absence, like the presence grid's dot. Never text a writer has to read. */
+  --faint: #8a8f98;
+
+  /* Hairlines. Drawn at 0.5px on retina — never 1px. -------------------- */
+  --rule: rgba(31, 41, 51, 0.12);
+  --rule-strong: rgba(31, 41, 51, 0.2); /* control borders */
+  --hover: rgba(31, 41, 51, 0.06); /* borderless hover tint */
+  --hover-strong: rgba(31, 41, 51, 0.09); /* icon-button "on", unemphasized selection */
+  --track: rgba(31, 41, 51, 0.07); /* segmented container, meter track */
+
+  /* Card hues — board, outline, binder dots. Never chrome. --------------- */
+  --oxide: #9c4a2f;
+  --sea: #3a6b7e;
+  --moss: #5a6b3b;
+  --amber: #c08a2e;
+  --hue-cream: #e3d9c2; /* the cream hue drawn AS a hue, on paper */
+  /* Which hue THIS card carries — set by `.card--<hue>`, defaulted here so the
+     gate can see it defined rather than trusting a var() fallback. */
+  --card-hue: #e3d9c2;
+
+  /* Semantics (docs/engineering/design-system.md#UI-D103) ---------------------------------------------------- */
+  --warn-tint: rgba(192, 138, 46, 0.16);
+  --warn-text: #7a5713;
+  --warn-body: #5a4210;
+  --warn-border: rgba(192, 138, 46, 0.35);
+  --warn-dot: #c08a2e;
+  --ok-tint: rgba(90, 107, 59, 0.14);
+  --ok-text: #3f4e27;
+  /* A character sheet's kind chip: sea, as text on its own tint. */
+  --sea-tint: rgba(58, 107, 126, 0.14);
+  --sea-text: #2c5461;
+  --ok-dot: #5a6b3b;
+  --bad-tint: rgba(156, 74, 47, 0.12);
+  --bad-text: #7e3a24; /* on the tint */
+  --bad: #9c4a2f; /* as text, and as a destructive fill */
+  --bad-border: rgba(156, 74, 47, 0.5);
+  --on-bad: #fcf8ef;
+
+  /* Type: six sizes, and nothing between them (docs/engineering/design-system.md#UI-D104) --------------------- */
+  --ui-scale: 1;
+  --t-title: calc(17px * var(--ui-scale)); /* window title, sheet heading — 600, −0.01em */
+  --t-head: calc(15px * var(--ui-scale)); /* surface heading — 600 */
+  --t-body: calc(13px * var(--ui-scale)); /* control label, menu item, binder row — the workhorse */
+  --t-small: calc(12px * var(--ui-scale)); /* small controls, tab labels, secondary lines */
+  --t-mini: calc(11px * var(--ui-scale)); /* status bar, chips, shortcuts, help — the floor */
+  --t-label: calc(10px * var(--ui-scale)); /* section labels only — 600, 0.09em, uppercase */
+
+  /* Space: seven steps (docs/engineering/design-system.md#UI-D105) ------------------------------------------- */
+  --s-1: 2px; /* hairline gaps */
+  --s-2: 4px; /* icon to label */
+  --s-3: 6px; /* between controls */
+  --s-4: 8px; /* row padding */
+  --s-5: 12px; /* card inset */
+  --s-6: 16px; /* panel inset */
+  --s-7: 24px; /* sheet inset */
+
+  /* Radius: five steps; small controls step down one (6→5, 4→3.5) ------- */
+  --r-paper: 2px;
+  --r-chip: 4px;
+  --r-chip-sm: 3.5px;
+  --r-control: 6px;
+  --r-control-sm: 5px;
+  --r-menu: 8px;
+  --r-sheet: 10px;
+  --r-icon: 12px; /* the 52px app icon's squircle, in an alert */
+  --r-appicon: 15px; /* the 64px one, on the empty screen — macOS's own ratio */
+  --r-pill: 999px; /* capsules, switches, badges, dots: round the ends */
+
+  /* Control heights: regular · small · mini ----------------------------- */
+  --h-regular: calc(28px * var(--ui-scale));
+  --h-small: calc(22px * var(--ui-scale));
+  --h-mini: calc(20px * var(--ui-scale));
+
+  /* Motion: two, and nothing a writer touches mid-sentence animates ----- */
+  --motion: 120ms ease-out; /* hover, press, tint */
+  --motion-sheet: 200ms ease-out; /* the sheet drop, which macOS reads as "modal" */
+
+  /* Shadows (docs/engineering/design-system.md#UI-D105) ------------------------------------------------------ */
+  --sh-sheet: 0 1px 2px rgba(31, 41, 51, 0.08);
+  --sh-card: 0 1px 3px rgba(31, 41, 51, 0.08);
+  --sh-control: 0 0.5px 1px rgba(31, 41, 51, 0.08);
+  --sh-primary: 0 0.5px 1px rgba(31, 41, 51, 0.18);
+  --sh-seg: 0 0.5px 1.5px rgba(31, 41, 51, 0.16);
+  --sh-menu: 0 0 0 0.5px rgba(31, 41, 51, 0.05), 0 12px 34px rgba(31, 41, 51, 0.22);
+  --sh-toast: 0 0 0 0.5px rgba(31, 41, 51, 0.05), 0 14px 38px rgba(31, 41, 51, 0.2);
+  --sh-modal: 0 0 0 0.5px rgba(31, 41, 51, 0.14), 0 18px 60px rgba(31, 41, 51, 0.3);
+  --sh-window: 0 1px 2px rgba(31, 41, 51, 0.1), 0 30px 70px rgba(31, 41, 51, 0.24);
+  --scrim: rgba(31, 41, 51, 0.18);
+
+  /* Vibrancy (docs/engineering/design-system.md#UI-D101). Real macOS material needs a transparent webview over an
+     NSVisualEffectView; until then this is the opaque-enough fallback and the
+     design does not depend on the blur landing. */
+  --vibrant: rgba(252, 248, 239, 0.94);
+
+  /* Inline script INSIDE prose. Courier Prime's x-height runs large beside the
+     UI face, so a literal set at the surrounding size reads a step too big;
+     this is the one relative size in the system, and it is relative on purpose
+     — it has to follow whatever it is sitting in. */
+  --t-inline-script: 0.9em;
+
+  /* Focus (docs/app/preferences-and-help/accessibility.md#UI-D108): a crisp line in the accent's TEXT colour inside the soft ring.
+     The ring alone was the accent at 35-50%, which is 1.4:1 to 1.8:1 against
+     the paper it sits on — a focus indicator WCAG 1.4.11 asks 3:1 of, and one
+     a low-vision writer could not find. The line carries the contrast (4.5:1
+     or better on every surface, because --accent-text already has to), the
+     ring keeps the look. */
+  --focus-ring: 0 0 0 1.5px var(--accent-text), 0 0 0 4px var(--accent-ring);
+
+  --font-script: "Courier Prime", "Courier New", Courier, monospace;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+}
+
+/*
+ * ── Accent: seven tokens, one preference (docs/engineering/design-system.md#UI-D102) ───────────────────────────
+ *
+ * The accent is a user preference (settings.json, app-level, default gilt),
+ * applied as `data-accent` on the document element. Every accent use in this
+ * file reads one of these seven; nothing else may hold an accent literal.
+ *
+ * Gilt splits into fill and text because gold on cream is 2.3:1 — exactly like
+ * macOS's own Yellow accent, gilt fills carry ink text (6.1:1) and text on
+ * paper uses bronze (5.1:1). The other accents set --accent-text = --accent
+ * and --on-accent = cream.
+ */
+:root,
+:root[data-accent="gilt"] {
+  --accent: #c9a227;
+  --accent-deep: #ae8b1f;
+  --accent-soft: rgba(201, 162, 39, 0.2);
+  --accent-softer: rgba(201, 162, 39, 0.1);
+  --accent-ring: rgba(201, 162, 39, 0.5);
+  --accent-text: #735817;
+  --on-accent: #1f2933;
+}
+/* Under gilt ONLY the warn tint goes neutral, so amber cannot be mistaken for
+   the accent. The glyph and the words still carry it — colour is never the
+   only carrier anywhere in this system. */
+:root,
+:root[data-accent="gilt"] {
+  --warn-tint: rgba(31, 41, 51, 0.07);
+  --warn-text: #565c65;
+  --warn-body: #3d4650;
+  --warn-border: rgba(31, 41, 51, 0.18);
+  --warn-dot: #8a8f98;
+}
+:root[data-accent="velvet"] {
+  --accent: #7a3b6a;
+  --accent-deep: #66305a;
+  --accent-soft: rgba(122, 59, 106, 0.13);
+  --accent-softer: rgba(122, 59, 106, 0.07);
+  --accent-ring: rgba(122, 59, 106, 0.35);
+  --accent-text: #7a3b6a;
+  --on-accent: #fcf8ef;
+}
+:root[data-accent="inkblue"] {
+  --accent: #34508c;
+  --accent-deep: #2b437a;
+  --accent-soft: rgba(52, 80, 140, 0.13);
+  --accent-softer: rgba(52, 80, 140, 0.07);
+  --accent-ring: rgba(52, 80, 140, 0.35);
+  --accent-text: #34508c;
+  --on-accent: #fcf8ef;
+}
+:root[data-accent="iris"] {
+  --accent: #5b4e9e;
+  --accent-deep: #4c4088;
+  --accent-soft: rgba(91, 78, 158, 0.13);
+  --accent-softer: rgba(91, 78, 158, 0.07);
+  --accent-ring: rgba(91, 78, 158, 0.35);
+  --accent-text: #5b4e9e;
+  --on-accent: #fcf8ef;
+}
+/*
+ * Follow Mac (`system`) is the Mac's own accent colour, which accent.rs reads
+ * and src/ui/system-accent.ts turns into these fourteen, seven by day and seven
+ * at night, held to the same floors as the hand-picked four. The page sets
+ * them inline on :root. The values here stand in where there is no Mac to ask
+ * (browser dev, smoke) and before it first answers: macOS's blue, which is all
+ * System ever was until it followed the Mac.
+ */
+:root {
+  --sys-accent: #0a66e0;
+  --sys-accent-deep: #0856bf;
+  --sys-accent-soft: rgba(10, 102, 224, 0.13);
+  --sys-accent-softer: rgba(10, 102, 224, 0.07);
+  --sys-accent-ring: rgba(10, 102, 224, 0.35);
+  --sys-accent-text: #0f58b9;
+  --sys-on-accent: #ffffff;
+  --sys-night-accent: #6fa6f5;
+  --sys-night-accent-deep: #5a93e6;
+  --sys-night-accent-soft: rgba(111, 166, 245, 0.18);
+  --sys-night-accent-softer: rgba(111, 166, 245, 0.09);
+  --sys-night-accent-ring: rgba(111, 166, 245, 0.4);
+  --sys-night-accent-text: #6fa6f5;
+  --sys-night-on-accent: #1a1613;
+}
+:root[data-accent="system"] {
+  --accent: var(--sys-accent);
+  --accent-deep: var(--sys-accent-deep);
+  --accent-soft: var(--sys-accent-soft);
+  --accent-softer: var(--sys-accent-softer);
+  --accent-ring: var(--sys-accent-ring);
+  --accent-text: var(--sys-accent-text);
+  --on-accent: var(--sys-on-accent);
+}
+/* Every accent but gilt keeps amber for "warn" — and a Mac accent that is
+   itself orange or yellow (`data-accent-warm`), which goes neutral as gilt
+   does. */
+:root[data-accent="velvet"],
+:root[data-accent="inkblue"],
+:root[data-accent="iris"],
+:root[data-accent="system"]:not([data-accent-warm]) {
+  --warn-tint: rgba(192, 138, 46, 0.16);
+  --warn-text: #7a5713;
+  --warn-body: #5a4210;
+  --warn-border: rgba(192, 138, 46, 0.35);
+  --warn-dot: #c08a2e;
+}
+
+/*
+ * ── Dark: the house with the lights down ─────────────────────────────────
+ *
+ * ONE resolved appearance fork, re-hued warm (the old fork was blue-gray).
+ * The sheets stay lit paper on the dark desk — print-faithful — via the
+ * .play-page re-pin below, which is one selector list buying page fidelity
+ * everywhere. Nothing may write a light hex by hand and bypass this: six rules
+ * used to, and stayed daylight-red at night.
+ */
+@media all {
+  :root[data-theme="dark"] {
+    /*
+     * --paper is the CARD surface — menus, popovers, fields, buttons, the
+     * board's cards — so at night it is dark like everything else that is
+     * chrome. The lit sheet is not this token's job: `.play-page` and its four
+     * siblings re-pin --paper back to cream below, which is what keeps a page
+     * print-faithful on a dark desk.
+     *
+     * Hoisting the lit value up here instead looks right in the token table
+     * and is wrong on screen: --ink is light at night, so every card, menu and
+     * button in the app becomes cream text on cream.
+     */
+    --paper: #332e28;
+    --chrome: #2e2a25;
+    --rail: #262320;
+    --desk: #191714;
+    --desk-deep: #141210;
+    --cream: #3a342d;
+    --field: rgba(0, 0, 0, 0.24);
+
+    --ink: #ede7da; /* chrome only — on paper ink stays #1F2933 */
+    --ink-2: #b7aea3;
+    --ash: #a39c92; /* was #8F877E: 3.5:1 on a card, 3.8:1 in a menu */
+    --icon: #c9c0b5;
+    --placeholder: #a39c92;
+    --faint: #8f877e;
+
+    --rule: rgba(255, 255, 255, 0.13);
+    --rule-strong: rgba(255, 255, 255, 0.18);
+    --hover: rgba(255, 255, 255, 0.07);
+    --hover-strong: rgba(255, 255, 255, 0.1);
+    --track: rgba(255, 255, 255, 0.07);
+
+    --oxide: #c46a4a;
+    --sea: #6da3b8;
+    --moss: #8fa361;
+    --amber: #d9a54a;
+    --hue-cream: #6b6053;
+    --card-hue: #6b6053;
+
+    --warn-tint: rgba(255, 255, 255, 0.07);
+    --warn-text: #b7aea3;
+    --warn-body: #d6cec2;
+    --warn-border: rgba(255, 255, 255, 0.18);
+    --warn-dot: #8f877e;
+    --ok-tint: rgba(143, 163, 97, 0.16);
+    --ok-text: #b6c98c;
+    --sea-tint: rgba(109, 163, 184, 0.16);
+    --sea-text: #9cc6d6;
+    --ok-dot: #8fa361;
+    --bad-tint: rgba(196, 106, 74, 0.16);
+    --bad-text: #e2a58c;
+    --bad: #cf8d72; /* was #C46A4A: destructive menu rows read 3.5:1 */
+    --bad-border: rgba(196, 106, 74, 0.5);
+    --on-bad: #1a1613;
+
+    --vibrant: rgba(46, 42, 37, 0.94);
+    --scrim: rgba(0, 0, 0, 0.4);
+    --sh-menu: 0 0 0 0.5px rgba(0, 0, 0, 0.4), 0 12px 34px rgba(0, 0, 0, 0.5);
+    --sh-toast: 0 0 0 0.5px rgba(0, 0, 0, 0.4), 0 14px 38px rgba(0, 0, 0, 0.45);
+    --sh-modal: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 18px 60px rgba(0, 0, 0, 0.55);
+    --sh-window: 0 1px 2px rgba(0, 0, 0, 0.4), 0 30px 70px rgba(0, 0, 0, 0.5);
+  }
+
+  /* The accent lifts so it clears the dark rail; fills take near-black text. */
+  :root[data-theme="dark"],
+  :root[data-theme="dark"][data-accent="gilt"] {
+    --accent: #e0be4c;
+    --accent-deep: #c9a227;
+    --accent-soft: rgba(224, 190, 76, 0.2);
+    --accent-softer: rgba(224, 190, 76, 0.1);
+    --accent-ring: rgba(224, 190, 76, 0.45);
+    --accent-text: #e0be4c;
+    --on-accent: #1a1613;
+    /* Gilt's neutral warn, again at night. The daytime gilt rule above names
+       the attribute, so it outranks the plain `:root` block here and kept
+       slate warn text on the dark chrome at 2.2:1 until this said it again at
+       the same specificity. */
+    --warn-tint: rgba(255, 255, 255, 0.07);
+    --warn-text: #b7aea3;
+    --warn-body: #d6cec2;
+    --warn-border: rgba(255, 255, 255, 0.18);
+    --warn-dot: #8f877e;
+  }
+  :root[data-theme="dark"][data-accent="velvet"] {
+    --accent: #c88bb8;
+    --accent-deep: #b072a0;
+    --accent-soft: rgba(200, 139, 184, 0.18);
+    --accent-softer: rgba(200, 139, 184, 0.09);
+    --accent-ring: rgba(200, 139, 184, 0.4);
+    --accent-text: #c88bb8;
+    --on-accent: #1a1613;
+  }
+  :root[data-theme="dark"][data-accent="inkblue"] {
+    --accent: #8fa6de;
+    --accent-deep: #7a93ce;
+    --accent-soft: rgba(143, 166, 222, 0.18);
+    --accent-softer: rgba(143, 166, 222, 0.09);
+    --accent-ring: rgba(143, 166, 222, 0.4);
+    --accent-text: #8fa6de;
+    --on-accent: #1a1613;
+  }
+  :root[data-theme="dark"][data-accent="iris"] {
+    --accent: #a99be0;
+    --accent-deep: #9385d0;
+    --accent-soft: rgba(169, 155, 224, 0.18);
+    --accent-softer: rgba(169, 155, 224, 0.09);
+    --accent-ring: rgba(169, 155, 224, 0.4);
+    --accent-text: #a99be0;
+    --on-accent: #1a1613;
+  }
+  :root[data-theme="dark"][data-accent="system"] {
+    --accent: var(--sys-night-accent);
+    --accent-deep: var(--sys-night-accent-deep);
+    --accent-soft: var(--sys-night-accent-soft);
+    --accent-softer: var(--sys-night-accent-softer);
+    --accent-ring: var(--sys-night-accent-ring);
+    --accent-text: var(--sys-night-accent-text);
+    --on-accent: var(--sys-night-on-accent);
+  }
+  /* Amber warn survives at night for every accent but gilt, and a warm Mac accent. */
+  :root[data-theme="dark"][data-accent="velvet"],
+  :root[data-theme="dark"][data-accent="inkblue"],
+  :root[data-theme="dark"][data-accent="iris"],
+  :root[data-theme="dark"][data-accent="system"]:not([data-accent-warm]) {
+    --warn-tint: rgba(217, 165, 74, 0.16);
+    --warn-text: #d9a54a;
+    --warn-body: #e6c789;
+    --warn-border: rgba(217, 165, 74, 0.35);
+    --warn-dot: #d9a54a;
+  }
+
+  /* Print-faithful sheets: the page itself never goes dark. The desk band
+     between sheets keeps the dark --desk — lit paper on a dark table. The
+     export preview's sheets are the same paper, and so is a material. */
+  :root[data-theme="dark"] .play-page,
+  :root[data-theme="dark"] .titlesheet,
+  :root[data-theme="dark"] .exportpanel__paper,
+  :root[data-theme="dark"] .material__page,
+  :root[data-theme="dark"] .material__body {
+    --cream: #f4ecd8;
+    --oxide: #9c4a2f;
+    --ink: #1f2933;
+    --ink-2: #565c65;
+    --ash: #625a52;
+    --icon: #3d4650;
+    --placeholder: #736a5d;
+    --faint: #8a8f98;
+    --paper: #fcf8ef;
+    --field: #fffdf8;
+    --rule: rgba(31, 41, 51, 0.12);
+    --rule-strong: rgba(31, 41, 51, 0.2);
+    --hover: rgba(31, 41, 51, 0.06);
+    --hover-strong: rgba(31, 41, 51, 0.09);
+    --track: rgba(31, 41, 51, 0.07);
+    --hue-cream: #e3d9c2;
+  }
+}
+
+/*
+ * Increase Contrast (docs/app/preferences-and-help/accessibility.md#UI-D108): hairlines become ink and the tertiary label steps up
+ * to the secondary. Reduce Motion needs nothing — there are two transitions in
+ * the whole file, and neither moves anything.
+ */
+@media (prefers-contrast: more) {
+  :root {
+    --rule: rgba(31, 41, 51, 0.5);
+    --rule-strong: rgba(31, 41, 51, 0.6);
+    --ink-2: #3d4650;
+    --ash: #4a433b;
+    --placeholder: #4a433b;
+    --faint: #5a6069;
+  }
+  @media all {
+    :root[data-theme="dark"] {
+      --rule: rgba(255, 255, 255, 0.45);
+      --rule-strong: rgba(255, 255, 255, 0.55);
+      --ink-2: #d6cec2;
+      --ash: #c9c0b5;
+      --placeholder: #c9c0b5;
+      --faint: #b7aea3;
+    }
+  }
+}
+
+/* Reduce Transparency: the vibrant layer (menus, popovers, toasts) goes opaque,
+   so a menu over the page is read against its own paper and not the words
+   behind it. Harmless where the query is not supported. */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --vibrant: #fcf8ef;
+  }
+  @media all {
+    :root[data-theme="dark"] {
+      --vibrant: #2e2a25;
+    }
+  }
+}
+

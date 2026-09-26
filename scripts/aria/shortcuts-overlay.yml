@@ -1,0 +1,195 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "1953 North Sea Flood"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+      - treeitem "Untitled" [level=2]
+      - treeitem "Wren Thackeray Rename “Wren Thackeray” Actions for “Wren Thackeray”" [level=2] [selected]:
+        - text: Wren Thackeray
+        - button "Rename “Wren Thackeray”"
+        - button "Actions for “Wren Thackeray”"
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: in Research
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Cast":
+      - button "Cast"
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+    - listitem "1953 North Sea Flood":
+      - button "1953 North Sea Flood"
+      - button "Close 1953 North Sea Flood"
+  - button "Add a surface to this pane"
+  - textbox "File name"
+  - text: water history image-system
+  - button "Edit Tags"
+  - status
+  - group "View":
+    - button "Page" [pressed]
+    - button "Source"
+  - toolbar "Formatting":
+    - 'button "Paragraph style: Heading 1"': Heading 1
+    - button "Bold"
+    - button "Italic"
+    - button "Inline code":
+      - img
+    - button "Link":
+      - img
+    - button "Bulleted list":
+      - img
+    - button "Numbered list":
+      - img
+    - button "Insert table":
+      - img
+    - button "Insert divider":
+      - img
+  - heading "1953 North Sea Flood" [level=1]
+  - paragraph: Reference material for the family's relationship to the marsh and "the water."
+  - paragraph: The night of 31 January 1953, a storm tide overwhelmed sea defenses around the North Sea. Water came in the dark, through the floors, before anyone decided anything. People woke already inside it.
+  - paragraph: "Useful for the play's central image: water as the thing that arrives without being invited and stays without being asked — same shape as grief, same shape as a brother in the doorway. Mara measures it now for a living; she's been trying to put a number on what once just came in under the door."
+  - blockquote:
+    - paragraph: A reference file like a PDF or image would sit beside this note untouched; the app opens it read-only.
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: 1 format warning Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Keyboard Shortcuts":
+  - heading "Keyboard Shortcuts" [level=2]
+  - region "Keyboard Shortcuts":
+    - heading "Elements" [level=3]
+    - term: ⌘⌥1
+    - definition: Act
+    - term: ⌘⌥2
+    - definition: Scene
+    - term: ⌘⌥S
+    - definition: Scene Heading
+    - term: ⌘⌥A
+    - definition: Action
+    - term: ⌘⌥C
+    - definition: Character
+    - term: ⌘⌥D
+    - definition: Dialogue
+    - term: ⌘⌥P
+    - definition: Parenthetical
+    - term: ⌘⌥T
+    - definition: Transition
+    - term: ⌘⌥L
+    - definition: Lyric
+    - term: ⇥
+    - definition: Change this line’s element
+    - term: ;
+    - definition: Element menu, on an empty line
+    - term: ⏎
+    - definition: New line, with the likely next element
+    - term: ⏎⏎
+    - definition: Element menu for the new line
+    - term: ⇧⏎
+    - definition: Line Break, same element
+    - term: ⌘⏎
+    - definition: Page Break
+    - heading "Emphasis" [level=3]
+    - term: ⌘B
+    - definition: Bold
+    - term: ⌘I
+    - definition: Italic
+    - term: ⌘U
+    - definition: Underline
+    - heading "Navigation" [level=3]
+    - term: ⌘F
+    - definition: Find
+    - term: ⌘⌥F
+    - definition: Find and Replace
+    - term: ⌥⌘↑
+    - definition: Previous Scene
+    - term: ⌥⌘↓
+    - definition: Next Scene
+    - term: ⌘⇧J
+    - definition: Go to Scene…
+    - term: ⌃⇥ / ⌃⇧⇥
+    - definition: "Next or previous area: toolbar, binder, script, inspector, status bar (a notice’s Undo comes first)"
+    - term: ⌘+ / ⌘−
+    - definition: Zoom In and Zoom Out
+    - term: ⌘0
+    - definition: Actual Size
+    - heading "Views and panels" [level=3]
+    - term: ⌘1
+    - definition: Script
+    - term: ⌘2
+    - definition: Board
+    - term: ⌘3
+    - definition: Outline
+    - term: ⌘4
+    - definition: Cast
+    - term: ⌘5
+    - definition: Changes
+    - term: ⌘⌥B
+    - definition: Show or hide the binder
+    - term: ⌘⌥I
+    - definition: Show or hide the inspector
+    - term: ⌘⇧C
+    - definition: Comments
+    - term: ⌃⌘↑ / ⌃⌘↓
+    - definition: Move the binder item, or a status in Settings, up or down
+    - term: ⌃⌘← / ⌃⌘→
+    - definition: Move the binder item out of its folder, or into the folder above
+    - term: ⇧F10
+    - definition: Actions for the selected binder item
+    - term: ⌃⌘F
+    - definition: Focus, which shows only the page
+    - heading "The script" [level=3]
+    - term: ⌘S
+    - definition: Save (Proscenium also saves as you write)
+    - term: ⌘⌥M
+    - definition: Comment on the selection
+    - term: ⌘;
+    - definition: Next Misspelling, with suggestions
+    - term: ⌘Z / ⌘⇧Z
+    - definition: Undo and Redo
+    - heading "The play" [level=3]
+    - term: ⌘⇧E
+    - definition: Export PDF…
+    - term: ⌘P
+    - definition: Print…
+    - term: ⌘⇧O
+    - definition: All Plays
+    - term: ⌘,
+    - definition: Settings
+    - term: ⌘/
+    - definition: Keyboard Shortcuts
+    - 'heading "Element menu: ; then a key" [level=3]'
+    - text: a Action c Character d Dialogue p Parenthetical s Scene Heading t Transition 1 Act 2 Scene l Lyric = Scene Summary (Not Printed) > Centered Text n Comment - Page Break
+  - button "Done"
+  - status
+  - alert

@@ -1,0 +1,35 @@
+- dialog "Review Your Draft"
+  - heading "Review Your Draft" [level=2]
+  - none
+    - textbox "New play name"
+  - paragraph "<plays folder>"
+  - button "Choose Different Files…"
+  - generic [live=polite]: 5 paragraphs1 scene heading1 characters4 inferred or unrecognized
+  - group
+    - none "What carries across · 1 note"
+  - textbox "Find text in import"
+  - checkbox "Inferred or Unrecognized Only" [checked]
+  - button "Unstyled text: Recognize Script Elements" [haspopup]
+  - region "Paragraph preview"
+    - heading "Reading preview" [level=3]
+    - button "Paragraph 1, Act, inferred or unrecognized: ACT ONE"
+    - button "Paragraph 2, Scene, inferred or unrecognized: Scene 1"
+    - button "Paragraph 3, Character, inferred or unrecognized: MARA"
+    - button "Paragraph 4, Dialogue, inferred or unrecognized: Stay here."
+    - button "Paragraph 5, Stage Direction: She waits." [pressed]
+    - button "Previous" [disabled]
+    - button "Next" [disabled]
+  - complementary "Adjust paragraph"
+    - heading "Paragraph 5" [level=3]
+    - paragraph
+    - paragraph
+    - button "Element: Stage Direction" [haspopup]
+    - paragraph
+    - button "Use for This Source Style"
+    - paragraph
+    - button "Reset All Corrections"
+  - button "Cancel"
+  - button "Create New Play"
+  - generic
+    - status [live=polite]
+    - alert [live=assertive]

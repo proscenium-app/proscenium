@@ -1,0 +1,28 @@
+{
+  "kind": "proscenium/play",
+  "schemaVersion": 1,
+  "id": "01K05Q0000000000000000PR01",
+  "status": "drafting",
+  "created": "2026-07-16T17:00:00Z",
+  "modified": "2026-07-16T17:00:00Z",
+  "generator": { "app": "Proscenium", "version": "1.0.0" },
+  "settings": {
+    "format": "stage-us-modern",
+    "sceneAnchors": "manifest",
+    "autosave": { "debounceMs": 600, "maxWaitMs": 2000 }
+  },
+  "binder": [
+    { "id": "01K05Q0000000000000000SC03", "type": "script", "path": "The Lighthouse.fountain" },
+    {
+      "id": "01K05Q0000000000000000FD04",
+      "type": "folder",
+      "path": "Notes",
+      "children": [
+        { "id": "01K05Q0000000000000000NT05", "type": "document", "path": "Notes/Ideas.md" }
+      ]
+    }
+  ],
+  "scripts": {
+    "01K05Q0000000000000000SC03": { "scenes": [], "orphans": [] }
+  }
+}

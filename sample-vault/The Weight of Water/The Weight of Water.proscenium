@@ -1,0 +1,73 @@
+{
+  "kind": "proscenium/play",
+  "schemaVersion": 1,
+  "id": "01J9Z8B4C7H0M2N5Q8R1T3V6W9",
+  "status": "drafting",
+  "logline": "A flooded house, a brother who came back, and a plug nobody will pull.",
+  "created": "2026-06-18T21:42:00Z",
+  "modified": "2026-06-18T22:10:13Z",
+  "generator": { "app": "Proscenium", "version": "1.0.0" },
+  "settings": {
+    "format": "stage-us-modern",
+    "sceneAnchors": "manifest",
+    "autosave": { "debounceMs": 600, "maxWaitMs": 2000 }
+  },
+  "binder": [
+    { "id": "01J9ZA1F2G3H4J5K6L7M8N9P0Q", "type": "script", "path": "The Weight of Water.fountain" },
+    {
+      "id": "01J9ZB2H3J4K5L6M7N8P9Q0R1S",
+      "type": "folder",
+      "path": "Characters",
+      "children": [
+        { "id": "01J9ZC3J4K5L6M7N8P9Q0R1S2T", "type": "character", "path": "Characters/Mara.md" },
+        { "id": "01J9ZD4K5L6M7N8P9Q0R1S2T3U", "type": "character", "path": "Characters/Jonah.md" }
+      ]
+    },
+    {
+      "id": "01J9ZE5L6M7N8P9Q0R1S2T3U4V",
+      "type": "folder",
+      "path": "Research",
+      "children": [
+        { "id": "01J9ZF6M7N8P9Q0R1S2T3U4V5W", "type": "document", "path": "Research/1953 North Sea Flood.md" }
+      ]
+    },
+    {
+      "id": "01J9ZG7N8P9Q0R1S2T3U4V5W6X",
+      "type": "folder",
+      "path": "Notes",
+      "children": [
+        { "id": "01J9ZG7N8P9Q0R1S2T3U4V5W6Y", "type": "document", "path": "Notes/Structure.md" }
+      ]
+    },
+    {
+      "id": "01J9ZH8P9Q0R1S2T3U4V5W6X7Y",
+      "type": "folder",
+      "path": "Loglines",
+      "children": [
+        { "id": "01J9ZH8P9Q0R1S2T3U4V5W6X7Z", "type": "document", "path": "Loglines/Logline.md" }
+      ]
+    }
+  ],
+  "scripts": {
+    "01J9ZA1F2G3H4J5K6L7M8N9P0Q": {
+      "scenes": [
+        {
+          "id": "01J9ZS1AAAAAAAAAAAAAAAAAA1",
+          "anchor": { "ordinal": 0, "headingHash": "6eafa9b29d1b9810", "embeddedId": null },
+          "card": { "color": "oxide", "status": "draft", "label": "setup", "boardNote": "land the brother's arrival harder" }
+        },
+        {
+          "id": "01J9ZS2BBBBBBBBBBBBBBBBBB2",
+          "anchor": { "ordinal": 1, "headingHash": "6eafacb29d1b9d29", "embeddedId": null },
+          "card": { "color": "ink", "status": "outline", "label": "turn", "boardNote": "" }
+        },
+        {
+          "id": "01J9ZS3CCCCCCCCCCCCCCCCCC3",
+          "anchor": { "ordinal": 2, "headingHash": "35b108a46ab875e6", "embeddedId": null },
+          "card": { "color": "cream", "status": "idea", "label": "resolution", "boardNote": "is the brass plug too on-the-nose?" }
+        }
+      ],
+      "orphans": []
+    }
+  }
+}

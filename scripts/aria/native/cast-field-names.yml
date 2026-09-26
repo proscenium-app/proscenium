@@ -1,0 +1,120 @@
+- banner
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water" [haspopup]
+  - tablist "What this pane shows"
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast" [selected]
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder"
+  - sectionheader
+    - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items"
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - treeitem "SCENE 1 1" [level=2]
+    - treeitem "SCENE 2 1–2" [level=2]
+    - treeitem "SCENE 1 2" [level=2]
+    - treeitem "Characters" [level=1] [expanded]
+    - treeitem "Mara" [level=2]
+    - treeitem "Jonah" [level=2]
+    - treeitem "Research" [level=1] [expanded]
+    - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [level=1] [expanded]
+    - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [level=1] [expanded]
+    - treeitem "Logline" [level=2]
+  - sectionfooter
+    - button "New" [haspopup]
+- main "Play"
+  - group "Open in this pane"
+    - listitem "Cast"
+      - button "Cast" [current=true]
+      - button "Close Cast"
+    - listitem "The Weight of Water"
+      - button "The Weight of Water"
+  - button "Add a surface to this pane" [haspopup]
+  - sectionheader
+    - heading "Characters Page" [level=1]
+    - paragraph
+  - group "Printed characters page"
+    - toolbar "Formatting"
+      - button "Paragraph style: Heading 1" [haspopup]
+      - button "Bold"
+      - button "Italic"
+      - button "Text alignment: Align Left" [haspopup]
+      - button "Bulleted list"
+      - button "Numbered list"
+    - textbox
+  - group
+    - none "Page Options"
+  - sectionheader
+    - heading "Cast Tools" [level=2]
+    - paragraph
+  - group "MARA"
+    - textbox "Name — MARA"
+    - textbox "Description — MARA"
+    - button "Remove MARA"
+    - button "Move MARA up" [disabled]
+    - button "Move MARA down"
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - group "JONAH"
+    - textbox "Name — JONAH"
+    - textbox "Description — JONAH"
+    - button "Remove JONAH"
+    - button "Move JONAH up"
+    - button "Move JONAH down" [disabled]
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - button "Add Character"
+  - heading "Who’s on stage" [level=3]
+  - paragraph
+  - table
+    - row
+      - columnheader
+      - columnheader
+        - button "SCENE 1"
+      - columnheader
+        - button "SCENE 2"
+      - columnheader
+        - button "SCENE 1"
+      - columnheader
+    - row
+      - columnheader
+      - columnheader
+      - columnheader
+      - columnheader
+    - row
+      - rowheader
+      - cell
+      - cell
+      - cell
+      - cell
+    - row
+      - rowheader
+      - cell "JONAH · SCENE 1 — speaks"
+      - cell "JONAH · SCENE 2 — speaks"
+      - cell "JONAH · SCENE 1 — silent"
+      - cell
+    - row
+      - rowheader
+      - cell "MARA · SCENE 1 — speaks"
+      - cell "MARA · SCENE 2 — silent"
+      - cell "MARA · SCENE 1 — speaks"
+      - cell
+- contentinfo
+  - button "<plays folder>/The Weight of Water"
+  - button "Zoom out"
+  - button "Zoom: 100%" [haspopup]
+  - button "Zoom in"
+- status [live=polite]
+- alert [live=assertive]

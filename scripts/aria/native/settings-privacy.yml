@@ -1,0 +1,23 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy" [selected]
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Privacy"
+    - heading "Privacy" [level=3]
+    - heading "REPORTS" [level=4]
+    - none
+      - switch "Share anonymous usage and crash reports"
+    - paragraph
+    - paragraph
+    - button "Read the Privacy Policy"
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

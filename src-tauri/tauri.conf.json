@@ -1,0 +1,124 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Proscenium",
+  "version": "1.0.0",
+  "identifier": "org.habiby.proscenium",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "bun run dev",
+    "beforeBuildCommand": "bun run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "create": false,
+        "title": "Proscenium",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 820,
+        "minHeight": 560,
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data:",
+        "font-src": "'self'",
+        "object-src": "'none'",
+        "frame-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
+      "devCsp": {
+        "default-src": "'self'",
+        "connect-src": "'self' ipc: http://ipc.localhost ws://localhost:1420 http://localhost:1420",
+        "script-src": "'self' http://localhost:1420",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data:",
+        "font-src": "'self'",
+        "object-src": "'none'",
+        "frame-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'"
+      },
+      "dangerousDisableAssetCspModification": ["style-src"]
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDYxOTNDNDlFOEQ2QTExMjcKUldRbkVXcU5uc1NUWVNEbnBkazVKS3Q0NU56OWg2Rk5kaHVxRDNiS2kwaEZGeCtmUGtNdnBiekgK",
+      "endpoints": [
+        "https://updates.proscenium.ink/v1/{{target}}/{{arch}}/{{current_version}}",
+        "https://github.com/proscenium-app/proscenium/releases/latest/download/latest.json"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico",
+      "icons/Assets.car"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["proscenium"],
+        "name": "Proscenium Play",
+        "role": "Editor",
+        "rank": "Owner",
+        "mimeType": "application/json",
+        "exportedType": {
+          "identifier": "org.habiby.proscenium.play",
+          "conformsTo": ["public.json"]
+        }
+      },
+      {
+        "ext": ["fountain"],
+        "name": "Fountain Script",
+        "role": "Editor",
+        "rank": "Alternate",
+        "mimeType": "text/plain",
+        "exportedType": {
+          "identifier": "org.habiby.proscenium.fountain",
+          "conformsTo": ["public.plain-text"]
+        }
+      },
+      {
+        "ext": ["fdx"],
+        "name": "Final Draft Script",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["docx", "odt", "rtf", "txt", "md"],
+        "name": "Importable Draft",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["pages"],
+        "contentTypes": ["com.apple.iwork.pages.sffpages", "com.apple.iwork.pages.pages"],
+        "name": "Pages Document",
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ],
+    "macOS": {
+      "minimumSystemVersion": "14.0",
+      "hardenedRuntime": true,
+      "entitlements": "Entitlements.developer-id.plist"
+    }
+  }
+}

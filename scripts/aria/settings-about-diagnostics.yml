@@ -1,0 +1,132 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "1953 North Sea Flood"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+      - treeitem "Untitled" [level=2]
+      - treeitem "Wren Thackeray Rename “Wren Thackeray” Actions for “Wren Thackeray”" [level=2] [selected]:
+        - text: Wren Thackeray
+        - button "Rename “Wren Thackeray”"
+        - button "Actions for “Wren Thackeray”"
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: in Research
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Cast":
+      - button "Cast"
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+    - listitem "1953 North Sea Flood":
+      - button "1953 North Sea Flood"
+      - button "Close 1953 North Sea Flood"
+  - button "Add a surface to this pane"
+  - textbox "File name"
+  - text: water history image-system
+  - button "Edit Tags"
+  - status
+  - group "View":
+    - button "Page" [pressed]
+    - button "Source"
+  - toolbar "Formatting":
+    - 'button "Paragraph style: Body Text"': Body Text
+    - button "Bold"
+    - button "Italic"
+    - button "Inline code":
+      - img
+    - button "Link":
+      - img
+    - button "Bulleted list":
+      - img
+    - button "Numbered list":
+      - img
+    - button "Insert table":
+      - img
+    - button "Insert divider":
+      - img
+  - heading "1953 North Sea Flood" [level=1]
+  - paragraph: Reference material for the family's relationship to the marsh and "the water."
+  - paragraph: The night of 31 January 1953, a storm tide overwhelmed sea defenses around the North Sea. Water came in the dark, through the floors, before anyone decided anything. People woke already inside it.
+  - paragraph: "Useful for the play's central image: water Update test words.as the thing that arrives without being invited and stays without being asked — same shape as grief, same shape as a brother in the doorway. Mara measures it now for a living; she's been trying to put a number on what once just came in under the door."
+  - blockquote:
+    - paragraph: A reference file like a PDF or image would sit beside this note untouched; the app opens it read-only.
+  - paragraph
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: 1 format warning Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Settings":
+  - heading "Settings" [level=2]
+  - tablist "Settings sections":
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About" [selected]
+  - tabpanel "About":
+    - heading "About" [level=3]
+    - paragraph: Proscenium
+    - paragraph: Version <version> · browser preview
+    - paragraph:
+      - link "Free software under the GNU AGPL"
+      - text: ", version 3 or later. You may use, study, share and change it. © 2026 Alexander Habiby."
+    - heading "Acknowledgments" [level=4]
+    - list:
+      - listitem: "Courier Prime: the typeface for scripts, by the Courier Prime Project Authors. SIL Open Font License 1.1."
+      - listitem: "SCOWL: the word list for checking spelling in scripts, by Kevin Atkinson and contributors. The SCOWL license."
+      - listitem: "Tauri: the app framework. MIT or Apache 2.0."
+      - listitem: "React: the interface. MIT."
+      - listitem: "ProseMirror and TipTap: the text editors. MIT."
+      - listitem: "pdf-lib: PDF export. MIT."
+    - heading "The Program" [level=4]
+    - paragraph:
+      - text: The house is dark, the ushers are playing cards in the lobby, and the first name in this program has yet to be written.
+      - link "It could be yours"
+      - text: .
+    - paragraph: Proscenium's sponsors on GitHub, by level, as of this version. Only names they chose to make public appear.
+    - heading "Diagnostics" [level=4]
+    - text: Technical details
+    - button "Copy Diagnostics"
+    - paragraph: Copies the Proscenium and macOS versions, your settings and recent errors as text for you to paste. Nothing is sent. It never includes play, file or folder names, or dictionary words.
+    - text: Feedback
+    - button "Send Feedback…"
+    - paragraph: Your message goes privately to the Proscenium team.
+  - text: Settings are saved on this Mac, not in your plays.
+  - button "Done"
+  - status
+  - alert

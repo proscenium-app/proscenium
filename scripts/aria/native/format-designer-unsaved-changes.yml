@@ -1,0 +1,2 @@
+- button "Dismiss"
+- alertdialog "Discard your changes to “Smoke House”?" [live=assertive]: Discard your changes to “Smoke House”?You changed the margins. The saved format stays as it was.

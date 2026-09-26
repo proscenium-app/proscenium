@@ -1,0 +1,25 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main:
+  - heading "dev" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - button "Import a Draft…"
+  - heading "Plays" [level=2]
+  - group "Your plays look like they are in “sample-vault” and “elsewhere” inside this folder.":
+    - paragraph: Your plays look like they are in “sample-vault” and “elsewhere” inside this folder.
+    - button "Use “sample-vault”"
+    - button "Use “elsewhere”"
+    - button "Keep This Folder"
+  - paragraph: Your plays live in a folder on this Mac only. They will not appear on other devices.
+  - table "Plays":
+    - row "Play Progress Status Modified":
+      - columnheader "Play"
+      - columnheader "Progress"
+      - columnheader "Status"
+      - columnheader "Modified"
+- contentinfo:
+  - button "/dev"
+- status
+- alert

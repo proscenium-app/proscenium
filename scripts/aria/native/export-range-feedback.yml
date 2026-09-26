@@ -1,0 +1,51 @@
+- button "Undo"
+- dialog "Export PDF"
+  - heading "Export PDF" [level=2]
+  - none
+    - button "File type — what the export writes: PDF" [haspopup]
+  - none
+    - button "Part — what to export: Whole Script" [haspopup]
+  - none
+    - textbox "Pages to export"
+  - button "All Pages"
+  - list "Pages"
+    - listitem
+      - button "Title page" [current=true]
+      - none
+        - checkbox "Include title page" [checked]
+    - listitem
+      - button "Characters page"
+      - none
+        - checkbox "Include characters page" [checked]
+    - listitem
+      - button "Opening notes"
+      - none
+        - checkbox "Include opening notes" [checked]
+    - listitem
+      - button "Page 1"
+      - none
+        - checkbox "Include page 1" [checked]
+    - listitem
+      - button "Page 2"
+      - none
+        - checkbox "Include page 2" [checked]
+  - region "Preview of what will export"
+  - button "Previous page" [disabled]
+  - group [live=polite]: Title page · sheet 1 of 4
+  - button "Next page"
+  - group "Include"
+    - none
+      - checkbox "Title page" [checked]
+    - none
+      - checkbox "Characters page" [checked]
+    - none
+      - checkbox "Opening notes" [checked]
+  - none
+    - checkbox "Anonymous copy" [checked]
+  - none
+    - textbox "Play language"
+  - button "Cancel"
+  - button "Print…"
+  - button "Export PDF…"
+  - status [live=polite]
+  - alert [live=assertive]

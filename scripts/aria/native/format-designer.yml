@@ -1,0 +1,132 @@
+- dialog "Untitled Format"
+  - heading "Untitled Format" [level=2]
+  - group "Format settings"
+    - region "FORMAT"
+      - heading "FORMAT" [level=3]
+      - none
+      - textbox "Name" [invalid]
+      - paragraph
+      - paragraph [live=polite]: Give the format a name.
+    - region "PAGE"
+      - heading "PAGE" [level=3]
+      - tablist "Paper"
+        - tab "US Letter" [selected]
+        - tab "A4"
+      - none
+      - textbox "Left margin , inches"
+      - paragraph [live=polite]
+      - none
+      - textbox "Right margin , inches"
+      - paragraph [live=polite]
+      - none
+      - textbox "Top margin , inches"
+      - paragraph [live=polite]
+      - none
+      - textbox "Bottom margin , inches"
+      - paragraph [live=polite]
+    - region "TYPE"
+      - heading "TYPE" [level=3]
+      - paragraph
+      - none
+      - textbox "Size , points"
+      - paragraph [live=polite]
+      - none
+      - textbox "Line height , times the type size"
+      - paragraph [live=polite]
+    - region "HEADER"
+      - heading "HEADER" [level=3]
+      - none
+      - textbox "Header left"
+      - button "Insert into Header left" [haspopup]
+      - paragraph [live=polite]
+      - none
+      - textbox "Header center"
+      - button "Insert into Header center" [haspopup]
+      - paragraph [live=polite]
+      - none
+      - textbox "Header right"
+      - button "Insert into Header right" [haspopup]
+      - paragraph [live=polite]
+      - none
+      - textbox "From the top edge , inches"
+      - paragraph [live=polite]
+      - none
+        - switch "Hide on first page (header)"
+    - region "FOOTER"
+      - heading "FOOTER" [level=3]
+      - none
+      - textbox "Footer left"
+      - button "Insert into Footer left" [haspopup]
+      - paragraph [live=polite]
+      - none
+      - textbox "Footer center"
+      - button "Insert into Footer center" [haspopup]
+      - paragraph [live=polite]
+      - none
+      - textbox "Footer right"
+      - button "Insert into Footer right" [haspopup]
+      - paragraph [live=polite]
+      - none
+      - textbox "From the bottom edge , inches"
+      - paragraph [live=polite]
+      - none
+        - switch "Hide on first page (footer)"
+    - region "ELEMENTS"
+      - heading "ELEMENTS" [level=3]
+      - group
+        - listitem
+          - button "Act 0 in · centered · caps"
+        - listitem
+          - button "Scene 0 in · centered · caps · 2 lines before"
+        - listitem
+          - button "Scene Heading 0 in · centered · italic · 1 line before"
+        - listitem
+          - button "Action 2.5 in · 1 line before"
+        - listitem
+          - button "Character 2.5 in · caps · 1 line before"
+        - listitem
+          - button "Parenthetical 2 in"
+        - listitem
+          - button "Dialogue 0 in"
+        - listitem
+          - button "Transition 0 in · right · caps · 1 line before"
+        - listitem
+          - button "Lyric 0.5 in · italic"
+        - listitem
+          - button "Centered Text 0 in · centered · 1 line before"
+    - region "PAGE BREAKS"
+      - heading "PAGE BREAKS" [level=3]
+      - none
+      - textbox "Continued marker"
+      - paragraph
+      - paragraph [live=polite]
+      - none
+        - switch "Repeat the character name on the next page"
+      - paragraph
+      - none
+      - textbox "Dialogue before a break , lines"
+      - paragraph [live=polite]
+      - none
+      - textbox "Dialogue after a break , lines"
+      - paragraph [live=polite]
+      - none
+      - textbox "Action on each side , lines"
+      - paragraph [live=polite]
+    - region "DUAL DIALOGUE"
+      - heading "DUAL DIALOGUE" [level=3]
+      - none
+      - textbox "Gap between the two speeches , inches"
+      - paragraph [live=polite]
+  - none
+    - switch "Preview with This Play"
+  - region "Preview: the format sampler, 4 pages"
+    - image "Page 1 of 4. Act centered. Scene centered. Scene Heading centered. Action at 4 inches from the left edge. Character at 4 inches from the left edge. Dialogue at 1.5 inches from the left edge. Parenthetical at 3.5 inches from the left edge. Lyric at 4.6 inches from the left edge. Transition right-aligned."
+    - image "Page 2 of 4. Header right: 2.. Character at 4 inches from the left edge. Dialogue at 1.5 inches from the left edge."
+    - image "Page 3 of 4. Header right: 3.. Character at 4 inches from the left edge. Dialogue at 1.5 inches from the left edge. Transition right-aligned. Continues NELL (CONT'D)."
+    - image "Page 4 of 4. Header right: 4.. Act centered. Scene centered. Scene Heading centered. Action at 4 inches from the left edge. Character at 4 inches from the left edge. Parenthetical at 3.5 inches from the left edge. Dialogue at 1.5 inches from the left edge. Centered Text centered."
+  - group [live=polite]: One value needs fixing before you can save. The preview shows the last valid values.
+  - button "Use for This Play" [disabled]
+  - button "Close"
+  - button "Save" [disabled]
+  - status [live=polite]
+  - alert [live=assertive]

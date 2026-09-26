@@ -1,0 +1,15 @@
+- button "Undo"
+- dialog "Versions"
+  - heading "Versions" [level=2]
+  - generic
+    - listbox "Versions"
+      - generic
+      - option "Today, <time>, while writing" [selected]
+    - tablist "How to show this version"
+      - tab "Text" [selected]
+      - tab "What Changed"
+    - region "The text of this version"
+  - button "Close"
+  - button "Restore…"
+  - status [live=polite]
+  - alert [live=assertive]

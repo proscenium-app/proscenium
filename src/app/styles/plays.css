@@ -1,0 +1,477 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Empty state overlay --------------------------------------------------- */
+/*
+ * The frame the picker and the empty screen live in. It has to CLAIM the row:
+ * it is a flex item in `.workspace-body`, and its own child (`.vault-screen`)
+ * is absolutely positioned, so without `flex: 1` the frame collapses to zero
+ * and takes the whole screen's content with it — a blank window with a live
+ * toolbar and status bar, which is exactly what shipped.
+ *
+ * `container-type` is load-bearing too: the element bar caps its width to the
+ * frame's VISIBLE width (100cqw) rather than the page width, so no row clips
+ * at narrow windows (docs/app/writing/editor-ux.md#EDIT-171).
+ */
+.editor-frame {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+  container-type: inline-size;
+}
+.empty-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--desk);
+}
+/* One centred card (docs/engineering/design-system.md#UI-D101): the app icon, a heading, a line of body, and the
+   two things you can do — plus where you were last, which is the whole reason
+   anyone reads this screen twice. */
+.empty-card {
+  text-align: center;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+}
+.empty-card__icon {
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-appicon);
+  /* The mark draws its own tile (AppMarkIcon); this box only casts its shadow. */
+  box-shadow: 0 2px 8px rgba(31, 41, 51, 0.22);
+}
+/* The launch screen (LaunchScreen.tsx, and index.html's first frame): the
+   desk, flat, over everything the shell draws and under every sheet, menu and
+   toast. The same colour as the window before the page paints
+   (src-tauri/src/window_color.rs), so nothing changes until the play appears.
+   Its top band is only where the window can be dragged. The mark and its line
+   wait a second before they fade in, so a launch that lands in time goes from
+   the empty desk straight to the play and never shows them. */
+.launch-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--desk);
+}
+.launch-screen__bar {
+  height: 52px;
+  flex: none;
+}
+.launch-screen__desk {
+  flex: 1;
+  display: grid;
+  place-items: center;
+}
+.launch-screen__card {
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  text-align: center;
+  animation: launch-card var(--motion-sheet) 1s both;
+}
+@keyframes launch-card {
+  from {
+    opacity: 0;
+  }
+}
+.launch-screen__what {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--t-body);
+}
+.empty-card__title {
+  font-weight: 600;
+  font-size: var(--t-title);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.empty-card__sub {
+  color: var(--ink-2);
+  font-size: var(--t-body);
+  line-height: 1.5;
+  margin: 0;
+}
+.empty-card__actions {
+  display: flex;
+  gap: var(--s-4);
+  justify-content: center;
+}
+.empty-card__last {
+  font-size: var(--t-mini);
+  color: var(--ash);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Welcome — the one question a new install asks (docs/app/keeping-work/storage-and-file-format.md#STOR-D12) ------------- */
+/* Two rows, not two buttons side by side: each answer needs a line of its own
+   to say what it means, and a writer choosing where their work lives should be
+   reading, not scanning for the primary button. */
+.welcome {
+  text-align: center;
+  width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+}
+.welcome__choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 100%;
+}
+.welcome__choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-control);
+  background: var(--paper);
+  color: inherit;
+  cursor: pointer;
+}
+.welcome__choice:hover {
+  border-color: var(--accent);
+  background: var(--hover);
+}
+.welcome__choice:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.welcome__choiceName {
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+.welcome__choiceNote {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.welcome__last {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+}
+/* The one sentence about reports (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3), shown on the
+   first Welcome screen and not again. */
+.welcome__privacy {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+/* The Welcome ground is darker than a sheet's, and the accent's text colour
+   falls just short of 4.5:1 on it: the link keeps the sentence's colour and
+   is known by its underline. */
+.welcome__privacy .settings__link {
+  color: inherit;
+}
+
+/* Vault screen — the play picker (docs/engineering/design-system.md#UI-D101) ---------------------------------- */
+/* A ledger, not a tile wall: one row per play, with the two things a writer
+   actually scans for — how far along it is, and when they last touched it. */
+.vault-screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--desk);
+  overflow: auto;
+}
+.vault-screen__bar {
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: 0 var(--s-6);
+  background: var(--chrome);
+  border-bottom: 0.5px solid var(--rule);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.is-macos .vault-screen__bar {
+  padding-left: 84px;
+}
+.vault-screen__vault {
+  margin: 0;
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+.vault-screen__spacer {
+  flex: 1;
+}
+.vault-screen__search {
+  width: 190px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--ash);
+}
+.vault-screen__search input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.vault-screen__search input:focus {
+  outline: none;
+}
+.vault-screen__search input::placeholder {
+  color: var(--placeholder);
+}
+.vault-screen__inner {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--s-7) 26px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+.vault-screen__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.vault-screen__title {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+/* Focus lands here when the question below it is answered and its buttons go. */
+.vault-screen__title:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-chip);
+}
+/* A Plays folder chosen one level too high (docs/app/keeping-work/storage-and-file-format.md#STOR-D12): the question takes
+   the place of "start one", in ink rather than the count line's slate, because
+   on an empty screen it is the thing to read. */
+.vault-screen__ask {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  /* Room for a focused answer's halo above the where-the-plays-live line. */
+  margin: var(--s-2) 0 var(--s-2);
+}
+.vault-screen__asktext {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.4;
+  color: var(--ink);
+}
+.vault-screen__askactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+.vault-screen__sub {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+/* Where the plays live (docs/app/keeping-work/storage-and-file-format.md#STOR-D11): one quiet line under the count. */
+.vault-screen__where {
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-mini);
+  color: var(--ash);
+}
+.vault-list {
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-menu);
+  overflow: hidden;
+}
+.playrow {
+  display: grid;
+  grid-template-columns: 1fr 118px 110px 150px;
+  gap: var(--s-5);
+  align-items: center;
+  padding: 9px 14px;
+  border-top: 0.5px solid var(--rule);
+}
+.playrow--head {
+  border-top: none;
+  background: var(--cream);
+  font-size: var(--t-mini);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .playrow--head {
+    color: var(--ink-2);
+  }
+}
+.playrow--play {
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.playrow--play:hover {
+  background: var(--accent-softer);
+}
+/* Title and logline are each a 24px target (WCAG 2.5.8) stacked with no gap:
+   at their text height, 16px and 15px two pixels apart, a click between the
+   lines could land on either. The row's padding gives back what they took. */
+.playrow--play {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.playrow__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.playrow__title {
+  font: inherit;
+  font-size: var(--t-body);
+  font-weight: 600;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 24px;
+  color: var(--ink);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.playrow--play:hover .playrow__title {
+  color: var(--accent-text);
+}
+.playrow__logline {
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  background: none;
+  border: none;
+  padding: 0;
+  min-width: 0;
+  height: 24px;
+}
+.playrow__status {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.playrow__namingcell {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+.playrow__logline::placeholder {
+  color: var(--placeholder);
+}
+.playrow__logline:focus {
+  outline: none;
+  color: var(--ink);
+}
+/* Progress off (Settings › General): its column goes with its header. */
+.vault-list--noprogress .playrow {
+  grid-template-columns: 1fr 110px 150px;
+}
+.playrow__progress {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  display: flex;
+  gap: var(--s-3);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.playrow__modified {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.playrow--empty {
+  display: block;
+  font-size: var(--t-small);
+  color: var(--ash);
+  padding: var(--s-5) 14px;
+}
+/* The naming row sits where the new play will appear, on its own tint. */
+.playrow--naming {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  background: #f8f2e4;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .playrow--naming {
+    background: var(--cream);
+  }
+}
+.playrow__input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--t-body);
+  height: var(--h-small);
+  padding: 0 var(--s-4);
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-control-sm);
+  box-shadow: var(--focus-ring);
+}
+.playrow__input:focus {
+  outline: none;
+}
+.playrow__hint {
+  font-size: var(--t-mini);
+  color: var(--ash);
+  white-space: nowrap;
+}
+.vault-screen__firstrun {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+/* Drop a draft anywhere on the picker (docs/app/importing/document-import.md#IMPT-34). */
+.vault-screen.is-dropping {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.vault-screen__dropnote {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%);
+  padding: var(--s-4) 14px;
+  border-radius: var(--r-control);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--t-small);
+  font-weight: 500;
+  box-shadow: var(--sh-toast);
+  pointer-events: none;
+}
+

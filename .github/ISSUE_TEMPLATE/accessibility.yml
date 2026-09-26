@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: An accessibility problem
+description: Something you can't do, or can't do comfortably, with the keyboard, a screen reader, Voice Control, zoom or your display settings.
+labels: [accessibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If someone using only a keyboard, a screen reader or Voice Control
+        cannot do what a pointer user can, that is a bug, and it is treated as
+        one. Please don't paste a play's text unless you are happy for it to be
+        public.
+  - type: textarea
+    id: what
+    attributes:
+      label: What you were trying to do
+      description: The task, the steps you took, and where it stopped working or became hard.
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How you use your Mac
+      description: >-
+        What you use, and its settings if they matter: keyboard only, VoiceOver,
+        Voice Control, Switch Control, Zoom, larger text, Increase Contrast,
+        Reduce Motion, a braille display.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: >-
+        Help › Copy Diagnostics (also in Settings › About), pasted here: the
+        version, your macOS and chip, and recent errors, never a word of your
+        plays.
+      render: text

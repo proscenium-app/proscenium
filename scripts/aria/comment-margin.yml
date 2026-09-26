@@ -1,0 +1,49 @@
+- banner:
+  - button "Show the binder"
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+    - listitem "1953 North Sea Flood":
+      - button "1953 North Sea Flood"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - text: Tab cycles · ; menu
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments (1) ⌘⇧C"
+  - text: Page 2 of 2
+  - article:
+    - text: Comment
+    - button "Edit comment": ✎
+    - button "Resolve comment": ✓
+    - paragraph: A607 second
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert

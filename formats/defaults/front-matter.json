@@ -1,0 +1,16 @@
+{
+  "placement": "separate-pages",
+  "inlineGapRows": 1,
+  "titleTopFraction": 0.3333333333333333,
+  "titleGapRows": 1,
+  "titleContactGapRows": 2,
+  "sectionTopRows": 2,
+  "headingGapRows": 1,
+  "castGapRows": 1,
+  "fieldGapRows": 1,
+  "contactBottomRows": 0,
+  "titleFontStyle": "regular",
+  "headingFontStyle": "bold",
+  "bodyFontStyle": "regular",
+  "contactAlign": "left"
+}

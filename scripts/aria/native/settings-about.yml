@@ -1,0 +1,38 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About" [selected]
+  - tabpanel "About"
+    - heading "About" [level=3]
+    - paragraph
+    - paragraph
+    - paragraph
+      - link "Free software under the GNU AGPL"
+    - heading "ACKNOWLEDGMENTS" [level=4]
+    - group
+      - listitem
+      - listitem
+      - listitem
+      - listitem
+      - listitem
+      - listitem
+    - heading "THE PROGRAM" [level=4]
+    - paragraph
+      - link "It could be yours"
+    - paragraph
+    - heading "DIAGNOSTICS" [level=4]
+    - button "Copy Diagnostics"
+    - paragraph
+    - button "Send Feedback…"
+    - paragraph
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

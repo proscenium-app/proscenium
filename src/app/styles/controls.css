@@ -1,0 +1,1091 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/*
+ * ── Controls (docs/engineering/design-system.md#UI-D106) ─────────────────────────────────────────────────────────
+ *
+ * Regular 28 · small 22 · mini 20. Fourteen bespoke button classes collapsed
+ * into ONE control with four treatments and two sizes; the coarse-pointer pass
+ * at the foot of this file lifts every one of them to 44pt on a finger.
+ */
+.btn {
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  height: var(--h-regular);
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  white-space: nowrap;
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-control);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--sh-control);
+  cursor: pointer;
+  transition: background var(--motion), border-color var(--motion);
+}
+.btn:hover {
+  background: color-mix(in srgb, var(--paper) 84%, var(--ink) 4%);
+}
+.btn:active {
+  background: color-mix(in srgb, var(--paper) 74%, var(--ink) 8%);
+}
+/* A button that can't be pressed has to look like one — never hidden. */
+.btn:disabled {
+  border-color: var(--rule);
+  color: var(--faint);
+  box-shadow: none;
+  cursor: default;
+}
+.btn:disabled:hover {
+  background: var(--paper);
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 500;
+  box-shadow: var(--sh-primary);
+}
+.btn--primary:hover {
+  background: var(--accent-deep);
+}
+.btn--primary:active {
+  background: var(--accent-deep);
+  filter: brightness(0.94);
+}
+.btn--primary:disabled {
+  background: var(--accent);
+  color: var(--on-accent);
+  opacity: 0.4;
+}
+
+/* Borderless: the DEFAULT for chrome that has not earned a box (principle 2). */
+.btn--ghost,
+.btn--borderless {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  padding: 0 10px;
+}
+.btn--ghost:hover,
+.btn--borderless:hover {
+  background: var(--hover);
+}
+.btn--ghost:disabled,
+.btn--borderless:disabled {
+  background: transparent;
+  border-color: transparent;
+}
+
+.btn--destructive {
+  background: var(--paper);
+  border-color: var(--bad-border);
+  color: var(--bad);
+}
+.btn--destructive:hover {
+  background: var(--bad-tint);
+}
+/* An alert's destructive default: oxide fill, cream text. */
+.btn--destructive.btn--primary {
+  background: var(--bad);
+  border-color: transparent;
+  color: var(--on-bad);
+}
+.btn--destructive.btn--primary:hover {
+  background: color-mix(in srgb, var(--bad) 86%, #000);
+}
+
+.btn--small {
+  height: var(--h-small);
+  font-size: var(--t-small);
+  padding: 0 11px;
+  border-radius: var(--r-control-sm);
+}
+.btn--small.btn--ghost,
+.btn--small.btn--borderless {
+  padding: 0 var(--s-4);
+}
+.btn--mini {
+  height: var(--h-mini);
+  font-size: var(--t-mini);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-control-sm);
+}
+
+/* Pull-down: a button plus a hairline divider and a chevron ("New Play ▾"). */
+.btn__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: var(--s-3) 0;
+  background: currentColor;
+  opacity: 0.35;
+}
+.btn--pulldown {
+  padding-right: var(--s-4);
+}
+
+/* Focus. Keyboard focus only — a mouse press must not ring. */
+.btn:focus-visible,
+.iconbtn:focus-visible,
+.seg__btn:focus-visible,
+.popupbtn:focus-visible,
+.switch:focus-visible,
+.checkbox:focus-visible,
+.toast__action:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* A menu row's focus IS its highlight: the lit row is the focused row (Menu.tsx),
+   and a ring outside it would be clipped by the menu's own scroll box. */
+.menu:focus,
+.menu__item:focus-visible {
+  outline: none;
+}
+
+/* Present to a screen reader, absent from the screen — the announcer's live
+   regions (ui/announce.ts) and any name a glyph needs said out loud. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Icon button ---------------------------------------------------------- */
+.iconbtn {
+  width: var(--h-regular);
+  height: var(--h-regular);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--icon);
+  cursor: pointer;
+  transition: background var(--motion), color var(--motion);
+}
+.iconbtn:hover {
+  background: var(--track);
+}
+.iconbtn:disabled {
+  color: var(--faint);
+  cursor: default;
+  background: transparent;
+}
+/* "On" is the accent tint plus accent glyph; a NEUTRAL toggle (the inspector
+   button, Replace…) uses the gray fill instead, because it says "this panel is
+   showing", not "this value is set". */
+.iconbtn.is-on {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.iconbtn.is-on--neutral {
+  background: var(--hover-strong);
+  color: var(--ink);
+}
+.iconbtn--small {
+  width: var(--h-small);
+  height: var(--h-small);
+  border-radius: var(--r-control-sm);
+}
+.iconbtn--mini {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-chip-sm);
+}
+.iconbtn svg {
+  display: block;
+}
+
+/* Segmented control ---------------------------------------------------- */
+.seg {
+  display: inline-flex;
+  height: var(--h-regular);
+  padding: var(--s-1);
+  gap: var(--s-1);
+  background: var(--track);
+  border-radius: 7px;
+  flex: none;
+}
+.seg__btn {
+  font: inherit;
+  font-size: var(--t-body);
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: none;
+  border-radius: var(--r-control-sm);
+  background: transparent;
+  color: #4a535e;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .seg__btn {
+    color: var(--ink-2);
+  }
+}
+.seg__btn:hover:not(.is-on) {
+  background: var(--hover);
+}
+.seg__btn.is-on {
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: var(--sh-seg);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .seg__btn.is-on {
+    background: #4a443c;
+    color: #f2ece0;
+  }
+}
+.seg--small {
+  height: var(--h-small);
+  border-radius: var(--r-control);
+}
+.seg--small .seg__btn {
+  font-size: var(--t-small);
+  padding: 0 11px;
+  border-radius: var(--r-chip);
+}
+.seg--tight .seg__btn {
+  padding: 0 9px;
+}
+
+/* Switch --------------------------------------------------------------- */
+.switch {
+  width: 38px;
+  height: var(--h-small);
+  flex: none;
+  padding: var(--s-1);
+  border: none;
+  border-radius: var(--r-pill);
+  background: rgba(31, 41, 51, 0.16);
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  transition: background var(--motion);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .switch {
+    background: rgba(255, 255, 255, 0.18);
+  }
+}
+.switch__knob {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  background: #fffdf8;
+  box-shadow: 0 1px 2px rgba(31, 41, 51, 0.28);
+  transition: transform var(--motion);
+}
+.switch.is-on {
+  background: var(--accent);
+}
+.switch.is-on .switch__knob {
+  transform: translateX(16px);
+}
+.switch--mini {
+  width: 30px;
+  height: 18px;
+  border-radius: var(--r-pill);
+}
+.switch--mini .switch__knob {
+  width: 14px;
+  height: 14px;
+}
+.switch--mini.is-on .switch__knob {
+  transform: translateX(12px);
+}
+
+/* Checkbox and radio --------------------------------------------------- */
+.checkbox {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.5px solid rgba(31, 41, 51, 0.3);
+  border-radius: var(--r-chip-sm);
+  background: var(--field);
+  box-shadow: inset 0 1px 1px rgba(31, 41, 51, 0.06);
+  color: transparent;
+  cursor: pointer;
+  transition: background var(--motion), border-color var(--motion);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .checkbox {
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+}
+.checkbox.is-on {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+}
+.checkbox:disabled {
+  background: var(--track);
+  border-color: var(--rule);
+  cursor: default;
+}
+.radio {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  padding: 0;
+  border: 0.5px solid rgba(31, 41, 51, 0.3);
+  border-radius: var(--r-pill);
+  background: var(--field);
+  cursor: pointer;
+  transition: border var(--motion);
+}
+.radio.is-on {
+  border: 4.5px solid var(--accent);
+}
+
+/* Text and search fields ----------------------------------------------- */
+.field {
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  height: var(--h-small);
+  padding: 0 var(--s-4);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-control-sm);
+  background: var(--field);
+  color: var(--ink);
+  box-shadow: inset 0 1px 1.5px rgba(31, 41, 51, 0.06);
+}
+.field::placeholder {
+  color: var(--placeholder);
+}
+.field:focus,
+.field:focus-visible {
+  outline: none;
+  border: 1px solid var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.field--area {
+  height: auto;
+  padding: var(--s-3) var(--s-4);
+  line-height: 1.5;
+  resize: vertical;
+}
+.field--search {
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--field) 75%, transparent);
+}
+
+/* Popup button — replaces every native <select> (docs/engineering/design-system.md#UI-D106, docs/engineering/design-system.md#UI-D107) ---------------- */
+.popupbtn {
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  height: var(--h-small);
+  padding: 0 3px 0 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  white-space: nowrap;
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-control-sm);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--sh-control);
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.popupbtn:hover {
+  background: color-mix(in srgb, var(--paper) 84%, var(--ink) 4%);
+}
+.popupbtn:disabled {
+  color: var(--faint);
+  border-color: var(--rule);
+  box-shadow: none;
+  cursor: default;
+}
+.popupbtn__badge {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-chip);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.popupbtn:disabled .popupbtn__badge {
+  background: var(--faint);
+}
+.popupbtn__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* In a table cell the control steps down a size. */
+.popupbtn--mini {
+  height: var(--h-mini);
+  padding: 0 var(--s-1) 0 var(--s-4);
+  gap: var(--s-3);
+}
+.popupbtn--mini .popupbtn__badge {
+  width: 13px;
+  height: 13px;
+  border-radius: var(--r-chip-sm);
+}
+/* Borderless pull-down: text plus a chevron, used in
+   inspector headers where a box would be noise. */
+.popupbtn--flat {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 var(--s-3);
+  gap: var(--s-2);
+}
+.popupbtn--flat:hover {
+  background: var(--hover);
+}
+.popupbtn--flat .popupbtn__badge {
+  width: auto;
+  height: auto;
+  background: none;
+  color: var(--ink-2);
+}
+
+/* Chips, capsules, badges, meters -------------------------------------- */
+.chip {
+  height: var(--h-mini);
+  padding: 0 var(--s-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--track);
+  color: var(--ink-2);
+  font-size: var(--t-mini);
+  white-space: nowrap;
+}
+.chip__dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: currentColor;
+}
+.chip--warn {
+  background: var(--warn-tint);
+  color: var(--warn-text);
+}
+.chip--warn .chip__dot {
+  background: var(--warn-dot);
+}
+.chip--ok {
+  background: var(--ok-tint);
+  color: var(--ok-text);
+}
+.chip--ok .chip__dot {
+  background: var(--ok-dot);
+}
+.chip--bad {
+  background: var(--bad-tint);
+  color: var(--bad-text);
+}
+.chip--bad .chip__dot {
+  background: var(--bad);
+}
+.chip--tiny {
+  height: 16px;
+  font-size: var(--t-label);
+  padding: 0 var(--s-3);
+}
+
+.capsule {
+  height: var(--h-mini);
+  padding: 0 var(--s-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border-radius: var(--r-pill);
+  font-size: var(--t-mini);
+  white-space: nowrap;
+  background: var(--track);
+  color: var(--ink-2);
+}
+.capsule--author {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 500;
+}
+.capsule--todo {
+  background: var(--warn-tint);
+  color: var(--warn-text);
+  font-weight: 500;
+}
+.capsule--cast {
+  background: rgba(58, 107, 126, 0.14);
+  color: #2c5461;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .capsule--cast {
+    background: rgba(109, 163, 184, 0.18);
+    color: #9ec6d6;
+  }
+}
+.capsule--dashed {
+  background: none;
+  border: 0.5px dashed var(--rule-strong);
+  color: var(--ash);
+}
+
+.badge {
+  height: 16px;
+  min-width: 16px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--t-label);
+  font-weight: 600;
+}
+
+.meter {
+  height: var(--s-2);
+  border-radius: var(--r-pill);
+  background: var(--rule);
+  overflow: hidden;
+  flex: none;
+}
+.meter__fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+/* Section label — the one place 10px is allowed. */
+.seclabel {
+  font-size: var(--t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+
+/*
+ * ── Menus: one anatomy for every menu, popup and popover (docs/engineering/design-system.md#UI-D107) ─────────────
+ *
+ * Replaces binder__menu, binder__ctx, formatmenu__pop, pane__addmenu,
+ * zoomctl__pop, the leader menu, the cue autocomplete, the spell menu, the
+ * composer popup and every <select>. Eight chromes became one.
+ *
+ * No open or close animation: a menu that fades is a menu you wait for.
+ *
+ * Above the sheets (70), below the toasts (80). A menu is the top layer
+ * whenever one is open — nothing opens one from behind a modal scrim — and at
+ * 60 every popup inside a sheet opened UNDER it: Export's "What to export"
+ * drew behind the sheet it belonged to, and a smoke check that only asked
+ * whether `.menu` existed passed straight through.
+ */
+.menu {
+  position: fixed;
+  z-index: 75;
+  min-width: 150px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--vibrant);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 0.5px solid rgba(31, 41, 51, 0.1);
+  border-radius: var(--r-menu);
+  box-shadow: var(--sh-menu);
+  font-size: var(--t-body);
+  color: var(--ink);
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .menu {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+.menu__item {
+  font: inherit;
+  font-size: var(--t-body);
+  height: var(--h-regular);
+  min-height: var(--h-regular);
+  padding: 0 9px 0 var(--s-4);
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: var(--s-3);
+  align-items: center;
+  text-align: left;
+  border: none;
+  border-radius: var(--r-control-sm);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* Apple's menu row is 24px on a pointer; the coarse pass lifts it to 44. */
+@media (pointer: fine) {
+  .menu__item {
+    height: calc(24px * var(--ui-scale));
+    min-height: calc(24px * var(--ui-scale));
+  }
+}
+.menu__item:hover:not(:disabled),
+.menu__item.is-cursor:not(:disabled) {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* The shortcut on a lit row takes the row's own colour at full strength: at 75%
+   it was 3.9:1 on the gilt fill, the one place in a menu a writer reads twice. */
+.menu__item:hover .menu__trail,
+.menu__item.is-cursor .menu__trail {
+  color: inherit;
+}
+.menu__item:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+.menu__item--destructive {
+  color: var(--bad);
+}
+.menu__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}
+.menu__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A row that names words bound for the script wears the script's face: the
+   spelling menu's suggestions are Courier Prime because the page is. */
+.menu__script {
+  font-family: var(--font-script);
+  font-size: var(--t-small);
+}
+.menu__trail {
+  font-size: var(--t-small);
+  color: var(--ash);
+  justify-self: end;
+}
+.menu__section {
+  padding: 3px 9px 3px var(--s-4);
+  font-size: var(--t-mini);
+  font-weight: 600;
+  color: var(--ash);
+}
+.menu__sep {
+  height: 0.5px;
+  margin: 5px 9px;
+  background: rgba(31, 41, 51, 0.14);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .menu__sep {
+    background: rgba(255, 255, 255, 0.14);
+  }
+}
+.menu__hint {
+  padding: var(--s-3) 9px var(--s-2);
+  font-size: var(--t-mini);
+  line-height: 1.45;
+  color: var(--ash);
+  white-space: normal;
+}
+/* An arrow only when the popover belongs to a control, not to a point. Menu.tsx
+   measures where the control's centre falls on the menu and hands it over as
+   `--arrow-x`; the menu stops clipping so the arrow can sit outside its edge. */
+.menu--arrow {
+  --arrow-x: 50%;
+  overflow: visible;
+}
+.menu__arrow {
+  position: absolute;
+  left: calc(var(--arrow-x) - 5.5px);
+  width: 11px;
+  height: 11px;
+  background: var(--vibrant);
+  border-right: 0.5px solid rgba(31, 41, 51, 0.1);
+  border-bottom: 0.5px solid rgba(31, 41, 51, 0.1);
+  transform: rotate(45deg);
+}
+.menu--above .menu__arrow {
+  bottom: -6px;
+}
+.menu--below .menu__arrow {
+  top: -6px;
+  border-right: 0;
+  border-bottom: 0;
+  border-left: 0.5px solid rgba(31, 41, 51, 0.1);
+  border-top: 0.5px solid rgba(31, 41, 51, 0.1);
+}
+.menu__rowbtn:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The scrim every menu closes on — over a sheet too, so a click beside a popup
+   in a sheet closes the popup rather than landing on the sheet. */
+.menu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 74;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+/*
+ * ── Sheets, alerts, toasts (docs/engineering/design-system.md#UI-D106, docs/engineering/design-system.md#UI-D106) ────────────────────────────────
+ */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: var(--scrim);
+  padding: 52px var(--s-6) var(--s-6);
+}
+.modal-scrim__windowbar {
+  display: none;
+}
+/* Overlay title bars belong to the window, even while a sheet owns focus.
+   Cover the disabled toolbar controls with a clear native drag surface, and
+   keep the sheet below the traffic lights. Never dismiss a sheet from here. */
+.is-macos .modal-scrim__windowbar {
+  display: block;
+  position: absolute;
+  inset: 0 0 auto;
+  height: 52px;
+  background: var(--chrome);
+  border-bottom: 0.5px solid var(--rule);
+  user-select: none;
+}
+.modal-scrim--centred {
+  align-items: center;
+}
+/* A sheet attaches under the toolbar, macOS's document-sheet position. */
+.sheet {
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 0 0 var(--r-sheet) var(--r-sheet);
+  box-shadow: var(--sh-modal);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 0;
+  animation: sheet-drop var(--motion-sheet);
+}
+.sheet--floating {
+  border-radius: var(--r-sheet);
+  margin: auto;
+}
+@keyframes sheet-drop {
+  from {
+    transform: translateY(-12px);
+    opacity: 0.6;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+.sheet__head {
+  padding: 20px var(--s-7) 14px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  border-bottom: 0.5px solid var(--rule);
+  flex: none;
+  flex-wrap: wrap;
+  user-select: none;
+}
+.sheet__title {
+  font-size: var(--t-title);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.sheet__sub {
+  font-size: var(--t-body);
+  color: var(--ink-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sheet__body:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+.sheet__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.sheet__foot {
+  padding: var(--s-5) var(--s-7) var(--s-6);
+  border-top: 0.5px solid var(--rule);
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  flex: none;
+}
+.sheet__hint {
+  font-size: var(--t-mini);
+  color: var(--ash);
+  line-height: 1.5;
+}
+.sheet__spacer {
+  flex: 1;
+}
+.sheet-copy {
+  padding: var(--s-6) var(--s-7);
+  font-size: var(--t-body);
+  line-height: 1.5;
+}
+.sheet-copy p {
+  margin: 0;
+}
+.sheet-copy p + p {
+  margin-top: var(--s-5);
+}
+/* Right-aligned label / field grid — Apple's preference-pane form. */
+.formgrid {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 9px var(--s-5);
+  align-items: center;
+  font-size: var(--t-small);
+}
+.formgrid__label {
+  color: var(--ink-2);
+  text-align: right;
+}
+.binder-move {
+  padding: var(--s-7);
+}
+.formgrid__label--top {
+  align-self: start;
+  padding-top: var(--s-2);
+}
+.formgrid__rule {
+  grid-column: 1 / -1;
+  height: 0.5px;
+  background: var(--rule);
+  margin: var(--s-2) 0;
+}
+
+/* Alert: icon, one-line question, one line of consequence, default first.
+   Used ONLY where the action rewrites the script (Restore, Revert). Move to
+   Trash is recoverable, so it gets a toast instead — Finder's rule. */
+.alert {
+  width: 270px;
+  padding: 20px 18px var(--s-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+  text-align: center;
+  background: var(--vibrant);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-radius: var(--r-sheet);
+  box-shadow: var(--sh-modal);
+  color: var(--ink);
+}
+.alert__icon {
+  width: 52px;
+  height: 52px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-icon);
+  /* The mark draws its own tile (AppMarkIcon); this box only casts its shadow. */
+  box-shadow: 0 2px 6px rgba(31, 41, 51, 0.2);
+  margin-bottom: var(--s-2);
+}
+.alert__title {
+  font-size: var(--t-body);
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+}
+.alert__body {
+  font-size: var(--t-mini);
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0;
+}
+.alert__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 100%;
+  margin-top: var(--s-3);
+}
+.alert__actions .btn {
+  width: 100%;
+  height: 24px;
+  font-size: var(--t-small);
+  border-radius: var(--r-control-sm);
+}
+
+/* Toast: one glyph carrying the kind, a title, a detail, one action. */
+.toast {
+  position: fixed;
+  right: var(--s-6);
+  bottom: 42px;
+  z-index: 80;
+  width: 280px;
+  padding: 11px var(--s-5);
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  text-align: left;
+  background: var(--vibrant);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 0.5px solid rgba(31, 41, 51, 0.1);
+  border-radius: var(--r-menu);
+  box-shadow: var(--sh-toast);
+  color: var(--ink);
+  font: inherit;
+}
+.toast__glyph {
+  flex: none;
+  display: flex;
+  color: var(--ink-2);
+}
+.toast--ok .toast__glyph {
+  color: var(--ok-dot);
+}
+.toast--error .toast__glyph {
+  color: var(--bad);
+}
+.toast__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.toast__title {
+  font-size: var(--t-body);
+  font-weight: 500;
+}
+.toast__detail {
+  font-size: var(--t-mini);
+  color: var(--ash);
+}
+.toast__action {
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 500;
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+}
+
+/* Empty surface: a glyph, a title, and the gesture that fills it. */
+.emptysurface {
+  flex: 1;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  text-align: center;
+  padding: 0 40px;
+  color: var(--ink-2);
+}
+.emptysurface__glyph {
+  color: var(--ash);
+}
+.emptysurface__title {
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+.emptysurface__body {
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-2);
+  margin: 0;
+  max-width: 40ch;
+}
+
+/* Status text in the footer (was a coloured pill; the word is enough). */
+.savestatus {
+  font-size: var(--t-mini);
+  color: var(--ash);
+  white-space: nowrap;
+}
+.savestatus--conflict {
+  color: var(--warn-text);
+  font-weight: 500;
+}
+
+/* Conflict banner (docs/app/keeping-work/storage-and-file-format.md#STOR-109). Amber, never oxide — nothing is lost. ---- */
+/* The area ⌃⇥ stops at (regions.ts); the banner inside it keeps its alert. */
+.banner-area {
+  flex: none;
+}
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-4) 14px;
+  font-size: var(--t-small);
+  flex: none;
+}
+.banner--conflict {
+  background: var(--warn-tint);
+  border-top: 0.5px solid var(--warn-border);
+  border-bottom: 0.5px solid var(--warn-border);
+  color: var(--warn-body);
+}
+.banner__text {
+  flex: 1;
+  line-height: 1.4;
+}
+.banner__actions {
+  display: flex;
+  gap: var(--s-4);
+}

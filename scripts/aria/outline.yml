@@ -1,0 +1,120 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline" [selected]
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Board":
+      - button "Board"
+    - listitem "Outline":
+      - button "Outline"
+      - button "Close Outline"
+  - button "Add a surface to this pane"
+  - button "▾ Outline notes" [expanded]
+  - paragraph
+  - table:
+    - rowgroup:
+      - row "Move Act Scene Pages Summary Notes Status Label":
+        - columnheader "Move"
+        - columnheader "Act"
+        - columnheader "Scene"
+        - columnheader "Pages"
+        - columnheader "Summary"
+        - columnheader "Notes"
+        - columnheader "Status"
+        - columnheader "Label"
+    - rowgroup:
+      - 'row "Move SCENE 1 up Move SCENE 1 down ACT ONE ACT ONE · SCENE 1 Page 1 · 1 page Mara, alone before dawn, can''t stop the dripping. Jonah arrives uninvited. land the brother''s arrival harder Scene status — ACT ONE · SCENE 1: draft setup"':
+        - cell "Move SCENE 1 up Move SCENE 1 down":
+          - button "Move SCENE 1 up" [disabled]
+          - button "Move SCENE 1 down"
+        - cell "ACT ONE"
+        - rowheader "ACT ONE · SCENE 1":
+          - button "ACT ONE · SCENE 1"
+        - cell "Page 1 · 1 page"
+        - cell "Mara, alone before dawn, can't stop the dripping. Jonah arrives uninvited.":
+          - textbox "Summary — ACT ONE · SCENE 1"
+        - cell "land the brother's arrival harder":
+          - textbox "Notes — ACT ONE · SCENE 1"
+        - 'cell "Scene status — ACT ONE · SCENE 1: draft"':
+          - 'button "Scene status — ACT ONE · SCENE 1: draft"': draft
+        - cell "setup":
+          - textbox "Label — ACT ONE · SCENE 1"
+      - 'row "Move SCENE 1 up Move SCENE 1 down ACT TWO ACT TWO · SCENE 1 Page 2 · 1 page Three months later. The kitchen is half-packed. is the brass plug too on-the-nose? Scene status — ACT TWO · SCENE 1: idea resolution"':
+        - cell "Move SCENE 1 up Move SCENE 1 down":
+          - button "Move SCENE 1 up"
+          - button "Move SCENE 1 down" [disabled]
+        - cell "ACT TWO"
+        - rowheader "ACT TWO · SCENE 1":
+          - button "ACT TWO · SCENE 1"
+        - cell "Page 2 · 1 page"
+        - cell "Three months later. The kitchen is half-packed.":
+          - textbox "Summary — ACT TWO · SCENE 1"
+        - cell "is the brass plug too on-the-nose?":
+          - textbox "Notes — ACT TWO · SCENE 1"
+        - 'cell "Scene status — ACT TWO · SCENE 1: idea"':
+          - 'button "Scene status — ACT TWO · SCENE 1: idea"': idea
+        - cell "resolution":
+          - textbox "Label — ACT TWO · SCENE 1"
+      - 'row "Move SCENE 2 up Move SCENE 2 down ACT ONE ACT ONE · SCENE 2 Pages 1–2 · 2 pages Morning. The truce that isn''t one. Scene status — ACT ONE · SCENE 2: outline turn"':
+        - cell "Move SCENE 2 up Move SCENE 2 down":
+          - button "Move SCENE 2 up"
+          - button "Move SCENE 2 down"
+        - cell "ACT ONE"
+        - rowheader "ACT ONE · SCENE 2":
+          - button "ACT ONE · SCENE 2"
+        - cell "Pages 1–2 · 2 pages"
+        - cell "Morning. The truce that isn't one.":
+          - textbox "Summary — ACT ONE · SCENE 2"
+        - cell:
+          - textbox "Notes — ACT ONE · SCENE 2"
+        - 'cell "Scene status — ACT ONE · SCENE 2: outline"':
+          - 'button "Scene status — ACT ONE · SCENE 2: outline"': outline
+        - cell "turn":
+          - textbox "Label — ACT ONE · SCENE 2"
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: 1 format warning Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert

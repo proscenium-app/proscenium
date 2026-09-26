@@ -1,0 +1,10 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+blank_issues_enabled: false
+contact_links:
+  - name: A security problem
+    url: https://github.com/proscenium-app/proscenium/security/advisories/new
+    about: Report it privately, never in a public issue (SECURITY.md).
+  - name: How do I…?
+    url: https://docs.proscenium.ink
+    about: The Guide covers writing, formatting, exporting and keeping your plays safe.

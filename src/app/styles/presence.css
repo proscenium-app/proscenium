@@ -1,0 +1,125 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Presence grid (workspace/presence.ts) ---------------------------------- */
+/* The presence grid is its own card, like the cast list above it. */
+.presence {
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-menu);
+  padding: var(--s-5) var(--s-6) var(--s-6);
+}
+.presence__title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-head);
+  font-weight: 600;
+  color: var(--ink);
+}
+.presence__sub {
+  margin: var(--s-1) 0 var(--s-5);
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.presence__scroll {
+  overflow-x: auto;
+}
+.presence__grid {
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+}
+.presence__grid th,
+.presence__grid td {
+  padding: var(--s-2) var(--s-4);
+  text-align: center;
+  border-bottom: 0.5px solid var(--rule);
+}
+.presence__corner,
+.presence__name {
+  text-align: left;
+  font-family: var(--font-script);
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  position: sticky;
+  left: 0;
+  background: var(--paper);
+}
+.presence__corner {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.presence__act {
+  font-size: var(--t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ash);
+  border-bottom: 0.5px solid var(--rule);
+}
+.presence__scene {
+  font-weight: 500;
+  color: var(--ash);
+}
+.presence__scenebtn {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.presence__scenebtn {
+  font-size: var(--t-label);
+  color: var(--accent-text);
+}
+.presence__scenebtn:hover {
+  text-decoration: underline;
+}
+/* A filled mark, not only a colour, so the grid reads in monochrome. */
+.presence__cell {
+  color: var(--faint);
+  font-size: var(--t-head);
+  line-height: 1;
+}
+/* Ink, not the accent: the grid is a reading of the script, not a set of
+   toggles, and the accent means "this one is on" everywhere else. */
+.presence__cell.is-on {
+  color: var(--ink);
+}
+/* Silent, but between their first and last line — a hole, not an exit. */
+.presence__cell.is-gap {
+  background: var(--warn-tint);
+}
+.presence__total {
+  text-align: right;
+  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.presence__gap {
+  margin-left: var(--s-2);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip-sm);
+  background: var(--warn-tint);
+  color: var(--warn-text);
+  font-size: var(--t-mini);
+}
+.presence__never,
+.presence__unnamed {
+  font-style: italic;
+  color: var(--ash);
+}
+.presence__count {
+  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+}
+.presence__count.is-fullest {
+  color: var(--ink);
+  font-weight: 650;
+}
+

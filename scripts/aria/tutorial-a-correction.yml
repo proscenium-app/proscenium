@@ -1,0 +1,71 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Practice Play"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: Practice Play
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "Practice Play Rename “Practice Play” Actions for “Practice Play”" [level=1] [selected]:
+      - text: Practice Play
+      - button "Rename “Practice Play”"
+      - button "Actions for “Practice Play”"
+    - group "Scenes in Practice Play":
+      - treeitem "SCENE 1 1" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters": Empty
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes": Empty
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - text: Page 1 of 1
+  - textbox "Script"
+  - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - heading "0 comments" [level=2]
+  - 'button "Filter comments: All Comments"': All Comments
+  - paragraph:
+    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
+    - code: "[["
+    - text: where you want one.
+  - list
+- contentinfo:
+  - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 84%"': Fit width · 84%
+  - button "Zoom in"
+- status
+- alert
+- complementary "Tutorial":
+  - text: Practice
+  - button "Write Your First Exchange, step 1 of 5. Choose a step": Write Your First Exchange 1 of 5
+  - button "Stop Tutorial"
+  - paragraph: "A speaker's name is typed in capitals: MARA."
+  - button "Use Capitals"
+  - button "Skip Step"
+  - button "More Help"

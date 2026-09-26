@@ -1,0 +1,74 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes, <n> pending" [selected]: Changes
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Cast":
+      - button "Cast"
+    - listitem "Changes":
+      - button "Changes"
+      - button "Close Changes"
+    - listitem "Jonah":
+      - button "Jonah"
+    - listitem "Structure":
+      - button "Structure"
+    - listitem "Mara":
+      - button "Mara"
+  - button "Add a surface to this pane"
+  - heading "Recovered document copies" [level=3]
+  - button "Saved copy of Characters/Mara.md <date>, <time>"
+  - button "Saved copy of Notes/Outline.md <date>, <time>"
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Saved copy of Notes/Outline.md":
+  - heading "Saved copy of Notes/Outline.md" [level=2]
+  - paragraph: Proscenium kept these words before a previous session ended. You can select and copy them here. Reading a copy does not change your play.
+  - textbox "Saved words from Notes/Outline.md"
+  - button "Close"
+  - status
+  - alert

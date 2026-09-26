@@ -1,0 +1,84 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main:
+  - heading "sample-vault" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - button "Import a Draft…"
+  - heading "Plays" [level=2]
+  - paragraph: 2 plays · sample-vault
+  - paragraph: Your plays live in a folder on this Mac only. They will not appear on other devices.
+  - table "Plays":
+    - 'row "The Lighthouse Not counted Status for The Lighthouse: No Status —"':
+      - cell "The Lighthouse":
+        - button "The Lighthouse"
+        - textbox "Logline for The Lighthouse"
+      - cell "Not counted"
+      - 'cell "Status for The Lighthouse: No Status"':
+        - 'button "Status for The Lighthouse: No Status"': No Status
+      - cell "—"
+    - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. 2 pages Status for The Weight of Water: drafting <date and time>"':
+      - cell "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull.":
+        - button "The Weight of Water"
+        - textbox "Logline for The Weight of Water"
+      - cell "2 pages"
+      - 'cell "Status for The Weight of Water: drafting"':
+        - 'button "Status for The Weight of Water: drafting"': drafting
+      - cell "<date and time>"
+    - row "Play Progress Status Modified":
+      - columnheader "Play"
+      - columnheader "Progress"
+      - columnheader "Status"
+      - columnheader "Modified"
+- contentinfo:
+  - button "/dev/sample-vault"
+- status
+- alert
+- dialog "Review Your Draft":
+  - heading "Review Your Draft" [level=2]
+  - text: Harbor.pages · Pages New play name
+  - textbox "New play name"
+  - text: In your Plays folder
+  - paragraph: /dev/sample-vault
+  - button "Choose Different Files…"
+  - strong: 13 paragraphs
+  - text: 1 scene heading 2 characters All elements come from the source or your choices
+  - group: What carries across · 1 note
+  - textbox "Find text in import"
+  - checkbox "Inferred or Unrecognized Only"
+  - text: Inferred or Unrecognized Only
+  - 'button "Unstyled text: Recognize Script Elements"': Recognize Script Elements
+  - region "Paragraph preview":
+    - heading "Reading preview" [level=3]
+    - text: Choose a paragraph to adjust its element.
+    - 'button "Paragraph 1, Act: ACT ONE"': 1 ACT ONE Act
+    - 'button "Paragraph 2, Scene: Scene 1. The waiting room."': 2 Scene 1. The waiting room. Scene
+    - 'button "Paragraph 3, Stage Direction: A harbor office after the last ferry."': 3 A harbor office after the last ferry. Stage Direction
+    - 'button "Paragraph 4, Stage Direction: Rain at the windows."': 4 Rain at the windows. Stage Direction
+    - 'button "Paragraph 5, Character: MARA" [pressed]': 5 MARA Character
+    - 'button "Paragraph 6, Dialogue: You said it would wait."': 6 You said it would wait. Dialogue
+    - 'button "Paragraph 7, Character: ELI"': 7 ELI Character
+    - 'button "Paragraph 8, Parenthetical: (folding the timetable)"': 8 (folding the timetable) Parenthetical
+    - 'button "Paragraph 9, Dialogue: I said we had time."': 9 I said we had time. Dialogue
+    - 'button "Paragraph 10, Stage Direction: She sets down a small blue suitcase."': 10 She sets down a small blue suitcase. Stage Direction
+    - 'button "Paragraph 11, Character: MARA"': 11 MARA Character
+    - 'button "Paragraph 12, Dialogue: There is a difference."': 12 There is a difference. Dialogue
+    - 'button "Paragraph 13, Stage Direction: LIGHTS OUT."': 13 LIGHTS OUT. Stage Direction
+    - button "Previous" [disabled]
+    - text: 1–13 of 13
+    - button "Next" [disabled]
+  - complementary "Adjust paragraph":
+    - heading "Paragraph 5" [level=3]
+    - paragraph: "Source style: Character"
+    - paragraph: MARA
+    - 'button "Element: Character"': Character
+    - paragraph: "Source style: Character"
+    - button "Use for This Source Style"
+    - paragraph: Applies to 3 paragraphs. Individual corrections take priority.
+    - button "Reset All Corrections" [disabled]
+  - text: Creates a new play. Keeps a copy of the original.
+  - button "Cancel"
+  - button "Create New Play"
+  - status
+  - alert

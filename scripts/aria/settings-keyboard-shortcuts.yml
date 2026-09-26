@@ -1,0 +1,201 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - heading "0 comments" [level=2]
+  - 'button "Filter comments: All Comments"': All Comments
+  - paragraph:
+    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
+    - code: "[["
+    - text: where you want one.
+  - list
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Settings":
+  - heading "Settings" [level=2]
+  - tablist "Settings sections":
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts" [selected]
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Keyboard Shortcuts":
+    - heading "Keyboard Shortcuts" [level=3]
+    - heading "Elements" [level=3]
+    - term: ⌘⌥1
+    - definition: Act
+    - term: ⌘⌥2
+    - definition: Scene
+    - term: ⌘⌥S
+    - definition: Scene Heading
+    - term: ⌘⌥A
+    - definition: Action
+    - term: ⌘⌥C
+    - definition: Character
+    - term: ⌘⌥D
+    - definition: Dialogue
+    - term: ⌘⌥P
+    - definition: Parenthetical
+    - term: ⌘⌥T
+    - definition: Transition
+    - term: ⌘⌥L
+    - definition: Lyric
+    - term: ⇥
+    - definition: Change this line’s element
+    - term: ;
+    - definition: Element menu, on an empty line
+    - term: ⏎
+    - definition: New line, with the likely next element
+    - term: ⏎⏎
+    - definition: Element menu for the new line
+    - term: ⇧⏎
+    - definition: Line Break, same element
+    - term: ⌘⏎
+    - definition: Page Break
+    - heading "Emphasis" [level=3]
+    - term: ⌘B
+    - definition: Bold
+    - term: ⌘I
+    - definition: Italic
+    - term: ⌘U
+    - definition: Underline
+    - heading "Navigation" [level=3]
+    - term: ⌘F
+    - definition: Find
+    - term: ⌘⌥F
+    - definition: Find and Replace
+    - term: ⌥⌘↑
+    - definition: Previous Scene
+    - term: ⌥⌘↓
+    - definition: Next Scene
+    - term: ⌘⇧J
+    - definition: Go to Scene…
+    - term: ⌃⇥ / ⌃⇧⇥
+    - definition: "Next or previous area: toolbar, binder, script, inspector, status bar (a notice’s Undo comes first)"
+    - term: ⌘+ / ⌘−
+    - definition: Zoom In and Zoom Out
+    - term: ⌘0
+    - definition: Actual Size
+    - heading "Views and panels" [level=3]
+    - term: ⌘1
+    - definition: Script
+    - term: ⌘2
+    - definition: Board
+    - term: ⌘3
+    - definition: Outline
+    - term: ⌘4
+    - definition: Cast
+    - term: ⌘5
+    - definition: Changes
+    - term: ⌘⌥B
+    - definition: Show or hide the binder
+    - term: ⌘⌥I
+    - definition: Show or hide the inspector
+    - term: ⌘⇧C
+    - definition: Comments
+    - term: ⌃⌘↑ / ⌃⌘↓
+    - definition: Move the binder item, or a status in Settings, up or down
+    - term: ⌃⌘← / ⌃⌘→
+    - definition: Move the binder item out of its folder, or into the folder above
+    - term: ⇧F10
+    - definition: Actions for the selected binder item
+    - term: ⌃⌘F
+    - definition: Focus, which shows only the page
+    - heading "The script" [level=3]
+    - term: ⌘S
+    - definition: Save (Proscenium also saves as you write)
+    - term: ⌘⌥M
+    - definition: Comment on the selection
+    - term: ⌘;
+    - definition: Next Misspelling, with suggestions
+    - term: ⌘Z / ⌘⇧Z
+    - definition: Undo and Redo
+    - heading "The play" [level=3]
+    - term: ⌘⇧E
+    - definition: Export PDF…
+    - term: ⌘P
+    - definition: Print…
+    - term: ⌘⇧O
+    - definition: All Plays
+    - term: ⌘,
+    - definition: Settings
+    - term: ⌘/
+    - definition: Keyboard Shortcuts
+    - 'heading "Element menu: ; then a key" [level=3]'
+    - text: a Action c Character d Dialogue p Parenthetical s Scene Heading t Transition 1 Act 2 Scene l Lyric = Scene Summary (Not Printed) > Centered Text n Comment - Page Break
+  - text: Settings are saved on this Mac, not in your plays.
+  - button "Done"
+  - status
+  - alert

@@ -1,0 +1,139 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - heading "0 comments" [level=2]
+  - 'button "Filter comments: All Comments"': All Comments
+  - paragraph:
+    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
+    - code: "[["
+    - text: where you want one.
+  - list
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Settings":
+  - heading "Settings" [level=2]
+  - tablist "Settings sections":
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing" [selected]
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Writing":
+    - heading "Writing" [level=3]
+    - heading "Script" [level=4]
+    - text: Show scene navigation strip
+    - switch "Show scene navigation strip" [checked]
+    - paragraph: Each scene appears at the bottom of the script, sized by its length in pages. Click one to go to that scene.
+    - heading "Spelling" [level=4]
+    - text: Check spelling as you type
+    - switch "Check spelling as you type" [checked]
+    - paragraph: Underlines misspelled words in scripts. Documents and character sheets are checked by macOS, which this switch doesn’t affect.
+    - heading "Proscenium dictionary" [level=4]
+    - paragraph: Words added here are accepted in every script on this Mac. Documents and character sheets use the macOS dictionary, which is shared with other apps.
+    - textbox "Word or name to add"
+    - button "Add Word" [disabled]
+    - paragraph
+    - paragraph: No words added. In a script, Control-click an underlined word and choose Learn Spelling to add it.
+    - heading "Scene statuses" [level=4]
+    - paragraph: Offered for scenes in Board, Outline and the Inspector, in this order. Renaming or deleting a status doesn’t change scenes that already have it.
+    - list "Statuses, in order":
+      - listitem:
+        - 'textbox "Status 1 of 4: idea"'
+        - button "Move “idea” up" [disabled]
+        - button "Move “idea” down"
+        - button "Delete “idea”"
+      - listitem:
+        - 'textbox "Status 2 of 4: drafting"'
+        - button "Move “drafting” up"
+        - button "Move “drafting” down"
+        - button "Delete “drafting”"
+      - listitem:
+        - 'textbox "Status 3 of 4: revising"'
+        - button "Move “revising” up"
+        - button "Move “revising” down"
+        - button "Delete “revising”"
+      - listitem:
+        - 'textbox "Status 4 of 4: ready for reading"'
+        - button "Move “ready for reading” up"
+        - button "Move “ready for reading” down" [disabled]
+        - button "Delete “ready for reading”"
+    - textbox "New status"
+    - button "Add Status" [disabled]
+    - paragraph
+  - text: Settings are saved on this Mac, not in your plays.
+  - button "Done"
+  - status
+  - alert

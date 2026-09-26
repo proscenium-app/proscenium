@@ -1,0 +1,63 @@
+- banner
+  - button "Hide the binder" [pressed]
+  - button "Practice Play" [haspopup]
+  - tablist "What this pane shows"
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder"
+  - sectionheader
+    - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items"
+    - treeitem "Practice Play Rename “Practice Play” Actions for “Practice Play”" [level=1] [selected]
+      - button "Rename “Practice Play”"
+      - button "Actions for “Practice Play”"
+    - treeitem "SCENE 1 1" [level=2] [selected]
+    - treeitem "Characters" [level=1] [expanded]
+    - treeitem "Notes" [level=1] [expanded]
+  - sectionfooter
+    - button "New" [haspopup]
+- main "Play"
+  - button "What this line is: Dialogue" [haspopup]
+  - button "Bold"
+  - button "Italic"
+  - button "Underline"
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - textbox "Script"
+  - image "Scene navigation: 1 page. On screen: <scene>"
+- complementary "Inspector"
+  - tablist "Inspector"
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - sectionheader
+    - heading "0 comments" [level=2]
+    - button "Filter comments: All Comments" [haspopup]
+  - paragraph
+    - none
+    - code
+  - group
+- contentinfo
+  - button "<self-test home>/home/Library/Application Support/org.habiby.proscenium.selftest/tutorials/sessions/<id>/Practice Play"
+  - button "Zoom out"
+  - button "Zoom: Fit width · 62%" [haspopup]
+  - button "Zoom in"
+- status [live=polite]
+- alert [live=assertive]
+- complementary "Tutorial"
+  - button "Format the Script, step 2 of 4. Choose a step" [haspopup]
+  - button "Stop Tutorial"
+  - paragraph
+  - button "Next"
+  - button "More Help"

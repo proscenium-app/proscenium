@@ -1,0 +1,128 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Practice Play"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: Practice Play
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "Practice Play" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters": Empty
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes": Empty
+    - treeitem "Rehearsal Notes Rename “Rehearsal Notes” Actions for “Rehearsal Notes”" [level=1] [selected]:
+      - text: Rehearsal Notes
+      - button "Rename “Rehearsal Notes”"
+      - button "Actions for “Rehearsal Notes”"
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Practice Play":
+      - button "Practice Play"
+      - button "Close Practice Play"
+    - listitem "Rehearsal Notes":
+      - button "Rehearsal Notes"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - heading "0 comments" [level=2]
+  - 'button "Filter comments: All Comments"': All Comments
+  - paragraph:
+    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
+    - code: "[["
+    - text: where you want one.
+  - list
+- contentinfo:
+  - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 84%"': Fit width · 84%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Export PDF":
+  - heading "Export PDF" [level=2]
+  - text: Practice Play File type
+  - 'button "File type — what the export writes: PDF"': PDF
+  - text: Part
+  - 'button "Part — what to export: Whole Script"': Whole Script
+  - text: Pages
+  - textbox "Pages to export"
+  - text: 1 of 2 pages
+  - button "All Pages"
+  - list "Pages":
+    - listitem:
+      - button "Title page": PRACTICE PLAY
+      - checkbox "Include title page" [checked]
+      - text: Title
+    - listitem:
+      - button "Characters page": Characters JUNIPER IVO Two old friends, one early morning.
+      - checkbox "Include characters page" [checked]
+      - text: Characters
+    - listitem:
+      - button "Opening notes": A quiet room. Early morning. Rain at the window.
+      - checkbox "Include opening notes" [checked]
+      - text: Notes
+    - listitem:
+      - button "Page 1": SCENE 2 SCENE 1 JUNIPER You're early. Come in. IVO I was hoping you wouldn't notice.
+      - checkbox "Include page 1" [checked]
+      - text: "1"
+    - listitem:
+      - button "Page 2": "2."
+      - checkbox "Include page 2"
+      - text: "2"
+  - region "Preview of what will export": PRACTICE PLAY Characters JUNIPER IVO Two old friends, one early morning. A quiet room. Early morning. Rain at the window. SCENE 2 SCENE 1 JUNIPER You're early. Come in. IVO I was hoping you wouldn't notice.
+  - button "Previous page" [disabled]: ◀
+  - text: Title page · sheet 1 of 4
+  - button "Next page": ▶
+  - group "Include":
+    - text: Include
+    - checkbox "Title page" [checked]
+    - text: Title page
+    - checkbox "Characters page" [checked]
+    - text: Characters page
+    - checkbox "Opening notes" [checked]
+    - text: Opening notes
+  - checkbox "Anonymous copy"
+  - text: "Anonymous copy For a blind reading: no name or contact details. Language"
+  - textbox "Play language"
+  - text: American spelling, screen readers and PDFs. Saved for this play. Pages keep their own numbers — 7–10 prints as 7–10.
+  - button "Cancel"
+  - button "Print…"
+  - button "Export PDF…"
+  - status
+  - alert
+  - complementary "Tutorial":
+    - text: Practice
+    - button "Prepare a PDF or Print, step 2 of 4. Choose a step": Prepare a PDF or Print 2 of 4
+    - button "Stop Tutorial"
+    - paragraph: Only the pages you chose go in this copy.
+    - button "Next"
+    - button "More Help"

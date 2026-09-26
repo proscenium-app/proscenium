@@ -1,0 +1,46 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* ------------------------------------------------------------------ */
+/* Touch tap targets                                                  */
+/* ------------------------------------------------------------------ */
+/* On a coarse pointer (finger on an iPad, not a trackpad) the desktop
+   densities put interactive chrome under Apple's 44pt floor. Gate on the
+   POINTER, not the platform — a Mac stays dense, an iPad grows, and a
+   future Boox gets its own e-ink pass on top (docs/engineering/cross-platform.md#PLAT-D100). The
+   writing surface itself is untouched: these are the controls AROUND it. */
+@media (pointer: coarse) {
+  .btn,
+  .viewswitch__btn,
+    .binder__row,
+  .binder__pinned,
+  .binder__add,
+  .playrow--play .playrow__title,
+  .castcard__notes,
+  .casthidden__chip {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+  .elementbar__btn,
+  .findbar button,
+  .zoomctl button,
+  .exportpanel__pagerbtn,
+  .castcard__remove {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .material__mode {
+    min-height: 44px;
+    padding-inline: 1rem;
+  }
+  /* Checkbox rows (export thumbnails) — the LABEL is the target, so grow it
+     rather than the glyph. */
+  .exportpanel__thumbfoot,
+  .exportpanel__check {
+    min-height: 44px;
+    align-items: center;
+  }
+}
+

@@ -1,0 +1,9 @@
+- dialog "Move “1953 North Sea Flood”"
+  - heading "Move “1953 North Sea Flood”" [level=2]
+  - button "Folder: Characters" [haspopup]
+  - button "Position: Before Mara" [haspopup]
+  - button "Cancel"
+  - button "Move"
+  - generic
+    - status [live=polite]
+    - alert [live=assertive]

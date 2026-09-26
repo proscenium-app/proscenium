@@ -1,0 +1,101 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2] [selected]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines Rename “Loglines” Actions for “Loglines”" [expanded] [level=1]:
+      - text: Loglines
+      - button "Rename “Loglines”"
+      - button "Actions for “Loglines”"
+    - group "Loglines": Empty
+  - button "New"
+  - text: in Loglines
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+    - listitem "1953 North Sea Flood":
+      - button "1953 North Sea Flood"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Scene"': Scene
+  - button "Bold" [disabled]: ⌘B
+  - button "Italic" [disabled]: ⌘I
+  - button "Underline" [disabled]: ⌘U
+  - button "Line Break ⇧⏎" [disabled]
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 1 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT ONE · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 1 · 1 page · 5 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Status
+  - 'button "Scene status: draft"': draft
+  - text: Label
+  - textbox "Label"
+  - text: Colour
+  - radiogroup "Card colour":
+    - radio "Unmarked"
+    - radio "Setup" [checked]
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: setup
+  - text: Board note · never prints
+  - textbox "Board note"
+  - text: On stage MARA 3 JONAH 2 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert

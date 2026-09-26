@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: A format
+description: Page rules a theatre, festival, publisher or course asks for, or a format file you have written.
+labels: [format]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A format is the page a play is printed on: margins, type, where each
+        element sits, how pages break and are numbered. Formats are data, one
+        JSON file each (formats/README.md), and MIT licensed so any tool can
+        use them.
+  - type: input
+    id: who
+    attributes:
+      label: Who asks for it
+      description: The theatre, festival, publisher, competition or course, and where its rules are published if they are.
+    validations:
+      required: true
+  - type: textarea
+    id: rules
+    attributes:
+      label: The rules
+      description: >-
+        What the page must look like, as the source states it: paper size,
+        margins, font and size, how character names, dialogue, stage directions
+        and headings are placed, page numbers, the title page. A photo or PDF of
+        a correctly set page helps, if you may share it.
+    validations:
+      required: true
+  - type: textarea
+    id: file
+    attributes:
+      label: A format file, if you made one
+      description: Paste the JSON, or say which built-in format it starts from.
+      render: json

@@ -1,0 +1,50 @@
+# --- Build / dependency artifacts ---
+/node_modules
+/dist
+/.vite
+/src-tauri/target
+/src-tauri/gen/schemas
+
+# Tauri mobile generated projects are committed selectively by the impl session;
+# ignore transient build output only.
+/src-tauri/gen/apple/build
+/src-tauri/gen/android/app/build
+/src-tauri/gen/android/.gradle
+
+# --- OS noise ---
+.DS_Store
+Thumbs.db
+
+# --- Editor noise ---
+.idea
+*.swp
+
+# --- Local agent / preview tooling config ---
+.claude
+
+# === IMPORTANT: never ignore the storage format itself ===
+# sample-vault/ is committed on purpose. It is the living example of the
+# on-disk format, and since 1.0 there is nothing inside a play to ignore:
+# Versions, the Changes store, recovery and the cache all live in the app's own
+# data directory keyed by play id (storage §10), and the only dot-prefixed
+# thing the app writes into a play is an atomic write's temp sibling, which
+# exists for milliseconds. The `.proscenium/` rules that used to sit here are
+# gone with the directory they named.
+**/.*.*.tmp
+
+# A sync provider's own bookkeeping and conflict copies (storage §11). The app
+# recognizes these and never treats them as scripts; git should skip them too.
+**/.stfolder/
+**/.stversions/
+**/*.sync-conflict-*
+
+# Screenshots from `bun run smoke -- --shots`.
+.smoke/
+
+# The native self-test's reports and screenshots (scripts/selftest.mjs).
+.selftest/
+
+# Signing material scripts/release.mjs stages for a build and deletes.
+.release/
+# What scripts/release.mjs makes: the DMG, the update archive, latest.json.
+.release-artifacts/

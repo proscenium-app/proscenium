@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# One Rust for this Mac, CI and the release build. CI denies clippy warnings,
+# and a floating `stable` gains new lints every six weeks: main would turn red
+# on a morning nobody changed anything. Raise the pin on purpose, in its own
+# commit, and fix what the new clippy finds in the same one.
+#
+# Both macOS targets, because every release is universal (release-engineering
+# §1): `tauri build --target universal-apple-darwin` needs the Intel slice's
+# standard library as well as this Mac's.
+[toolchain]
+channel = "1.96.0"
+components = ["clippy"]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+profile = "minimal"

@@ -1,0 +1,73 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/*
+ * ── Focus mode, ⌃⌘F (docs/app/preferences-and-help/accessibility.md#A11Y-7) ─────────────────────────────────────────
+ *
+ * "Chrome earns pixels" taken to its end: everything that is not the page
+ * slides away, the page centres, and the chrome comes back when the pointer
+ * moves. Nothing new to learn — the same page, the same keys, and Esc leaves.
+ *
+ * Height, not display, so the editor's DOM is never torn down: it holds the
+ * ProseMirror instance, and unmounting it would cost the selection and the undo
+ * history every time the writer wanted quiet.
+ */
+.app-shell.is-focus > .toolbar,
+.app-shell.is-focus > .statusbar,
+.app-shell.is-focus .binder,
+.app-shell.is-focus .inspector,
+.app-shell.is-focus .pane__tabs,
+.app-shell.is-focus .elementbar {
+  height: 0;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border: none;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+/* One row of chrome survives: the strip is about the PLAY, not about the app,
+   and pacing is the thing you most want while everything else is gone. */
+.app-shell.is-focus .rts {
+  opacity: 1;
+}
+.app-shell.is-focus .paneroot {
+  padding: 0;
+}
+/* The way out, stated once, at 55% — visible enough to find, quiet enough to
+   forget. It does not fade on a timer: a hint that disappears is a hint the
+   writer has to remember, which is the thing focus mode is trying to avoid. */
+.app-shell.is-focus::after {
+  content: "esc leaves focus";
+  position: fixed;
+  top: 14px;
+  right: var(--s-6);
+  z-index: 6;
+  font-size: var(--t-mini);
+  color: var(--ink-2);
+  opacity: 0.55;
+  pointer-events: none;
+}
+/* Chrome returns on a pointer move (`.is-peeking`, set by App on mousemove and
+   cleared two seconds after it stops). The toolbar and the status bar only —
+   the rails stay away, because a rail sliding in over the page is the opposite
+   of what was asked for. */
+.app-shell.is-focus.is-peeking > .toolbar {
+  height: 52px;
+  opacity: 1;
+  pointer-events: auto;
+  border-bottom: 0.5px solid var(--rule);
+}
+.app-shell.is-focus.is-peeking > .statusbar {
+  min-height: calc(26px * var(--ui-scale));
+  height: auto;
+  opacity: 1;
+  pointer-events: auto;
+  border-top: 0.5px solid var(--rule);
+}
+.app-shell.is-focus.is-peeking::after {
+  content: none;
+}
+

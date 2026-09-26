@@ -1,0 +1,33 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance" [selected]
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Appearance"
+    - heading "Appearance" [level=3]
+    - heading "TEXT" [level=4]
+    - none
+      - button "Text size" [haspopup]
+    - paragraph
+    - heading "ACCENT COLOR" [level=4]
+    - radiogroup "Accent color"
+      - radio "Gilt" [checked]
+      - radio "Velvet" [checked]
+      - radio "Ink" [checked]
+      - radio "Iris" [checked]
+      - radio "Follow Mac" [checked]
+    - paragraph
+    - heading "LIGHT AND DARK" [level=4]
+    - button "Appearance: Dark" [haspopup]
+    - paragraph
+  - button "Done"
+  - generic
+    - status [live=polite]
+    - alert [live=assertive]

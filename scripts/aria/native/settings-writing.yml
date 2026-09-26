@@ -1,0 +1,58 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing" [selected]
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Writing"
+    - heading "Writing" [level=3]
+    - heading "SCRIPT" [level=4]
+    - none
+      - switch "Show scene navigation strip"
+    - paragraph
+    - heading "SPELLING" [level=4]
+    - none
+      - switch "Check spelling as you type"
+    - paragraph
+    - heading "PROSCENIUM DICTIONARY" [level=4]
+    - paragraph
+    - form
+      - textbox "Word or name to add"
+      - button "Add Word" [disabled]
+    - paragraph [live=polite]
+    - paragraph
+    - heading "SCENE STATUSES" [level=4]
+    - paragraph
+    - group "Statuses, in order"
+      - listitem
+        - textbox "Status 1 of 4: idea"
+        - button "Move “idea” up" [disabled]
+        - button "Move “idea” down"
+        - button "Delete “idea”"
+      - listitem
+        - textbox "Status 2 of 4: drafting"
+        - button "Move “drafting” up"
+        - button "Move “drafting” down"
+        - button "Delete “drafting”"
+      - listitem
+        - textbox "Status 3 of 4: revising"
+        - button "Move “revising” up"
+        - button "Move “revising” down"
+        - button "Delete “revising”"
+      - listitem
+        - textbox "Status 4 of 4: ready for reading"
+        - button "Move “ready for reading” up"
+        - button "Move “ready for reading” down" [disabled]
+        - button "Delete “ready for reading”"
+    - textbox "New status"
+    - button "Add Status" [disabled]
+    - paragraph [live=polite]
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

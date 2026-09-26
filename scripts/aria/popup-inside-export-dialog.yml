@@ -1,0 +1,153 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2] [selected]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 1 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT ONE · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 1 · 1 page · 5 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Status
+  - 'button "Scene status: draft"': draft
+  - text: Label
+  - textbox "Label"
+  - text: Colour
+  - radiogroup "Card colour":
+    - radio "Unmarked"
+    - radio "Setup" [checked]
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: setup
+  - text: Board note · never prints
+  - textbox "Board note"
+  - text: On stage MARA 3 JONAH 2 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Export PDF":
+  - heading "Export PDF" [level=2]
+  - text: The Weight of Water File type
+  - 'button "File type — what the export writes: PDF" [expanded]': PDF
+  - text: Part
+  - 'button "Part — what to export: Whole Script"': Whole Script
+  - text: Pages
+  - textbox "Pages to export"
+  - text: The whole script — 2 pages
+  - list "Pages":
+    - listitem:
+      - button "Title page": THE WEIGHT OF WATER a play by A. Playwright playwright@example.com 2026-06-18
+      - checkbox "Include title page" [checked]
+      - text: Title
+    - listitem:
+      - button "Characters page": CHARACTERS MARA — a hydrologist, 40s JONAH — her brother, 30s
+      - checkbox "Include characters page" [checked]
+      - text: Characters
+    - listitem:
+      - button "Opening notes": SETTING A coastal kitchen, and the rooms of memory around it. TIME The last night of winter.
+      - checkbox "Include opening notes" [checked]
+      - text: Notes
+    - listitem:
+      - button "Page 1": "1. ACT ONE SCENE 1 AT RISE: A kitchen, just before dawn. A tap drips. MARA stands at the sink in her coat, as if she never sat down. MARA The pipe's been crying all night. She turns off the tap. It keeps dripping. JONAH (from the doorway, half asleep) You and that pipe. MARA You weren't supposed to come. SCENE 2 Light now. The coats are off. Coffee between them, untouched. JONAH Mom left you the house. She left me the water. BLACKOUT."
+      - checkbox "Include page 1" [checked]
+      - text: "1"
+    - listitem:
+      - button "Page 2": 2. ACT TWO SCENE 1 Boxes everywhere. The tap is gone, capped with a brass plug. MARA It's quiet now. I keep listening for it.
+      - checkbox "Include page 2" [checked]
+      - text: "2"
+  - region "Preview of what will export": "THE WEIGHT OF WATER a play by A. Playwright playwright@example.com 2026-06-18 CHARACTERS MARA — a hydrologist, 40s JONAH — her brother, 30s SETTING A coastal kitchen, and the rooms of memory around it. TIME The last night of winter. 1. ACT ONE SCENE 1 AT RISE: A kitchen, just before dawn. A tap drips. MARA stands at the sink in her coat, as if she never sat down. MARA The pipe's been crying all night. She turns off the tap. It keeps dripping. JONAH (from the doorway, half asleep) You and that pipe. MARA You weren't supposed to come. SCENE 2 Light now. The coats are off. Coffee between them, untouched. JONAH Mom left you the house. She left me the water. BLACKOUT."
+  - button "Previous page" [disabled]: ◀
+  - text: Title page · sheet 1 of 5
+  - button "Next page": ▶
+  - group "Include":
+    - text: Include
+    - checkbox "Title page" [checked]
+    - text: Title page
+    - checkbox "Characters page" [checked]
+    - text: Characters page
+    - checkbox "Opening notes" [checked]
+    - text: Opening notes
+  - checkbox "Anonymous copy"
+  - text: "Anonymous copy For a blind reading: no name or contact details. Language"
+  - textbox "Play language"
+  - text: American spelling, screen readers and PDFs. Saved for this play. Pages keep their own numbers — 7–10 prints as 7–10.
+  - button "Cancel"
+  - button "Print…"
+  - button "Export PDF…"
+  - status
+  - alert
+  - menu "File type — what the export writes":
+    - menuitemradio "PDF" [checked]
+    - text: For a word processor
+    - menuitemradio ".docx"
+    - menuitemradio ".odt"

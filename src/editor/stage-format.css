@@ -1,0 +1,1210 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/*
+ * Editor CHROME only. All script layout — page geometry, type, per-element
+ * columns, rhythm — is generated from the active format spec by
+ * src/format/css.ts and injected as a <style> beside the editor. If a rule in
+ * this file needs a physical length, it must use a var(--fmt-*) set by the
+ * generated sheet; literal in/pt values are forbidden here (enforced by
+ * scripts/check-layout-constants.sh).
+ */
+
+/* Editor surface = element bar + page, stacked and centered. Positioned, so
+   the comment margin can hang off its right edge (docs/app/writing/comments.md#COMM-D4) — the cards
+   scroll with the sheet because they are inside the scrolled content, not
+   because anything recomputes on scroll. */
+.editor-surface {
+  --page-chrome-zoom: 1;
+  /* FindBar.tsx sets it to its own height while it is open. */
+  --findbar-height: 0px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-7);
+}
+
+/*
+ * The element bar (docs/engineering/design-system.md#UI-D106): 34px of chrome ON THE DESK, not a card
+ * over the paper.
+ *
+ * It used to be a floating pill with the same lifted shadow as the sheet, which
+ * is a large part of why the usability pass found it the most prominent thing on
+ * screen (F3) — the eye read it as a second page over the first. Now it is a
+ * strip: it sticks to the top of the scroller and carries one hairline.
+ */
+/*
+ * The two strips over the sheet — the find bar and the element bar — take
+ * their width from OUTSIDE, never from what they hold
+ * (docs/app/writing/editor-ux.md#EDIT-171). From 2026-09-02 to 2026-09-25 the
+ * element bar was the widest thing on the desk — 963px, most of it hidden
+ * shortcut badges — and `.editormount`'s `min-width: min-content` took that
+ * as the desk's width: past Line Break the bar ran off the pane, and the sheet
+ * sat off centre under the inspector, at the window's default size. The find
+ * bar stretched to the same 963px and was drawn to fit it.
+ *
+ * So: `contain: inline-size` keeps what they hold out of the desk's width, and
+ * the width is the sheet's — at least the sheet at 100% (chrome does not zoom,
+ * so zooming out leaves them where they were, centred over the page), at most
+ * what the pane can show (100cqw, measured by `.pane-scriptslot`, less the
+ * mount's 1rem each side). When the page is wider than the pane, they keep to
+ * the pane's width and stick sideways too, so they stay in view as the page
+ * scrolls. Inside that width, ElementBar.tsx picks the richest fit that shows
+ * on one row, and the find bar wraps.
+ */
+.elementbar,
+.findbar {
+  --strip-room: calc(100cqw - 2rem);
+  --strip-least: min(var(--strip-room), calc(var(--fmt-page-width) * var(--ui-scale)));
+  left: 1rem;
+  contain: inline-size;
+  align-self: stretch;
+  margin-inline: min(0px, calc((100% - var(--strip-least)) / 2));
+  max-width: var(--strip-room);
+}
+/* With the find bar up, the element bar sticks BELOW it rather than under it:
+   two sticky strips at top 0 stack on top of each other. FindBar.tsx
+   publishes its own height, which grows as its rows wrap. */
+.elementbar {
+  position: sticky;
+  top: var(--findbar-height);
+  z-index: 5;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 0 var(--s-3);
+  padding: 0 var(--s-5);
+  background: var(--desk);
+  border-bottom: 0.5px solid rgba(31, 41, 51, 0.07);
+  font-family: var(--font-ui);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .elementbar {
+    border-bottom-color: rgba(255, 255, 255, 0.07);
+  }
+}
+/* The bar stays on ONE line. Wrapping to a second row was exactly the "most
+   prominent thing on screen" problem it was shrunk to solve, so a narrow pane
+   gets a sparer row instead (the fits below). Nothing in it shrinks: a row
+   that is too long has to OVERFLOW, which is how the fitting sees it. */
+.elementbar > *,
+.elementbar__groups > * {
+  flex: none;
+}
+.elementbar > .elementbar__spacer {
+  flex: 1;
+}
+.elementbar__groups {
+  display: flex;
+  align-items: center;
+  gap: 0 var(--s-3);
+  min-height: 34px;
+}
+.elementbar__group {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex: none;
+}
+/* B / I / U are a JOINED group: three keys of one control, so they take the
+   radius at the ends only. */
+/* 28px keys. They were 60px from 2026-09-18, which held each one's shortcut
+   badge beside its glyph; the badge floats now (below), and the width it kept
+   was a third of what a narrow pane had to give up. */
+.elementbar__group .elementbar__btn--mark {
+  border-radius: 0;
+  padding: 0 var(--s-3);
+  justify-content: center;
+}
+.formatting-icon { width: 16px; height: 16px; flex: 0 0 16px; display: inline-block; }
+span.formatting-icon { background: currentColor; mask-size: contain; mask-repeat: no-repeat; mask-position: center;
+  -webkit-mask-size: contain; -webkit-mask-repeat: no-repeat; -webkit-mask-position: center; }
+.elementbar__group .elementbar__btn--mark:first-child {
+  border-radius: var(--r-control-sm) 0 0 var(--r-control-sm);
+}
+.elementbar__group .elementbar__btn--mark:last-child {
+  border-radius: 0 var(--r-control-sm) var(--r-control-sm) 0;
+}
+.elementbar__divider {
+  width: 1px;
+  height: 16px;
+  flex: none;
+  background: var(--rule);
+  margin: 0 var(--s-1);
+}
+.elementbar__btn {
+  position: relative;
+  height: var(--h-small);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-control-sm);
+  padding: 0 var(--s-4);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion), color var(--motion);
+}
+.elementbar__btn:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.elementbar__btn.is-active {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 500;
+}
+/* A gesture that has no business in this element says so by going quiet, rather
+   than presenting a live-looking button that silently no-ops.
+   Grey, never hidden: a control you cannot find teaches nothing. */
+.elementbar__btn:disabled {
+  color: var(--ash);
+  cursor: default;
+}
+.elementbar__btn:disabled:hover {
+  background: transparent;
+  color: var(--ash);
+}
+.elementbar__btn--strong .elementbar__btnlabel {
+  font-weight: 700;
+}
+.elementbar__btn--em .elementbar__btnlabel {
+  font-style: italic;
+  font-family: var(--font-script);
+}
+.elementbar__btn--underline .elementbar__btnlabel {
+  text-decoration: underline;
+}
+.elementbar__what {
+  font-weight: 500;
+}
+/* The shortcut, on ⌘-hold or hover: a keycap that floats just under its
+   button. It takes no room in the row, so hidden badges never cost the bar
+   width and showing them never moves a button (docs/app/writing/editor-ux.md#EDIT-171). */
+.elementbar__badge {
+  position: absolute;
+  top: calc(100% + var(--s-1));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 var(--s-2);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-chip-sm);
+  background: var(--paper);
+  box-shadow: var(--sh-control);
+  font-family: var(--font-script);
+  font-size: var(--t-label);
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+  color: var(--accent-text);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--motion);
+}
+.elementbar.is-revealing .elementbar__badge,
+.elementbar__btn:hover .elementbar__badge {
+  opacity: 1;
+}
+/* A glyph and a number that only the icon fits show. */
+.elementbar__onlyicon,
+.elementbar__count,
+.elementbar__overflow {
+  display: none;
+}
+.elementbar__overflow {
+  align-items: center;
+  gap: 0 var(--s-3);
+}
+/* ── The fits (ElementBar.tsx FITS), each keeping what the last gave up ── */
+/* terse: the hint goes; the page count's tooltip and the popup still say it. */
+.elementbar[data-fit~="terse"] .elementbar__hint {
+  display: none;
+}
+/* icons: the breaks and comments keep their glyphs. The words stay as the
+   button's name — hidden from the eye, not from a screen reader. */
+/* No min-width here: a glyph and its padding already make 26px, and a coarse
+   pointer's 44px minimum (touch-controls.css) must still win. */
+.elementbar[data-fit~="icons"] .elementbar__btn {
+  padding: 0 var(--s-3);
+  justify-content: center;
+}
+.elementbar[data-fit~="icons"] .elementbar__btnlabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.elementbar[data-fit~="icons"] .elementbar__onlyicon {
+  display: inline-flex;
+}
+/* A glyph standing alone is the whole control, so it is drawn a size up. */
+.elementbar[data-fit~="icons"] .elementbar__btn:not(.elementbar__btn--mark) svg {
+  width: 14px;
+  height: 14px;
+}
+.elementbar[data-fit~="icons"] .elementbar__count {
+  display: inline;
+  font-size: var(--t-mini);
+  font-variant-numeric: tabular-nums;
+}
+/* fold-*: whole groups move into More, comments first, emphasis last. */
+.elementbar[data-fit~="fold-comments"] .elementbar__fold--comments,
+.elementbar[data-fit~="fold-breaks"] .elementbar__fold--breaks,
+.elementbar[data-fit~="fold-marks"] .elementbar__fold--marks {
+  display: none;
+}
+.elementbar[data-fit~="fold-comments"] .elementbar__overflow {
+  display: flex;
+}
+/* The last fit: the element's name is what shortens, never the page count. */
+.elementbar[data-fit~="fold-marks"] .elementbar__groups,
+.elementbar[data-fit~="fold-marks"] .elementbar__line {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.elementbar__line {
+  display: flex;
+}
+.elementbar[data-fit~="fold-marks"] .elementbar__what {
+  min-width: 0;
+}
+.elementbar__hint,
+.elementbar__pages {
+  font-size: var(--t-mini);
+  color: var(--ash);
+  white-space: nowrap;
+}
+.elementbar__pages {
+  font-family: var(--font-script);
+  font-variant-numeric: tabular-nums;
+}
+/* The page column: lit paper on the desk. Geometry (width/padding/type)
+   comes from the generated sheet; this block is only the paper itself. */
+.play-page {
+  max-width: 100%;
+  min-height: 60vh;
+  margin: 0 auto;
+  background: var(--paper);
+  border-radius: 2px;
+  /* Clips the inter-sheet band back to the paper's width (see .pgchrome__band). */
+  overflow: hidden;
+  box-shadow:
+    0 1px 2px rgba(90, 74, 54, 0.3),
+    0 10px 30px -14px rgba(90, 74, 54, 0.42);
+  color: var(--ink);
+}
+/* The first block hugs the top margin — no leading gutter at the page top. */
+.play-page .tiptap > .pl:first-child,
+.play-page .pl.pm-after-intro,
+.play-page .pgchrome + .pl {
+  margin-top: 0;
+}
+
+.play-page .tiptap {
+  outline: none;
+  white-space: pre-wrap; /* render in-block line breaks (multi-line action) */
+}
+.play-page ::selection {
+  background: color-mix(in srgb, var(--oxide) 22%, transparent);
+}
+/* Wrap exactly like the layout engine: greedy, at spaces, no hyphenation;
+   words longer than the column hard-break at the grid edge. */
+.play-page .pl {
+  margin: 0;
+  hyphens: none;
+  overflow-wrap: break-word;
+}
+
+/* --- page-view chrome (the inter-page break drawn by the pagination
+       extension's widgets; every physical length is a --fmt-* var) --- */
+.pgchrome {
+  display: block;
+  user-select: none;
+  pointer-events: none;
+}
+.pgchrome__fill {
+  /* height set inline by the widget: <remaining rows>lh */
+}
+.pgchrome__botmargin {
+  position: relative;
+  height: var(--fmt-margin-bottom);
+}
+/* Full-bleed gap between sheets: the desk shows through; the sheet above
+   casts down onto it, the sheet below lifts slightly off it.
+
+   The band must span the whole sheet no matter where the chrome was drawn.
+   When a page break falls INSIDE a block (a long stage direction or speech
+   splitting across sheets) the widget lives inside that block and inherits its
+   indent — which left a band starting 2.5" in on formats that indent action.
+   So overshoot both edges and let .play-page's overflow clip it back to the
+   paper, instead of trying to undo an indent the chrome can't know. */
+.pgchrome__band {
+  margin-left: -100vw;
+  margin-right: -100vw;
+  height: 2.6rem;
+  background: var(--desk);
+  box-shadow:
+    inset 0 10px 12px -10px var(--desk-deep),
+    inset 0 -6px 8px -8px var(--desk-deep);
+}
+.pgchrome__topmargin {
+  position: relative;
+  height: var(--fmt-margin-top);
+}
+/* Header and footer rows span the text block inside the page margins. Three
+   columns with equal outer tracks, so a centre slot is centred on the BLOCK
+   the way the PDF centres it: the row used to be `space-between`, which put a
+   centre page number off-centre by half of whatever sat on its right. */
+.pgchrome__header,
+.pgchrome__footer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  line-height: 1;
+}
+.pgchrome__header {
+  top: var(--fmt-header-pos);
+}
+.pgchrome__footer {
+  bottom: var(--fmt-footer-pos);
+}
+.pgchrome__slot {
+  white-space: pre;
+}
+.pgchrome__slot--left {
+  justify-self: start;
+}
+.pgchrome__slot--center {
+  justify-self: center;
+}
+.pgchrome__slot--right {
+  justify-self: end;
+}
+/* The re-printed CHARACTER (CONT'D) cue is chrome (the document is not
+   mutated); it borrows the live character styling and welds to the text.
+   Only the VERTICAL margins are dropped: `margin-left` is how the generated
+   format CSS places the cue in its column — an indent, in formats that use
+   one, and it is what makes a cue read as centred on the page — so resetting
+   it wholesale slammed the continued cue against the left margin while every
+   other cue stayed put. */
+.pgchrome__contd {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+/* Shared front-matter layout: the engine owns every row, wrap and sheet. */
+.titlesheet,
+.frontsheet {
+  display: block;
+  position: relative;
+  height: var(--fmt-block-height);
+}
+.titlesheet--editable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.titlesheet--editable:hover {
+  outline: 1px dashed var(--rule);
+  outline-offset: -6px;
+}
+.frontsheet__line {
+  position: absolute;
+  display: block;
+  white-space: pre;
+  line-height: var(--fmt-line);
+}
+
+/* A first-page header (only for formats that don't suppress it): a zero-height
+   anchor whose header floats up into the page's top padding. */
+.pgchrome__firstheader {
+  position: relative;
+  height: 0;
+  overflow: visible;
+}
+.pgchrome__firstheader .pgchrome__header {
+  top: calc(var(--fmt-header-pos) - var(--fmt-margin-top));
+}
+/* The last sheet's footer, from a zero-height anchor at the end of the text
+   block down into the page's bottom padding. */
+.pgchrome__lastfooter {
+  position: relative;
+  height: 0;
+  overflow: visible;
+}
+.pgchrome__lastfooter .pgchrome__footer {
+  bottom: auto;
+  top: calc(var(--fmt-margin-bottom) - var(--fmt-footer-pos) - 1em);
+}
+
+/* Block elements: visual (non-layout) treatments ----------------------- */
+
+/* The `=` card description — structural metadata, shown subtly in the galley. */
+.play-page .pl-synopsis {
+  color: var(--ash);
+  border-left: 2px solid var(--rule);
+  padding-left: 0.6em;
+}
+
+/* A forced `===` break. In the galley it keeps a line of its own; in page view
+   the format collapses it (it prints nothing) and the handle below is the only
+   sign of it. Either way the handle is what you click — the dots were a mark
+   you could not select, delete, or even find in page view. */
+.play-page .pl-pageBreak {
+  text-align: center;
+  color: var(--ash);
+  letter-spacing: 0.5em;
+  margin: 1.2em 0;
+}
+
+/* Chrome at the break's position: absolutely positioned with auto offsets, so
+   it draws at its static position and occupies ZERO flow space — it cannot
+   move a wrap or shift the break it labels. */
+.pl-pagebreak-handle {
+  /* Editing controls stay usable when the page fits a narrow pane. */
+  zoom: var(--page-chrome-zoom, 1);
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.15rem;
+  padding: 0.05rem 0.15rem 0.05rem 0.4rem;
+  border: 1px dashed color-mix(in srgb, var(--ash) 70%, transparent);
+  border-radius: 999px;
+  background: var(--paper);
+  color: var(--ash);
+  font-family: var(--font-ui);
+  font-size: var(--t-label);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  z-index: 3;
+}
+.pl-pagebreak-handle__label {
+  cursor: pointer;
+}
+.pl-pagebreak-handle:hover {
+  border-color: var(--oxide);
+  color: var(--oxide);
+}
+.pl-pagebreak-handle__remove {
+  min-width: 24px;
+  min-height: 24px;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  padding: 0.1rem 0.25rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pl-pagebreak-handle__remove:hover {
+  background: var(--oxide);
+  color: var(--paper);
+}
+/* Selected (clicking the handle, or Backspace from the block below): the
+   default node-selection outline has nothing to draw on a collapsed node, and
+   the handle sits BEFORE the node it labels — hence :has(), not a sibling. */
+.play-page .pl-pagebreak-handle:has(+ .pl-pageBreak.ProseMirror-selectednode) {
+  border-style: solid;
+  border-color: var(--oxide);
+  color: var(--oxide);
+}
+
+/* Omitted content — collapsed, muted, never discarded. */
+.play-page .pl-boneyard {
+  white-space: pre-wrap;
+  color: var(--ash);
+  background: rgba(31, 41, 51, 0.04);
+  border-left: 2px solid var(--ash);
+  padding: 0.3em 0.6em;
+  margin: 0.85em 0;
+}
+
+/* Inline note chip — invisible in print, an annotation in the editor.
+   Amber ON PURPOSE and by hand, under every accent (docs/app/writing/comments.md#COMM-D4): a comment sits IN
+   the script, and the one thing it must not do is look like the accent, which
+   everywhere else means "the app is doing something here". */
+.pl-note {
+  background: rgba(192, 138, 46, 0.2);
+  border-radius: var(--r-chip-sm);
+  padding: 0 3px;
+  box-decoration-break: clone;
+}
+
+/* The empty-doc placeholder block keeps a comfortable click target. */
+.play-page .pl:only-child:empty::before {
+  content: "Start writing…";
+  color: var(--ash);
+  font-style: italic;
+}
+
+/*
+ * The caret popups — cue autocomplete, the leader menu — and the spelling menu
+ * further down all wear the ONE menu anatomy (docs/engineering/design-system.md#UI-D107): vibrant
+ * paper, 0.5px hairline, radius 8, 5px padding, the menu shadow, no animation.
+ *
+ * They are drawn imperatively by ProseMirror plugins rather than by
+ * `ui/Menu.tsx`, because a React portal cannot be positioned from inside a
+ * plugin view without a round trip through state the editor does not have. So
+ * they share the CHROME by sharing these values; nothing here holds a colour of
+ * its own, and there is exactly one place each value comes from.
+ */
+.pl-autocomplete,
+.pl-elementmenu {
+  position: fixed;
+  z-index: 56;
+  background: var(--vibrant);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 0.5px solid rgba(31, 41, 51, 0.1);
+  border-radius: var(--r-menu);
+  box-shadow: var(--sh-menu);
+  padding: 5px;
+  font-family: var(--font-ui);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .pl-autocomplete,
+  :where(:root[data-theme="dark"]) .pl-elementmenu {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+}
+
+/* Cue autocomplete. Courier Prime, because a cue IS Courier Prime on the page
+   — the list has to look like what it will type. */
+.pl-autocomplete {
+  min-width: 120px;
+  max-height: 14em;
+  overflow-y: auto;
+  font-family: var(--font-script);
+  font-size: var(--t-small);
+}
+.pl-autocomplete__item {
+  height: var(--h-small);
+  min-height: 24px; /* the target, not the type (docs/app/preferences-and-help/accessibility.md#A11Y-11) */
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-chip);
+  color: var(--ink);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pl-autocomplete__item.is-sel {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* The predicted next speaker (top row of an empty-cue popup). */
+.pl-autocomplete__item.is-guess {
+  font-weight: 700;
+}
+
+/* The leader menu (";" on an empty line): a TWO-COLUMN grid, because thirteen
+   rows in one column is a list you read and two columns is a keyboard you
+   glance at — which is the whole point of a leader key. */
+.pl-elementmenu {
+  min-width: 196px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px var(--s-3);
+  font-size: var(--t-small);
+}
+.pl-elementmenu__item {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  height: var(--h-small);
+  min-height: 24px;
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: var(--s-2);
+  align-items: center;
+  padding: 0 7px;
+  border-radius: var(--r-chip);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* Page Break is the odd one out — it takes the full width, because it is a
+   gesture about the page rather than about the line. */
+.pl-elementmenu__item:last-of-type {
+  grid-column: 1 / -1;
+}
+.pl-elementmenu__item:hover,
+.pl-elementmenu__item:focus {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pl-elementmenu__key {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-ui);
+  font-size: var(--t-label);
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--ash);
+  border: none;
+  border-radius: var(--r-chip-sm);
+}
+/* The highlighted row INVERTS its badge, so the key stays legible on the fill. */
+.pl-elementmenu__item:hover .pl-elementmenu__key,
+.pl-elementmenu__item:focus .pl-elementmenu__key {
+  background: var(--on-accent);
+  color: var(--accent);
+}
+.pl-elementmenu__hint {
+  grid-column: 1 / -1;
+  margin-top: var(--s-1);
+  padding: var(--s-3) 9px var(--s-1);
+  border-top: 0.5px solid rgba(31, 41, 51, 0.14);
+  font-size: var(--t-mini);
+  color: var(--ash);
+  white-space: nowrap;
+}
+
+/* --- Dual dialogue (Fountain ^): side-by-side half-columns ------------- */
+/* Chains are tagged by pagination.ts node decorations; the engine keeps a
+   pair on one page, so a pair can never straddle a page break. Widths are
+   percentages of the text block (≈ the spec's dualDialogue halves); the engine
+   remains the print truth. Full-measure indents don't apply inside a half,
+   hence the margin/width resets.
+
+   The two sides are laid out differently ON PURPOSE, and it is the only
+   arrangement that top-aligns them. Both halves floated is the obvious reading
+   and it does not work: CSS 2.1 section 9.5.1 rule 5 says a float's outer top may not
+   be higher than the outer top of any box generated EARLIER in the source, and
+   the right cue comes after the whole left chain — so the right column was
+   pushed down to the left chain's last block and the pair read as sequential,
+   one indented column after the other, while the engine and the PDF had them
+   side by side from the same base row.
+
+   So: the left chain floats (out of flow, stacking down the left), and the
+   right chain stays in NORMAL FLOW held clear of it by a left margin. Flow
+   position is unmoved by the float, so the right chain starts level with the
+   left one whatever either contains, and each side then flows at its own
+   height — which is the engine's model (`placeDual`: same base row, taller side
+   sets the height). Verified aligned to the pixel after an action, after a
+   speech, at the top of the document, and with either side taller. */
+.play-page .pm-dual {
+  width: 48% !important;
+  max-width: 48% !important;
+  margin-right: 0 !important;
+}
+.play-page .pm-dual--left {
+  float: left;
+  clear: left;
+  margin-left: 0 !important;
+}
+.play-page .pm-dual--right {
+  /* 52% = the left half plus the gutter between them. */
+  margin-left: 52% !important;
+}
+/* A zero-height widget BETWEEN the pair and the next block (pagination.ts),
+   not a class on the next block: clearance on an element swallows its own
+   margin-top, so with the LEFT column taller the following block sat tight
+   against the pair. The widget takes the clearance;
+   the next block keeps its format-given gap. */
+.play-page .pm-dual-clear {
+  clear: both;
+  height: 0;
+}
+/* The right cue of a pair shows its Fountain marker quietly (the `^` is an
+   attr, never stored text — this is the visual reminder the pair exists). */
+.play-page .pl-character[data-dual]::after {
+  content: " ^";
+  opacity: 0.4;
+}
+
+/* --- Find / find-and-replace ------------------------------------------ */
+/* Match highlights are DECORATIONS, never marks: a search must never dirty the
+   buffer or leave anything in the `.fountain`. The current match is warmer than
+   the rest so the eye lands on it without the others disappearing. */
+.play-page .pl-find {
+  background: color-mix(in srgb, var(--amber) 34%, transparent);
+  border-radius: 2px;
+}
+.play-page .pl-find--current {
+  background: color-mix(in srgb, var(--oxide) 42%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--oxide) 60%, transparent);
+}
+
+/* ---- Comments (docs/app/writing/comments.md) — the margin, markers, the panel ------ */
+
+/* The anchored phrase, painted the way Docs paints a commented range. It is a
+   DECORATION and it only sets a colour: no padding, no border, no font change,
+   so it cannot move a wrap — the invariant the engine's note handling rests
+   on. The span itself is derived on every render (model.ts anchorSpan) and
+   stored nowhere; a Fountain note anchors at a point. */
+.play-page .pl-comment-anchor {
+  background: rgba(192, 138, 46, 0.18);
+  box-shadow: inset 0 -1px 0 rgba(192, 138, 46, 0.55);
+  cursor: pointer;
+}
+.play-page .pl-comment-anchor.is-hover {
+  background: rgba(192, 138, 46, 0.3);
+}
+.play-page .pl-comment-anchor.is-active {
+  background: rgba(192, 138, 46, 0.42);
+}
+/* About to be resolved: the script says WHICH comment the click would take.
+   Deliberately not a strikethrough — resolving removes the note, not the line
+   it is attached to, and struck script text would say the writing is going. */
+.play-page .pl-comment-anchor.is-doomed {
+  background: color-mix(in srgb, var(--oxide) 22%, transparent);
+  box-shadow: inset 0 -1px 0 var(--oxide);
+}
+
+/* The anchor marker: chrome at the note's position. Absolutely positioned with
+   auto offsets, so it renders at its static position while occupying ZERO flow
+   space. It carries the comments a highlight can't — one that opens a block,
+   one standing alone — and marks the anchor point exactly. */
+.pl-comment-marker {
+  position: absolute;
+  width: 0.45rem;
+  height: 0.95rem;
+  margin-top: -0.1rem;
+  margin-left: 1px;
+  border-radius: 2px;
+  background: rgba(192, 138, 46, 0.3);
+  border: 1px solid rgba(192, 138, 46, 0.8);
+  cursor: pointer;
+  z-index: 3;
+}
+.pl-comment-marker:hover,
+.pl-comment-marker.is-hover,
+.pl-comment-marker.is-active {
+  background: rgba(192, 138, 46, 0.85);
+}
+/* The marker is the whole signal for a comment with no phrase to paint — one
+   opening a block, or standing alone on its own (hidden) line. */
+.pl-comment-marker.is-doomed {
+  background: var(--oxide);
+  border-color: var(--oxide);
+}
+/* Galley shows the amber chips themselves; no second indicator. */
+.play-page:not(.is-paginated) .pl-comment-marker {
+  display: none;
+}
+/* Unless the margin is up: then the card carries the text in BOTH views, the
+   chip would be the same words twice, and the marker is what says "here". */
+.editor-surface.has-comment-margin .play-page .pl-note {
+  display: none;
+}
+/* `inline`, not `block`: an absolutely positioned box is blockified either way,
+   but a box declared block takes its static position from the start of the next
+   line — the marker would drop below the phrase it marks. */
+.editor-surface.has-comment-margin .play-page:not(.is-paginated) .pl-comment-marker {
+  display: inline;
+}
+
+/* --- The margin: cards on the desk, level with the line they annotate --- */
+.comments-margin {
+  position: absolute;
+  top: 0;
+  z-index: 4; /* under the sticky element bar, over the desk */
+}
+.comment-card {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  padding: 9px 11px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-control);
+  box-shadow: var(--sh-card);
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  line-height: 1.45;
+  cursor: default;
+  transition: top var(--motion), box-shadow var(--motion);
+}
+.comment-card.is-doomed {
+  border-color: var(--bad-border);
+}
+@media (prefers-reduced-motion: reduce) {
+  /* A card sliding to its new place is motion the writer asked not to see
+     (docs/app/preferences-and-help/accessibility.md#A11Y-18). */
+  .comment-card {
+    transition: box-shadow var(--motion);
+  }
+}
+.comment-card.is-doomed .comment-card__body {
+  text-decoration: line-through;
+  color: var(--ash);
+}
+.comment-card.is-active {
+  border: 1px solid var(--accent);
+}
+/* The tie back to the page: a stub pointing at the highlighted phrase. */
+.comment-card.is-active::before {
+  content: "";
+  position: absolute;
+  top: 11px;
+  right: 100%;
+  width: 10px;
+  border-top: 1px solid var(--accent);
+}
+.comment-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-bottom: var(--s-2);
+}
+.comment-card__author {
+  font-size: var(--t-mini);
+  color: var(--placeholder);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.comment-card__actions {
+  display: flex;
+  gap: var(--s-1);
+  margin-left: auto;
+  opacity: 0;
+}
+.comment-card:hover .comment-card__actions,
+.comment-card.is-active .comment-card__actions,
+.comment-card:focus-within .comment-card__actions {
+  opacity: 1;
+}
+.comment-card__actions button {
+  /* A 24px target around a small glyph (WCAG 2.5.8, docs/app/preferences-and-help/accessibility.md#A11Y-11). */
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ash);
+  padding: 0;
+  border-radius: var(--r-chip-sm);
+  font-size: var(--t-small);
+}
+.comment-card__actions button:hover {
+  color: var(--ink);
+  background: var(--hover-strong);
+}
+.comment-card__body {
+  margin: 0;
+  /* The card's own ink: a fixed dark grey read at 1.4:1 on the dark paper
+     (docs/app/preferences-and-help/accessibility.md#A11Y-12). */
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.comment-card__field {
+  width: 100%;
+  font: inherit;
+  font-size: var(--t-small);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-chip);
+  box-shadow: var(--focus-ring);
+  padding: var(--s-3);
+  background: var(--field);
+  color: var(--ink);
+  resize: vertical;
+}
+.comment-card__field:focus {
+  outline: none;
+}
+.comment-card__editrow {
+  display: flex;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.comment-card__editrow button {
+  font: inherit;
+  font-size: var(--t-mini);
+  height: var(--h-mini);
+  padding: 0 var(--s-4);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-chip);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+.comment-card__editrow button:first-child {
+  border-color: var(--bad-border);
+  color: var(--bad);
+}
+
+/* The capsules the margin and the feed share (attribution, todo). */
+.comments-chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--h-mini);
+  margin-right: var(--s-3);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  font-size: var(--t-mini);
+  font-weight: 500;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.comments-chip.is-todo {
+  background: var(--warn-tint);
+  color: var(--warn-text);
+}
+
+/* --- The comment feed, as a pane (docs/app/writing/comments.md#COMM-D5) ------------------ */
+.commentsfeed {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+.commentsfeed--empty {
+  padding: var(--s-6);
+  color: var(--ash);
+}
+.commentsfeed__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: calc(34px * var(--ui-scale));
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-4) var(--s-2) var(--s-5);
+  background: var(--rail);
+  border-bottom: 0.5px solid var(--rule);
+}
+.commentsfeed__count {
+  flex: 1;
+  margin: 0;
+  font-weight: 600;
+  font-size: var(--t-small);
+}
+.commentsfeed__filter {
+  max-width: 9rem;
+}
+.commentsfeed__empty {
+  margin: 0;
+  padding: var(--s-6) var(--s-5);
+  line-height: 1.5;
+  color: var(--ash);
+}
+.commentsfeed__empty kbd,
+.commentsfeed__empty code {
+  font-family: var(--font-script);
+  font-size: var(--t-inline-script);
+  background: rgba(31, 41, 51, 0.06);
+  border-radius: var(--r-chip-sm);
+  padding: 0 0.25em;
+}
+.commentsfeed__list,
+.commentsfeed__list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+.commentsfeed__scene {
+  padding: var(--s-5) var(--s-5) var(--s-2);
+  font-size: var(--t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ash);
+}
+.commentsfeed__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0 var(--s-3);
+  padding: 7px var(--s-4);
+  border-radius: var(--r-control);
+}
+.commentsfeed__row:hover {
+  background: var(--hover);
+}
+/* The focused row lifts onto paper rather than taking a tint: it is the one
+   being read, and a tint would make it look like a state it is not in. */
+.commentsfeed__row.is-focused {
+  background: var(--paper);
+  box-shadow: 0 0.5px 1.5px rgba(31, 41, 51, 0.12);
+}
+.commentsfeed__body {
+  flex: 1;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+  border-radius: var(--r-chip);
+}
+.commentsfeed__text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.commentsfeed__actions {
+  display: flex;
+  gap: 0.1rem;
+  opacity: 0;
+}
+.commentsfeed__row:hover .commentsfeed__actions,
+.commentsfeed__row:focus-within .commentsfeed__actions {
+  opacity: 1;
+}
+.commentsfeed__actions button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ash);
+  padding: 0.1rem 0.25rem;
+  border-radius: 4px;
+}
+.commentsfeed__actions button:hover {
+  color: var(--ink);
+  background: var(--hover-strong);
+}
+.commentsfeed__edit {
+  flex: 1;
+  padding: 0.15rem 0.2rem;
+}
+.commentsfeed__field {
+  width: 100%;
+  font: inherit;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.3rem 0.4rem;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+}
+.commentsfeed__editrow {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+}
+.commentsfeed__editrow button {
+  font: inherit;
+  font-size: var(--t-mini);
+  height: var(--h-mini);
+  padding: 0 var(--s-4);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------------------
+   Spell check (docs/app/writing/editor-ux.md#EDIT-D116)
+   --------------------------------------------------------------------------- */
+
+/* The squiggle. Oxide rather than a browser red: this is a note in the margin
+   of a page, not a system error. `skip-ink: none` keeps the line unbroken under
+   a Courier descender, where a gapped wave reads as two shorter words. */
+.pl-misspelled {
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-color: var(--oxide);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: 1px;
+}
+
+/* The correction menu is ui/Menu.tsx now (SpellMenu.tsx); its
+   suggestions keep the script's face through `.menu__script` in styles.css. */
+
+/*
+ * The page map, once the running-time strip — the one piece of
+ * chrome that survives focus mode, because it is the only one that is about the
+ * play rather than about the app. Pinned to the foot of the scroller, under the
+ * page it maps.
+ */
+.rts {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  align-self: stretch;
+  height: 14px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 0 10px;
+  background: #e4dac6;
+  border-top: 0.5px solid var(--rule);
+  margin-top: auto;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .rts {
+    background: #221f1c;
+  }
+}
+.rts__seg {
+  height: 6px;
+  flex: 1 1 0;
+  min-width: 3px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity var(--motion);
+}
+.rts__seg:first-of-type {
+  border-radius: var(--r-pill) 0 0 var(--r-pill);
+}
+.rts__seg:last-of-type {
+  border-radius: 0 var(--r-pill) var(--r-pill) 0;
+}
+.rts__seg:hover {
+  opacity: 1;
+}
+/* The caret's scene: a 2px marker straight through it, so "where am I" is
+   readable at a glance without changing the scene's own hue. */
+.rts__seg.is-here {
+  opacity: 1;
+  box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+.rts__tick {
+  width: 2px;
+  height: 10px;
+  flex: none;
+  margin: 0 2px;
+  background: rgba(31, 41, 51, 0.3);
+  border-radius: var(--r-pill);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .rts__tick {
+    background: rgba(255, 255, 255, 0.3);
+  }
+}
+/* The card hues, exactly as the board draws them. Cream is the only one that
+   needs its own value here: the card's own cream is the paper it sits on. */
+.rts__seg--cream { background: var(--hue-cream); }
+.rts__seg--oxide { background: var(--oxide); }
+.rts__seg--ink { background: var(--ink); }
+.rts__seg--sea { background: var(--sea); }
+.rts__seg--moss { background: var(--moss); }
+.rts__seg--amber { background: var(--amber); }
+.rts__seg--ash { background: var(--ash); }

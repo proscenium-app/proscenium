@@ -1,0 +1,109 @@
+{
+  "app_launched": {
+    "props": {},
+    "why": "Count how often the app opens each day."
+  },
+  "play_opened": {
+    "props": {
+      "plays": [
+        "1",
+        "2-5",
+        "6-20",
+        "21+"
+      ]
+    },
+    "why": "Guide work on the Plays screen without an exact play count."
+  },
+  "surface_shown": {
+    "props": {
+      "surface": [
+        "script",
+        "board",
+        "outline",
+        "cast",
+        "changes",
+        "format-designer"
+      ]
+    },
+    "why": "See which parts of the app get used and which need work."
+  },
+  "pdf_exported": {
+    "props": {
+      "kind": [
+        "whole",
+        "range",
+        "sides"
+      ],
+      "format": [
+        "dg-modern",
+        "stage-us-modern",
+        "stage-uk",
+        "samuel-french",
+        "dg-traditional",
+        "dg-musical",
+        "sketch-comedy",
+        "user"
+      ]
+    },
+    "why": "Decide which exports and built-in formats to improve."
+  },
+  "format_saved": {
+    "props": {},
+    "why": "Know whether writers make their own formats."
+  },
+  "update_installed": {
+    "props": {
+      "from": [
+        "$released-version"
+      ],
+      "to": [
+        "$released-version"
+      ]
+    },
+    "why": "Check whether updates arrive and how far behind copies fall."
+  },
+  "error_shown": {
+    "props": {
+      "code": [
+        "E-BOOT",
+        "E-FOLDER-OPEN",
+        "E-FOLDER-REFUSED",
+        "E-FOLDER-ACCESS",
+        "E-ICLOUD",
+        "E-PLAY-OPEN",
+        "E-PLAY-MISSING",
+        "E-PLAY-CREATE",
+        "E-SAVE",
+        "E-SAVE-LOCKED",
+        "E-SAVE-PERMISSION",
+        "E-SAVE-NOT-ALLOWED",
+        "E-SAVE-DISK-FULL",
+        "E-SAVE-READ-ONLY",
+        "E-SAVE-FOLDER-GONE",
+        "E-SAVE-UNREACHABLE",
+        "E-CHANGED-ON-DISK",
+        "E-VERSIONS",
+        "E-BINDER",
+        "E-ACTION-STALE",
+        "E-VAULT-READ",
+        "E-VAULT-PERMISSION",
+        "E-EXPORT-PDF",
+        "E-EXPORT-FONT",
+        "E-PRINT",
+        "E-FORMAT-READ",
+        "E-FORMAT-IMPORT",
+        "E-FORMAT-EXPORT",
+        "E-FORMAT-SAVE",
+        "E-FORMAT-TRASH",
+        "E-FORMATS-FOLDER",
+        "E-REVEAL",
+        "E-FINDER-OPEN",
+        "E-UPDATE-RESTART",
+        "E-WATCH",
+        "E-WORKSPACE",
+        "E-OTHER"
+      ]
+    },
+    "why": "Fix the errors writers actually meet without collecting error messages."
+  }
+}

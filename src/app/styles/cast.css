@@ -1,0 +1,161 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Title Page editor (front-matter slice) -------------------------------- */
+/* Cast (docs/app/organizing/workspace-model.md#WORK-D105) — a real view (peer to Board/Outline), not a modal. -------- */
+.castview {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px var(--s-7) var(--s-7);
+}
+.castview__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+}
+.castview__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.castview__title {
+  margin: 0;
+  font-size: var(--t-head);
+  font-weight: 600;
+  color: var(--ink);
+}
+.castview__sub {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.castview__empty {
+  color: var(--ash);
+  font-size: var(--t-small);
+  padding: var(--s-6) 0;
+}
+/* ONE list card with the tiers as headers inside it, rather than three cards:
+   the tiers are a reading of one list, not three lists. */
+.castview__list {
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-menu);
+  overflow: hidden;
+}
+.castcard {
+  padding: var(--s-4) var(--s-5);
+  border-top: 0.5px solid var(--rule);
+}
+.castgroup:first-of-type .castcard:first-of-type,
+.castview__list > .castcard:first-child {
+  border-top: none;
+}
+.castcard__fields {
+  display: flex;
+  gap: var(--s-4);
+  align-items: center;
+}
+.castcard__name {
+  flex: 0 0 110px;
+  font: inherit;
+  font-family: var(--font-script);
+  font-size: var(--t-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-chip);
+  padding: var(--s-1) var(--s-2);
+}
+.castcard__desc {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-chip);
+  padding: var(--s-1) var(--s-2);
+}
+.castcard__desc::placeholder {
+  color: var(--placeholder);
+}
+.castcard__name:focus,
+.castcard__desc:focus {
+  outline: none;
+  background: var(--field);
+  box-shadow: var(--focus-ring);
+}
+.castcard__remove {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--r-chip-sm);
+  background: none;
+  color: var(--ash);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion);
+}
+.castcard:hover .castcard__remove,
+.castcard__remove:focus {
+  opacity: 1;
+}
+.castcard__remove:hover {
+  background: var(--bad-tint);
+  color: var(--bad);
+}
+/* Indented to line up under the description, so the meta line reads as a
+   footnote to the row rather than a second row. */
+.castcard__meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s-4);
+  margin: var(--s-2) 0 0 118px;
+  font-size: var(--t-mini);
+  color: var(--ink-2);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .castcard__meta {
+    color: var(--ink-2);
+  }
+}
+.castcard__appears {
+  font-size: var(--t-mini);
+  color: inherit;
+}
+.castcard__notes {
+  flex: none;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  font: inherit;
+  font-size: var(--t-mini);
+  color: var(--accent-text);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  padding: 0;
+}
+.castcard__notes:hover {
+  text-decoration: underline;
+}
+.castcard__notes--new {
+  color: var(--ash);
+}
+.castview__adders {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+

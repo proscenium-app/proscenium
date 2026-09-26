@@ -1,0 +1,151 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - heading "0 comments" [level=2]
+  - 'button "Filter comments: All Comments"': All Comments
+  - paragraph:
+    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
+    - code: "[["
+    - text: where you want one.
+  - list
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Settings":
+  - heading "Settings" [level=2]
+  - tablist "Settings sections":
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats" [selected]
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Formats":
+    - heading "Formats" [level=3]
+    - paragraph: "A format sets how a script is laid out on the page: margins, indents, spacing and page breaks. Built-in formats can’t be changed."
+    - heading "All formats" [level=4]
+    - paragraph: The first three appear in the script-name menu.
+    - list "Formats":
+      - listitem:
+        - text: Dramatists Guild — Modern In menu Built-in New plays
+        - button "Move “Dramatists Guild — Modern” up" [disabled]
+        - button "Move “Dramatists Guild — Modern” down"
+        - button "Duplicate “Dramatists Guild — Modern”": Duplicate…
+        - button "More actions for “Dramatists Guild — Modern”"
+      - listitem:
+        - text: Proscenium House In menu Built-in
+        - button "Move “Proscenium House” up"
+        - button "Move “Proscenium House” down"
+        - button "Duplicate “Proscenium House”": Duplicate…
+        - button "More actions for “Proscenium House”"
+      - listitem:
+        - text: UK / International (BBC) In menu Built-in
+        - button "Move “UK / International (BBC)” up"
+        - button "Move “UK / International (BBC)” down"
+        - button "Duplicate “UK / International (BBC)”": Duplicate…
+        - button "More actions for “UK / International (BBC)”"
+      - listitem:
+        - text: Samuel French / Concord — Manuscript Built-in
+        - button "Move “Samuel French / Concord — Manuscript” up"
+        - button "Move “Samuel French / Concord — Manuscript” down"
+        - button "Duplicate “Samuel French / Concord — Manuscript”": Duplicate…
+        - button "More actions for “Samuel French / Concord — Manuscript”"
+      - listitem:
+        - text: Dramatists Guild — Traditional Built-in
+        - button "Move “Dramatists Guild — Traditional” up"
+        - button "Move “Dramatists Guild — Traditional” down"
+        - button "Duplicate “Dramatists Guild — Traditional”": Duplicate…
+        - button "More actions for “Dramatists Guild — Traditional”"
+      - listitem:
+        - text: Dramatists Guild — Musical Built-in
+        - button "Move “Dramatists Guild — Musical” up"
+        - button "Move “Dramatists Guild — Musical” down"
+        - button "Duplicate “Dramatists Guild — Musical”": Duplicate…
+        - button "More actions for “Dramatists Guild — Musical”"
+      - listitem:
+        - text: Sketch Comedy — Sketchworks Built-in
+        - button "Move “Sketch Comedy — Sketchworks” up"
+        - button "Move “Sketch Comedy — Sketchworks” down" [disabled]
+        - button "Duplicate “Sketch Comedy — Sketchworks”": Duplicate…
+        - button "More actions for “Sketch Comedy — Sketchworks”"
+    - button "New Format…"
+    - button "Import Format…"
+    - heading "New plays" [level=4]
+    - text: Start new plays in
+    - 'button "Start new plays in: Dramatists Guild — Modern"': Dramatists Guild — Modern
+    - paragraph: Existing plays keep their format.
+  - text: Settings are saved on this Mac, not in your plays.
+  - button "Done"
+  - status
+  - alert

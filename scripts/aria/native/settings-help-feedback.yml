@@ -1,0 +1,20 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback" [selected]
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Help & Feedback"
+    - heading "Help & Feedback" [level=3]
+    - paragraph
+    - button "Open Help & Tutorials"
+    - button "Send Feedback…"
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

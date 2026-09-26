@@ -1,0 +1,178 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Practice Play"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast" [selected]
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: Practice Play
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "Practice Play Rename “Practice Play” Actions for “Practice Play”" [level=1] [selected]:
+      - text: Practice Play
+      - button "Rename “Practice Play”"
+      - button "Actions for “Practice Play”"
+    - group "Scenes in Practice Play":
+      - treeitem "SCENE 2 1" [level=2]
+      - treeitem "SCENE 1 1–2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters": Empty
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes": Empty
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - heading "Characters Page" [level=1]
+  - paragraph: Edit the page your readers will see. Cast tools and private notes are below.
+  - group "Printed characters page":
+    - toolbar "Formatting":
+      - 'button "Paragraph style: Body Text"': Body Text
+      - button "Bold"
+      - button "Italic"
+      - 'button "Text alignment: Align Left"': Align Left
+      - button "Bulleted list":
+        - img
+      - button "Numbered list":
+        - img
+    - heading "Characters" [level=1]
+    - paragraph:
+      - strong: MARA
+    - paragraph:
+      - strong: IVO Old friends.
+  - group: Page Options
+  - heading "Cast Tools" [level=2]
+  - paragraph: Names, private notes, appearances and sides.
+  - group "MARA":
+    - text: MARA
+    - textbox "Name — MARA"
+    - textbox "Description — MARA"
+    - button "Remove MARA"
+    - button "Move MARA up" [disabled]
+    - button "Move MARA down"
+    - text: 1 line · 1 scene Appears in SCENE 1
+    - button "Sides (PDF) ↗"
+    - button "Add Notes"
+  - group "IVO":
+    - text: IVO
+    - textbox "Name — IVO"
+    - textbox "Description — IVO"
+    - button "Remove IVO"
+    - button "Move IVO up"
+    - button "Move IVO down"
+    - text: 1 line · 1 scene Appears in SCENE 1
+    - button "Sides (PDF) ↗"
+    - button "Add Notes"
+  - group "ROWAN":
+    - text: ROWAN
+    - textbox "Name — ROWAN"
+    - textbox "Description — ROWAN"
+    - button "Remove ROWAN"
+    - button "Move ROWAN up"
+    - button "Move ROWAN down" [disabled]
+    - text: Not in the script yet
+    - button "Add Notes"
+  - button "Add Character"
+  - heading "Who’s on stage" [level=3]
+  - paragraph: A mark where a character speaks. Read across for a part’s shape, down for how full a scene is.
+  - table:
+    - rowgroup:
+      - row "Character SCENE 2 SCENE 1 Scenes":
+        - columnheader "Character"
+        - columnheader "SCENE 2":
+          - button "SCENE 2"
+        - columnheader "SCENE 1":
+          - button "SCENE 1"
+        - columnheader "Scenes"
+    - rowgroup:
+      - row "IVO silent speaks 1":
+        - rowheader "IVO"
+        - cell "silent"
+        - cell "speaks"
+        - cell "1"
+      - row "MARA silent speaks 1":
+        - rowheader "MARA"
+        - cell "silent"
+        - cell "speaks"
+        - cell "1"
+      - row "ROWAN silent silent never speaks":
+        - rowheader "ROWAN"
+        - cell "silent"
+        - cell "silent"
+        - cell "never speaks"
+    - rowgroup:
+      - row "On stage 0 2":
+        - rowheader "On stage"
+        - cell "0"
+        - cell "2"
+        - cell
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - heading "0 comments" [level=2]
+  - 'button "Filter comments: All Comments"': All Comments
+  - paragraph:
+    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
+    - code: "[["
+    - text: where you want one.
+  - list
+- contentinfo:
+  - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 84%"': Fit width · 84%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Opening Pages":
+  - heading "Opening Pages" [level=2]
+  - text: Title page, Characters page, then optional opening notes. You choose the content. Title
+  - textbox "Title"
+  - text: Credit
+  - textbox "Credit"
+  - text: Authors
+  - textbox "Authors"
+  - text: Contact
+  - textbox "Contact"
+  - text: Draft date
+  - textbox "Draft date"
+  - text: Write the title page freely
+  - checkbox "Write the title page freely"
+  - heading "Opening Notes" [level=2]
+  - paragraph: An optional page for setting, time, place, a dedication or other notes. Write your own headings, or leave it empty to omit the page.
+  - group "Opening notes text":
+    - toolbar "Formatting":
+      - 'button "Paragraph style: Body Text"': Body Text
+      - button "Bold"
+      - button "Italic"
+      - 'button "Text alignment: Align Left"': Align Left
+      - button "Bulleted list":
+        - img
+      - button "Numbered list":
+        - img
+    - paragraph
+  - text: Place opening notes
+  - 'button "Place opening notes: After Characters"': After Characters
+  - paragraph: Edit the Characters page in Cast. Export lets you choose which opening pages to include.
+  - button "Cancel"
+  - button "Save"
+  - status
+  - alert
+  - complementary "Tutorial":
+    - text: Practice
+    - button "Characters and Opening Pages, step 4 of 4. Choose a step": Characters and Opening Pages 4 of 4
+    - button "Stop Tutorial"
+    - paragraph: Write a line here — a place, a time, a dedication.
+    - button "Show Me"
+    - button "Skip Step"
+    - button "More Help"

@@ -1,0 +1,86 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Enlarged interface text reflows chrome; page geometry still comes from its format. */
+:root[data-large-text="true"] .toolbar {
+  height: auto;
+  min-height: 52px;
+  display: flex;
+  flex-wrap: wrap;
+  padding-block: var(--s-4);
+}
+:root[data-large-text="true"] .toolbar__left,
+:root[data-large-text="true"] .toolbar__right,
+:root[data-large-text="true"] .statusbar,
+:root[data-large-text="true"] .sheet__head,
+:root[data-large-text="true"] .sheet__foot,
+:root[data-large-text="true"] .banner,
+:root[data-large-text="true"] .banner__actions {
+  flex-wrap: wrap;
+}
+:root[data-large-text="true"] .prefs__tab,
+:root[data-large-text="true"] .menu__item {
+  height: auto;
+  padding-block: var(--s-3);
+  white-space: normal;
+}
+:root[data-large-text="true"] .menu__label,
+:root[data-large-text="true"] .binder__label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+:root[data-large-text="true"] .sheet {
+  width: min(1000px, calc(100vw - 32px)) !important;
+}
+:root[data-large-text="true"] .settings__row {
+  flex-wrap: wrap;
+}
+/* At 200% a built-in format's row (name, three chips, arrows, Duplicate…,
+   More) ran past the panel's edge: Duplicate… was cut in half and More was
+   out of sight, though still in the Tab order. The row wraps instead. */
+:root[data-large-text="true"] .formatlist__row {
+  flex-wrap: wrap;
+}
+/* A tiny chip's 16px height held text the size of a 200% label. */
+:root[data-large-text="true"] .chip--tiny {
+  height: auto;
+  min-height: 16px;
+}
+/* A switch's height is --h-small, which scales, and its width was a fixed
+   38px: at 200% every switch in Settings drew as an upright oval that no
+   longer read as a switch. Width, knob and travel scale with it. */
+:root[data-large-text="true"] .switch:not(.switch--mini) {
+  width: calc(38px * var(--ui-scale));
+}
+:root[data-large-text="true"] .switch:not(.switch--mini) .switch__knob {
+  width: calc(18px * var(--ui-scale));
+  height: calc(18px * var(--ui-scale));
+}
+:root[data-large-text="true"] .switch.is-on:not(.switch--mini) .switch__knob {
+  /* Track less knob less the unscaled padding on both sides: 16px at 100%. */
+  transform: translateX(calc(20px * var(--ui-scale) - 2 * var(--s-1)));
+}
+:root[data-large-text="true"] .inspector__head {
+  flex-wrap: wrap;
+}
+:root[data-large-text="true"] .statusbar {
+  padding-block: var(--s-2);
+}
+
+:root[data-large-text="true"] .menu {
+  max-width: calc(100vw - 16px);
+}
+:root[data-large-text="true"] .viewswitch,
+:root[data-large-text="true"] .toolbar__centre {
+  max-width: 100%;
+  min-width: 0;
+}
+:root[data-large-text="true"] .viewswitch .seg {
+  height: auto;
+  flex-wrap: wrap;
+  flex-shrink: 1;
+}
+:root[data-large-text="true"] .viewswitch .seg__btn {
+  min-height: var(--h-regular);
+}

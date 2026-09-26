@@ -1,0 +1,74 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General" [selected]
+    - tab "Appearance" [selected]
+    - tab "Writing" [selected]
+    - tab "Formats" [selected]
+    - tab "Keyboard Shortcuts" [selected]
+    - tab "Help & Feedback" [selected]
+    - tab "Privacy" [selected]
+    - tab "Updates" [selected]
+    - tab "About" [selected]
+  - tabpanel "General"
+    - heading "General" [level=3]
+    - heading "PLAYS FOLDER" [level=4]
+    - paragraph
+    - button "Reveal in Finder"
+    - button "Change…"
+    - paragraph
+    - heading "WHEN PROSCENIUM OPENS" [level=4]
+    - button "Show when Proscenium opens: Where you left off" [haspopup]
+    - heading "PLAYS SCREEN" [level=4]
+    - none
+      - switch "Show Progress column"
+    - paragraph
+    - heading "PLAY STATUSES" [level=4]
+    - paragraph
+    - group "Statuses, in order"
+      - listitem
+        - textbox "Status 1 of 8: idea"
+        - button "Move “idea” up" [disabled]
+        - button "Move “idea” down"
+        - button "Delete “idea”"
+      - listitem
+        - textbox "Status 2 of 8: outlining"
+        - button "Move “outlining” up"
+        - button "Move “outlining” down"
+        - button "Delete “outlining”"
+      - listitem
+        - textbox "Status 3 of 8: drafting"
+        - button "Move “drafting” up"
+        - button "Move “drafting” down"
+        - button "Delete “drafting”"
+      - listitem
+        - textbox "Status 4 of 8: revising"
+        - button "Move “revising” up"
+        - button "Move “revising” down"
+        - button "Delete “revising”"
+      - listitem
+        - textbox "Status 5 of 8: workshop"
+        - button "Move “workshop” up"
+        - button "Move “workshop” down"
+        - button "Delete “workshop”"
+      - listitem
+        - textbox "Status 6 of 8: submitted"
+        - button "Move “submitted” up"
+        - button "Move “submitted” down"
+        - button "Delete “submitted”"
+      - listitem
+        - textbox "Status 7 of 8: produced"
+        - button "Move “produced” up"
+        - button "Move “produced” down"
+        - button "Delete “produced”"
+      - listitem
+        - textbox "Status 8 of 8: shelved"
+        - button "Move “shelved” up"
+        - button "Move “shelved” down" [disabled]
+        - button "Delete “shelved”"
+    - textbox "New status"
+    - button "Add Status"
+    - paragraph [live=polite]: “Idea” is already in the list.
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

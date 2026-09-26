@@ -1,0 +1,6 @@
+[default]
+# Empty on purpose. The plugin exposes no frontend commands — the app calls it
+# from Rust, inside its own `vault_pick_folder` — so there is nothing for the
+# webview to be granted.
+description = "No webview-facing surface; the plugin is called from Rust only."
+permissions = []

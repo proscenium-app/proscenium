@@ -1,0 +1,106 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "proscenium-services",
+  "account_id": "554f698dd7202ac1237062a8a3b08304",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-18",
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "observability": {
+    "enabled": false
+  },
+  "routes": [
+    {
+      "pattern": "updates.proscenium.ink",
+      "custom_domain": true
+    },
+    {
+      "pattern": "feedback.proscenium.ink",
+      "custom_domain": true
+    },
+    {
+      "pattern": "reports.proscenium.ink",
+      "custom_domain": true
+    },
+    {
+      "pattern": "go.proscenium.ink",
+      "custom_domain": true
+    },
+    {
+      "pattern": "patrons.proscenium.ink",
+      "custom_domain": true
+    }
+  ],
+  "vars": {
+    "UPDATES_ENABLED": "true",
+    "DOWNLOADS_ENABLED": "true",
+    "RELEASED_VERSIONS_JSON": "[\"0.9.0\",\"1.0.0\"]",
+    "FEEDBACK_ENABLED": "true",
+    "EVENTS_ENABLED": "true",
+    "CRASHES_ENABLED": "true",
+    "LINKS_ENABLED": "true",
+    "PATRONS_ENABLED": "true"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "proscenium-services",
+      "database_id": "6581b737-7c5b-4602-bc06-178b31ad58f3",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "TRACKS",
+      "bucket_name": "proscenium-updates"
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "UPDATE_LIMIT",
+      "namespace_id": "7001",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "DOWNLOAD_LIMIT",
+      "namespace_id": "7002",
+      "simple": {
+        "limit": 12,
+        "period": 60
+      }
+    },
+    {
+      "name": "FEEDBACK_LIMIT",
+      "namespace_id": "7003",
+      "simple": {
+        "limit": 3,
+        "period": 60
+      }
+    },
+    {
+      "name": "EVENTS_LIMIT",
+      "namespace_id": "7004",
+      "simple": {
+        "limit": 12,
+        "period": 60
+      }
+    },
+    {
+      "name": "CRASH_LIMIT",
+      "namespace_id": "7005",
+      "simple": {
+        "limit": 6,
+        "period": 60
+      }
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "15 4 * * *"
+    ]
+  }
+}

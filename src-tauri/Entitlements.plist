@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  SPDX-FileCopyrightText: 2026 Habiby LLC
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  App Sandbox entitlements for the Mac App Store build (storage §12,
+  release-engineering §5 channel 2). The Developer ID download signs with
+  Entitlements.developer-id.plist: the same iCloud container, without the
+  sandbox, because its updater has to replace the app in /Applications.
+
+  A sandboxed app reaches only its own container and what the writer picks
+  through the system panel. Each key below buys back exactly one thing the
+  layout needs, and nothing else:
+
+    app-sandbox                  the sandbox itself
+    files.user-selected.read-write   the folder the writer picks on the
+                                     welcome screen, for as long as the app runs
+    bookmarks.app-scope          and on every launch after that — a stored path
+                                 is a hint, the bookmark is the permission
+    icloud-container-identifiers the app's own iCloud Drive folder, the
+    icloud-services              zero-click default shown in Finder as
+    ubiquity-container-identifiers   iCloud Drive › Proscenium
+
+    network.client               the one outbound connection the store build
+                                 makes: anonymous analytics, while its switch
+                                 is on (privacy-and-telemetry §3). The store
+                                 build has no updater; the store updates it.
+
+    print                        File › Print…: a sandboxed app cannot reach
+                                 a printer without it.
+
+  The iCloud keys need a real team identifier and a provisioning profile.
+  A locally installed build is signed AD HOC (scripts/install-app.mjs), which
+  applies none of this: it is unsandboxed, reaches the folder by path, and is
+  the honest thing to develop against. This file is the contract the store
+  build is built to, not a description of the one on this Mac.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+
+  <key>com.apple.security.files.bookmarks.app-scope</key>
+  <true/>
+
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <key>com.apple.security.print</key>
+  <true/>
+
+  <key>com.apple.developer.icloud-container-identifiers</key>
+  <array>
+    <string>iCloud.org.habiby.proscenium</string>
+  </array>
+
+  <key>com.apple.developer.ubiquity-container-identifiers</key>
+  <array>
+    <string>iCloud.org.habiby.proscenium</string>
+  </array>
+
+  <key>com.apple.developer.icloud-services</key>
+  <array>
+    <string>CloudDocuments</string>
+  </array>
+</dict>
+</plist>

@@ -1,0 +1,134 @@
+{
+  "id": "stage-uk",
+  "name": "UK / International (BBC)",
+  "page": {
+    "size": "a4",
+    "margins": {
+      "left": 1,
+      "right": 1,
+      "top": 1,
+      "bottom": 1
+    }
+  },
+  "type": {
+    "family": "Courier Prime, Courier New, Courier, monospace",
+    "size": 12,
+    "lineHeight": 1
+  },
+  "header": {
+    "content": {},
+    "position": 0.85,
+    "suppressOnFirstPage": true
+  },
+  "footer": {
+    "content": {
+      "center": "-{page}-"
+    },
+    "position": 0.5,
+    "suppressOnFirstPage": false
+  },
+  "elements": {
+    "act": {
+      "align": "left",
+      "textTransform": "uppercase",
+      "maxWidth": 1.3,
+      "besideNext": true,
+      "startsNewPage": true,
+      "keepWithNext": true,
+      "spacingAfter": 1
+    },
+    "scene": {
+      "indentFromMargin": 1.5,
+      "textTransform": "uppercase",
+      "startsNewPage": true,
+      "keepWithNext": true,
+      "spacingAfter": 1,
+      "standaloneIndentFromMargin": 0
+    },
+    "sceneHeading": {
+      "indentFromMargin": 2.5,
+      "textTransform": "uppercase",
+      "spacingBefore": 1,
+      "spacingAfter": 1,
+      "keepWithNext": true
+    },
+    "action": {
+      "indentFromMargin": 2.5,
+      "textTransform": "uppercase",
+      "spacingBefore": 1,
+      "spacingAfter": 1
+    },
+    "character": {
+      "indentFromMargin": 0,
+      "maxWidth": 1.3,
+      "textTransform": "uppercase",
+      "spacingBefore": 1,
+      "keepWithNext": true,
+      "besideNext": true,
+      "suffix": ":"
+    },
+    "parenthetical": {
+      "indentFromMargin": 1.5,
+      "textTransform": "uppercase",
+      "parenWrap": true,
+      "keepWithNext": true,
+      "runInNext": true
+    },
+    "dialogue": {
+      "indentFromMargin": 1.5,
+      "spacingBefore": 0
+    },
+    "transition": {
+      "indentFromMargin": 2.5,
+      "textTransform": "uppercase",
+      "spacingBefore": 1,
+      "spacingAfter": 1
+    },
+    "lyric": {
+      "indentFromMargin": 0.5,
+      "fontStyle": "italic",
+      "spacingBefore": 0,
+      "spacingAfter": 0
+    },
+    "centered": {
+      "align": "center",
+      "spacingBefore": 1,
+      "spacingAfter": 1
+    },
+    "synopsis": {
+      "print": false,
+      "fontStyle": "italic"
+    },
+    "pageBreak": {
+      "print": false,
+      "startsNewPage": true
+    },
+    "boneyard": {
+      "print": false,
+      "fontStyle": "italic"
+    }
+  },
+  "pagination": {
+    "continuedMarker": " (CONT'D)",
+    "repeatCharacterOnSplit": false,
+    "minDialogueLinesBeforeBreak": 2,
+    "minDialogueLinesAfterBreak": 2,
+    "minActionLinesEitherSide": 2
+  },
+  "dualDialogue": {
+    "gutterIn": 0.2
+  },
+  "frontMatter": {
+    "titleTopFraction": 0.3333333333333333,
+    "titleGapRows": 1,
+    "titleContactGapRows": 2,
+    "sectionTopRows": 2,
+    "headingGapRows": 1,
+    "castGapRows": 1,
+    "fieldGapRows": 1,
+    "contactBottomRows": 0,
+    "titleFontStyle": "regular",
+    "headingFontStyle": "bold",
+    "bodyFontStyle": "regular"
+  }
+}

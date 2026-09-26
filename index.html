@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- SPDX-FileCopyrightText: 2026 Habiby LLC -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- WebKit's own canvas follows the Mac before any style has loaded. -->
+    <meta name="color-scheme" content="light dark" />
+    <title>Proscenium</title>
+    <!-- Light or dark before the first frame (public/boot-theme.js). -->
+    <script src="/boot-theme.js"></script>
+  </head>
+  <!-- macOS's writing suggestions (inline predictive text, on by default) make
+       WebKit delete letters as they are typed: "paragraph" kept "aph" in the
+       Feedback box and "rehearsal" kept "arsal" in a new status, whenever the
+       window was really key. Every text field inherits this, sheets included;
+       a field that wanted them back would have to say writingsuggestions="true". -->
+  <body writingsuggestions="false">
+    <!-- The first frame is the launch screen (LaunchScreen.tsx): the desk the
+         window already shows (src-tauri/src/window_color.rs). React replaces it
+         with its own, which looks the same, and the play is the first change. -->
+    <div id="root"><div class="launch-screen"></div></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

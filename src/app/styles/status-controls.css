@@ -1,0 +1,81 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Zoom, in the status bar (docs/engineering/design-system.md#UI-D106 stepper, docs/engineering/design-system.md#UI-D107 popover). Chrome for a pure view
+   transform: the format spec decides the page, this only decides how big it
+   looks. The label between the two steps is itself the button that opens the
+   popover — the shared Menu, with an ARROW (`.menu--arrow`), because it belongs
+   to a control rather than to a point on screen. */
+.zoomctl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+/* 24px, the WCAG 2.5.8 minimum: at 18px the three controls sat two pixels
+   apart and a click aimed at "−" could land on the percentage. The glyphs are
+   the size they were; the status bar is 26px, so the row does not grow. */
+.zoomctl__step {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  color: var(--ash);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-chip-sm);
+  padding: 0;
+  cursor: pointer;
+}
+.zoomctl__label {
+  height: 24px;
+  min-width: 3.4em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-chip);
+  padding: 0 var(--s-2);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.zoomctl__label.is-fit {
+  min-width: 0;
+}
+.zoomctl__step:hover,
+.zoomctl__label:hover,
+.zoomctl__label.is-open {
+  background: var(--hover-strong);
+  color: var(--ink);
+}
+.zoomctl__step:focus-visible,
+.zoomctl__label:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* Scene length on the board and in the outline (layout/scene-pages.ts). */
+.board__actlen {
+  font-size: var(--t-small);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.outliner__pages {
+  white-space: nowrap;
+  font-size: var(--t-mini);
+  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+}
+

@@ -1,0 +1,106 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "solid": "srgb:0.95686,0.92549,0.84706,1.00000"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "srgb:0.10588,0.12157,0.14118,1.00000"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "layers": [
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.12157,0.16078,0.20000,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.93725,0.90196,0.82353,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:1.00000,1.00000,1.00000,1.00000"
+              }
+            }
+          ],
+          "glass": false,
+          "image-name": "arch.svg",
+          "name": "arch"
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.97255,0.92549,0.76863,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.98431,0.95294,0.84706,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:0.85000,0.85000,0.85000,1.00000"
+              }
+            }
+          ],
+          "glass": false,
+          "image-name": "strip.svg",
+          "name": "strip"
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.78824,0.63529,0.15294,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.85098,0.69804,0.23529,1.00000"
+              }
+            },
+            {
+              "appearance": "tinted",
+              "value": {
+                "solid": "srgb:0.40000,0.40000,0.40000,1.00000"
+              }
+            }
+          ],
+          "glass": false,
+          "image-name": "stage.svg",
+          "name": "stage"
+        }
+      ],
+      "name": "mark",
+      "shadow": {
+        "kind": "none",
+        "opacity": 0.5
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": "shared"
+  }
+}

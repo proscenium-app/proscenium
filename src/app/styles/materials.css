@@ -1,0 +1,421 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Material (Markdown) editor -------------------------------------------- */
+/* A material is a page in the same folder as the script, so it gets the same
+   furniture: lit paper on the desk, one sheet, the writer's own margins. It
+   used to be a bordered grey card floating mid-frame — neither a page nor
+   full. The sheet is the play's page now; the desk it sits on is the pane.
+   `min-width: min-content` is .editormount's rule, for .editormount's reason:
+   in a pane narrower than a page the editor grows past the pane and the pane
+   scrolls, header and all, instead of squeezing the sheet into whatever width
+   is left. What grows past the pane grows past the pane's desk too, so the
+   editor carries its own. */
+.material {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  min-width: min-content;
+  background: var(--desk);
+}
+.material__head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  min-height: 40px;
+  /* Chrome on the desk, not on the paper — so the sheet scrolls under it. */
+  background: var(--desk);
+  border-bottom: 0.5px solid var(--rule);
+  padding: 0 var(--s-6);
+  display: flex;
+  align-items: center;
+}
+.material__headinner {
+  width: 100%;
+  /* The pane's width, not the editor's: in a pane narrower than the page the
+     editor is wider than the pane (.material), and a row that followed it put
+     the Page/Source control off the right edge where the document opens. The
+     strip behind it still spans the editor, so nothing shows through it when
+     the pane scrolls. */
+  max-width: calc(100cqw - 2 * var(--s-6));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Narrow pane (split view, an iPad in portrait): the toggle drops to its own
+     row WHOLE rather than crushing the title. */
+  flex-wrap: wrap;
+  gap: var(--s-4) var(--s-6);
+  padding: var(--s-3) 0;
+}
+.material__titleblock {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+/* The title IS the filename, so it is an input: click it and rename the file.
+   Styled to look like the heading it replaced until you touch it — a text box
+   sitting permanently in the header would read as a form field. */
+.material__title {
+  font-family: var(--font-ui);
+  font-size: var(--t-head);
+  font-weight: 600;
+  margin: 0 0 0 calc(-1 * var(--s-3));
+  padding: var(--s-1) var(--s-3);
+  min-width: 6rem;
+  max-width: 100%;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-chip);
+}
+.material__title:hover:not(:read-only) {
+  background: var(--hover);
+}
+.material__title:focus {
+  outline: none;
+  background: var(--field);
+  box-shadow: var(--focus-ring);
+}
+.material__headright {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: none;
+}
+/* Says the file is safe without demanding to be read. Reserves its own width
+   so the mode toggle doesn't jump left and right as it appears. */
+.material__save {
+  min-width: 3.6rem;
+  text-align: right;
+  font-size: var(--t-mini);
+  color: var(--ash);
+  transition: opacity 200ms ease;
+}
+.material__save--clean {
+  opacity: 0;
+}
+.material__save--saved {
+  color: var(--ash);
+}
+.material__kind {
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--t-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--ink-2);
+  background: var(--track);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip);
+}
+/* Only the typed kinds get a badge; a `document` is the default and a chip on
+   every row would be a label that says "file". */
+/* Tokens, not the light scheme's literals: on the dark desk #2C5461 read 1.9:1,
+   and nothing had scanned a character sheet at night until the quit alert did. */
+.material__kind--character {
+  background: var(--sea-tint);
+  color: var(--sea-text);
+}
+.material__kind--outline { background: var(--sea); }
+.material__kind--reference { background: var(--ash); }
+/* The header is chrome on the DESK, the darkest light surface, and the track
+   darkens it further: the secondary label on it measured 3.98:1, on the tags
+   and on the view control's unchosen half alike. Ink clears it in both
+   schemes; the chosen view still reads by its paper, its lift and its weight.
+   Nothing had scanned this header until smoke opened a document page. */
+.material__tag {
+  height: var(--h-mini);
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--t-mini);
+  color: var(--ink);
+  background: var(--track);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+}
+/* Page / Source is a segmented control: two views of one file. */
+.material__modes {
+  display: inline-flex;
+  flex: none;
+  height: var(--h-small);
+  padding: var(--s-1);
+  gap: var(--s-1);
+  background: var(--track);
+  border-radius: var(--r-control);
+}
+.material__mode {
+  background: none;
+  border: 0;
+  border-radius: var(--r-chip);
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink); /* not --ink-2: on the track over the desk (.material__tag) */
+  padding: 0 var(--s-4);
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.material__mode:hover:not(.material__mode--on) {
+  background: var(--hover);
+}
+.material__mode--on {
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: var(--sh-seg);
+}
+/* The desk the sheet lies on: it centres the page and keeps a strip of desk
+   down each side, so the page reads as a sheet ON something rather than as the
+   pane's own background. Its insets stay outside the sheet, as .editormount's
+   do, so zoom scales the page and never the desk around it. */
+.material__desk {
+  display: flex;
+  justify-content: center;
+  padding: var(--s-7) 1rem 48px;
+}
+/* The sheet is the script's page, so the script and a character sheet read as
+   two pages off one desk: the play's format sets its size and margins
+   (MaterialEditor puts formatCssVars on .material), the status bar sets its
+   zoom (inline, as on .play-page), and it is a page tall however little is
+   written on it, growing with what is.
+   It was `min(520px, 100% − 40px)` by 60vh, "capped for measure", so a new
+   note at 120% came up as a card a little over half as wide as the script's
+   page. The measure is the format's text block now, the width the play prints
+   at. Below 700px it also traded its margins for width, which drew a page that
+   was not the one that prints and that the script's page never drew. In a pane
+   narrower than a sheet both pages keep their size and the pane scrolls, and
+   Fit Width answers for both. */
+.material__page,
+.material__body {
+  display: block;
+  flex: none;
+  width: var(--fmt-page-width);
+  min-height: var(--fmt-page-height);
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  border: 0.5px solid rgba(31, 41, 51, 0.17);
+  border-radius: var(--r-paper);
+  box-shadow: var(--sh-sheet);
+  padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom) var(--fmt-margin-left);
+}
+.material__page {
+  line-height: 1.65;
+}
+.material__body {
+  /* Source is the file itself, so it reads in the script face. */
+  font-family: var(--font-script);
+  font-size: var(--t-body);
+  line-height: 1.75;
+  resize: none;
+  overflow: hidden; /* grown to fit by the editor; the frame does the scrolling */
+}
+.material__body:focus {
+  outline: none;
+}
+/* The formatting bar (src/markdown/FormatBar.tsx) ------------------------- */
+/* Sticks under the header, on the desk rather than on the paper, so it reads
+   as a tool for the page and not as part of what you are writing.
+   The strip spans the editor and its controls keep a 58rem column centred in
+   it, as they did when the strip itself was 58rem wide: a page at the script's
+   zoom can be wider than that, and a narrower strip let the paper show down
+   both sides of it as the page scrolled under. */
+.fmt {
+  position: sticky;
+  /* Under the header, which is itself sticky at 0. */
+  top: 3rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+  padding: 0.4rem max(1.45rem, calc((100% - 58rem) / 2 + 0.2rem)) 0.5rem;
+  background: var(--desk);
+}
+.fmt__rule {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.15rem 0.35rem;
+  background: var(--desk-deep);
+}
+.fmt__block {
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink);
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: 5px;
+  padding: 0.15rem 0.35rem;
+  cursor: pointer;
+}
+.fmt__block:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.fmt__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ash);
+  cursor: pointer;
+}
+.fmt__btn svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.fmt__btn:hover {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.fmt__btn.is-on {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The editable page (src/markdown/ProseEditor.tsx) ------------------------ */
+/* TipTap writes plain semantic HTML, so this is element-selector styling
+   rather than the renderer's `.md__*` classes — same document scale, same
+   measure as the Markdown renderer's `.md` below, one size up: that one is prose
+   the assistant is quoting at you, this one is the note itself. */
+.prose {
+  outline: none;
+  font-size: var(--t-head);
+  line-height: 1.65;
+  color: var(--ink);
+}
+.prose > *:first-child { margin-top: 0; }
+.prose > *:last-child { margin-bottom: 0; }
+.prose p {
+  margin: 0 0 1rem;
+}
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  margin: 2rem 0 0.7rem;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.prose h1 {
+  font-size: var(--t-title);
+  padding-bottom: 0.35rem;
+  border-bottom: 0.5px solid var(--rule);
+}
+.prose h2 { font-size: var(--t-title); }
+.prose h3 { font-size: var(--t-head); }
+.prose h4 {
+  font-size: var(--t-body);
+  color: var(--ash);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.prose h5,
+.prose h6 {
+  font-size: var(--t-head);
+  color: var(--ash);
+}
+.prose ul,
+.prose ol {
+  margin: 0 0 1rem;
+  padding-left: 1.4rem;
+}
+.prose li {
+  margin: 0.3rem 0;
+}
+/* A list item's paragraph is the item — it must not carry block spacing. */
+.prose li > p {
+  margin: 0;
+}
+.prose ul ul,
+.prose ol ol,
+.prose ul ol,
+.prose ol ul {
+  margin: 0.3rem 0 0.1rem;
+}
+.prose blockquote {
+  margin: 0 0 1rem;
+  padding: 0.15rem 0 0.15rem 1rem;
+  border-left: 3px solid var(--accent);
+  font-style: italic;
+}
+.prose hr {
+  border: 0;
+  border-top: 0.5px solid var(--rule);
+  margin: 1.8rem 0;
+}
+.prose a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose code {
+  font-family: var(--font-script);
+  font-size: var(--t-inline-script);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  border-radius: var(--r-chip-sm);
+  padding: 0.05em 0.28em;
+}
+.prose pre {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.85rem;
+  overflow-x: auto;
+  border: 0.5px solid var(--rule);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--ink) 4%, transparent);
+  font-family: var(--font-script);
+  font-size: var(--t-body);
+  line-height: 1.45;
+}
+.prose pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+}
+.prose table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 1.2rem;
+  font-size: var(--t-head);
+  line-height: 1.45;
+  table-layout: fixed;
+}
+.prose th,
+.prose td {
+  border: 0.5px solid var(--rule);
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+  /* A cell is a mini-document; its paragraph must not add block spacing. */
+}
+.prose th { background: color-mix(in srgb, var(--ink) 5%, transparent); font-weight: 600; }
+.prose th > p,
+.prose td > p { margin: 0; }
+/* The cell the caret is in, so tabbing through a table is followable. */
+.prose .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--accent-softer);
+  pointer-events: none;
+}
+.prose th,
+.prose td { position: relative; }
+.prose ::selection {
+  background: var(--accent-soft);
+}
+

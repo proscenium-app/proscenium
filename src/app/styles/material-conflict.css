@@ -1,0 +1,40 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* An external change landed while this material had unsaved edits. Both
+   versions survive; the writer picks (docs/app/keeping-work/storage-and-file-format.md#STOR-104, docs/app/keeping-work/storage-and-file-format.md#STOR-109). At most the pane's width
+   (100cqw) rather than the editor's, which can be a page wider than the pane:
+   the choice has to be on screen, not scrolled off it. */
+.material__gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  width: min(40rem, 100cqw);
+  margin-bottom: 0.7rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  background: var(--warn-tint);
+  font-size: var(--t-body);
+}
+.material__gatetext {
+  flex: 1 1 16rem;
+  color: var(--ink);
+}
+.material__gate button {
+  padding: 0.25rem 0.6rem;
+  border: 0.5px solid var(--rule);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-small);
+  cursor: pointer;
+}
+.material__gate button:hover {
+  border-color: var(--warn-border);
+  color: var(--warn-text);
+}
+

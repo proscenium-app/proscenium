@@ -1,0 +1,62 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats" [selected]
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Formats"
+    - heading "Formats" [level=3]
+    - paragraph
+    - heading "ALL FORMATS" [level=4]
+    - paragraph
+    - group "Formats"
+      - listitem
+        - button "Move “Dramatists Guild — Modern” up" [disabled]
+        - button "Move “Dramatists Guild — Modern” down"
+        - button "Duplicate “Dramatists Guild — Modern”"
+        - button "More actions for “Dramatists Guild — Modern”" [haspopup]
+      - listitem
+        - button "Move “Proscenium House” up"
+        - button "Move “Proscenium House” down"
+        - button "Duplicate “Proscenium House”"
+        - button "More actions for “Proscenium House”" [haspopup]
+      - listitem
+        - button "Move “UK / International (BBC)” up"
+        - button "Move “UK / International (BBC)” down"
+        - button "Duplicate “UK / International (BBC)”"
+        - button "More actions for “UK / International (BBC)”" [haspopup]
+      - listitem
+        - button "Move “Samuel French / Concord — Manuscript” up"
+        - button "Move “Samuel French / Concord — Manuscript” down"
+        - button "Duplicate “Samuel French / Concord — Manuscript”"
+        - button "More actions for “Samuel French / Concord — Manuscript”" [haspopup]
+      - listitem
+        - button "Move “Dramatists Guild — Traditional” up"
+        - button "Move “Dramatists Guild — Traditional” down"
+        - button "Duplicate “Dramatists Guild — Traditional”"
+        - button "More actions for “Dramatists Guild — Traditional”" [haspopup]
+      - listitem
+        - button "Move “Dramatists Guild — Musical” up"
+        - button "Move “Dramatists Guild — Musical” down"
+        - button "Duplicate “Dramatists Guild — Musical”"
+        - button "More actions for “Dramatists Guild — Musical”" [haspopup]
+      - listitem
+        - button "Move “Sketch Comedy — Sketchworks” up"
+        - button "Move “Sketch Comedy — Sketchworks” down" [disabled]
+        - button "Duplicate “Sketch Comedy — Sketchworks”"
+        - button "More actions for “Sketch Comedy — Sketchworks”" [haspopup]
+    - button "New Format…"
+    - button "Import Format…"
+    - button "Open Formats Folder"
+    - heading "NEW PLAYS" [level=4]
+    - button "Start new plays in: Dramatists Guild — Modern" [haspopup]
+    - paragraph
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

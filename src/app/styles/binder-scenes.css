@@ -1,0 +1,30 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Scene rows under a script (docs/app/organizing/workspace-model.md#WORK-5) — derived, display-only ------------- */
+.binder__row--scene {
+  font-size: var(--t-small);
+}
+.binder__huedot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--r-pill);
+}
+.binder__row--scene.is-selected .binder__huedot {
+  box-shadow: 0 0 0 1px var(--on-accent);
+}
+/* The page range: Courier Prime, because a page number is the script's own
+   unit and the script is Courier Prime. */
+.binder__pages {
+  flex: none;
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  color: var(--ash);
+}
+.binder__row--scene.is-selected .binder__pages {
+  color: inherit;
+  opacity: 0.75;
+}
+

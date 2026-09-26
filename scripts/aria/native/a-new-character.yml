@@ -1,0 +1,72 @@
+- banner
+  - button "Hide the binder" [pressed]
+  - button "Wren Thackeray" [haspopup]
+  - tablist "What this pane shows"
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder"
+  - sectionheader
+    - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items"
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [level=1] [expanded]
+    - treeitem "Mara" [level=2]
+    - treeitem "Jonah" [level=2]
+    - treeitem "Research" [level=1] [expanded]
+    - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Untitled" [level=2]
+    - treeitem "Wren Thackeray Rename “Wren Thackeray” Actions for “Wren Thackeray”" [level=2] [selected]
+      - button "Rename “Wren Thackeray”"
+      - button "Actions for “Wren Thackeray”"
+    - treeitem "Notes" [level=1] [expanded]
+    - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [level=1] [expanded]
+    - treeitem "Logline" [level=2]
+  - sectionfooter
+    - button "New" [haspopup]
+- main "Play"
+  - group "Open in this pane"
+    - listitem "Cast"
+      - button "Cast"
+    - listitem "The Weight of Water"
+      - button "The Weight of Water"
+    - listitem "1953 North Sea Flood"
+      - button "1953 North Sea Flood"
+    - listitem "Wren Thackeray"
+      - button "Wren Thackeray" [current=true]
+      - button "Close Wren Thackeray"
+  - button "Add a surface to this pane" [haspopup]
+  - sectionheader
+    - textbox "File name"
+    - button "Edit Tags"
+    - status [live=polite]
+    - group "View"
+      - button "Page" [pressed]
+      - button "Source"
+  - toolbar "Formatting"
+    - button "Paragraph style: Body Text" [haspopup]
+    - button "Bold"
+    - button "Italic"
+    - button "Inline code"
+    - button "Link"
+    - button "Bulleted list"
+    - button "Numbered list"
+    - button "Insert table"
+    - button "Insert divider"
+  - textbox
+- contentinfo
+  - button "<plays folder>/The Weight of Water"
+  - button "Zoom out"
+  - button "Zoom: 100%" [haspopup]
+  - button "Zoom in"
+- status [live=polite]
+- alert [live=assertive]

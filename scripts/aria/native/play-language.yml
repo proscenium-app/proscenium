@@ -1,0 +1,10 @@
+- dialog "Play Language"
+  - heading "Play Language" [level=2]
+  - none
+    - button "Language: English (UK)" [haspopup]
+  - paragraph
+  - button "Cancel"
+  - button "Save"
+  - generic
+    - status [live=polite]
+    - alert [live=assertive]

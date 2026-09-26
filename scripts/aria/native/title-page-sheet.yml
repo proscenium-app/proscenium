@@ -1,0 +1,31 @@
+- dialog "Opening Pages"
+  - heading "Opening Pages" [level=2]
+  - none
+  - textbox "Title"
+  - none
+  - textbox "Credit"
+  - none
+  - textbox "Authors"
+  - none
+  - textbox "Contact"
+  - none
+  - textbox "Draft date"
+  - none
+    - checkbox "Write the title page freely" [checked]
+  - heading "Opening Notes" [level=2]
+  - paragraph
+  - group "Opening notes text"
+    - toolbar "Formatting"
+      - button "Paragraph style: Heading 2" [haspopup]
+      - button "Bold"
+      - button "Italic"
+      - button "Text alignment: Align Left" [haspopup]
+      - button "Bulleted list"
+      - button "Numbered list"
+    - textbox
+  - button "Place opening notes: After Characters" [haspopup]
+  - paragraph
+  - button "Cancel"
+  - button "Save"
+  - status [live=polite]
+  - alert [live=assertive]

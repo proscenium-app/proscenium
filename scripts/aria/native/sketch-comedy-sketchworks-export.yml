@@ -1,0 +1,30 @@
+- dialog "Export PDF"
+  - heading "Export PDF" [level=2]
+  - none
+    - button "File type — what the export writes: PDF" [haspopup]
+  - none
+    - button "Part — what to export: Whole Script" [haspopup]
+  - none
+    - textbox "Pages to export"
+  - list "Pages"
+    - listitem
+      - button "Page 1" [current=true]
+      - none
+        - checkbox "Include page 1" [checked]
+    - listitem
+      - button "Page 2"
+      - none
+        - checkbox "Include page 2" [checked]
+  - region "Preview of what will export"
+  - button "Previous page" [disabled]
+  - group [live=polite]: Page 1 of 2
+  - button "Next page"
+  - none
+    - checkbox "Anonymous copy" [checked]
+  - none
+    - textbox "Play language"
+  - button "Cancel"
+  - button "Print…"
+  - button "Export PDF…"
+  - status [live=polite]
+  - alert [live=assertive]

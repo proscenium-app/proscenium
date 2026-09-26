@@ -1,0 +1,48 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Script view: the writing well — sheets of paper on a deep desk. */
+.editor-frame--desk {
+  background: var(--desk);
+}
+.editor-frame--desk::-webkit-scrollbar {
+  width: 10px;
+}
+.editor-frame--desk::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editor-frame--desk::-webkit-scrollbar-thumb {
+  background: oklch(0.7 0.02 78);
+  border-radius: 999px;
+  border: 2px solid var(--desk);
+}
+/* The `hidden` attr must win over `display: flex` — without this, the editor
+   stays painted on top of the board/outline and view-switching looks dead. */
+.editor-pane[hidden] {
+  display: none;
+}
+
+/* View switcher ---------------------------------------------------------- */
+.viewswitch {
+  display: inline-flex;
+  border: 0.5px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+  /* Never squeezed into clipping a tab — it wraps whole instead. */
+  flex: none;
+}
+.viewswitch__btn {
+  font: inherit;
+  font-size: var(--t-small);
+  padding: 0.22rem 0.7rem;
+  border: none;
+  background: var(--paper);
+  color: var(--ash);
+  cursor: pointer;
+}
+.viewswitch__btn.is-on {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+

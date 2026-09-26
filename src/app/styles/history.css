@@ -1,0 +1,166 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Version history (docs/app/keeping-work/storage-and-file-format.md#STOR-D15) — list + preview inside the sheet -------- */
+.historypanel__body {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.historypanel__list {
+  width: 220px;
+  flex: none;
+  overflow-y: auto;
+  padding: var(--s-4) var(--s-3);
+  border-right: 0.5px solid var(--rule);
+  background: var(--cream);
+}
+.historypanel__day {
+  padding: var(--s-3) var(--s-4) var(--s-1);
+}
+.historypanel__row {
+  width: 100%;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: 0 var(--s-4);
+  border: none;
+  border-radius: var(--r-control-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.historypanel__row:hover {
+  background: var(--hover);
+}
+.historypanel__row.is-selected {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.historypanel__time {
+  width: 58px;
+  flex: none;
+  font-family: var(--font-script);
+}
+.historypanel__reason {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.historypanel__row.is-selected .historypanel__reason {
+  color: inherit;
+  opacity: 0.85;
+}
+.historypanel__pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.historypanel__panehead {
+  height: 38px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: 0 var(--s-6);
+  border-bottom: 0.5px solid var(--rule);
+}
+.historypanel__vs {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.historypanel__preview:focus-visible,
+.historypanel__diff:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+.historypanel__preview,
+.historypanel__diff {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: var(--s-5) var(--s-6);
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  background: #f8f2e4;
+  color: var(--ink);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .historypanel__preview,
+  :where(:root[data-theme="dark"]) .historypanel__diff {
+    background: var(--cream);
+  }
+}
+.historypanel__loading,
+.historypanel__error {
+  margin: 0;
+  padding: var(--s-6) var(--s-7);
+  font-size: var(--t-small);
+  color: var(--ash);
+}
+.historypanel__error {
+  color: var(--bad);
+}
+
+/* A file opened from Finder asks one question (docs/app/keeping-work/storage-and-file-format.md#STOR-D5). ------------- */
+.openfile {
+  padding: var(--s-6) var(--s-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.openfile__lede {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.45;
+  color: var(--ink);
+}
+.openfile__path {
+  margin: 0;
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Unsaved Changes (docs/app/keeping-work/storage-and-file-format.md#STOR-D10): the words a crash left, as a diff. -------- */
+.recoverypanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.recoverypanel__lede {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-5);
+  margin: 0;
+  padding: var(--s-5) var(--s-7);
+  font-size: var(--t-small);
+  line-height: 1.45;
+  color: var(--ink-2);
+  border-bottom: 0.5px solid var(--rule);
+}
+.recoverypanel__lede .diffview__stats {
+  flex: none;
+  white-space: nowrap;
+}
+.recoverypanel__diff {
+  max-height: none;
+}
+

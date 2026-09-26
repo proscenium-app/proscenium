@@ -1,0 +1,78 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Practice Play"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: Practice Play
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "Practice Play" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters": Empty
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes": Empty
+    - treeitem "Untitled Rename “Untitled” Actions for “Untitled”" [level=1] [selected]:
+      - text: Untitled
+      - button "Rename “Untitled”"
+      - button "Actions for “Untitled”"
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Board":
+      - button "Board"
+    - listitem "Practice Play":
+      - button "Practice Play"
+      - button "Close Practice Play"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - text: Page 1 of 1
+  - textbox "Script"
+  - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - heading "0 comments" [level=2]
+  - 'button "Filter comments: All Comments"': All Comments
+  - paragraph:
+    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
+    - code: "[["
+    - text: where you want one.
+  - list
+- contentinfo:
+  - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 84%"': Fit width · 84%
+  - button "Zoom in"
+- status
+- alert
+- complementary "Tutorial":
+  - text: Practice
+  - button "Organize Files and Tags, step 2 of 4. Choose a step": Organize Files and Tags 2 of 4
+  - button "Stop Tutorial"
+  - paragraph: Open your document from the Binder.
+  - button "Take Me There"
+  - button "Show Me"
+  - button "Skip Step"
+  - button "More Help"

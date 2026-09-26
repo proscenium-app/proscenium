@@ -1,0 +1,7 @@
+- dialog "Reset Tutorial Progress"
+  - heading "Reset Tutorial Progress" [level=2]
+  - paragraph
+  - button "Cancel"
+  - button "Reset Progress"
+  - status [live=polite]
+  - alert [live=assertive]

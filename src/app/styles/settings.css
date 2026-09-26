@@ -1,0 +1,346 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/*
+ * ── Settings (⌘,) — sections down the left (src/app/settings/) ────────────
+ *
+ * The section list is drawn like the Versions sheet's list and selects like
+ * the binder: the accent while the list has focus, the neutral "unemphasized"
+ * fill once focus is in the section — otherwise a chosen accent swatch and a
+ * chosen section would be two accent fills claiming the same glance.
+ */
+.prefs {
+  display: grid;
+  grid-template-columns: minmax(140px, calc(176px * var(--ui-scale))) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+.prefs__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-4) var(--s-3);
+  background: var(--cream);
+  border-right: 0.5px solid var(--rule);
+  overflow-y: auto;
+}
+.prefs__tab {
+  min-height: calc(26px * var(--ui-scale));
+  height: auto;
+  flex: none;
+  padding: 0 var(--s-4);
+  border: none;
+  border-radius: var(--r-control-sm);
+  background: none;
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.prefs__tab:hover:not(.is-selected) {
+  background: var(--hover);
+}
+.prefs__tab.is-selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+}
+.prefs__nav:not(:focus-within) .prefs__tab.is-selected {
+  background: var(--hover-strong);
+  color: var(--ink);
+}
+.prefs__tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.prefs__panel {
+  min-height: 0;
+  overflow-y: auto;
+}
+/* Focusable only while it holds nothing to operate (SettingsSheet.tsx). */
+.prefs__panel:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+.settings {
+  padding: 20px var(--s-7) var(--s-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+}
+.settings__title {
+  margin: 0;
+  font-size: var(--t-head);
+  font-weight: 600;
+}
+.settings__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.settings__swatches {
+  display: flex;
+  gap: var(--s-5);
+  align-items: center;
+  /* Room for the selection ring, which draws 4px outside each swatch. */
+  padding: var(--s-2);
+}
+/* Selected is a DOUBLE ring — a ring drawn straight on the swatch would be
+   invisible on the accent it is ringing. */
+.accentswatch {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  padding: 0;
+  border: 0.5px solid rgba(31, 41, 51, 0.25);
+  border-radius: var(--r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: box-shadow var(--motion);
+}
+.accentswatch.is-on {
+  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
+}
+/* Focus is an OUTLINE here, not --focus-ring: the swatch's box-shadow is
+   already its selection, and the focused swatch is almost always the selected
+   one (a radio group is one Tab stop). The line keeps the ring's colour and
+   its 3:1, drawn outside the selection ring rather than on top of it. */
+.accentswatch:focus-visible {
+  outline: 1.5px solid var(--accent-text);
+  outline-offset: 5px;
+}
+.settings__accentname {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+/* A preference row: label left, control right, on one centre line — the row is
+   the regular control height so a switch and its label share it. */
+.settings__row {
+  min-height: var(--h-regular);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+}
+label.settings__row {
+  cursor: pointer;
+}
+.settings__rowlabel {
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+.settings__note {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+/* Why an add or a rename did not happen, under the field it came from. Empty,
+   it takes no room: its space comes with its words. */
+.settings__problem {
+  color: var(--bad);
+}
+.settings__problem:not(:empty) {
+  margin-top: var(--s-2);
+}
+.settings__note:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-chip);
+}
+/* The Plays folder: its path, then what can be done with it. The path can be
+   long, and truncating it is kinder than wrapping a row that holds buttons. */
+.settings__folder {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.settings__path {
+  flex: 1;
+  font-size: var(--t-mini);
+  color: var(--ash);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.settings__actions {
+  display: flex;
+  gap: var(--s-3);
+}
+.settings__link {
+  color: var(--accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  border-radius: var(--r-chip-sm);
+}
+/* A link the app opens in the writer's browser is a button in the DOM (role
+   link): the page holds no address to put in an href (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D2). */
+button.settings__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.settings__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* Settings › General › Statuses (docs/app/preferences-and-help/settings.md#SET-7): a row per status, in order —
+   the grip for the pointer, the name to rename it, arrows to move it by
+   click, and Delete. */
+.statuslist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.statuslist__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  border-radius: var(--r-control);
+}
+/* Where a dragged status will land: a line above the row it is over. */
+.statuslist__row.is-drop {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.statuslist__grip {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  padding: 0 var(--s-2);
+  color: var(--ash);
+  cursor: grab;
+}
+.statuslist__field {
+  flex: 1;
+  min-width: 0;
+}
+.statuslist__add {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.settings__words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.settings__words .capsule {
+  padding-right: var(--s-2);
+}
+
+/* Settings › About: the mark, the name, the version and what it runs on. */
+.about {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+.about__mark {
+  display: flex;
+  flex: none;
+}
+.about__name {
+  margin: 0;
+  font-size: var(--t-head);
+  font-weight: 600;
+}
+.about__version {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.about__credits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.about__credit {
+  color: var(--ink);
+  font-weight: 500;
+}
+/* Settings › About › The Program: each level's name, then its sponsors. */
+.about__program {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.about__level {
+  margin: 0 0 var(--s-1);
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+.about__names {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.about__wings {
+  margin: 0;
+  font-size: var(--t-small);
+  font-style: italic;
+  color: var(--ink-2);
+}
+
+/* Settings › Formats: one row per format, its two actions at the end. */
+.formatlist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  border-top: 0.5px solid var(--rule);
+}
+.formatlist__row {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-2) 0;
+  border-bottom: 0.5px solid var(--rule);
+}
+.formatlist__name {
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+.formatlist__file {
+  font-size: var(--t-mini);
+  color: var(--ash);
+}
+.formatlist__problems {
+  margin: 0;
+  padding: 0 0 0 var(--s-6);
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+

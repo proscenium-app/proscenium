@@ -1,0 +1,60 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Lighthouse"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Lighthouse
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Lighthouse Rename “The Lighthouse” Actions for “The Lighthouse”" [level=1] [selected]:
+      - text: The Lighthouse
+      - button "Rename “The Lighthouse”"
+      - button "Actions for “The Lighthouse”"
+    - group "Scenes in The Lighthouse":
+      - treeitem "THE LAMP ROOM 1" [level=2]
+      - treeitem "THE LEDGER 1" [level=2] [selected]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Ideas" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - 'button "What this line is: Dialogue"': Dialogue
+  - text: Tab cycles · ; menu
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 1 of 1
+  - textbox "Script"
+  - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- contentinfo:
+  - button "/dev/sample-vault/The Lighthouse"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Open “Lear”?":
+  - heading "Open “Lear”?" [level=2]
+  - paragraph: This play is in a folder that isn't your Plays folder. Proscenium shows the plays in one folder at a time. Nothing is moved.
+  - paragraph: /dev/elsewhere
+  - button "Cancel"
+  - button "Use Its Folder as the Plays Folder"
+  - status
+  - alert

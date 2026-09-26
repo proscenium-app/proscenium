@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  SPDX-FileCopyrightText: 2026 Habiby LLC
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  Entitlements for the Developer ID build: the DMG on GitHub Releases, the
+  channel that updates itself (release-engineering §5, §6). The Mac App Store
+  build signs with Entitlements.plist.
+
+  The same iCloud Documents container as the store build, so both channels
+  offer iCloud Drive › Proscenium with no folder panel (storage §12). Apple's
+  capability table lists "iCloud: iCloud documents" for Developer ID, and it
+  needs a Developer ID provisioning profile, which the release workflow embeds
+  as Contents/embedded.provisionprofile. It also adds the application and team
+  identifiers, read from that profile, because codesign does not expand
+  Xcode's $(TeamIdentifierPrefix).
+
+    icloud-container-identifiers   the app's own container,
+    ubiquity-container-identifiers shown in Finder as
+    icloud-services                iCloud Drive › Proscenium
+    icloud-container-environment   Production: the only environment a
+                                   Developer ID build may use
+
+  NOT sandboxed, and that is the difference from the store build.
+  tauri-plugin-updater replaces the app bundle in /Applications, which the App
+  Sandbox forbids, so a sandboxed download could fetch an update and never
+  install it (tauri-apps/tauri#8258, open since 2023). Hardened runtime and
+  notarization still apply; the store build keeps the sandbox, and there the
+  store does the updating.
+
+  An ad-hoc build (a local install, the CI self-test) signs with no
+  entitlements at all: an app that claims iCloud without a profile is killed
+  at launch.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.developer.icloud-container-identifiers</key>
+  <array>
+    <string>iCloud.org.habiby.proscenium</string>
+  </array>
+
+  <key>com.apple.developer.ubiquity-container-identifiers</key>
+  <array>
+    <string>iCloud.org.habiby.proscenium</string>
+  </array>
+
+  <key>com.apple.developer.icloud-services</key>
+  <array>
+    <string>CloudDocuments</string>
+  </array>
+
+  <key>com.apple.developer.icloud-container-environment</key>
+  <string>Production</string>
+</dict>
+</plist>

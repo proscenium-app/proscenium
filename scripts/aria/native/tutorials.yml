@@ -1,0 +1,36 @@
+- dialog "Help & Tutorials"
+  - heading "Help & Tutorials" [level=2]
+  - button "Continue: Organize Files and Tags · Step 2 of 4"
+  - paragraph
+  - group
+    - listitem
+      - button "Write Your First Exchange"
+    - listitem
+      - button "Format the Script" [expanded]
+      - paragraph
+      - button "Start Tutorial"
+      - list
+        - listitem
+          - button "Emphasize a phrase"
+        - listitem
+          - button "Stay in the same speech"
+        - listitem
+          - button "Start a new page"
+        - listitem
+          - button "Choose a format"
+    - listitem
+      - button "Arrange Scenes on the Board"
+    - listitem
+      - button "Characters and Opening Pages"
+    - listitem
+      - button "Organize Files and Tags"
+    - listitem
+      - button "Prepare a PDF or Print"
+  - button "Saved Practice (8)"
+  - button "Start Over in a New Play"
+  - button "Reset Progress…"
+  - button "Keyboard Shortcuts"
+  - button "Send Feedback…"
+  - button "Close"
+  - status [live=polite]
+  - alert [live=assertive]

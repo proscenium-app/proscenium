@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Something is broken
+description: Proscenium did something it shouldn't, or didn't do what it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for writing this up. Please don't attach a play, or paste its
+        text, unless you are happy for it to be public: everything here is.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+      placeholder: |
+        1. Opened a play and…
+        2. …
+        Expected: …
+        Instead: …
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: >-
+        In Proscenium, choose Help › Copy Diagnostics (also in Settings › About),
+        then paste here. It is plain text you can read first: the version, your
+        macOS and chip, and recent errors, never a word of your plays or their
+        names.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: again
+    attributes:
+      label: Does it happen again?
+      options:
+        - Every time
+        - Sometimes
+        - Once, so far
+    validations:
+      required: true

@@ -1,0 +1,226 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - text: Tab cycles · ; menu
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Smoke House":
+  - heading "Smoke House" [level=2]
+  - text: smoke-house.json
+  - group "Format settings":
+    - region "Format":
+      - heading "Format" [level=3]
+      - text: Name
+      - textbox "Name"
+      - paragraph: Saved as smoke-house.json.
+      - paragraph
+    - region "Page":
+      - heading "Page" [level=3]
+      - text: Paper
+      - tablist "Paper":
+        - tab "US Letter" [selected]
+        - tab "A4"
+      - text: Left margin , inches
+      - textbox "Left margin , inches"
+      - paragraph
+      - text: Right margin , inches
+      - textbox "Right margin , inches"
+      - paragraph
+      - text: Top margin , inches
+      - textbox "Top margin , inches"
+      - paragraph
+      - text: Bottom margin , inches
+      - textbox "Bottom margin , inches"
+      - paragraph
+    - region "Type":
+      - heading "Type" [level=3]
+      - paragraph: Every format uses Courier Prime, which keeps the page on screen and the printed page the same.
+      - text: Size , points
+      - textbox "Size , points"
+      - paragraph
+      - text: Line height , times the type size
+      - textbox "Line height , times the type size"
+      - paragraph
+    - region "Header":
+      - heading "Header" [level=3]
+      - text: Header left
+      - textbox "Header left"
+      - button "Insert into Header left": Insert
+      - paragraph
+      - text: Header center
+      - textbox "Header center"
+      - button "Insert into Header center": Insert
+      - paragraph
+      - text: Header right
+      - textbox "Header right"
+      - button "Insert into Header right": Insert
+      - paragraph
+      - text: From the top edge , inches
+      - textbox "From the top edge , inches"
+      - paragraph
+      - text: Hide on first page
+      - switch "Hide on first page (header)" [checked]
+    - region "Footer":
+      - heading "Footer" [level=3]
+      - text: Footer left
+      - textbox "Footer left"
+      - button "Insert into Footer left": Insert
+      - paragraph
+      - text: Footer center
+      - textbox "Footer center"
+      - button "Insert into Footer center": Insert
+      - paragraph
+      - text: Footer right
+      - textbox "Footer right"
+      - button "Insert into Footer right": Insert
+      - paragraph
+      - text: From the bottom edge , inches
+      - textbox "From the bottom edge , inches"
+      - paragraph
+      - text: Hide on first page
+      - switch "Hide on first page (footer)"
+    - region "Elements":
+      - heading "Elements" [level=3]
+      - list:
+        - listitem:
+          - button "Act 0 in · centered · caps"
+        - listitem:
+          - button "Scene 0 in · centered · caps · 2 lines before"
+        - listitem:
+          - button "Scene Heading 0 in · centered · italic · 1 line before"
+        - listitem:
+          - button "Action 2.5 in · 1 line before"
+        - listitem:
+          - button "Character 3 in · caps · 1 line before" [expanded]
+          - group "Character":
+            - text: Indent , inches
+            - textbox "Indent , inches"
+            - paragraph
+            - text: Width , inches
+            - textbox "Width , inches" [disabled]
+            - paragraph
+            - text: Full width
+            - 'switch "Character: full width" [checked]'
+            - text: Alignment
+            - tablist "Character alignment":
+              - tab "Left" [selected]
+              - tab "Center"
+              - tab "Right"
+            - text: Capitals
+            - 'switch "Character: capitals" [checked]'
+            - text: Style
+            - 'button "Character style: Regular"': Regular
+            - text: Space before , lines
+            - textbox "Space before , lines"
+            - paragraph
+            - text: Space after , lines
+            - textbox "Space after , lines"
+            - paragraph
+        - listitem:
+          - button "Parenthetical 2 in"
+        - listitem:
+          - button "Dialogue 0 in"
+        - listitem:
+          - button "Transition 0 in · right · caps · 1 line before"
+        - listitem:
+          - button "Lyric 0.5 in · italic"
+        - listitem:
+          - button "Centered Text 0 in · centered · 1 line before"
+    - region "Page breaks":
+      - heading "Page breaks" [level=3]
+      - text: Continued marker
+      - textbox "Continued marker"
+      - paragraph: Added after the character name when a speech continues on the next page.
+      - paragraph
+      - text: Repeat the character name on the next page
+      - switch "Repeat the character name on the next page" [checked]
+      - paragraph: The fewest lines of a speech or of action that a page break can leave on either side.
+      - text: Dialogue before a break , lines
+      - textbox "Dialogue before a break , lines"
+      - paragraph
+      - text: Dialogue after a break , lines
+      - textbox "Dialogue after a break , lines"
+      - paragraph
+      - text: Action on each side , lines
+      - textbox "Action on each side , lines"
+      - paragraph
+    - region "Dual dialogue":
+      - heading "Dual dialogue" [level=3]
+      - text: Gap between the two speeches , inches
+      - textbox "Gap between the two speeches , inches"
+      - paragraph
+  - text: The Weight of Water · 2 pages Preview with This Play
+  - switch "Preview with This Play" [checked]
+  - 'region "Preview: The Weight of Water, 2 pages"':
+    - 'img "Page 1 of 2. Act centered. Scene centered. Action at 4 inches from the left edge. Character at 4.5 inches from the left edge. Dialogue at 1.5 inches from the left edge. Parenthetical at 3.5 inches from the left edge. Transition right-aligned. Footer center: 1."': "1 ACT ONE SCENE 1 AT RISE: A kitchen, just before dawn. A tap drips. MARA stands at the sink in her coat, as if she never sat down. MARA The pipe's been crying all night. She turns off the tap. It keeps dripping. JONAH (from the doorway, half asleep) You and that pipe. MARA You weren't supposed to come. SCENE 2 Light now. The coats are off. Coffee between them, untouched. JONAH Mom left you the house. She left me the water. BLACKOUT."
+    - 'img "Page 2 of 2. Header right: II-1-2. Act centered. Scene centered. Action at 4 inches from the left edge. Character at 4.5 inches from the left edge. Dialogue at 1.5 inches from the left edge. Footer center: 2."': II-1-2 2 ACT TWO SCENE 1 Boxes everywhere. The tap is gone, capped with a brass plug. MARA It's quiet now. I keep listening for it.
+  - text: Saved as smoke-house.json.
+  - button "Used for This Play" [disabled]
+  - button "Close"
+  - button "Save" [disabled]
+  - status
+  - alert

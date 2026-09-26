@@ -1,0 +1,11 @@
+{
+  "bundle": {
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "entitlements": "../.release/Entitlements.plist",
+      "files": {
+        "embedded.provisionprofile": "../.release/embedded.provisionprofile"
+      }
+    }
+  }
+}

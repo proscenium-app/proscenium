@@ -1,0 +1,255 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Outline (docs/app/organizing/workspace-model.md#WORK-D3) -------------------------------------------------------- */
+/* Two cards: loose thinking above the structure it is about. */
+.outliner {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-small);
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-menu);
+  overflow: hidden;
+}
+.outliner thead th {
+  text-align: left;
+  font-size: var(--t-mini);
+  font-weight: 600;
+  color: var(--ink-2);
+  padding: var(--s-4) var(--s-5);
+  background: var(--cream);
+  border-bottom: 0.5px solid var(--rule);
+  white-space: nowrap;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .outliner thead th {
+    color: var(--ink-2);
+  }
+}
+/* Alternating rows, faintly: a table this wide is read across, and a zebra is
+   what keeps the eye on one scene from Act to Label. */
+.outliner__row:nth-child(even) {
+  background: rgba(31, 41, 51, 0.025);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .outliner__row:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03);
+  }
+}
+/* An act change gets the hairline, so the table's own groups are visible
+   without a band row that would break the column alignment. */
+.outliner__row.is-actstart td,
+.outliner__row.is-actstart th {
+  border-top: 0.5px solid var(--rule);
+}
+.outliner td,
+.outliner tbody th {
+  padding: var(--s-4) var(--s-5);
+  vertical-align: middle;
+}
+.outliner__synopsis {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.4;
+  vertical-align: middle;
+  border: none;
+  background: transparent;
+  border-radius: var(--r-chip);
+}
+.outliner__synopsis:focus,
+.outliner__note:focus,
+.outliner__label:focus {
+  outline: none;
+  background: var(--field);
+  box-shadow: var(--focus-ring);
+}
+.outliner__act {
+  font-size: var(--t-mini);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ash);
+  white-space: nowrap;
+}
+.outliner__scene {
+  font-weight: 500;
+}
+.outliner__open {
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 500;
+  text-align: left;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  color: var(--accent-text);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.outliner__open:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* The card's hue, as a dot — the only place the outline shows colour, and it
+   is always beside the scene's name rather than instead of it. */
+.outliner__huedot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--r-pill);
+  background: var(--card-hue);
+}
+/* The keyboard's way to reorder scenes (the board's drag has no key), so each
+   is a 24px target: at 16×14, stacked flush, up and down were one blur. */
+.outliner__move button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--ash);
+  border-radius: var(--r-chip-sm);
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.outliner__move button:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.outliner__move button:hover:not(:disabled) {
+  background: var(--hover-strong);
+  color: var(--ink);
+}
+.outliner__move button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* A page-width frame at roughly US-Letter proportions. Exact stage metrics
+ * (1.5" binding margin, Courier 12pt) arrive with the editor in unit E. */
+.page {
+  width: min(46rem, 100%);
+  min-height: 60vh;
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  box-shadow: 0 1px 0 rgba(31, 41, 51, 0.04);
+  padding: 3rem 3.5rem;
+  font-family: var(--font-script);
+  font-size: var(--t-head);
+  line-height: 1.5;
+}
+
+.page :focus {
+  outline: none;
+}
+
+.tiptap p {
+  margin: 0 0 1rem;
+}
+
+
+
+
+
+/* Outline surface: the freeform scratchpad, then the scene table ---------- */
+/* Two halves of one job — loose thinking above the structure it's about. The
+   notes sit on paper like a page pinned above the desk; the table below keeps
+   the chrome look it has always had. */
+.outline-surface {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-6);
+  padding: 20px var(--s-7) var(--s-7);
+}
+/* Two cards, not two bands: the scratchpad is a page pinned above the desk. */
+.outline-notes {
+  background: var(--paper);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-menu);
+  overflow: hidden;
+  flex: none;
+}
+.outline-notes__head {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: 0 var(--s-5);
+  border-bottom: 0.5px solid var(--rule);
+  min-width: 0;
+}
+.outline-notes__toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+  flex: none;
+}
+.outline-notes__toggle:hover {
+  color: var(--ink);
+}
+.outline-notes__chevron {
+  font-size: var(--t-label);
+  width: 0.7em;
+}
+.outline-notes__path {
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  color: var(--ash);
+  flex: none;
+}
+/* Collapsed, the first line stands in for the whole thing. */
+.outline-notes__peek {
+  font-size: var(--t-mini);
+  color: var(--ash);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.outline-notes__body {
+  padding: var(--s-5) var(--s-6) var(--s-6);
+  /* Grown by its content; capped so the table below stays reachable. */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+/* The same page editor as a material, one size down: this is a margin note
+   beside the scene table, not a document of its own. */
+.outline-notes__body .prose {
+  font-size: var(--t-body);
+  line-height: 1.65;
+}
+.outline-notes__body .prose h1 { font-size: var(--t-title); }
+.outline-notes__body .prose h2 { font-size: var(--t-head); }
+.outline-notes__body .prose h3 { font-size: var(--t-body); }
+.outline-notes__body .prose h1,
+.outline-notes__body .prose h2,
+.outline-notes__body .prose h3,
+.outline-notes__body .prose h4 { margin: 1.2rem 0 0.5rem; }
+.outline-notes__body .prose p,
+.outline-notes__body .prose ul,
+.outline-notes__body .prose ol { margin-bottom: 0.7rem; }
+.outline-notes__body .prose p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--ash);
+  font-style: italic;
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+

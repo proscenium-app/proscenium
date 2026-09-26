@@ -1,0 +1,82 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Untitled"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+      - treeitem "Untitled Rename “Untitled” Actions for “Untitled”" [level=2] [selected]:
+        - text: Untitled
+        - button "Rename “Untitled”"
+        - button "Actions for “Untitled”"
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: in Research
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Cast":
+      - button "Cast"
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+    - listitem "1953 North Sea Flood":
+      - button "1953 North Sea Flood"
+    - listitem "Untitled":
+      - button "Untitled"
+      - button "Close Untitled"
+  - button "Add a surface to this pane"
+  - textbox "File name"
+  - button "Edit Tags"
+  - status
+  - group "View":
+    - button "Page" [pressed]
+    - button "Source"
+  - toolbar "Formatting":
+    - 'button "Paragraph style: Body Text"': Body Text
+    - button "Bold"
+    - button "Italic"
+    - button "Inline code":
+      - img
+    - button "Link":
+      - img
+    - button "Bulleted list":
+      - img
+    - button "Numbered list":
+      - img
+    - button "Insert table":
+      - img
+    - button "Insert divider":
+      - img
+  - paragraph: Quincunx
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: 1 format warning Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert

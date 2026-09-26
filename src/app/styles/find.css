@@ -1,0 +1,162 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Find bar (docs/engineering/design-system.md#UI-D106) ------------------------------------------- */
+/* A DOCKED strip, not a floating pill and not a dialog: the writer keeps
+   seeing the page, and a bar that hovers over the sheet is a second thing on
+   the desk. It sits under the tab strip, where a Mac find bar sits. */
+.findbar {
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  /* FIRST in the column, whatever the DOM order — the find bar belongs against
+     the pane's top edge, where a Mac find bar lives. It is rendered last
+     because it is conditional; `order` is what puts it where it belongs
+     without threading a slot through the editor's children. */
+  order: -1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  background: #e9dfca;
+  border-bottom: 0.5px solid var(--rule);
+  font-family: var(--font-ui);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .findbar {
+    background: #2a2622;
+  }
+}
+/* A row that wraps keeps its lines off the next row: with no padding, a
+   wrapped Replace… sat a pixel above the Replace field, two 22px targets with
+   no room between them (WCAG 2.5.8). One line still draws at 38px. It wraps
+   since the bar became the pane's width rather than running off it
+   (docs/app/writing/editor-ux.md#EDIT-171). */
+.findbar__row {
+  min-height: 38px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-5);
+}
+.findbar__row + .findbar__row {
+  border-top: 0.5px solid var(--rule);
+}
+.findbar__field {
+  flex: 0 1 220px;
+  min-width: 120px;
+  height: var(--h-small);
+  font: inherit;
+  font-size: var(--t-small);
+  padding: 0 var(--s-4);
+  background: var(--field);
+  color: var(--ink);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-control-sm);
+}
+.findbar__field:focus {
+  outline: none;
+  border: 1px solid var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.findbar__count {
+  flex: none;
+  min-width: 4.2rem;
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+}
+.findbar__count.is-empty {
+  color: var(--warn-text);
+}
+/* ‹ › is one control with two keys, so the radius lands on the ends only. */
+.findbar__steps {
+  display: inline-flex;
+  flex: none;
+}
+/* 24px, the WCAG 2.5.8 minimum: joined at 22px, the two keys were one target. */
+.findbar__step {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  padding: 0;
+  color: var(--icon);
+  background: var(--paper);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: 0;
+  cursor: pointer;
+}
+.findbar__step:first-child {
+  border-radius: var(--r-control-sm) 0 0 var(--r-control-sm);
+}
+.findbar__step:last-child {
+  border-radius: 0 var(--r-control-sm) var(--r-control-sm) 0;
+  border-left: none;
+}
+.findbar__toggle,
+.findbar__btn,
+.findbar__close {
+  flex: none;
+  height: var(--h-small);
+  display: inline-flex;
+  align-items: center;
+  font: inherit;
+  font-size: var(--t-small);
+  padding: 0 var(--s-4);
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-radius: var(--r-control-sm);
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.findbar__btn {
+  border: 0.5px solid var(--rule-strong);
+  background: var(--paper);
+  box-shadow: var(--sh-control);
+}
+.findbar__step:hover:not(:disabled),
+.findbar__toggle:hover,
+.findbar__btn:hover:not(:disabled),
+.findbar__close:hover {
+  background: var(--hover-strong);
+  color: var(--ink);
+}
+.findbar__step:disabled,
+.findbar__btn:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+/* A neutral toggle: "the replace row is showing", not "this value is set". */
+.findbar__toggle.is-on {
+  background: var(--hover-strong);
+  color: var(--ink);
+}
+.findbar__scope {
+  flex: none;
+  max-width: 11rem;
+}
+.findbar__spacer {
+  flex: 1;
+}
+/* The reason a replace left some matches alone — never silent. Text a writer
+   must read, so the type floor (--t-mini) and the body warn colour: the label
+   size and --warn-text measured 4.48:1 on the bar's tint. */
+.findbar__note {
+  flex: none;
+  min-height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--warn-tint);
+  font-size: var(--t-mini);
+  color: var(--warn-body);
+}
+

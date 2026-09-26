@@ -1,0 +1,9 @@
+- dialog "Keep as a Play"
+  - heading "Keep as a Play" [level=2]
+  - paragraph
+  - none
+    - textbox "Play title"
+  - button "Cancel"
+  - button "Keep Copy"
+  - status [live=polite]
+  - alert [live=assertive]

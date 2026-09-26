@@ -1,0 +1,32 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* The soft keyboard's claim on the window (use-keyboard-inset.ts): the
+     shell shrinks so bottom chrome — status bar, docked find bar — stays
+     above the keys. 0 wherever there is no soft keyboard. */
+  padding-bottom: var(--kb-inset, 0px);
+}
+

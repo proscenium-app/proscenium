@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Licensing for files that cannot carry a header of their own (JSON, images,
+# fonts, word lists, generated projects). Source files carry SPDX headers, and
+# `bun run check:spdx` fails the build on one that does not. When more than one
+# table matches a file, the last one wins.
+version = 1
+
+[[annotations]]
+path = "**"
+precedence = "closest"
+SPDX-FileCopyrightText = "2026 Habiby LLC"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# The requirements, the file format and the design system are documentation:
+# any tool or agent may implement them, quote them or build on them with credit.
+[[annotations]]
+path = "docs/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Habiby LLC"
+SPDX-License-Identifier = "CC-BY-4.0"
+
+# Page layouts are a standard other tools should be able to adopt.
+[[annotations]]
+path = "formats/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2026 Habiby LLC"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["src/ui/fonts/**", "src/pdf/fonts/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "2015 The Courier Prime Project Authors"
+SPDX-License-Identifier = "OFL-1.1"
+
+[[annotations]]
+path = "dictionaries/**"
+precedence = "override"
+SPDX-FileCopyrightText = "2000-2018 Kevin Atkinson and the SCOWL contributors"
+SPDX-License-Identifier = "LicenseRef-SCOWL"
+
+# A real Pages document from Apache Tika's test corpus
+# (tika-parser-apple-module/src/test/resources/test-documents/testPages2013.pages),
+# the plain-document fixture for the direct .pages route
+# (docs/app/importing/document-import.md#IMPT-87). Apache Tika's NOTICE:
+# "This product includes software developed at The Apache Software Foundation."
+[[annotations]]
+path = "src/import/fixtures/testPages2013.pages"
+precedence = "override"
+SPDX-FileCopyrightText = "2007-2026 The Apache Software Foundation (Apache Tika)"
+SPDX-License-Identifier = "Apache-2.0"

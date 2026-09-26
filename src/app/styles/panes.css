@@ -1,0 +1,401 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Status bar ------------------------------------------------------------ */
+.muted {
+  color: var(--ash);
+}
+.mono {
+  font-family: var(--font-script);
+}
+/* The Format menu is gone: everything it carried hangs off the document menu
+   on the play's title now (docs/engineering/design-system.md#UI-D101), on the one menu anatomy. */
+
+/* Multi-pane: script beside board/outline. */
+/* ── The pane tree (panes.ts / PaneTree.tsx) ─────────────────────────────── */
+
+.paneroot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.panesplit {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+.panesplit--row {
+  flex-direction: row;
+}
+.panesplit--col {
+  flex-direction: column;
+}
+/* The cell owns the divider so the divider can sit ON the boundary without
+   taking part in the flex-basis arithmetic the model controls. */
+.panesplit__cell {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-grow: 0;
+  flex-shrink: 1;
+}
+
+.panedivider {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+.panedivider--row {
+  top: 0;
+  bottom: 0;
+  right: -3px;
+  width: 7px;
+  cursor: col-resize;
+}
+.panedivider--col {
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 7px;
+  cursor: row-resize;
+}
+.panedivider:hover,
+.panedivider:active,
+.panedivider:focus-visible {
+  background-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  outline: none;
+}
+
+.pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 0.5px solid var(--rule);
+  background: var(--cream);
+}
+.panesplit__cell:first-child > .pane,
+.paneroot > .pane {
+  border-left: 0;
+}
+.panesplit--col > .panesplit__cell > .pane {
+  border-left: 0;
+  border-top: 0.5px solid var(--rule);
+}
+.panesplit--col > .panesplit__cell:first-child > .pane {
+  border-top: 0;
+}
+
+/*
+ * The tab strip. One 30px strip on its own fill, with the ACTIVE tab
+ * cut out of it in the desk colour — a tab that reads as a hole in the strip
+ * rather than a button on it, which is how a Mac document tab looks.
+ */
+.pane__tabs {
+  height: 30px;
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  background: #e4dac6;
+  border-bottom: 0.5px solid var(--rule);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .pane__tabs {
+    background: #221f1c;
+  }
+}
+.pane__tabs::-webkit-scrollbar {
+  display: none;
+}
+/* The focused pane is where a new surface lands, so it has to be legible at a
+   glance — a ring inside the pane's own edge, not a strip under its tabs. */
+.pane.is-focused {
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+  border-radius: var(--r-paper);
+}
+.paneroot > .pane.is-focused {
+  /* One pane is not "the focused one" — it is the only one. */
+  box-shadow: none;
+}
+/* The tabs are a list of two sibling buttons each (PaneTree.tsx); the list and
+   its items carry the strip's layout, the buttons carry nothing but the hit. */
+.pane__tablist {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pane__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 0 var(--s-3) 0 var(--s-5);
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--motion);
+}
+.pane__tabbtn {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.pane__tabbtn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .pane__tab {
+    color: var(--ink-2);
+  }
+}
+.pane__tab:hover {
+  background: var(--hover);
+}
+.pane__tab.is-on {
+  background: var(--desk);
+  color: var(--ink);
+  font-weight: 500;
+  box-shadow: inset 0.5px 0 0 var(--rule), inset -0.5px 0 0 var(--rule);
+}
+.pane__tablabel {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A 24px target around a 16px chip: the glyph and its hover chip are the size
+   they always were, and the pointer gets WCAG 2.5.8's minimum around them. It
+   hides with `visibility`, not `display`, so a keyboard can still land on it —
+   and it shows the moment one does. */
+.pane__tabclose {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ash);
+  cursor: pointer;
+  visibility: hidden;
+}
+.pane__tabclose::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: var(--r-chip-sm);
+}
+.pane__tabclose svg {
+  position: relative;
+  width: 9px;
+  height: 9px;
+  display: block;
+}
+.pane__tab:hover .pane__tabclose,
+.pane__tab.is-on .pane__tabclose,
+.pane__tab:focus-within .pane__tabclose {
+  visibility: visible;
+}
+.pane__tabclose:hover {
+  color: var(--ink);
+}
+.pane__tabclose:hover::before {
+  background: var(--hover-strong);
+}
+.pane__tabclose:focus-visible {
+  outline: none;
+}
+.pane__tabclose:focus-visible::before {
+  box-shadow: var(--focus-ring);
+}
+.pane__tabspacer {
+  flex: 1;
+}
+.pane__addwrap {
+  display: flex;
+  align-items: center;
+  padding: 0 var(--s-3);
+  flex: none;
+}
+.pane__add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-mini);
+  height: var(--h-mini);
+  font: inherit;
+  border: none;
+  border-radius: var(--r-chip-sm);
+  background: none;
+  color: var(--ash);
+  cursor: pointer;
+}
+.pane__add:hover {
+  background: var(--hover-strong);
+  color: var(--ink);
+}
+
+.pane__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Drop feedback: the half (or whole) the pane would become. Pointer-events off
+   so the overlay can never eat the drop it is advertising. */
+.pane__dropzone {
+  position: absolute;
+  z-index: 15;
+  pointer-events: none;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+}
+.pane__dropzone--center {
+  inset: 0;
+}
+.pane__dropzone--left {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+}
+.pane__dropzone--right {
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 50%;
+}
+.pane__dropzone--top {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 50%;
+}
+.pane__dropzone--bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 50%;
+}
+
+/* The script's landing site inside its pane, and the off-screen park the
+   editor waits in when no pane is showing it (App.tsx re-parents between the
+   two — the node is moved, never re-created). */
+/* The pane body is the ONE scroller. The slot must not scroll too, or the
+   sheet gets a second scrollbar inside the first and the pane's scroll memory
+   restores an offset on a box that isn't the one that moved.
+   `container-type` is what 100cqw measures inside a pane: a material's editor
+   can be a page wider than its pane, and its header row and conflict choice
+   size themselves to the pane with it, so they never start off screen. */
+.pane-scriptslot {
+  min-height: 100%;
+  position: relative;
+  container-type: inline-size;
+}
+.editorpark {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+/* The mount plays the role `.editor-pane` used to: it CENTRES the sheet and
+   gives it the desk margin. Without the flex centring the page is a plain block
+   and takes the pane's width, which squashes an 816px sheet into whatever the
+   pane happens to be while its height stays put — a 512×5700 ribbon. */
+.editormount {
+  display: flex;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+  min-width: min-content;
+}
+
+.pane-parked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  height: 100%;
+  font-size: var(--t-small);
+  color: var(--ash);
+  padding: 1.5rem;
+  text-align: center;
+}
+.app-statusbar__path:hover {
+  text-decoration: underline;
+  color: var(--ink);
+}
+
+/* The binder and inspector edge rails are gone (docs/engineering/design-system.md#UI-D101, docs/engineering/design-system.md#UI-D101). A collapsed rail used
+   to keep a thin strip so every tap did something visible; the toolbar's own
+   sidebar buttons do that job now, in the place a Mac user looks for them, and
+   two strips of vertical text were two more chromes to keep in step. */
+
+
+
+.diffview__stats {
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  color: var(--ash);
+  margin-left: auto;
+}
+.diffview__diff {
+  max-height: 16rem;
+  overflow: auto;
+  padding: var(--s-3) 0;
+  background: #f8f2e4;
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  line-height: 1.5;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .diffview__diff {
+    background: var(--cream);
+  }
+}
+.diffview__line {
+  padding: 0 10px;
+  white-space: pre-wrap;
+}
+.diffview__line--add {
+  background: var(--ok-tint);
+  color: var(--ok-text);
+}
+.diffview__line--del {
+  background: var(--bad-tint);
+  color: var(--bad-text);
+}
+.diffview__skip {
+  padding: 0 10px;
+  color: var(--ash);
+  font-size: var(--t-mini);
+}
+

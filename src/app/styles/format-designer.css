@@ -1,0 +1,245 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/*
+ * ── The format designer (src/app/formats/) ────────────────────────────────
+ *
+ * A column of values beside the pages. The pages get the width: they are what
+ * the designer is for, so the form is a fixed column and the preview takes
+ * every remaining pixel, on the desk the Export preview's pages sit on.
+ */
+.designer {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+.designer__form {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s-6) var(--s-6) var(--s-7);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+  border-right: 0.5px solid var(--rule);
+}
+.designer__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.designer__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-4) var(--s-5);
+}
+.designer__note {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.designer__locked {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border-radius: var(--r-control);
+  background: var(--cream);
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink);
+}
+.designer__locked p {
+  margin: 0;
+}
+.designer__switchrow {
+  min-height: var(--h-small);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+label.designer__switchrow {
+  cursor: pointer;
+}
+.designer__switchrow--inline {
+  justify-content: flex-start;
+}
+.designer__grouperror {
+  margin-top: calc(-1 * var(--s-2));
+}
+.designer__elements {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 0.5px solid var(--rule);
+}
+.designer__element {
+  border-bottom: 0.5px solid var(--rule);
+}
+.designer__elementrow {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-2);
+  border: none;
+  border-radius: var(--r-control-sm);
+  background: none;
+  font: inherit;
+  font-family: var(--font-ui);
+  font-size: var(--t-small);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.designer__elementrow:hover {
+  background: var(--hover);
+}
+.designer__elementrow:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.designer__twisty {
+  display: flex;
+  color: var(--ash);
+  transition: transform var(--motion);
+}
+.designer__elementrow.is-open .designer__twisty {
+  transform: rotate(90deg);
+}
+.designer__elementname {
+  font-weight: 500;
+}
+.designer__elementsum {
+  margin-left: auto;
+  font-size: var(--t-mini);
+  color: var(--ash);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.designer__elementsum.is-error {
+  color: var(--bad);
+}
+.designer__elementfields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-2) var(--s-5) 18px;
+}
+.designer__right {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--desk);
+}
+.designer__previewbar {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-2) var(--s-6);
+  border-bottom: 0.5px solid var(--rule);
+  background: var(--chrome);
+  font-size: var(--t-small);
+  color: var(--ink);
+}
+.designer__previewtitle {
+  font-weight: 500;
+}
+.designer__preview {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.designer__pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-6);
+  padding: var(--s-7) 0;
+}
+.designer__pane:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+.designer__page {
+  flex: none;
+}
+/* A line the last change moved: a soft accent wash, on the paper, until the
+   next change — no animation, so Reduce Motion has nothing to stop. */
+.exportpanel__line.is-moved {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: var(--r-chip-sm);
+}
+
+/* The designer's fields: a label above, the control, and a line for a problem
+   that is always there (a live region must exist before it speaks). */
+.dfield {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-width: 0;
+}
+.dfield__label {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.dfield__input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.dfield__number,
+.dfield__slot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.dfield__input--number {
+  font-variant-numeric: tabular-nums;
+}
+/* Switched off by the control beside it (a full-width element has no width to
+   type): grey, and plainly not a field waiting for a value. */
+.dfield__input:disabled {
+  background: transparent;
+  border-color: var(--rule);
+  box-shadow: none;
+  color: var(--faint);
+}
+.dfield__unit {
+  flex: none;
+  min-width: 2.2em;
+  font-size: var(--t-mini);
+  color: var(--ash);
+}
+.dfield__hint {
+  margin: 0;
+  font-size: var(--t-mini);
+  line-height: 1.4;
+  color: var(--ash);
+}
+/* Empty, it is zero lines tall but still in the tree: a live region hidden
+   until it has something to say is a region that mounts full, which WebKit
+   does not read. */
+.dfield__error {
+  margin: 0;
+  font-size: var(--t-mini);
+  line-height: 1.4;
+  color: var(--bad);
+}
+.field.is-invalid {
+  border-color: var(--bad);
+}
+

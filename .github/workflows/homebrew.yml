@@ -1,0 +1,75 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Publishing a release updates the Homebrew cask (docs/engineering/release-engineering.md#REL-D8).
+#
+# Only a PUBLISHED release: drafts are what scripts/release.mjs makes, on the
+# build host from a tag, and a person publishes one after checking it
+# (docs/engineering/release-engineering.md#SHIP-D100). The cask points at the stapled
+# universal DMG on that release, by version and hash, in the personal tap
+# proscenium-app/homebrew-tap. The tap is another repository, so the default
+# token cannot push to it; HOMEBREW_TAP_TOKEN is a fine-grained token with
+# Contents read and write on that one repository.
+name: Homebrew
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+# One tap, one writer at a time: two releases published close
+# together would race their pushes.
+concurrency:
+  group: homebrew-tap
+  cancel-in-progress: false
+
+jobs:
+  cask:
+    name: Update proscenium-app/homebrew-tap
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.release.prerelease && startsWith(github.event.release.tag_name, 'v') }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Hash the DMG this release ships
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version="${TAG#v}"
+          gh release download "$TAG" --pattern "Proscenium_${version}_universal.dmg" --dir "$RUNNER_TEMP"
+          sha=$(sha256sum "$RUNNER_TEMP/Proscenium_${version}_universal.dmg" | cut -d' ' -f1)
+          node scripts/homebrew-cask.mjs "$version" "$sha" > "$RUNNER_TEMP/proscenium.rb"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+        with:
+          repository: proscenium-app/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Commit the cask
+        run: |
+          mkdir -p tap/Casks
+          # The tap never goes backwards: a maintenance release
+          # for an older series — 1.0.1 after 1.1.0 — is published without
+          # moving the cask, which points at the newest version.
+          current=$(sed -n 's/^  version "\(.*\)"$/\1/p' tap/Casks/proscenium.rb 2>/dev/null || true)
+          if [ -n "$current" ] && [ "$(printf '%s\n%s\n' "$current" "$VERSION" | sort -V | tail -n1)" != "$VERSION" ]; then
+            echo "the cask says $current, which is newer than $VERSION: left as it is"
+            exit 0
+          fi
+          cp "$RUNNER_TEMP/proscenium.rb" tap/Casks/proscenium.rb
+          cd tap
+          if git diff --quiet -- Casks/proscenium.rb && git ls-files --error-unmatch Casks/proscenium.rb >/dev/null 2>&1; then
+            echo "the cask already says $VERSION"
+            exit 0
+          fi
+          git config user.name "proscenium-release"
+          git config user.email "proscenium-release@users.noreply.github.com"
+          git add Casks/proscenium.rb
+          git commit -m "proscenium $VERSION"
+          git push

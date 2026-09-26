@@ -1,0 +1,150 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/*
+ * ── Window chrome: toolbar, status bar (docs/engineering/design-system.md#UI-D101) ─────────────────────────────
+ *
+ * Three columns, `1fr auto 1fr`, so the view switcher is centred on the WINDOW
+ * rather than on whatever is left after the left group — which is what makes a
+ * Mac toolbar read as a Mac toolbar. The window is borderless on macOS
+ * (`titleBarStyle: Overlay`), so the left column reserves the traffic lights'
+ * 70px and the whole bar is a drag region (`data-tauri-drag-region="deep"`,
+ * which needs `core:window:allow-start-dragging` in the capability).
+ */
+.toolbar {
+  height: 52px;
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--s-6);
+  padding: 0 14px;
+  background: var(--chrome);
+  border-bottom: 0.5px solid var(--rule);
+  user-select: none;
+}
+.toolbar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+  padding-left: var(--traffic, 0px);
+}
+.toolbar__centre {
+  display: flex;
+  justify-content: center;
+}
+/* The switcher and its "+" are ONE control group: the segments say what this
+   pane shows, the "+" says "and another, as a tab". They sit together because
+   separating them would make the "+" read as a window-level action. --s-3
+   is the between-controls step. */
+.viewswitch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  justify-content: flex-end;
+}
+/* macOS hides its own title bar for us; the lights overlay the top-left. */
+.is-macos .toolbar__left {
+  --traffic: 70px;
+}
+
+/* The play title, which is also the document menu. */
+.doctitle {
+  font: inherit;
+  height: var(--h-regular);
+  min-width: 0;
+  padding: 0 var(--s-4) 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border: none;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background var(--motion);
+}
+.doctitle:hover,
+.doctitle[aria-expanded="true"] {
+  background: var(--hover-strong);
+}
+.doctitle__icon {
+  display: flex;
+  color: var(--accent-text);
+  flex: none;
+}
+.doctitle__label {
+  font-size: var(--t-body);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* "Changes in text": a labelled mini switch inside an accent capsule, so the
+   thing being toggled and its state are one control rather than two. */
+.trackedswitch {
+  height: var(--h-regular);
+  padding: 0 var(--s-4) 0 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+  border-radius: var(--r-control);
+  background: var(--accent-soft);
+  cursor: pointer;
+}
+.trackedswitch__label {
+  font-size: var(--t-small);
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.statusbar {
+  min-height: calc(26px * var(--ui-scale));
+  height: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: 0 var(--s-5);
+  background: var(--chrome);
+  border-top: 0.5px solid var(--rule);
+  user-select: none;
+}
+.statusbar__path {
+  font: inherit;
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  color: var(--ash);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.statusbar__path:hover {
+  color: var(--ink-2);
+}
+.statusbar__spacer {
+  flex: 1;
+}
+.statusbar__divider {
+  width: 1px;
+  height: 13px;
+  background: var(--rule);
+  flex: none;
+}
+

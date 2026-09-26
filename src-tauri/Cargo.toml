@@ -1,0 +1,186 @@
+[package]
+name = "proscenium"
+version = "1.0.0"
+description = "A local-first, cross-platform playwriting app"
+authors = ["Habiby LLC"]
+edition = "2021"
+license = "AGPL-3.0-or-later"
+rust-version = "1.77"
+
+# The library is the real entry point so the mobile targets (unit K) can call
+# `run()` from their generated shells. Desktop `main.rs` calls it too.
+[lib]
+name = "proscenium_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+# The mobile folder picker `plugin-dialog` doesn't provide (workspace#933).
+# Unconditional so `init()` stays uniform; on desktop it is an inert stub.
+tauri-plugin-vault-picker = { path = "plugins/vault-picker" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+notify = "6"
+# Anonymous usage and crash reports (privacy-and-telemetry.md §3): the one HTTP
+# client the app owns, for its reports and feedback services. In every
+# build, the App Store's included, which has no updater. rustls on ring and the
+# system proxy, as tauri-plugin-updater uses them, so a build with both still
+# has one TLS stack.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "system-proxy"] }
+rustls = { version = "0.23.45", default-features = false, features = ["ring"] }
+# Only SDK protocol types: no transport, integrations or automatic metadata.
+sentry-types = "=0.36.0"
+backtrace = "=0.3.74"
+unicode-normalization = "0.1.25"
+unicode-segmentation = "1"
+uuid = { version = "1", features = ["v4"] }
+
+# Desktop-only. `trash` has no iOS/Android platform module — it fails to compile
+# for those targets, not merely at runtime (verified against aarch64-apple-ios).
+# The mobile vault keeps the same recoverable-delete contract via a local
+# `.proscenium/trash/` ring; see `Vault::trash`.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+trash = "5"
+# Updates (release-engineering §6). Desktop only: the iPad and the Mac App Store
+# are updated by the store, so their builds leave the `updater` feature off.
+tauri-plugin-updater = { version = "=2.11.0", optional = true }
+minisign-verify = { version = "0.2", optional = true }
+flate2 = { version = "1", optional = true }
+tar = { version = "0.4", optional = true }
+plist = { version = "1.10.1", optional = true }
+semver = { version = "1", optional = true }
+tempfile = { version = "3", optional = true }
+
+# macOS only. NSUserDefaults turns smart quotes/dashes/text-replacement off for
+# this app before the webview exists (smartsubs.rs); NSURL and
+# NSFileManager carry security-scoped bookmarks and the iCloud container, which
+# are what let a sandboxed build reach a folder the writer picked (scope.rs,
+# storage §12).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+# NSProcessInfo is the macOS version every analytics event and Copy Diagnostics
+# carry (telemetry/mod.rs). NSBundle reads a track build's whole version from
+# its own Info.plist (version.rs).
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSArray",
+  "NSBundle",
+  "NSData",
+  "NSError",
+  "NSFileManager",
+  "NSProcessInfo",
+  "NSString",
+  "NSURL",
+  "NSUserDefaults",
+  "NSDictionary",
+  # The web view's own background off (webview_policy.rs, window_color.rs).
+  "NSKeyValueCoding",
+  "NSValue",
+] }
+# NSColor and NSColorSpace read the Mac's accent colour for Settings ›
+# Appearance › Follow Mac (accent.rs).
+# The general pasteboard, for Help › Copy Diagnostics (telemetry/diagnostics.rs).
+# Written from here because a page may write the clipboard only inside a click
+# in the page, and a menu item is not one. The print panel, as a sheet on the
+# window, for File › Print… (export.rs). The native self-test's hands and eyes
+# (src/selftest.rs) — NSEvents it sends to its own window, and a snapshot of what
+# WebKit drew — are further AppKit features only the `selftest` feature turns on.
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSAlert",
+  "NSApplication",
+  "NSButton",
+  "NSColor",
+  "NSColorSpace",
+  "NSControl",
+  "NSPrintInfo",
+  "NSPrintOperation",
+  "NSResponder",
+  "NSView",
+  "NSPasteboard",
+  "NSWindow",
+  "NSImage",
+  "NSImageRep",
+  "NSBitmapImageRep",
+  "NSFontDescriptor",
+  # Whether the Mac is in Dark mode, for the window's first colour (window_color.rs).
+  "NSAppearance",
+  "objc2-core-foundation",
+] }
+# PDFKit prints the exported PDF itself, page for page at 100% (export.rs):
+# the page cannot print (WKWebView ignores window.print()), and printing the web
+# view would print the app rather than the script.
+objc2-pdf-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "objc2-app-kit",
+  "PDFDocument",
+  "PDFPage",
+] }
+objc2-web-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "block2",
+  "objc2-app-kit",
+  "WKContentRuleList",
+  "WKContentRuleListStore",
+  "WKUserContentController",
+  "WKWebViewConfiguration",
+  "WKSnapshotConfiguration",
+  "WKWebView",
+] }
+# Blocks: the self-test's WebKit snapshots, and CFRunLoopPerformBlock, which is
+# how quit.rs answers a quit AppKit is holding from inside the loop it holds it in.
+block2 = "0.6"
+
+[target.'cfg(unix)'.dependencies]
+# File locks and exclusive/exchange renames protect local writes in store builds too.
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+tauri = { version = "2", features = ["test"] }
+
+[features]
+# Production builds embed assets via the custom protocol.
+default = ["custom-protocol", "updater", "webkit-background"]
+custom-protocol = ["tauri/custom-protocol"]
+# WebKit's own background off, so the window's colour shows until the page
+# paints (webview_policy.rs, window_color.rs). Private WebKit API: fine in the
+# download build, and left out of the Mac App Store channel (release-
+# engineering REL-56), which builds without default features.
+webkit-background = []
+# The in-app updater. On in every Developer ID build; the App Store build turns
+# default features off, because the store is what updates it there.
+updater = ["dep:tauri-plugin-updater", "dep:minisign-verify", "dep:flate2", "dep:tar", "dep:plist", "dep:semver", "dep:tempfile"]
+# A build made on this Mac by `bun run app:install`, with default features off
+# so it has no updater, says `local` in Copy Diagnostics and Settings: an
+# updater in it would replace it with the next alpha.
+local = []
+# The native self-test (release-engineering §4): smoke's checks inside the real
+# WKWebView, driven by `PROSCENIUM_SELFTEST=<report.json>`. NEVER in a release
+# build — `scripts/check-bundle.mjs --release` fails a binary that contains it —
+# and built only by `scripts/build-app.mjs --selftest`, which bundles the
+# harness this embeds.
+selftest = [
+  "objc2-app-kit/NSApplication",
+  "objc2-app-kit/NSBitmapImageRep",
+  "objc2-app-kit/NSEvent",
+  "objc2-app-kit/NSGraphicsContext",
+  "objc2-app-kit/NSImage",
+  "objc2-app-kit/NSImageRep",
+  "objc2-app-kit/NSResponder",
+  "objc2-app-kit/NSView",
+  "objc2-app-kit/NSWindow",
+  "objc2-foundation/NSDictionary",
+  "objc2-foundation/NSGeometry",
+  "objc2-foundation/NSNotification",
+  "objc2-foundation/NSProcessInfo",
+  "objc2-foundation/NSValue",
+  "objc2-web-kit/WKPreferences",
+]

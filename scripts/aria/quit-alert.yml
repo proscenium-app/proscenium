@@ -1,0 +1,95 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Mara"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes, <n> pending": Changes
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara Rename “Mara” Actions for “Mara”" [level=2] [selected]:
+        - text: Mara
+        - button "Rename “Mara”"
+        - button "Actions for “Mara”"
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: in Characters
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Cast":
+      - button "Cast"
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+    - listitem "Mara":
+      - button "Mara"
+      - button "Close Mara"
+  - button "Add a surface to this pane"
+  - textbox "File name"
+  - text: character protagonist act-1 act-2
+  - button "Edit Tags"
+  - status
+  - group "View":
+    - button "Page" [pressed]
+    - button "Source"
+  - toolbar "Formatting":
+    - 'button "Paragraph style: Body Text"': Body Text
+    - button "Bold"
+    - button "Italic"
+    - button "Inline code":
+      - img
+    - button "Link":
+      - img
+    - button "Bulleted list":
+      - img
+    - button "Numbered list":
+      - img
+    - button "Insert table":
+      - img
+    - button "Insert divider":
+      - img
+  - heading "MARA" [level=1]
+  - paragraph: A hydrologist, early 40s. Measures everything and trusts nothing she can't measure. Came home to bury her mother and stayed to fight the house.
+  - paragraph:
+    - strong: "Wants:"
+    - text: to stop the dripping — the literal pipe, and everything it stands in for.
+    - strong: "Fears:"
+    - text: that quiet is just absence, not peace.
+    - strong: "Voice:"
+    - text: short sentences. Precise nouns. Doesn't finish the sentimental ones. WORDS KEPT NOWHERE
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: Not saved
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- alertdialog "What was typed in “Mara” couldn't be saved or kept.":
+  - heading "What was typed in “Mara” couldn't be saved or kept." [level=2]
+  - paragraph: The disk is full. If Proscenium quits now, what was typed is lost. “Mara” will save once there is room on the disk.
+  - button "Don't Quit"
+  - button "Quit Anyway"
+  - status
+  - alert

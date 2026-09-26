@@ -1,0 +1,14 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main:
+  - heading "Where should your plays live?" [level=1]
+  - paragraph: One folder holds them all. Nothing is imported and nothing moves — the folder stays a folder you can open in Finder.
+  - button "A folder I choose… Dropbox, an external drive, or just this Mac."
+  - paragraph:
+    - text: Proscenium sends anonymous usage and crash reports, never your writing, and you can switch them off in
+    - link "Privacy settings"
+    - text: .
+- contentinfo
+- status
+- alert

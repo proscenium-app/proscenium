@@ -1,0 +1,12 @@
+- banner
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main
+  - heading "Where should your plays live?" [level=1]
+  - paragraph
+  - button "A folder I choose… Dropbox, an external drive, or just this Mac."
+  - paragraph
+    - link "Privacy settings"
+- contentinfo
+- status [live=polite]
+- alert [live=assertive]

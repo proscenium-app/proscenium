@@ -1,0 +1,129 @@
+{
+  "id": "samuel-french",
+  "name": "Samuel French / Concord — Manuscript",
+  "page": {
+    "size": "letter",
+    "margins": {
+      "left": 1.5,
+      "top": 1,
+      "right": 1,
+      "bottom": 1
+    }
+  },
+  "type": {
+    "family": "Courier Prime, Courier New, Courier, monospace",
+    "size": 12,
+    "lineHeight": 1
+  },
+  "header": {
+    "content": {
+      "right": "{page}."
+    },
+    "position": 0.85,
+    "suppressOnFirstPage": false
+  },
+  "footer": {
+    "content": {},
+    "position": 0.5
+  },
+  "elements": {
+    "act": {
+      "align": "center",
+      "textTransform": "uppercase",
+      "spacingBefore": 0,
+      "spacingAfter": 1,
+      "startsNewPage": true,
+      "keepWithNext": true
+    },
+    "scene": {
+      "align": "center",
+      "underline": true,
+      "spacingAfter": 1,
+      "startsNewPage": true,
+      "keepWithNext": true
+    },
+    "sceneHeading": {
+      "align": "center",
+      "fontStyle": "italic",
+      "spacingBefore": 1,
+      "spacingAfter": 1,
+      "keepWithNext": true
+    },
+    "action": {
+      "indentFromMargin": 1.5,
+      "parenWrap": true,
+      "spacingBefore": 1,
+      "spacingAfter": 1
+    },
+    "character": {
+      "indentFromMargin": 2,
+      "textTransform": "uppercase",
+      "spacingBefore": 1,
+      "keepWithNext": true
+    },
+    "parenthetical": {
+      "indentFromMargin": 1.5,
+      "parenWrap": true,
+      "keepWithNext": true
+    },
+    "dialogue": {
+      "indentFromMargin": 0,
+      "maxWidth": "full",
+      "spacingBefore": 0,
+      "spacingAfter": 0
+    },
+    "transition": {
+      "align": "right",
+      "textTransform": "uppercase",
+      "spacingBefore": 1,
+      "spacingAfter": 1
+    },
+    "lyric": {
+      "indentFromMargin": 0.5,
+      "textTransform": "uppercase",
+      "spacingBefore": 1,
+      "spacingAfter": 1
+    },
+    "centered": {
+      "align": "center",
+      "spacingBefore": 1,
+      "spacingAfter": 1
+    },
+    "synopsis": {
+      "print": false,
+      "fontStyle": "italic"
+    },
+    "pageBreak": {
+      "print": false,
+      "startsNewPage": true
+    },
+    "boneyard": {
+      "print": false,
+      "fontStyle": "italic"
+    }
+  },
+  "pagination": {
+    "continuedMarker": " (Cont.)",
+    "repeatCharacterOnSplit": true,
+    "minDialogueLinesBeforeBreak": 2,
+    "minDialogueLinesAfterBreak": 2,
+    "minActionLinesEitherSide": 2
+  },
+  "dualDialogue": {
+    "gutterIn": 0.2
+  },
+  "frontMatter": {
+    "titleTopFraction": 0.5,
+    "titleGapRows": 1,
+    "titleContactGapRows": 2,
+    "sectionTopRows": 2,
+    "headingGapRows": 1,
+    "castGapRows": 1,
+    "fieldGapRows": 1,
+    "contactBottomRows": 0,
+    "titleFontStyle": "regular",
+    "headingFontStyle": "bold",
+    "bodyFontStyle": "regular",
+    "contactAlign": "right"
+  }
+}

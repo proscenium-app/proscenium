@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Core window + folder-picker access. Filesystem access to the chosen vault is granted at runtime by the vault backend (unit B); the frontend has no direct fs capability.",
+  "windows": ["main"],
+  "permissions": ["core:default", "core:window:allow-start-dragging", "dialog:default"]
+}

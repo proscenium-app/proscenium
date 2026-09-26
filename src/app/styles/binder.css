@@ -1,0 +1,481 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Workspace layout: binder rail + editor ------------------------------- */
+.workspace-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.binder {
+  width: 246px;
+  flex: none;
+  border-right: 0.5px solid var(--rule);
+  background: var(--rail);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  user-select: none;
+}
+.binder__head {
+  min-height: calc(34px * var(--ui-scale));
+  height: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  padding: 0 var(--s-4) 0 10px;
+  border-bottom: 0.5px solid var(--rule);
+}
+.binder__project {
+  font-size: var(--t-body);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.binder__ro {
+  font-size: var(--t-label);
+  color: var(--accent);
+}
+.binder__headactions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+/* One icon button, at the mini size the rail's 26px rows leave room for. */
+.binder__iconbtn {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-chip-sm);
+  background: transparent;
+  color: var(--ash);
+  cursor: pointer;
+  transition: background var(--motion), color var(--motion);
+}
+.binder__iconbtn svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+.binder__iconbtn:hover {
+  color: var(--ink);
+  background: rgba(31, 41, 51, 0.06);
+}
+
+/* Filter. A binder is a list you scan, and past a dozen rows scanning stops
+   working — this is the affordance that replaces scrolling with typing. */
+/* A search field, not a bordered strip: the binder is a list you scan, and
+   past a dozen rows scanning stops working. */
+.binder__filter {
+  height: var(--h-small);
+  flex: none;
+  margin: 10px 10px var(--s-3);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-4);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-control);
+  background: color-mix(in srgb, var(--field) 75%, transparent);
+  color: var(--ash);
+}
+.binder__filter svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  display: block;
+}
+.binder__filterinput {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  padding: 0.05rem 0;
+}
+.binder__filterinput::placeholder {
+  color: var(--ash);
+}
+.binder__filterinput:focus {
+  outline: none;
+}
+.binder__filterinput::-webkit-search-cancel-button {
+  appearance: none;
+}
+/* Pinned Cast shortcut above the tree — jumps to the Cast surface. */
+.binder__pinned {
+  min-height: calc(26px * var(--ui-scale));
+  height: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: calc(100% - 12px);
+  margin: 0 var(--s-3) var(--s-1);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control-sm);
+  background: none;
+  font: inherit;
+  font-size: var(--t-body);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.binder__pinned:hover {
+  background: var(--hover);
+}
+.binder__pinned.is-active {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+}
+.binder__pinnedicon {
+  display: flex;
+  color: var(--ash);
+}
+.binder__pinnedicon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.binder__pinned:hover .binder__pinnedicon {
+  color: var(--accent-text);
+}
+.binder__pinned.is-active .binder__pinnedicon {
+  color: inherit;
+}
+/* "3 new files filed" — work that arrived in the folder (another tool's, another
+   device's) and was filed into the binder for the writer. Visible rather than
+   silently absorbed; clicking clears the dots. */
+.binder__filed {
+  height: var(--h-small);
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  width: calc(100% - 12px);
+  margin: 0 var(--s-3) var(--s-2);
+  padding: 0 var(--s-4);
+  border: 0;
+  border-radius: var(--r-control-sm);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 500;
+  font: inherit;
+  font-size: var(--t-mini);
+  text-align: left;
+  cursor: pointer;
+}
+.binder__filed:hover {
+  background: var(--accent-soft);
+}
+.binder__filedclear {
+  opacity: 0.7;
+}
+/* Per-row dot on each newly filed item. */
+.binder__newdot {
+  margin-left: 0.3rem;
+  font-size: var(--t-mini);
+  line-height: 1;
+  color: var(--accent);
+}
+/* Listed in the binder, absent from disk (docs/app/keeping-work/storage-and-file-format.md#STOR-D9). Never auto-removed:
+   this can be a sync in flight or an iCloud file that has not landed. */
+.binder__row.is-missing .binder__label {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+/* An SVG takes no text-decoration, so the missing state reads as weight here. */
+.binder__row.is-missing .binder__icon {
+  opacity: 0.4;
+}
+.binder__missing {
+  margin-left: 0.35rem;
+  padding: 0 0.28rem;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ash) 22%, transparent);
+  color: var(--ash);
+  font-size: var(--t-label);
+  letter-spacing: 0.02em;
+}
+
+.binder__tree,
+.binder__tree ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* The scroller owns the leftover space below the last row, and that space IS
+   the "move to the top level" drop target — dragging something out of a folder
+   has to land somewhere, and the obvious somewhere is the blank below. */
+.binder__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 1.5rem;
+}
+.binder__scroll:focus {
+  outline: none;
+}
+.binder__scroll:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.binder__scroll.is-rootdrop {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.binder__empty {
+  margin: 0;
+  padding: var(--s-6) 14px;
+  font-size: var(--t-small);
+  color: var(--ash);
+}
+/* Words a writer reads, so the tertiary label at full strength: faded to 70%
+   it measured 2.9:1 on the rail (docs/engineering/design-system.md#UI-D106
+   controls that are off). Italic says "placeholder" without the fade. */
+.binder__emptyfolder {
+  padding-top: 0.1rem;
+  padding-bottom: 0.2rem;
+  font-size: var(--t-mini);
+  font-style: italic;
+  color: var(--ash);
+}
+.binder__tree {
+  padding: 0 var(--s-3);
+}
+.binder__row {
+  --pad: var(--s-4);
+  position: relative;
+  min-height: calc(26px * var(--ui-scale));
+  height: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 var(--s-4) 0 var(--pad);
+  border-radius: var(--r-control-sm);
+  font-size: var(--t-body);
+  color: #3d4650;
+  cursor: pointer;
+  transition: background var(--motion);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .binder__row {
+    color: var(--ink-2);
+  }
+}
+.binder__row:hover {
+  background: var(--hover);
+}
+/*
+ * Selection, in Apple's two strengths. The row the app is showing is the
+ * accent; when the binder is not the focused rail it drops to the neutral
+ * "unemphasized" fill instead — otherwise every screenshot of this app has two
+ * things claiming to be selected at once.
+ */
+.binder__row.is-selected {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 500;
+  box-shadow: 0 0.5px 1px rgba(31, 41, 51, 0.12);
+}
+.binder:not(:focus-within) .binder__row.is-selected {
+  background: var(--hover-strong);
+  color: var(--ink);
+  box-shadow: none;
+}
+.binder__row.is-dragging {
+  opacity: 0.45;
+}
+/* `is-cursor` is the KEYBOARD's position when it is not also the open document
+   — without it, arrow keys move an invisible thing. A ring, not a fill, so it
+   can sit on top of a selected row and still be legible. */
+.binder__row.is-cursor {
+  box-shadow: inset 0 0 0 1px rgba(31, 41, 51, 0.18);
+}
+@media all{
+  :where(:root[data-theme="dark"]) .binder__row.is-cursor {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  }
+}
+
+/* --- drop feedback ---------------------------------------------------- */
+/* An insertion line drawn INSIDE the row's box, inset to the row's own
+   indent, so it shows the depth the item will land at and not merely that
+   something will happen. */
+.binder__row.is-dropbefore::after,
+.binder__row.is-dropafter::after {
+  content: "";
+  position: absolute;
+  left: var(--pad);
+  right: var(--s-3);
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  /* The 8px ring-dot at the head of the line, drawn as a box-shadow so the
+     line stays one element and the depth inset keeps meaning what it says. */
+  box-shadow: -4px 0 0 -1px var(--accent), -4px 0 0 1px var(--paper);
+  pointer-events: none;
+}
+.binder__row.is-dropbefore::after {
+  top: -1px;
+}
+.binder__row.is-dropafter::after {
+  bottom: -1px;
+}
+/* The folder that will receive the drop. A ring, not a fill: the row keeps its
+   own selected/hover state underneath so you can still read where you are. */
+.binder__row.is-dropinside {
+  background: var(--accent-softer);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+/* Illegal: a folder into its own subtree, or a file onto a file's middle. */
+.binder__row.is-nodrop {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    rgba(31, 41, 51, 0.07) 4px,
+    rgba(31, 41, 51, 0.07) 8px
+  );
+  cursor: no-drop;
+}
+/* Icons are SVG on one 16-unit grid (BinderIcons.tsx), inheriting the row's
+   color so selection, hover and the dark fork all reach them for free. */
+.binder__icon {
+  display: flex;
+  flex: none;
+  color: var(--ash);
+}
+.binder__icon svg {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+.binder__row:hover .binder__icon {
+  color: var(--accent-text);
+}
+/* On the accent fill the glyph is the fill's own text colour, not the accent —
+   gilt on gilt is invisible, which is the whole reason --on-accent exists. */
+.binder__row.is-selected .binder__icon,
+.binder__row.is-selected .binder__twisty {
+  color: inherit;
+}
+
+/* The disclosure chevron, separate from the folder icon so a folder can show
+   BOTH its kind and its state. Leaves get an empty one of the same width, so
+   every icon in the tree lines up on a single column. */
+.binder__twisty {
+  display: flex;
+  flex: none;
+  width: 11px;
+  color: var(--ash);
+  transition: transform 120ms ease;
+}
+.binder__twisty svg {
+  width: 11px;
+  height: 11px;
+  display: block;
+}
+.binder__twisty.is-open {
+  transform: rotate(90deg);
+}
+.binder__twisty--leaf {
+  visibility: hidden;
+}
+/* The chevron toggles WITHOUT selecting, so a writer can look inside a folder
+   without the app deciding they meant to open something. */
+.binder__twisty:not(.binder__twisty--leaf) {
+  cursor: pointer;
+  border-radius: var(--r-paper);
+}
+.binder__twisty:not(.binder__twisty--leaf):hover {
+  color: var(--ink);
+}
+.binder__label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.binder__rename {
+  flex: 1;
+  min-width: 0;
+  height: var(--h-mini);
+  font: inherit;
+  font-size: var(--t-body);
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-chip-sm);
+  box-shadow: var(--focus-ring);
+  padding: 0 var(--s-2);
+}
+.binder__rename:focus {
+  outline: none;
+}
+.binder__rowactions {
+  display: none;
+  gap: 0.1rem;
+}
+.binder__row:hover .binder__rowactions,
+.binder__row:focus-within .binder__rowactions,
+.binder__row.is-selected .binder__rowactions {
+  display: flex;
+}
+.binder__rowactions button {
+  display: flex;
+  align-items: center;
+  border: none;
+  background: transparent;
+  color: var(--ash);
+  cursor: pointer;
+  font-size: var(--t-mini);
+  padding: 0 0.15rem;
+}
+.binder__rowactions button svg {
+  width: 13px;
+  height: 13px;
+  display: block;
+}
+.binder__rowactions button:hover {
+  color: var(--ink);
+}
+.binder__foot {
+  height: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 0 10px;
+  border-top: 0.5px solid var(--rule);
+}
+/* Says where "+ New" will put the thing. The old menu gave no such answer, so
+   a new note appeared somewhere and the writer went looking for it. */
+.binder__foothint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-mini);
+  color: var(--ash);
+}
+.binder__add {
+  flex: none;
+}
+/* The binder's two menus are the shared one now (ui/Menu.tsx): the "+ New"
+   pull-down and the row context menu both render `.menu`, so the rail no
+   longer carries a chrome of its own. What is left here is the footer. */
+

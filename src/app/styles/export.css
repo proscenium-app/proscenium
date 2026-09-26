@@ -1,0 +1,336 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Export PDF / Print dialog — page picking with a real preview -----------
+   The sheets inside are drawn from the layout engine's pages and the format's
+   own CSS variables (see ExportPanel.tsx). Everything here is chrome: the
+   rail, the pane, the scaling wrapper. No script geometry lives in this
+   block — a sheet's inches all come from var(--fmt-*). */
+/* Part and Pages sit on the sheet's heading row; the body is nothing but
+   pages, which is the thing the sheet exists to let you look at. */
+.exportpanel__rangefield {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  flex: none;
+}
+.exportpanel__rangefield > span {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.exportpanel__rangefield input {
+  width: 130px;
+}
+.exportpanel__rangefield input[aria-invalid="true"] {
+  border-color: var(--warn-border);
+  color: var(--warn-text);
+}
+.exportpanel__summary {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.exportpanel__summary.is-error {
+  color: var(--warn-text);
+}
+.exportpanel__none {
+  margin: 0;
+  padding: var(--s-7);
+  font-size: var(--t-small);
+  color: var(--ash);
+}
+
+.exportpanel__body {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+/* The rail of thumbnails, on the card tint, with its own hairline. */
+.exportpanel__rail {
+  width: 170px;
+  flex: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-5);
+  padding: var(--s-5) 0;
+  border-right: 0.5px solid var(--rule);
+  background: var(--cream);
+}
+/* The preview: a scroller of every sheet that is going, plus the pager under
+   it (a word processor's print preview). The scale still fits a WHOLE page,
+   so scrolling moves page by page rather than through an endless column. */
+.exportpanel__preview {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.exportpanel__pane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 0.5px solid var(--rule);
+  border-radius: 6px;
+  background: var(--desk);
+  /* Deliberately NOT `scroll-behavior: smooth`. A smooth scroll is a
+     frame-driven animation, so it does nothing in a window the browser has
+     throttled — measured here: scrollTop stayed 0 while document.hidden was
+     true, i.e. the jump-to-page would silently not happen. Same class of trap as
+     the ResizeObserver, matchMedia and IntersectionObserver callbacks, all
+     silent there. A thumbnail click jumping straight to the page is Word's behaviour
+     anyway. */
+}
+.exportpanel__previewpage {
+  display: flex;
+  justify-content: center;
+  padding: 0.75rem 0;
+}
+/* Nothing is going: the range can't be read. Said where the pages would be. */
+.exportpanel__empty {
+  margin: 0;
+  padding: var(--s-7);
+  text-align: center;
+  font-size: var(--t-small);
+  color: var(--ash);
+}
+.exportpanel__pane:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.exportpanel__pane::-webkit-scrollbar {
+  width: 10px;
+}
+.exportpanel__pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+.exportpanel__pane::-webkit-scrollbar-thumb {
+  background: oklch(0.7 0.02 78);
+  border-radius: 999px;
+  border: 2px solid var(--desk);
+}
+/* Which sheet you're looking at, and one sheet either way. */
+.exportpanel__pagerbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-size: var(--t-mini);
+}
+.exportpanel__pagerbtn {
+  font: inherit;
+  font-size: var(--t-mini);
+  line-height: 1;
+  color: var(--ink);
+  background: transparent;
+  border: 0.5px solid var(--rule);
+  border-radius: 4px;
+  padding: 0.16rem 0.42rem;
+  cursor: pointer;
+}
+.exportpanel__pagerbtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cream) 55%, var(--paper));
+}
+.exportpanel__pagerbtn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.exportpanel__pagernow {
+  min-width: 11rem;
+  text-align: center;
+  letter-spacing: 0.04em;
+  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+}
+/* A left-out sheet's thumbnail was clicked: the pager says why the preview
+   didn't move, in the primary label colour so it reads as an answer. */
+.exportpanel__pagernow.is-note {
+  color: var(--ink);
+}
+
+/* One thumbnail: sheet, then its number and tick. */
+/* The tick sits 8px under its sheet: closer, and the 13px box and the page
+   button above it were one target to a pointer (WCAG 2.5.8's spacing rule). */
+.exportpanel__thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-4);
+}
+.exportpanel__thumbsheet {
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--r-chip-sm);
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+.exportpanel__thumb.is-focused .exportpanel__thumbsheet {
+  border-color: var(--sea);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sea) 30%, transparent);
+}
+.exportpanel__thumbfoot {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--t-mini);
+  color: var(--ash);
+  cursor: pointer;
+}
+.exportpanel__thumbfoot input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+/* The checkbox says whether a page prints. Fading its text made excluded
+   pages fail contrast, even though the writer can still find them here — the
+   rail is the one place a left-out sheet still shows. */
+.exportpanel__thumb.is-excluded .exportpanel__sheet {
+  filter: grayscale(1);
+}
+
+/* The scaled sheet. The wrapper reserves the scaled box; the paper inside is
+   full size and transformed, so every inch on it is the format's inch. */
+.exportpanel__sheet {
+  width: calc(var(--fmt-page-width) * var(--prev-scale));
+  height: calc(var(--fmt-page-height) * var(--prev-scale));
+  flex: none;
+}
+.exportpanel__paper {
+  position: relative;
+  width: var(--fmt-page-width);
+  height: var(--fmt-page-height);
+  transform: scale(var(--prev-scale));
+  transform-origin: top left;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--prev-font);
+  font-size: var(--prev-size);
+  box-shadow: 0 1px 3px rgba(90, 74, 54, 0.28);
+  overflow: hidden;
+}
+.exportpanel__header {
+  position: absolute;
+  top: var(--fmt-header-pos);
+  left: var(--fmt-margin-left);
+  right: var(--fmt-margin-right);
+  height: var(--fmt-line);
+  line-height: var(--fmt-line);
+}
+/* The footer mirrors it from the bottom edge, as the PDF draws it. */
+.exportpanel__footer {
+  position: absolute;
+  bottom: var(--fmt-footer-pos);
+  left: var(--fmt-margin-left);
+  right: var(--fmt-margin-right);
+  height: var(--fmt-line);
+  line-height: var(--fmt-line);
+}
+.exportpanel__hleft {
+  position: absolute;
+  left: 0;
+}
+.exportpanel__hcenter {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.exportpanel__hright {
+  position: absolute;
+  right: 0;
+}
+.exportpanel__block {
+  position: absolute;
+  top: var(--fmt-margin-top);
+  left: var(--fmt-margin-left);
+  right: var(--fmt-margin-right);
+  bottom: var(--fmt-margin-bottom);
+}
+.exportpanel__line {
+  position: absolute;
+  white-space: pre;
+  line-height: var(--fmt-line);
+}
+
+/* The choices keep their width and the hint beside the buttons wraps instead:
+   a tick wrapping away from "Include" reads as a different question. Wide
+   enough for the three ticks on one line; a longer hint wraps inside it rather
+   than widening the column (a hint's one-line width is what it asks for). */
+.exportpanel__options {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  flex: none;
+  width: 22rem;
+  max-width: 100%;
+}
+/* Include: a tick for each kind of front sheet the play has. */
+.exportpanel__front {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4) var(--s-6);
+}
+.exportpanel__optlabel {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.exportpanel__language {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  font-size: var(--t-small);
+}
+.exportpanel__language input { width: 8ch; }
+.exportpanel__language .sheet__hint { flex-basis: 100%; }
+.exportpanel__anonymous {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  /* Its checkbox sits under the Include row's last one, and a 14px target
+     needs 24px to the next (WCAG 2.2 target size): the column's 8px gap
+     alone leaves 22. */
+  margin-top: var(--s-3);
+}
+/* The name found on a sheet an anonymous copy holds: a caution, not an error —
+   the copy can still go, and it may be meant (a character who shares a name). */
+.exportpanel__anonymous .sheet__hint.is-warning { color: var(--warn-text); }
+.exportpanel__check {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--t-small);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.exportpanel__hint {
+  color: var(--ash);
+}
+.exportpanel__foothint {
+  text-align: right;
+}
+.exportpanel__check input {
+  margin: 0.15rem 0 0;
+  accent-color: var(--accent);
+}
+.exportpanel__hint {
+  font-style: normal;
+  color: var(--ash);
+  font-size: var(--t-mini);
+}
+.exportpanel__foothint {
+  margin-right: auto;
+  align-self: center;
+}
+

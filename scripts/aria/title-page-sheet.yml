@@ -1,0 +1,134 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2] [selected]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+      - button "Close The Weight of Water"
+    - listitem "Outline":
+      - button "Outline"
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 1 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT ONE · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 1 · 1 page · 5 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Status
+  - 'button "Scene status: draft"': draft
+  - text: Label
+  - textbox "Label"
+  - text: Colour
+  - radiogroup "Card colour":
+    - radio "Unmarked"
+    - radio "Setup" [checked]
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: setup
+  - text: Board note · never prints
+  - textbox "Board note"
+  - text: On stage MARA 3 JONAH 2 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Opening Pages":
+  - heading "Opening Pages" [level=2]
+  - text: Title page, Characters page, then optional opening notes. You choose the content. Title
+  - textbox "Title"
+  - text: Credit
+  - textbox "Credit"
+  - text: Authors
+  - textbox "Authors"
+  - text: Contact
+  - textbox "Contact"
+  - text: Draft date
+  - textbox "Draft date"
+  - text: Write the title page freely
+  - checkbox "Write the title page freely"
+  - heading "Opening Notes" [level=2]
+  - paragraph: An optional page for setting, time, place, a dedication or other notes. Write your own headings, or leave it empty to omit the page.
+  - group "Opening notes text":
+    - toolbar "Formatting":
+      - 'button "Paragraph style: Heading 2"': Heading 2
+      - button "Bold"
+      - button "Italic"
+      - 'button "Text alignment: Align Left"': Align Left
+      - button "Bulleted list":
+        - img
+      - button "Numbered list":
+        - img
+    - heading "Setting" [level=2]
+    - paragraph: A coastal kitchen, and the rooms of memory around it.
+    - heading "Time" [level=2]
+    - paragraph: The last night of winter.
+  - text: Place opening notes
+  - 'button "Place opening notes: After Characters"': After Characters
+  - paragraph: Edit the Characters page in Cast. Export lets you choose which opening pages to include.
+  - button "Cancel"
+  - button "Save"
+  - status
+  - alert

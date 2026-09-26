@@ -1,0 +1,59 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Cast tiers: principals / supporting / mentioned -------------------------- */
+.castgroup__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  margin: 0;
+  padding: var(--s-4) var(--s-5) var(--s-2);
+  background: var(--cream);
+  border-top: 0.5px solid var(--rule);
+  font-size: var(--t-mini);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.castgroup:first-of-type .castgroup__head {
+  border-top: none;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .castgroup__head {
+    color: var(--ink-2);
+  }
+}
+.castgroup__count {
+  font-size: var(--t-label);
+  color: var(--ash);
+}
+/* The size of the part, stated plainly beside the row it explains. */
+.castcard__weight {
+  font-size: var(--t-mini);
+  color: var(--ash);
+  font-variant-numeric: tabular-nums;
+}
+/* No trailing "·" here: `.castcard__meta` is a space-between flex row, so the
+   chip is not followed by anything to separate — the dot just dangled in the
+   gap ("3 lines · 2 scenes ·"). */
+.casthidden {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.casthidden__chip {
+  height: var(--h-mini);
+  border: 0.5px dashed var(--rule-strong);
+  border-radius: var(--r-pill);
+  background: transparent;
+  color: var(--ash);
+  font: inherit;
+  font-size: var(--t-mini);
+  padding: 0 var(--s-4);
+  cursor: pointer;
+}
+.casthidden__chip:hover {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+

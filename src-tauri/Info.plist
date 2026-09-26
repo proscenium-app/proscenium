@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  SPDX-FileCopyrightText: 2026 Habiby LLC
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  Keys merged into the macOS app's Info.plist. Tauri reads the Info.plist that
+  sits beside tauri.conf.json; everything else in the plist is generated.
+
+    LSRequiresNativeExecution    Proscenium never runs under Rosetta. The app
+                                 is universal (release-engineering §1): an
+                                 Apple silicon Mac runs its arm64 slice and an
+                                 Intel Mac its x86_64 one. This key removes the
+                                 last way to run it translated, Finder's "Open
+                                 using Rosetta", and LaunchServices runs it
+                                 natively even when asked for Intel. Under
+                                 Rosetta, macOS 26 tells the writer "Support
+                                 Ending for Intel-based Apps: This version of
+                                 “Proscenium” will not open in a future release
+                                 of macOS". That is untrue of this app, and it
+                                 appeared on 2026-09-13, from the self-test's
+                                 Intel run. That run still works: `arch -x86_64`
+                                 starts the binary without LaunchServices.
+
+    NSUbiquitousContainers       Publishes the app's iCloud container to iCloud
+                                 Drive as a folder called Proscenium. Without
+                                 it the container is
+                                 there and the app writes into it, but Finder
+                                 shows no such folder. Public document scope,
+                                 folders at any depth. Apple notes a change
+                                 here needs a higher CFBundleVersion to take.
+-->
+<plist version="1.0">
+<dict>
+  <key>LSRequiresNativeExecution</key>
+  <true/>
+  <key>NSUbiquitousContainers</key>
+  <dict>
+    <key>iCloud.org.habiby.proscenium</key>
+    <dict>
+      <key>NSUbiquitousContainerIsDocumentScopePublic</key>
+      <true/>
+      <key>NSUbiquitousContainerName</key>
+      <string>Proscenium</string>
+      <key>NSUbiquitousContainerSupportedFolderLevels</key>
+      <string>Any</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

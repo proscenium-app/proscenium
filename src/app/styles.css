@@ -1,0 +1,39 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Fixed cascade order. Keep feature overrides after the surfaces they refine. */
+@import "./styles/diagnostics.css";
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/controls.css";
+@import "./styles/binder.css";
+@import "./styles/materials.css";
+@import "./styles/plays.css";
+@import "./styles/panes.css";
+@import "./styles/cast.css";
+@import "./styles/history.css";
+@import "./styles/script-shell.css";
+@import "./styles/board.css";
+@import "./styles/material-conflict.css";
+@import "./styles/outline.css";
+@import "./styles/cast-tiers.css";
+@import "./styles/markdown.css";
+@import "./styles/composer.css";
+@import "./styles/find.css";
+@import "./styles/status-controls.css";
+@import "./styles/presence.css";
+@import "./styles/version-compare.css";
+@import "./styles/export.css";
+@import "./styles/import.css";
+@import "./styles/touch-controls.css";
+@import "./styles/changes.css";
+@import "./styles/settings.css";
+@import "./styles/format-designer.css";
+@import "./styles/window-shell.css";
+@import "./styles/inspector.css";
+@import "./styles/focus.css";
+@import "./styles/help.css";
+@import "./styles/title-page.css";
+@import "./styles/binder-scenes.css";
+@import "./styles/accessibility.css";

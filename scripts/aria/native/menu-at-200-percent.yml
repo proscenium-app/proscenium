@@ -1,0 +1,95 @@
+- banner
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water" [haspopup]
+  - tablist "What this pane shows"
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder"
+  - sectionheader
+    - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items"
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - treeitem "SCENE 1 1" [level=2]
+    - treeitem "SCENE 2 1–2" [level=2]
+    - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [level=1] [expanded]
+    - treeitem "Mara" [level=2]
+    - treeitem "Jonah" [level=2]
+    - treeitem "Research" [level=1] [expanded]
+    - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [level=1] [expanded]
+    - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [level=1] [expanded]
+    - treeitem "Logline" [level=2]
+  - sectionfooter
+    - button "New" [haspopup]
+- main "Play"
+  - group "Open in this pane"
+    - listitem "The Weight of Water"
+      - button "The Weight of Water" [current=true]
+      - button "Close The Weight of Water"
+    - listitem "Outline"
+      - button "Outline"
+  - button "Add a surface to this pane" [haspopup]
+  - button "What this line is: Action" [haspopup]
+  - button "Bold"
+  - button "Italic"
+  - button "Underline"
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C" [pressed]
+  - textbox "Script"
+  - image "Scene navigation: 2 pages. On screen: <scene>"
+- complementary "Inspector"
+  - tablist "Inspector"
+    - tab "Scene"
+    - tab "Comments" [selected]
+  - button "Open as a pane"
+  - sectionheader
+    - heading "0comments" [level=2]
+    - button "Filter comments: All Comments" [haspopup]
+  - paragraph
+    - none
+    - code
+  - group
+- contentinfo
+  - button "<plays folder>/The Weight of Water"
+  - button "Zoom out"
+  - button "Zoom: 100%" [haspopup]
+  - button "Zoom in"
+- status [live=polite]
+- alert [live=assertive]
+- menu "Document"
+  - menuitem "All Plays ⌘⇧O"
+  - menuitem "Reveal in Finder"
+  - separator
+  - menuitemcheckbox "Dramatists Guild — Modern" [checked]
+  - menuitemcheckbox "Proscenium House" [checked]
+  - menuitemcheckbox "UK / International (BBC)" [checked]
+  - menuitem "All Formats" [haspopup]
+  - menuitem "Edit Current Format…"
+  - menuitem "Play Language…"
+  - separator
+  - menuitemcheckbox "Page View" [checked]
+  - menuitemcheckbox "Check Spelling as You Type" [checked]
+  - separator
+  - menuitem "Edit Opening Pages…"
+  - menuitem "Versions…"
+  - separator
+  - menuitem "Settings… ⌘,"
+  - menuitem "Export PDF… ⌘⇧E"
+  - menuitem "Export .docx…"
+  - menuitem "Export .odt…"
+  - menuitem "Print… ⌘P" [selected]

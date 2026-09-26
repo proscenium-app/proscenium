@@ -1,0 +1,40 @@
+- banner
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main
+  - sectionheader
+    - heading "<plays folder name>" [level=1]
+    - none
+      - textbox "Search plays"
+    - button "New Play" [haspopup]
+    - button "Import a Draft…"
+  - sectionheader
+    - heading "Plays" [level=2]
+    - paragraph
+    - paragraph
+  - table "Plays"
+    - row
+      - cell
+        - button "The Lighthouse"
+        - textbox "Logline for The Lighthouse"
+      - cell
+      - cell
+        - button "Status for The Lighthouse: drafting" [haspopup]
+      - cell
+    - row
+      - cell
+        - button "The Weight of Water"
+        - textbox "Logline for The Weight of Water"
+      - cell
+      - cell
+        - button "Status for The Weight of Water: drafting" [haspopup]
+      - cell
+    - row
+      - columnheader
+      - columnheader
+      - columnheader
+      - columnheader
+- contentinfo
+  - button "<plays folder>"
+- status [live=polite]
+- alert [live=assertive]

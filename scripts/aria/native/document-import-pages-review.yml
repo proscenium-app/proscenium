@@ -1,0 +1,42 @@
+- dialog "Review Your Draft"
+  - heading "Review Your Draft" [level=2]
+  - none
+    - textbox "New play name"
+  - paragraph "<plays folder>"
+  - button "Choose Different Files…"
+  - generic [live=polite]: 13 paragraphs1 scene heading2 charactersAll elements come from the source or your choices
+  - group
+    - none "What carries across · 1 note"
+  - textbox "Find text in import"
+  - checkbox "Inferred or Unrecognized Only" [checked]
+  - button "Unstyled text: Recognize Script Elements" [haspopup]
+  - region "Paragraph preview"
+    - heading "Reading preview" [level=3]
+    - button "Paragraph 1, Act: ACT ONE"
+    - button "Paragraph 2, Scene: Scene 1. The waiting room."
+    - button "Paragraph 3, Stage Direction: A harbor office after the last ferry."
+    - button "Paragraph 4, Stage Direction: Rain at the windows."
+    - button "Paragraph 5, Character: MARA" [pressed]
+    - button "Paragraph 6, Dialogue: You said it would wait."
+    - button "Paragraph 7, Character: ELI"
+    - button "Paragraph 8, Parenthetical: (folding the timetable)"
+    - button "Paragraph 9, Dialogue: I said we had time."
+    - button "Paragraph 10, Stage Direction: She sets down a small blue suitcase."
+    - button "Paragraph 11, Character: MARA"
+    - button "Paragraph 12, Dialogue: There is a difference."
+    - button "Paragraph 13, Stage Direction: LIGHTS OUT."
+    - button "Previous" [disabled]
+    - button "Next" [disabled]
+  - complementary "Adjust paragraph"
+    - heading "Paragraph 5" [level=3]
+    - paragraph
+    - paragraph
+    - button "Element: Character" [haspopup]
+    - paragraph
+    - button "Use for This Source Style"
+    - paragraph
+    - button "Reset All Corrections" [disabled]
+  - button "Cancel"
+  - button "Create New Play"
+  - status [live=polite]
+  - alert [live=assertive]

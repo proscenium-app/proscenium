@@ -1,0 +1,179 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+
+/* Changes surface ----------------------------------- */
+/* What arrived in this folder from outside the app: another device,
+   another editor. The change has already landed — this is where it becomes
+   visible, and undoable. */
+.changes {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 20px var(--s-7) 40px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.changes--empty {
+  display: flex;
+  padding: 0;
+  height: 100%;
+}
+.changes__hint {
+  color: var(--ash);
+  font-size: var(--t-small);
+  margin: 0;
+}
+.changes__group {
+  margin: var(--s-5) 0 0;
+  color: var(--ink-2);
+  font-size: var(--t-mini);
+  font-weight: 600;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .changes__group {
+    color: var(--ink-2);
+  }
+}
+/* A disclosure card: the header is the whole summary, and the diff is inside
+   the same box rather than in a panel that opens somewhere else. */
+.change {
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-menu);
+  background: var(--paper);
+  box-shadow: var(--sh-card);
+  overflow: hidden;
+}
+/* Settled entries lose their shadow, while their text keeps full contrast. */
+.change--kept,
+.change--reverted {
+  box-shadow: none;
+}
+.change__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: 10px 14px;
+}
+.change__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--t-small);
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+}
+.change__when,
+.change__path {
+  color: var(--ash);
+  font-size: var(--t-mini);
+}
+.change__path {
+  font-family: var(--font-script);
+}
+/* Text from outside. Quoted, plain, never markup. */
+.change__note {
+  flex-basis: 100%;
+  color: var(--ink-2);
+  font-style: italic;
+  font-size: var(--t-small);
+}
+.change__stats {
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  font-variant-numeric: tabular-nums;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.change__add { color: var(--ok-text); }
+.change__del { color: var(--bad); }
+.change__nobase {
+  color: var(--ash);
+  font-style: italic;
+  font-size: var(--t-mini);
+}
+.change__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex: none;
+}
+.change__status {
+  color: var(--ash);
+  font-size: var(--t-mini);
+}
+/* The diff sits on the card's own tint, indented past the disclosure so the
+   header still reads as the thing that owns it. */
+.change__diff {
+  border-top: 0.5px solid var(--rule);
+  padding: var(--s-4) 14px var(--s-4) 32px;
+  max-height: 26rem;
+  overflow: auto;
+  background: #f8f2e4;
+  font-family: var(--font-script);
+  font-size: var(--t-mini);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+@media all{
+  :where(:root[data-theme="dark"]) .change__diff {
+    background: var(--cream);
+  }
+}
+.diffline--add { color: var(--moss); }
+.diffline--del { color: var(--bad); }
+.diffline--skip { color: var(--ash); font-style: italic; }
+
+/* A scene something arrived in from outside the app. The
+   Changes surface holds the diff; these say WHERE, so a change reads as
+   located in the play rather than filed in a list. */
+.card.is-changed {
+  box-shadow: inset 3px 0 0 var(--warn-border);
+}
+.card__changed,
+.outliner__changed {
+  padding: 0 0.3rem;
+  border-radius: 2px;
+  background: var(--warn-tint);
+  color: var(--warn-text);
+  font-size: var(--t-label);
+  letter-spacing: 0.03em;
+}
+.outliner__changed {
+  margin-left: 0.35rem;
+}
+.outliner__row.is-changed {
+  box-shadow: inset 3px 0 0 var(--warn-border);
+}
+
+
+/* Inline tracked changes ---------------------------- */
+/* A view layer only: these marks are ProseMirror decorations derived from the
+   ledger's diff. Nothing here is in the document, so turning the layer off
+   leaves the play byte-identical. */
+.tracked-added {
+  background: color-mix(in srgb, var(--moss) 16%, transparent);
+  box-shadow: inset 2px 0 0 var(--moss);
+}
+.tracked__removed {
+  margin: 0.1rem 0;
+  padding-left: 0.4rem;
+  box-shadow: inset 2px 0 0 var(--oxide);
+  user-select: none;
+}
+.tracked__removedline {
+  display: block;
+  color: var(--oxide);
+  opacity: 0.75;
+  text-decoration: line-through;
+  white-space: pre-wrap;
+}
+

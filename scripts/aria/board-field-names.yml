@@ -1,0 +1,88 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board" [selected]
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+    - listitem "Board":
+      - button "Board"
+      - button "Close Board"
+    - listitem "The Weight of Water":
+      - button "The Weight of Water"
+  - button "Add a surface to this pane"
+  - heading "ACT ONE 2 pages" [level=3]
+  - group "ACT ONE · SCENE 1":
+    - button "ACT ONE · SCENE 1"
+    - text: Page 1
+    - textbox "Summary — ACT ONE · SCENE 1"
+    - group:
+      - text: Details · Notes & label
+      - textbox "Notes — ACT ONE · SCENE 1"
+      - textbox "Label — ACT ONE · SCENE 1"
+    - 'button "Scene status — ACT ONE · SCENE 1: draft"': draft
+    - button "Move earlier — ACT ONE · SCENE 1" [disabled]
+    - button "Move later — ACT ONE · SCENE 1"
+  - group "ACT ONE · SCENE 2":
+    - button "ACT ONE · SCENE 2"
+    - text: Pages 1–2
+    - textbox "Summary — ACT ONE · SCENE 2"
+    - group: Details · Notes & label
+    - 'button "Scene status — ACT ONE · SCENE 2: outline"': outline
+    - button "Move earlier — ACT ONE · SCENE 2"
+    - button "Move later — ACT ONE · SCENE 2"
+  - heading "ACT TWO 1 page" [level=3]
+  - group "ACT TWO · SCENE 1":
+    - button "ACT TWO · SCENE 1"
+    - text: Page 2
+    - textbox "Summary — ACT TWO · SCENE 1"
+    - group: Details · Notes & label
+    - 'button "Scene status — ACT TWO · SCENE 1: idea"': idea
+    - button "Move earlier — ACT TWO · SCENE 1"
+    - button "Move later — ACT TWO · SCENE 1" [disabled]
+  - button "New Scene"
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: 1 format warning Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert

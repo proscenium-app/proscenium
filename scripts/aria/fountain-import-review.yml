@@ -1,0 +1,90 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Lighthouse"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: The Lighthouse
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Lighthouse Rename “The Lighthouse” Actions for “The Lighthouse”" [level=1] [selected]:
+      - text: The Lighthouse
+      - button "Rename “The Lighthouse”"
+      - button "Actions for “The Lighthouse”"
+    - group "Scenes in The Lighthouse":
+      - treeitem "THE LAMP ROOM 1" [level=2]
+      - treeitem "THE LEDGER 1" [level=2] [selected]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Ideas" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - 'button "What this line is: Dialogue"': Dialogue
+  - text: Tab cycles · ; menu
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 1 of 1
+  - textbox "Script"
+  - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- contentinfo:
+  - button "/dev/sample-vault/The Lighthouse"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Review Your Draft":
+  - heading "Review Your Draft" [level=2]
+  - text: Draft.fountain · Fountain New play name
+  - textbox "New play name"
+  - text: In your Plays folder
+  - paragraph: /dev/sample-vault
+  - button "Choose Different Files…"
+  - strong: 4 paragraphs
+  - text: 1 scene heading 1 characters All elements come from the source or your choices
+  - group: What carries across
+  - textbox "Find text in import"
+  - checkbox "Inferred or Unrecognized Only"
+  - text: Inferred or Unrecognized Only
+  - 'button "Unstyled text: Recognize Script Elements"': Recognize Script Elements
+  - region "Paragraph preview":
+    - heading "Reading preview" [level=3]
+    - text: Choose a paragraph to adjust its element.
+    - 'button "Paragraph 1, Scene Heading: INT. PIER - DAWN" [pressed]': 1 INT. PIER - DAWN Scene Heading
+    - 'button "Paragraph 2, Stage Direction: The water is very still."': 2 The water is very still. Stage Direction
+    - 'button "Paragraph 3, Character: NELL"': 3 NELL Character
+    - 'button "Paragraph 4, Dialogue: It was never this quiet."': 4 It was never this quiet. Dialogue
+    - button "Previous" [disabled]
+    - text: 1–4 of 4
+    - button "Next" [disabled]
+  - complementary "Adjust paragraph":
+    - heading "Paragraph 1" [level=3]
+    - paragraph: From the script
+    - paragraph: INT. PIER - DAWN
+    - 'button "Element: Scene Heading"': Scene Heading
+    - paragraph: "Source style: sceneHeading"
+    - button "Use for This Source Style"
+    - paragraph: Applies to 1 paragraph. Individual corrections take priority.
+    - button "Reset All Corrections" [disabled]
+  - text: Creates a new play. Keeps a copy of the original.
+  - button "Cancel"
+  - button "Create New Play"
+  - status
+  - alert

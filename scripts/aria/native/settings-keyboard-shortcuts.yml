@@ -1,0 +1,137 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts" [selected]
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Keyboard Shortcuts"
+    - heading "Keyboard Shortcuts" [level=3]
+    - heading "ELEMENTS" [level=3]
+    - none
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+    - heading "EMPHASIS" [level=3]
+    - none
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+    - heading "NAVIGATION" [level=3]
+    - none
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+    - heading "VIEWS AND PANELS" [level=3]
+    - none
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+    - heading "THE SCRIPT" [level=3]
+    - none
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+    - heading "THE PLAY" [level=3]
+    - none
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+      - term
+      - definition
+    - heading "ELEMENT MENU: ; THEN A KEY" [level=3]
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+    - none
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]
