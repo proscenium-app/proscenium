@@ -320,8 +320,11 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
     // The plugin's `Update` starts with no deadline of its own, whatever the
     // builder was given.
     update.timeout = Some(DOWNLOAD_TIMEOUT);
-    let version = update.version.clone();
-    publish(app, UpdateState::Downloading { version: version.clone(), received: 0, total: None });
+    // The update's version, for the progress the page shows. `version` stays
+    // this copy's own: the installer's check below compares the two, and
+    // naming them alike once made every update "not newer than this version".
+    let offered = update.version.clone();
+    publish(app, UpdateState::Downloading { version: offered.clone(), received: 0, total: None });
     let mut received = 0u64;
     let mut last = Instant::now();
     let progress = app.clone();
@@ -334,7 +337,7 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
                     last = Instant::now();
                     publish(
                         &progress,
-                        UpdateState::Downloading { version: version.clone(), received, total },
+                        UpdateState::Downloading { version: offered.clone(), received, total },
                     );
                 }
             },

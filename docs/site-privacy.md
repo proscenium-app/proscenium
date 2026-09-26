@@ -36,7 +36,7 @@ service's, so neither can send something this page does not list.
 | Optional feedback details | The exact text under View Details, only when Include technical details is checked | Help understand the problem you are reporting. |
 | Included diagnostic facts | app version/channel, chip, macOS version, accent, built-in format ids or `user`, default format, preference switches, sync-provider kind | Reproduce the setup that matters to your feedback. No play, user-format name, learned word or path appears. |
 | Included diagnostic history | last 20 error codes with their local times/repeat counts; safe local crash summaries | Understand the failures you chose to show us. These precise local times appear only in details you inspect and include. |
-| A browser link you choose | releases, one release version, license or privacy | Open the page you requested. These links are not usage events. |
+| A browser link you choose | releases, one release version, license, support or privacy | Open the page you requested. These links are not usage events. |
 
 The failure kinds are `RustPanic` for a native panic and `Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `EvalError`, `URIError`, `AggregateError`, `InternalError`, `UnhandledRejection`, `PageError`, `AbortError`, `DataCloneError`, `InvalidStateError`, `NotFoundError`, `NotAllowedError`, `NotSupportedError`, `SecurityError`, `QuotaExceededError`, `NetworkError`, `TimeoutError`, `InvalidCharacterError`, `HierarchyRequestError`, `IndexSizeError` for a page failure. An unrecognized page failure uses `Error`.
 
@@ -45,33 +45,45 @@ The built-in format values are `dg-modern`, `stage-us-modern`, `stage-uk`, `samu
 
 There are no usage/session/user ids, exact play counts, location fields,
 locale, device names, cookies, custom user-agent strings or writing in the
-automatic reports. A network connection necessarily reveals an address to the
-service that answers it. Cloudflare uses it for connection handling and brief
-rate-limit buckets. Our Worker does not store it or derive an identifier from
-it. It is not forwarded to Sentry. Sentry itself records a country and city
-with each crash report, worked out from the address that delivers it: the
-Cloudflare data centre that forwards the report, which is the one nearest you,
-never your own address. Sentry adds this on arrival and offers no way to turn
-it off; we do not use it. The independent GitHub updater fallback connects to
-GitHub directly when the first endpoint fails.
+automatic reports. Any connection shows your internet address to the service
+that answers it. Our service uses it only while answering, to handle the
+connection and limit abuse; it is not stored, turned into an identifier or
+passed on. Sentry labels each crash report with an approximate country and
+city, worked out from the server that passed the report on: one near you,
+never your own address. We do not use that label. If our update service
+cannot be reached, the app checks GitHub for updates instead, connecting to it
+directly.
 
-The update service and daily counts run on Cloudflare. We keep daily totals
-for two years, with no underlying request records. Usage batches wait only in
-memory on the Mac and expire after seven days. Sentry receives the bounded
-crash envelope through our service and keeps errors for its verified 30-day
-lookback. Our Worker stores no copy of a crash. Locally, at most 20 crash files
-remain until sent or replaced by newer records.
+Our service runs on Cloudflare, and crash reports are stored with Sentry.
+Both handle this data only on our behalf. Update checks, downloads and usage
+counts are kept only as daily totals, for two years, with no record of any
+single request. Crash reports are kept for 30 days, and our service keeps no
+copy of them. On your Mac, unsent usage counts wait only in memory, for up to
+seven days, and at most 20 crash records wait until they are sent or replaced
+by newer ones.
 
-Feedback is kept in a private list on our Cloudflare service, and copied each
-day to the Proscenium team's own computer for review. Both copies are deleted
-after one year. Only the Proscenium team reads it, and it is never emailed or
-forwarded. Your address is used only to reply to you. The app keeps one unsent
+Feedback is held privately and securely by the Proscenium team, and every
+copy is deleted after one year. Only the team reads it, and it is never
+forwarded or shared. Your address is used only to reply to you. The app keeps one unsent
 draft outside the Plays folder until a confirmed send or Discard Draft. It is
 never sent in the background. Technical details are gathered fresh and are not
 saved in the draft.
 
 Settings > Privacy turns usage and crash reports off immediately and discards
 queued reports. Update checks have their own switch. Feedback remains available
-with both off. Opening or closing Feedback sends nothing. The page itself
-makes no external requests; every app request leaves through Rust.
+with both off. Opening or closing Feedback sends nothing.
 
+**This website** counts visits with Cloudflare Web Analytics: totals such as
+the pages viewed, the site that sent you there and your country. It sets no
+cookies, stores nothing in your browser and does not follow you from site to
+site. A link you open from the app is an ordinary visit; the app itself sends
+nothing to the website.
+
+**Sponsors** give through GitHub Sponsors, and GitHub handles the payment; we
+never see card details. GitHub tells us each sponsorship's amount and date and,
+unless you sponsor privately, your public GitHub name. We keep that only to
+thank you by name on this website and in the app's About. A private sponsor is
+counted, never named. A monthly sponsor is removed when the sponsorship ends,
+and a one-time gift after a year. The app never asks for the list: each release
+carries it as it stood when that release was built. GitHub's own terms cover
+what GitHub keeps and shows us.

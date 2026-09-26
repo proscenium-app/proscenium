@@ -10,7 +10,7 @@ Initial allocation: 2026-09-21. Every integer in each inclusive range is permane
 | FMT | 1 | 157 |
 | IMPT | 1 | 103 |
 | PLAT | 1 | 66 |
-| PRIV | 1 | 83 |
+| PRIV | 1 | 85 |
 | PROD | 1 | 30 |
 | REL | 1 | 123 |
 | SERV | 1 | 264 |

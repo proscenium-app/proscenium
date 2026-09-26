@@ -157,7 +157,11 @@ Proscenium sends and the reason for each piece.
 - <a id="SERV-50"></a> **SERV-50** **The page cannot promise less than the app sends.** The table is generated
   from, or held by a test to, `events.rs` and the Worker's event list.
 - <a id="SERV-51"></a> **SERV-51** **The page also says** what is never collected, what the switch turns off,
-  and where each kind of data goes and for how long.
+  and where each kind of data goes and for how long. "Where" is whose hands:
+  the writer's Mac, the Proscenium team, and the service providers it names.
+  The page never says which machine holds a copy or how copies move between
+  them (decided 2026-09-25), so that plumbing can change without the page
+  becoming untrue, and so the page is no map of where the data sits.
 - <a id="SERV-52"></a> **SERV-52** **Where it appears:** docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D7 and the site's privacy
   page. Settings › Privacy links to the site's page.
 
