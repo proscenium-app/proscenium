@@ -50,6 +50,9 @@ mod download;
 #[cfg(all(test, target_os = "macos"))]
 #[path = "updates/tests/rehearsal.rs"]
 mod rehearsal;
+#[cfg(all(test, target_os = "macos"))]
+#[path = "updates/tests/update_path.rs"]
+mod update_path;
 #[cfg(target_os = "macos")]
 mod install;
 
@@ -300,9 +303,8 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
     let configured = updater_config.get("endpoints").and_then(|v| v.as_array())
         .and_then(|list| list.iter().map(|v| v.as_str()).collect::<Option<Vec<_>>>())
         .ok_or_else(|| std::io::Error::other("No update endpoints"))?;
-    let version = crate::version::whole(app);
-    let current = semver::Version::parse(&version).map_err(std::io::Error::other)?;
-    let endpoints = endpoints_for(&configured, track, &version)
+    let this = crate::version::whole(app);
+    let endpoints = endpoints_for(&configured, track, &this)
         .ok_or_else(|| std::io::Error::other("No update endpoints for this track"))?
         .iter()
         .map(|s| reqwest::Url::parse(s))
@@ -312,39 +314,88 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
         return Err(std::io::Error::other("The update endpoint is not permitted").into());
     }
     let os = crate::telemetry::operating_system().1.split('.').take(2).collect::<Vec<_>>().join(".");
-    let Some(mut update) = metadata(app, &endpoints, &os, key.as_deref(), &current).await? else {
+    let pubkey = updater_config.get("pubkey").and_then(|v| v.as_str()).unwrap_or("");
+    let mut last = Instant::now();
+    take_offer(
+        app, &endpoints, &os, key.as_deref(), &this, pubkey, &config.identifier, &Allowlisted,
+        || {
+            #[cfg(target_os = "macos")]
+            install::preflight(&install::running_bundle()?)?;
+            Ok(())
+        },
+        |offered, received, total| {
+            // A progress event per network chunk would be hundreds a second.
+            if received == 0 || last.elapsed() >= Duration::from_millis(250) {
+                last = Instant::now();
+                publish(app, UpdateState::Downloading { version: offered.to_string(), received, total });
+            }
+        },
+    )
+    .await
+}
+
+/// How an offer's archive is fetched. In the app, download.rs's bounded,
+/// allowlisted transport; in the update path's test, the same verification
+/// over loopback, which the allowlist rightly refuses. It is the only part of
+/// [`take_offer`] a test replaces.
+trait Transport {
+    async fn archive(&self, update: &Update, pubkey: &str, progress: impl FnMut(usize, Option<u64>)) -> Result<Vec<u8>, UpdaterError>;
+}
+
+struct Allowlisted;
+
+impl Transport for Allowlisted {
+    async fn archive(&self, update: &Update, pubkey: &str, progress: impl FnMut(usize, Option<u64>)) -> Result<Vec<u8>, UpdaterError> {
+        download::archive(update, pubkey, progress).await
+    }
+}
+
+/// Everything a check does once it knows where to ask: find an offer newer
+/// than `this`, the whole version this copy answers to; check the copy can be
+/// replaced where it stands; download the offer and verify its signature; and
+/// hold the archive to `this` once more before anything is kept.
+///
+/// `this` is the one version both comparisons use, passed in by name. When the
+/// download step named the offer's version `version` too, the installer's
+/// check compared every update with itself and refused it, and no copy built
+/// from 2026-09-23 could update (f8b7da7). The update path's test
+/// (updates/tests/update_path.rs, docs/engineering/release-engineering.md#REL-125)
+/// runs this function as the app does, with only its transport swapped, so
+/// that cannot come back unseen.
+#[allow(clippy::too_many_arguments)]
+async fn take_offer<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    endpoints: &[reqwest::Url],
+    os: &str,
+    key: Option<&str>,
+    this: &str,
+    pubkey: &str,
+    identifier: &str,
+    transport: &impl Transport,
+    preflight: impl FnOnce() -> Result<(), UpdaterError>,
+    mut progress: impl FnMut(&str, u64, Option<u64>),
+) -> Result<Option<(Update, Vec<u8>)>, UpdaterError> {
+    let current = semver::Version::parse(this).map_err(std::io::Error::other)?;
+    let Some(mut update) = metadata(app, endpoints, os, key, &current).await? else {
         return Ok(None);
     };
-    #[cfg(target_os = "macos")]
-    install::preflight(&install::running_bundle()?)?;
+    preflight()?;
     // The plugin's `Update` starts with no deadline of its own, whatever the
     // builder was given.
     update.timeout = Some(DOWNLOAD_TIMEOUT);
-    // The update's version, for the progress the page shows. `version` stays
-    // this copy's own: the installer's check below compares the two, and
-    // naming them alike once made every update "not newer than this version".
     let offered = update.version.clone();
-    publish(app, UpdateState::Downloading { version: offered.clone(), received: 0, total: None });
+    progress(&offered, 0, None);
     let mut received = 0u64;
-    let mut last = Instant::now();
-    let progress = app.clone();
-    let key = updater_config.get("pubkey").and_then(|v| v.as_str()).unwrap_or("");
-    let bytes = download::archive(&update, key,
-            |chunk, total| {
-                received += chunk as u64;
-                // A progress event per network chunk would be hundreds a second.
-                if last.elapsed() >= Duration::from_millis(250) {
-                    last = Instant::now();
-                    publish(
-                        &progress,
-                        UpdateState::Downloading { version: offered.clone(), received, total },
-                    );
-                }
-            },
-        )
+    let bytes = transport
+        .archive(&update, pubkey, |chunk, total| {
+            received += chunk as u64;
+            progress(&offered, received, total);
+        })
         .await?;
     #[cfg(target_os = "macos")]
-    install::inspect(&bytes, &app.config().identifier, &update.version, &version)?;
+    install::inspect(&bytes, identifier, &update.version, this)?;
+    #[cfg(not(target_os = "macos"))]
+    let _ = identifier;
     Ok(Some((update, bytes)))
 }
 

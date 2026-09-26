@@ -70,13 +70,18 @@ What VoiceOver reads is the accessibility tree, so the tree is what is checked.
 These replace A11Y-14 (docs/engineering/withdrawn-requirements.md#A11Y-14), whose
 last promise was a human VoiceOver pass that will never run.
 
-- <a id="A11Y-15"></a> **A11Y-15** **Smoke, in two engines.** `bun run smoke` runs every check in
-  Chromium and in Playwright's WebKit, in both schemes. On every surface it
-  opens it runs axe-core against WCAG 2.2 A and AA, failing on a serious or
-  critical finding (best-practice advice is printed and does not fail); it
-  presses the keys the rules above promise. In Chromium, in both schemes, it
-  takes Playwright's ARIA snapshot of every surface (`locator.ariaSnapshot()`)
-  and holds it against the checked-in `scripts/aria/<surface>.yml`: roles,
+- **A11Y-15 — Withdrawn 2026-09-26.** Replaced by [A11Y-19](#A11Y-19), which audits every surface in both schemes from one pass per engine ([withdrawn requirements](../../engineering/withdrawn-requirements.md#A11Y-15)).
+- <a id="A11Y-19"></a> **A11Y-19** **Smoke, in two engines and both schemes.** `bun run smoke` runs every check in
+  Chromium and in Playwright's WebKit, one pass per engine in the light scheme.
+  At every surface a check opens it runs axe-core against WCAG 2.2 A and AA,
+  then switches the page to the dark scheme, runs it again and switches back,
+  failing on a serious or critical finding in either (best-practice advice is
+  printed and does not fail); it presses the keys the rules above promise. So
+  both schemes are read from the same page, in the same state, and a check that
+  only drives behaviour runs once. In Chromium, in both schemes at each of those
+  surfaces, it takes Playwright's ARIA snapshot (`locator.ariaSnapshot()`)
+  and holds it against the checked-in `scripts/aria/<surface>.yml` (or
+  `<surface>.dark.yml` where the dark scheme reads it otherwise): roles,
   names, states and the live regions, with the page's own words and other
   timing left out. In both engines, dedicated checks hold the script as a named
   text box whose words are what was just typed, a live region whose words in
@@ -84,9 +89,10 @@ last promise was a human VoiceOver pass that will never run.
   through a sheet, each engine's own file where they differ. Limits: the
   snapshot is Playwright's own reading of the ARIA and HTML-AAM rules, which
   reads the same in both engines, so it is held once and is not either
-  engine's platform tree; it gives an editable element no value; and
-  Playwright's WebKit is a WebKit, not Apple's WKWebView and not the floor's
-  Safari.
+  engine's platform tree; it gives an editable element no value; a page that
+  boots in the dark scheme is the native self-test's, whose dark pass launches
+  so (A11Y-16), not smoke's; and Playwright's WebKit is a WebKit, not Apple's
+  WKWebView and not the floor's Safari.
 - <a id="A11Y-16"></a> **A11Y-16** **The native self-test, in WebKit's own tree.** In the real
   app's WKWebView, on every surface the checks audit, the self-test reads the
   tree WebKit hands its NSAccessibility wrapper, which is what VoiceOver
@@ -97,12 +103,12 @@ last promise was a human VoiceOver pass that will never run.
   API on the app's own pid needs the Accessibility permission, and an
   NSAccessibility walk from the window stops at WebKit's remote element. Each
   surface's tree is held against the checked-in
-  `scripts/aria/native/<surface>.yml`, and the dedicated checks of A11Y-15
+  `scripts/aria/native/<surface>.yml`, and the dedicated checks of A11Y-19
   ask the same questions of it. It runs natively and for the Intel slice under
   Rosetta, on the macOS the build host runs. Limits: the tree is not speech,
   and the Mac's own VoiceOver settings, verbosity and rotor never enter it.
 - <a id="A11Y-17"></a> **A11Y-17** **What may be claimed.** The app, the site and the records
-  claim only what A11Y-15 and A11Y-16 hold: WCAG 2.2 AA as axe-core checks it,
+  claim only what A11Y-19 and A11Y-16 hold: WCAG 2.2 AA as axe-core checks it,
   the keyboard behaviour the checks press, and an accessibility tree WebKit
   builds as expected on every surface the checks visit. None of them claims a
   screen reader was used, a VoiceOver or Voice Control pass, a participant
@@ -132,7 +138,7 @@ WebKit reads some markup differently from Chromium, and the native tree is where
 | Interface text has a 100–200% preference independent of script zoom. | [Interface text requirement](#A11Y-2); `src/app/settings/Appearance.tsx` | Verify usable layout in both schemes. |
 | Menus and sheets support keyboard focus, focus return and top-layer Escape. | [Layer requirement](#A11Y-3), [sheet requirement](#A11Y-5); `src/ui/Menu.tsx`, `src/ui/Sheet.tsx` | Keys pressed by the checks, in two browser engines and the real app; not a person's session. |
 | PDF export includes document title, language and reading structure. | [Metadata requirement](#A11Y-13); [PDF structure](../formatting/formats-and-layout.md#FMT-61); `src/pdf/` | Title, language and pages are read back from the written file ([REL-121](../../engineering/release-engineering.md#REL-121)); no PDF reader or screen reader is tested. |
-| Every surface smoke visits is scanned with axe (WCAG 2.2 AA) and its ARIA snapshot held, in Chromium and WebKit. | [Smoke verification](#A11Y-15); `scripts/smoke-checks.mjs`, `scripts/aria/` | Playwright's reading of the ARIA rules, not a platform tree. |
+| Every surface smoke visits is scanned with axe (WCAG 2.2 AA) and its ARIA snapshot held, in Chromium and WebKit. | [Smoke verification](#A11Y-19); `scripts/smoke-checks.mjs`, `scripts/aria/` | Playwright's reading of the ARIA rules, not a platform tree. |
 | In the real app, WebKit's own accessibility tree is held on every surface the checks visit. | [Native verification](#A11Y-16); [native test design](../../engineering/release-engineering.md#REL-D4); `scripts/aria/native/` | The tree VoiceOver reads, not VoiceOver's speech; the current macOS on Apple silicon, and the Intel slice under Rosetta. |
 
 The website's Guide owns writer-facing explanations. Site accessibility wording may draw from these facts and cited records, and claims only what [A11Y-17](#A11Y-17) allows. It says no screen reader was used, and claims no certification.

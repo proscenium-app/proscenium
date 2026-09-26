@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
-import { updates, GITHUB, UPDATES, TRACK_KEY_HEADER, parseManifest, parseTrackManifest, boundedBytes, trackOf, type Env, type Dependencies } from "../src/updates";
+import { updates, GITHUB, UPDATES, TRACK_KEY_HEADER, UPSTREAM_HEADERS, parseManifest, parseTrackManifest, boundedBytes, trackOf, type Env, type Dependencies } from "../src/updates";
 /** Alpha's key in these tests, and the hash the Worker holds as its secret. */
 const KEY = "k".repeat(22) + "Ey_-0123456789abcdefg";
 const KEY_SHA256 = createHash("sha256").update(KEY).digest("hex");
@@ -17,6 +17,10 @@ const latest = () => ({ version: "0.9.1", notes: "A release.", pub_date: "2026-0
 const trackLatest = (track: string, version: string) => ({ version, notes: "Unreleased.", pub_date: "2026-09-22T20:00:00Z", platforms: {
   "darwin-aarch64": { signature: "b".repeat(100), url: `${UPDATES}/v1/${track}/download/v${version}/Proscenium_${version}_universal.app.tar.gz` },
   "darwin-x86_64": { signature: "b".repeat(100), url: `${UPDATES}/v1/${track}/download/v${version}/Proscenium_${version}_universal.app.tar.gz` },
+} });
+/** A track's manifest since track builds are Apple silicon's alone. */
+const armLatest = (track: string, version: string) => ({ version, notes: "Unreleased.", pub_date: "2026-09-26T20:00:00Z", platforms: {
+  "darwin-aarch64": { signature: "c".repeat(100), url: `${UPDATES}/v1/${track}/download/v${version}/Proscenium_${version}_aarch64.app.tar.gz` },
 } });
 /** R2 as the Worker reads it: `get` and nothing else. */
 function bucket(objects: Map<string, string>): Env["TRACKS"] {
@@ -59,12 +63,12 @@ function fixture() {
   return { env, deps, calls, db, cache, objects, request, run: (r = request()) => updates(r, env, deps) };
 }
 describe("update service", () => {
-  test("counts checks by day and documented fields, never stores an address or supplies one in application headers", async () => {
+  test("counts checks by day and documented fields, never stores an address or sends one upstream", async () => {
     const f = fixture(); const first = await f.run(); const second = await f.run();
     expect(first.status).toBe(200); expect(second.status).toBe(200);
     const data = await first.json() as ReturnType<typeof latest>;
     for (const p of Object.values(data.platforms)) expect(p.url).toBe(`${UPDATES}/v1/download/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz`);
-    expect(f.calls.length).toBe(1); expect([...f.calls[0].headers]).toEqual([]);
+    expect(f.calls.length).toBe(1); expect([...f.calls[0].headers]).toEqual([["user-agent", "proscenium-updates"]]);
     const rows = f.db.query("SELECT * FROM update_counts").all();
     expect(rows).toEqual([{ day: "2026-09-18", kind: "check", platform: "darwin", arch: "aarch64", version: "0.9.0", os: "14.6", count: 2 }]);
     expect(JSON.stringify(rows)).not.toContain("192.0.2.100");
@@ -109,11 +113,11 @@ describe("update service", () => {
       expect((await f.run()).status).toBe(502); expect(calls).toBe(1);
     }
   });
-  test("GitHub asset redirects get fresh empty headers", async () => {
+  test("GitHub asset redirects get fresh headers: the service's name and nothing else", async () => {
     const f = fixture(); const calls: Request[] = [];
     f.deps.fetch = async r => { calls.push(r); return calls.length === 1
       ? new Response(null, { status: 302, headers: { Location: "https://release-assets.githubusercontent.com/asset?signature=public", "Set-Cookie": "private" } }) : Response.json(latest()); };
-    expect((await f.run()).status).toBe(200); expect(calls).toHaveLength(2); expect([...calls[1].headers]).toEqual([]);
+    expect((await f.run()).status).toBe(200); expect(calls).toHaveLength(2); expect([...calls[1].headers]).toEqual([["user-agent", UPSTREAM_HEADERS["User-Agent"]]]);
   });
   test("oversized declared bodies are refused unread; chunked bodies are bounded", async () => {
     let pulled = 0;
@@ -136,8 +140,44 @@ describe("update tracks (docs/engineering/services-and-feedback.md#SERV-245)", (
   });
   test("a track with nothing published yet says there is nothing newer", async () => {
     const f = fixture();
-    const r = await f.run(f.request("/v1/beta/darwin/x86_64/1.0.1-alpha.57"));
+    const r = await f.run(f.request("/v1/beta/darwin/aarch64/1.0.1-alpha.57"));
     expect(r.status).toBe(204); expect(await r.text()).toBe("");
+  });
+  test("a track build is Apple silicon's alone: its manifest names darwin-aarch64, and its files are served (docs/engineering/services-and-feedback.md#SERV-265)", async () => {
+    const f = fixture();
+    const v = "1.0.1-alpha.59";
+    f.objects.set("alpha/versions.json", JSON.stringify(["1.0.1-alpha.57", "1.0.1-alpha.58", v]));
+    f.objects.set("alpha/latest.json", JSON.stringify(armLatest("alpha", v)));
+    f.objects.set(`alpha/${v}/Proscenium_${v}_aarch64.app.tar.gz`, "arm archive");
+    const r = await f.run(f.request("/v1/alpha/darwin/aarch64/1.0.1-alpha.58", keyed));
+    expect(r.status).toBe(200);
+    const data = await r.json() as ReturnType<typeof armLatest>;
+    expect(Object.keys(data.platforms)).toEqual(["darwin-aarch64"]);
+    expect(data.platforms["darwin-aarch64"].url).toBe(`${UPDATES}/v1/alpha/download/v${v}/Proscenium_${v}_aarch64.app.tar.gz`);
+    const d = await f.run(f.request(`/v1/alpha/download/v${v}/Proscenium_${v}_aarch64.app.tar.gz`, keyed));
+    expect(d.status).toBe(200); expect(await d.text()).toBe("arm archive");
+    // The universal files of the versions before stay served.
+    expect((await f.run(f.request("/v1/alpha/download/v1.0.1-alpha.58/Proscenium_1.0.1-alpha.58_universal.dmg", keyed))).status).toBe(200);
+    // A release is universal, always: an Apple-silicon-only stable manifest is refused.
+    expect(() => parseManifest({ ...latest(), platforms: { "darwin-aarch64": latest().platforms["darwin-aarch64"] } })).toThrow();
+    // Apple silicon's slice named universal, or universal's names on one platform, is refused.
+    const mixed = armLatest("alpha", v); mixed.platforms["darwin-aarch64"].url = `${UPDATES}/v1/alpha/download/v${v}/Proscenium_${v}_universal.app.tar.gz`;
+    expect(() => parseTrackManifest(mixed, "alpha")).toThrow();
+    expect(() => parseTrackManifest({ ...armLatest("alpha", v), platforms: { "darwin-x86_64": armLatest("alpha", v).platforms["darwin-aarch64"] } }, "alpha")).toThrow();
+  });
+  test("an Intel copy on alpha or beta is answered as stable answers it (docs/engineering/services-and-feedback.md#SERV-265)", async () => {
+    const f = fixture();
+    for (const [path, headers] of [["/v1/beta/darwin/x86_64/1.0.1-alpha.57", {}], ["/v1/alpha/darwin/x86_64/1.0.1-alpha.57", keyed]] as const) {
+      const r = await f.run(f.request(path, headers));
+      expect(r.status).toBe(200);
+      const data = await r.json() as ReturnType<typeof latest>;
+      expect(data.version).toBe("0.9.1");
+      for (const p of Object.values(data.platforms)) expect(p.url).toBe(`${UPDATES}/v1/download/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz`);
+    }
+    // Still counted as the checks they are, and alpha still needs its key first.
+    expect(f.db.query("SELECT arch, count FROM update_counts WHERE kind = 'check'").all()).toEqual([{ arch: "x86_64", count: 2 }]);
+    const unkeyed = await f.run(f.request("/v1/alpha/darwin/x86_64/1.0.1-alpha.57"));
+    expect(unkeyed.status).toBe(404); expect(await unkeyed.text()).toBe("");
   });
   test("a copy on any track may ask any track, and a version on no list is refused", async () => {
     const f = fixture();

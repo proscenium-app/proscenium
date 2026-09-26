@@ -492,14 +492,35 @@ fn the_default_format_is_set_and_cleared_by_patch() {
 }
 
 #[test]
+fn an_intel_mac_follows_stable_whatever_is_stored() {
+    // docs/app/preferences-and-help/settings.md#SET-40: alpha and beta are
+    // built for Apple silicon alone, so an Intel copy follows stable, and a
+    // track stored before it moved, or copied from another Mac, stays stored.
+    for track in [UpdateTrack::Stable, UpdateTrack::Beta, UpdateTrack::Alpha] {
+        assert_eq!(effective_track(track, true), UpdateTrack::Stable);
+        assert_eq!(effective_track(track, false), track);
+    }
+    if INTEL {
+        let (_dir, path) = temp_settings();
+        write_json(&path, json!({ "updateTrack": "beta" }));
+        assert_eq!(from_object(&read_object(&path)).update_track, UpdateTrack::Stable);
+        assert_eq!(read_json(&path)["updateTrack"], json!("beta"));
+        assert!(update_at(&path, patch(json!({ "updateTrack": "alpha" }))).is_err());
+    }
+}
+
+#[test]
 fn the_update_track_is_stable_until_chosen() {
     let (_dir, path) = temp_settings();
     assert_eq!(from_object(&read_object(&path)).update_track, UpdateTrack::Stable);
 
-    for (word, track) in [("alpha", UpdateTrack::Alpha), ("beta", UpdateTrack::Beta), ("stable", UpdateTrack::Stable)] {
-        let s = update_at(&path, patch(json!({ "updateTrack": word }))).unwrap();
-        assert_eq!(s.update_track, track);
-        assert_eq!(read_json(&path)["updateTrack"], json!(word));
+    // An Intel build is held to stable (the test above); these are Apple silicon's tracks.
+    if !INTEL {
+        for (word, track) in [("alpha", UpdateTrack::Alpha), ("beta", UpdateTrack::Beta), ("stable", UpdateTrack::Stable)] {
+            let s = update_at(&path, patch(json!({ "updateTrack": word }))).unwrap();
+            assert_eq!(s.update_track, track);
+            assert_eq!(read_json(&path)["updateTrack"], json!(word));
+        }
     }
 
     // Only a track reaches the file.

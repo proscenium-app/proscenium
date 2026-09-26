@@ -1,0 +1,90 @@
+{
+  "app": {
+    "paths": ["src/app/**", "src/main.tsx", "src/vite-env.d.ts", "index.html", "public/**"],
+    "narrowable": false
+  },
+  "build": {
+    "paths": ["package.json", "bun.lock", "tsconfig.json", "vite.config.ts"],
+    "narrowable": false
+  },
+  "comments": {
+    "paths": ["src/comments/**"],
+    "narrowable": false
+  },
+  "diagnostics": {
+    "paths": ["src/diagnostics/**"],
+    "narrowable": false
+  },
+  "editor": {
+    "paths": ["src/editor/**"],
+    "narrowable": false
+  },
+  "feedback": {
+    "paths": ["src/feedback/**"],
+    "narrowable": true
+  },
+  "fixture": {
+    "paths": ["sample-vault/**"],
+    "narrowable": false
+  },
+  "format": {
+    "paths": ["src/format/**", "formats/**"],
+    "narrowable": false
+  },
+  "fountain": {
+    "paths": ["src/fountain/**"],
+    "narrowable": false
+  },
+  "import": {
+    "paths": ["src/import/**"],
+    "narrowable": true
+  },
+  "layout": {
+    "paths": ["src/layout/**"],
+    "narrowable": false
+  },
+  "markdown": {
+    "paths": ["src/markdown/**"],
+    "narrowable": false
+  },
+  "materials": {
+    "paths": ["src/materials/**"],
+    "narrowable": false
+  },
+  "pdf": {
+    "paths": ["src/pdf/**"],
+    "narrowable": false
+  },
+  "review": {
+    "paths": ["src/review/**"],
+    "narrowable": false
+  },
+  "spell": {
+    "paths": ["src/spell/**", "dictionaries/**"],
+    "narrowable": true
+  },
+  "storage": {
+    "paths": ["src/storage/**"],
+    "narrowable": false
+  },
+  "styles": {
+    "paths": ["**/*.css"],
+    "narrowable": false
+  },
+  "tutorial": {
+    "paths": ["src/tutorial/**"],
+    "narrowable": true
+  },
+  "ui": {
+    "paths": ["src/ui/**"],
+    "narrowable": false
+  },
+  "wordproc": {
+    "paths": ["src/wordproc/**"],
+    "narrowable": true
+  },
+  "workspace": {
+    "paths": ["src/workspace/**"],
+    "narrowable": false
+  }
+}

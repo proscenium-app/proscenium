@@ -9,6 +9,11 @@
  * published, and each version's files (docs/engineering/services-and-feedback.md#SERV-249).
  * Alpha answers only a request that holds its key; to anything else it is the
  * bare 404 of a track that does not exist.
+ *
+ * Intel Macs take stable releases alone (docs/engineering/services-and-feedback.md#SERV-265):
+ * a track build is Apple silicon's, so its manifest may name `darwin-aarch64`
+ * alone, and an Intel copy that still asks alpha or beta (one built before the
+ * app offered Intel stable only) is answered as stable answers it.
  */
 export const REPOSITORY = "proscenium-app/proscenium";
 export const GITHUB = `https://github.com/${REPOSITORY}/releases`;
@@ -23,6 +28,9 @@ export const TRACK_KEY_HEADER = "Proscenium-Track-Key";
 /** A key as scripts/track-key.mjs makes it: 32 random bytes, base64url, unpadded. */
 export const TRACK_KEY = /^[A-Za-z0-9_-]{43}$/;
 const PLATFORMS = ["darwin-aarch64", "darwin-x86_64"] as const;
+/** The builds a manifest may name: universal for every Mac, or Apple silicon's alone (a track's). */
+type Slice = "universal" | "aarch64";
+const SLICE_PLATFORMS: Record<Slice, readonly string[]> = { universal: PLATFORMS, aarch64: ["darwin-aarch64"] };
 const MAX_MANIFEST = 128 * 1024;
 const MAX_TRACK_LIST = 256 * 1024;
 const MAX_DOWNLOAD = 512 * 1024 * 1024;
@@ -74,32 +82,45 @@ export function trackOf(version: string): Track | null {
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-function archiveName(version: string): string { return `Proscenium_${version}_universal.app.tar.gz`; }
+function archiveName(version: string, slice: Slice = "universal"): string { return `Proscenium_${version}_${slice}.app.tar.gz`; }
 function assetPath(version: string, file: string): string { return `/download/v${version}/${file}`; }
+function sliceFiles(version: string, slice: Slice): string[] {
+  return [archiveName(version, slice), `${archiveName(version, slice)}.sig`, `Proscenium_${version}_${slice}.dmg`];
+}
+/** A release's own files: the universal build's three. */
 export function ownFile(version: string, file: string): boolean {
-  return [archiveName(version), `${archiveName(version)}.sig`, `Proscenium_${version}_universal.dmg`].includes(file);
+  return sliceFiles(version, "universal").includes(file);
+}
+/** A track version's own files: its build's three, universal as the first ones were or Apple silicon's. */
+export function ownTrackFile(version: string, file: string): boolean {
+  return ownFile(version, file) || sliceFiles(version, "aarch64").includes(file);
 }
 
 /** Validate upstream data too: a manifest cannot turn this Worker into an open proxy. */
 export function parseManifest(value: unknown): Manifest {
-  return parseManifestFor(value, (version) => VERSION.test(version), (version) => `${GITHUB}${assetPath(version, archiveName(version))}`);
+  return parseManifestFor(value, (version) => VERSION.test(version), (version) => `${GITHUB}${assetPath(version, archiveName(version))}`, ["universal"]);
 }
 /** A track's manifest: one of its own versions, each archive on its own download route. */
 export function parseTrackManifest(value: unknown, track: Track): Manifest {
-  return parseManifestFor(value, (version) => trackOf(version) === track, (version) => `${UPDATES}/v1/${track}${assetPath(version, archiveName(version))}`);
+  return parseManifestFor(value, (version) => trackOf(version) === track,
+    (version, slice) => `${UPDATES}/v1/${track}${assetPath(version, archiveName(version, slice))}`, ["universal", "aarch64"]);
 }
-function parseManifestFor(value: unknown, versionOk: (version: string) => boolean, archiveUrl: (version: string) => string): Manifest {
+function parseManifestFor(value: unknown, versionOk: (version: string) => boolean,
+  archiveUrl: (version: string, slice: Slice) => string, slices: Slice[]): Manifest {
   if (!record(value) || typeof value.version !== "string" || !versionOk(value.version)
     || !record(value.platforms)) throw new Error("Invalid manifest");
   if (Object.keys(value).some(k => !["version", "notes", "pub_date", "platforms"].includes(k))) throw new Error("Unknown manifest field");
   const version = value.version;
   const platforms: Record<string, Platform> = {};
-  if (Object.keys(value.platforms).length !== PLATFORMS.length) throw new Error("Invalid platforms");
-  for (const key of PLATFORMS) {
+  // Exactly one slice's platforms: every Mac's for a universal build, Apple silicon's alone for its own.
+  const keys = Object.keys(value.platforms).sort().join(",");
+  const slice = slices.find((s) => [...SLICE_PLATFORMS[s]].sort().join(",") === keys);
+  if (!slice) throw new Error("Invalid platforms");
+  for (const key of SLICE_PLATFORMS[slice]) {
     const p = value.platforms[key];
     if (!record(p) || Object.keys(p).some(k => k !== "signature" && k !== "url")
       || typeof p.signature !== "string" || !/^[A-Za-z0-9+/=]{40,2048}$/.test(p.signature)
-      || p.url !== archiveUrl(version)) throw new Error("Invalid archive");
+      || p.url !== archiveUrl(version, slice)) throw new Error("Invalid archive");
     platforms[key] = { signature: p.signature, url: p.url };
   }
   if (value.notes !== undefined && (typeof value.notes !== "string" || value.notes.length > 60_000)) throw new Error("Invalid notes");
@@ -113,12 +134,19 @@ function upstreamAllowed(url: URL): boolean {
     && ((url.hostname === "github.com" && url.pathname.startsWith(`/${REPOSITORY}/releases/`))
       || ["objects.githubusercontent.com", "release-assets.githubusercontent.com"].includes(url.hostname));
 }
+/**
+ * What every upstream request carries: the service's own name, and nothing of
+ * the visitor's. GitHub refuses a request from Cloudflare's network that names
+ * no User-Agent, so without one every stable check and download failed in
+ * production while passing everywhere else.
+ */
+export const UPSTREAM_HEADERS = { "User-Agent": "proscenium-updates" } as const;
 /** Fresh application headers on every hop. Cloudflare may add platform headers to fetch; this never supplies visitor metadata. */
 async function upstream(address: string, deps: Dependencies): Promise<Response> {
   let url = new URL(address);
   for (let hop = 0; hop < 5; hop++) {
     if (!upstreamAllowed(url)) throw new Error("Invalid upstream");
-    const result = await deps.fetch(new Request(url, { redirect: "manual", signal: AbortSignal.timeout(30_000) }));
+    const result = await deps.fetch(new Request(url, { redirect: "manual", headers: UPSTREAM_HEADERS, signal: AbortSignal.timeout(30_000) }));
     if (![301, 302, 303, 307, 308].includes(result.status)) return result;
     const location = result.headers.get("Location");
     await result.body?.cancel();
@@ -229,6 +257,16 @@ async function rate(request: Request, binding: RateLimit): Promise<boolean> {
   return (await binding.limit({ key: request.headers.get("CF-Connecting-IP") ?? "local" })).success;
 }
 
+/** Stable's answer to a check: the newest release, with its archive on this service's own route. */
+async function stableAnswer(env: Env, deps: Dependencies): Promise<Response> {
+  const data = await manifest(deps);
+  if (!released(env, data.version)) return response(502);
+  for (const p of Object.values(data.platforms)) {
+    p.url = `${deps.updatesOrigin}/v1${assetPath(data.version, archiveName(data.version))}`;
+  }
+  return json(200, data);
+}
+
 /** Only documented GET routes answer. No echo of a request or exception in any response. */
 export async function updates(request: Request, env: Env, deps: Dependencies): Promise<Response> {
   const url = new URL(request.url);
@@ -252,6 +290,8 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
       const admit = await admitted(env, deps, version, keyed);
       if (!admit.answer) return response(400);
       if (admit.counted) await count(env, deps, "check", platform, arch, version, os);
+      // An Intel Mac takes stable releases alone: a track's builds are Apple silicon's.
+      if (arch === "x86_64") return await stableAnswer(env, deps);
       const text = await trackText(env, deps, `${track}/latest.json`, MAX_MANIFEST);
       // Nothing published on the track yet: up to date.
       if (text === null) return response(204);
@@ -263,7 +303,7 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
       if (env.DOWNLOADS_ENABLED !== "true") return response(503);
       if (!await rate(request, env.DOWNLOAD_LIMIT)) return response(429);
       const [, track, version, file] = trackDownload as unknown as [string, Track, string, string];
-      if (trackOf(version) !== track || !ownFile(version, file) || !(await trackVersions(env, deps, track)).includes(version)) return response(404);
+      if (trackOf(version) !== track || !ownTrackFile(version, file) || !(await trackVersions(env, deps, track)).includes(version)) return response(404);
       const object = await env.TRACKS.get(`${track}/${version}/${file}`);
       if (!object) return response(404);
       if (object.size > MAX_DOWNLOAD) { await object.body.cancel(); return response(502); }
@@ -281,12 +321,7 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
       const admit = await admitted(env, deps, version, keyed);
       if (!admit.answer) return response(400);
       if (admit.counted) await count(env, deps, "check", platform, arch, version, os);
-      const data = await manifest(deps);
-      if (!released(env, data.version)) return response(502);
-      for (const p of Object.values(data.platforms)) {
-        p.url = `${deps.updatesOrigin}/v1${assetPath(data.version, archiveName(data.version))}`;
-      }
-      return json(200, data);
+      return await stableAnswer(env, deps);
     }
     if (env.DOWNLOADS_ENABLED !== "true") return response(503);
     if (!await rate(request, env.DOWNLOAD_LIMIT)) return response(429);

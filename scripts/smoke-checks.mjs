@@ -42,6 +42,47 @@ import { harborPackage, harborPackageZip, harborPages, toBase64 } from "./pages-
 export const AUDIT_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 /**
+ * A check's feature tags: the part of the app it is about, named as
+ * ci/features.json names the folders of src/. A pipeline run whose changes
+ * all sit in leaf features leaves out the DETACHABLE blocks it did not touch;
+ * `smoke.mjs --only` and `selftest.mjs --features` take the same names.
+ * A check with no tag runs in every pass, however narrowed: those set the
+ * stage the others stand on (the Welcome screen, the Plays screen, a play
+ * open, the writer's play back after the tutorials).
+ */
+export function checkFeatures(check) {
+  return check.feature == null ? [] : [].concat(check.feature);
+}
+
+/**
+ * The features whose checks a narrowed pass may leave out: none yet.
+ *
+ * Checks run in one page, in order, and most stand on what the ones before
+ * them left: which play is open, which panes show, what a sheet remembers. A
+ * surface's accessibility tree is the whole page, so leaving out a check that
+ * changes any of that changes what every later check holds, and a pass that
+ * left it out would fail, or pass, against a page no full pass ever sees. A
+ * feature joins this list only when a full pass with its checks left out is
+ * green in both engines and both schemes: its block then leaves the app as it
+ * found it. On 2026-09-26 a Chromium pass with the tutorial, feedback,
+ * wordproc, spell and import checks left out had 63 failures after them in
+ * its two schemes, the first because the tutorials leave a pane empty that is
+ * otherwise showing a document.
+ */
+export const DETACHABLE = [];
+
+/**
+ * Whether a check runs in a pass narrowed to `features`; no list is every
+ * check. A check runs when it is untagged, when one of its features is asked
+ * for, or when one of them is not DETACHABLE.
+ */
+export function selected(check, features, detachable = DETACHABLE) {
+  if (!features?.length) return true;
+  const tags = checkFeatures(check);
+  return tags.length === 0 || tags.some((t) => features.includes(t) || !detachable.includes(t));
+}
+
+/**
  * @param {{
  *   audit: (page: any, surface: string) => Promise<void>,
  *   hold: (page: any, name: string, text: string) => Promise<void>,
@@ -159,6 +200,7 @@ export function smokeChecks({ audit, hold }) {
       // It offers the sample play only once that is answered: on 2026-09-13 the
       // sample play went into such a folder from this screen.
       name: "plays screen · a Plays folder one level too high",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const choose = async (path) => {
@@ -253,6 +295,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "a damaged play opens its protected original file",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const key = "The Lighthouse/The Lighthouse.proscenium";
@@ -285,6 +328,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "Plays search announces empty and restored results",
+      feature: "app",
       async run(page) {
         if (!await page.locator('[data-announcer="polite"]').count()) throw new Error("search has no premounted announcer");
         await page.getByRole("textbox", { name: "Search plays" }).fill("A619 no such play");
@@ -296,6 +340,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "document import · window chrome, source guides and enlarged text",
+      feature: "import",
       async run(page) {
         await page.getByRole("button", { name: "Import a Draft…", exact: true }).click();
         await page.waitForSelector(".import-desk__choose");
@@ -355,6 +400,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "document import · review, correction, cancellation and export guidance",
+      feature: "import",
       async run(page) {
         await page.getByRole("button", { name: "Import a Draft…", exact: true }).click();
         await page.waitForSelector(".import-desk__choose");
@@ -398,6 +444,7 @@ export function smokeChecks({ audit, hold }) {
       // package-form one as the web view hands it over (Name.pages.zip), reach
       // the same review; the playwright's own styles are the reading.
       name: "document import · a Pages document reads directly, in either form",
+      feature: "import",
       async run(page) {
         await page.getByRole("button", { name: "Import a Draft…", exact: true }).click();
         await page.waitForSelector(".import-desk__choose");
@@ -524,6 +571,7 @@ export function smokeChecks({ audit, hold }) {
       // is Finder's. The browser has no Finder: there this proves only that
       // both controls are there and pressing them says nothing wrong.
       name: "reveal in Finder · the status bar's path and a binder row",
+      feature: "app",
       async run(page) {
         const native = await page.evaluate(() => !!window.__TAURI_INTERNALS__);
         const reveals = () => (native ? page.evaluate(() => window.__TAURI_INTERNALS__.invoke("selftest_reveals")) : []);
@@ -561,6 +609,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "alternate watcher spelling reaches the open script and keeps its identity",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
@@ -590,6 +639,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "a typed sheet's embedded identity follows an external move",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const from = "Characters/Mara.md", to = "Research/Mara moved.md";
@@ -635,6 +685,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "watcher · foreground catches a missed edit and health stays visible",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
@@ -680,6 +731,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "inspector",
+      feature: "app",
       async run(page) {
         await page.locator('.iconbtn[aria-label*="inspector" i]').click();
         await visible(page, ".inspector", { minWidth: 200, minHeight: 300 });
@@ -695,6 +747,7 @@ export function smokeChecks({ audit, hold }) {
       // Line Break ran off the pane, the sheet with it — at the app's default
       // window. Every check before this one ran where it happened to fit.
       name: "element bar · fits its pane at every width",
+      feature: "editor",
       async run(page) {
         await page.waitForSelector(".inspector", { timeout: 5000 });
         const settled = (what) => until(page, what, elementBarFacts, true).catch(async () => {
@@ -781,6 +834,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "document menu",
+      feature: "app",
       async run(page) {
         await page.locator(".doctitle").click();
         await page.waitForSelector(".menu", { timeout: 5000 });
@@ -795,6 +849,7 @@ export function smokeChecks({ audit, hold }) {
       // The highlight is DOM focus, so a screen reader can follow it; closing
       // hands focus back to the control that opened the menu.
       name: "keyboard · menu",
+      feature: "ui",
       async run(page) {
         await page.locator(".doctitle").focus();
         await page.keyboard.press("Enter");
@@ -818,6 +873,7 @@ export function smokeChecks({ audit, hold }) {
     {
       // Only the TOP layer acts on a key, and Tab cannot walk out of a sheet.
       name: "keyboard · sheet",
+      feature: "ui",
       async run(page) {
         await openFromDocumentMenu(page, /Export PDF/);
         await page.waitForSelector(".sheet", { timeout: 10000 });
@@ -855,6 +911,7 @@ export function smokeChecks({ audit, hold }) {
       // file on disk, so under Rosetta it is the Intel slice that wrote it; in
       // smoke it is the page's download.
       name: "export · a PDF written and read back",
+      feature: "pdf",
       async run(page) {
         const native = await page.evaluate(() => !!window.__TAURI_INTERNALS__);
         if (!native) {
@@ -910,6 +967,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "export validates the play language before saving",
+      feature: "pdf",
       async run(page) {
         await openFromDocumentMenu(page, /Export PDF/);
         await page.waitForSelector('.exportpanel__language');
@@ -928,6 +986,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "exported bytes carry tags and the saved per-play language",
+      feature: "pdf",
       devMock: true,
       async run(page) {
         // Capture the browser's actual download Blob; no alternate renderer or
@@ -982,6 +1041,7 @@ export function smokeChecks({ audit, hold }) {
       // the keyboard and Print still the PDF's
       // (docs/app/formatting/formats-and-layout.md#FMT-145).
       name: "docs/app/formatting/formats-and-layout.md#FMT-145 · Export .docx and .odt from the document menu",
+      feature: "wordproc",
       async run(page) {
         await openFromDocumentMenu(page, /Export \.docx/);
         await page.waitForSelector(".exportpanel__body");
@@ -1011,6 +1071,7 @@ export function smokeChecks({ audit, hold }) {
       // makes of them: a .docx and an .odt whose parts hold the play's words in
       // its styles, and the embedded type (docs/app/formatting/formats-and-layout.md#FMT-157).
       name: "docs/app/formatting/formats-and-layout.md#FMT-157 · the .docx and .odt downloads hold the play in its styles",
+      feature: "wordproc",
       devMock: true,
       async run(page) {
         await page.evaluate(() => {
@@ -1058,6 +1119,7 @@ export function smokeChecks({ audit, hold }) {
       // and can put a cover and cast page on any export. The
       // fixture play is two pages behind a title, cast and setting sheet.
       name: "export · the preview holds only what goes out, front sheets included",
+      feature: "pdf",
       async run(page) {
         const shown = () =>
           page.evaluate(() =>
@@ -1134,6 +1196,7 @@ export function smokeChecks({ audit, hold }) {
       // print panel, which takes the Mac, so that stays a human check; the
       // browser build opens them in a tab instead, and this reads what it opened.
       name: "print · Print… sends exactly the sheets the preview showed",
+      feature: "pdf",
       devMock: true,
       async run(page) {
         await page.evaluate(() => {
@@ -1186,6 +1249,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "long front matter continues on bounded sheets and export counts them",
+      feature: "layout",
       devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
@@ -1253,6 +1317,7 @@ export function smokeChecks({ audit, hold }) {
       // could see. The reload is the file's own reading, the parser's; the typing
       // is what makes the next save write the whole script back.
       name: "a cue's extension stays on the page and is written once",
+      feature: "editor",
       devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
@@ -1319,6 +1384,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "dialog menus and announcements stay in the active modal scope",
+      feature: "ui",
       async run(page) {
         await openFromDocumentMenu(page, /Export PDF/);
         await page.waitForSelector(".exportpanel__body");
@@ -1372,6 +1438,7 @@ export function smokeChecks({ audit, hold }) {
       // ⏎ on a focused control presses THAT control. It used to run the sheet's
       // default everywhere but a textarea, so ⏎ on Cancel saved.
       name: "keyboard · cancel means cancel",
+      feature: "ui",
       async run(page) {
         await openFromDocumentMenu(page, /Edit Opening Pages/);
         await page.waitForSelector("#tp-title", { timeout: 5000 });
@@ -1395,6 +1462,7 @@ export function smokeChecks({ audit, hold }) {
     {
       // A menu with a field keeps focus in the field: Space types, ↓ picks.
       name: "keyboard · go to scene",
+      feature: "app",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+Shift+KeyJ");
@@ -1428,6 +1496,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "Go to Scene connects its combobox to selectable listbox results",
+      feature: "app",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+Shift+KeyJ");
@@ -1456,6 +1525,7 @@ export function smokeChecks({ audit, hold }) {
       // (the action lived on mouse-down, so the keyboard got
       // nothing).
       name: "keyboard · element bar",
+      feature: "editor",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+ArrowDown");
@@ -1476,6 +1546,7 @@ export function smokeChecks({ audit, hold }) {
       // Focus mode hides the chrome from the keyboard too:
       // ⌃⇥ used to land on a collapsed, invisible toolbar control.
       name: "keyboard · focus mode",
+      feature: "editor",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Control+Meta+KeyF");
@@ -1503,6 +1574,7 @@ export function smokeChecks({ audit, hold }) {
       // Tab in the script cycles the element, so ⌃⇥ is the way out — without it
       // the page is a keyboard trap.
       name: "keyboard · areas",
+      feature: "app",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Control+Tab");
@@ -1516,6 +1588,7 @@ export function smokeChecks({ audit, hold }) {
     {
       // Filing without a pointer: ⌃⌘↓ moves a binder row, ⌃⌘↑ puts it back.
       name: "keyboard · binder",
+      feature: "workspace",
       async run(page) {
         const order = () =>
           page.evaluate(() =>
@@ -1544,6 +1617,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "binder Move files by folder and position without dragging",
+      feature: "workspace",
       async run(page) {
         const title = "1953 North Sea Flood";
         const rowId = await page.evaluate((name) => [...document.querySelectorAll(".binder__row")]
@@ -1591,6 +1665,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "binder arrows reach and activate scenes without filing them",
+      feature: "workspace",
       async run(page) {
         const sceneIds = await page.evaluate(() => [...document.querySelectorAll(".binder__row--scene")].map((row) => row.id));
         if (sceneIds.length < 2 || sceneIds.some((id) => !id)) throw new Error("scene rows lack stable identities");
@@ -1618,6 +1693,7 @@ export function smokeChecks({ audit, hold }) {
       // switch the pane behind the Export sheet. In the app ⌘2 is the menu
       // bar's accelerator, so this presses the menu route there.
       name: "keyboard · window keys wait for a menu or sheet",
+      feature: "ui",
       async run(page) {
         const onBoard = () => page.evaluate(() => !!document.querySelector(".board"));
         if (await onBoard()) throw new Error("the board was already showing");
@@ -1658,6 +1734,7 @@ export function smokeChecks({ audit, hold }) {
       // goes back to the binder it came from. Dev-mock only: in the app it
       // would put a fixture document in the Trash of whoever runs the self-test.
       name: "keyboard · a key reaches Undo",
+      feature: "editor",
       devMock: true,
       async run(page) {
         const labels = () =>
@@ -1702,6 +1779,7 @@ export function smokeChecks({ audit, hold }) {
       // that moved nothing: the typing's own scroll event, delivered a frame
       // late on a busy machine, used to shut it as it opened.
       name: "keyboard · spelling",
+      feature: "spell",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+ArrowDown");
@@ -1744,6 +1822,7 @@ export function smokeChecks({ audit, hold }) {
       // A sigil belongs to a LINE (docs/app/writing/editor-ux.md#EDIT-D111): `@` typed after
       // ⇧⏎ starts a forced cue there. It used to stay a literal at sign.
       name: "keyboard · sigil after a soft break",
+      feature: "editor",
       async run(page) {
         const blocks = () =>
           page.evaluate(() =>
@@ -1784,6 +1863,7 @@ export function smokeChecks({ audit, hold }) {
       // Replace leaves comments alone and says so (docs/app/writing/comments.md#COMM-D9) — and the find
       // bar, which smoke never opened before, gets its accessibility scan.
       name: "find · replace leaves comments alone",
+      feature: "editor",
       async run(page) {
         const script = () => page.evaluate(() => document.querySelector(".ProseMirror")?.textContent ?? "");
         const before = await script();
@@ -1796,6 +1876,15 @@ export function smokeChecks({ audit, hold }) {
         await page.locator('.findbar__field[aria-label="Find"]').fill("tide");
         await page.waitForSelector(".findbar__note", { timeout: 5000 });
         const note = await page.locator(".findbar__note").innerText();
+        // The inspector counts the scene's comments when the app next draws
+        // after the edit, not at once: wait for it to count the one just
+        // typed, so the surface is audited in one state whenever it is read
+        // (in both schemes, the dark reading comes a moment later). Where the
+        // window is too narrow for the inspector, there is nothing to wait for.
+        await until(page, "the inspector to count the comment just typed", () => {
+          const label = [...document.querySelectorAll(".insp__group .seclabel")].find((l) => l.textContent === "Comments here");
+          return !label || /^1 in this scene/.test(label.parentElement?.querySelector(".insp__row span")?.textContent ?? "");
+        });
         await audit(page, "find bar");
         if (!/1 in a comment — left alone/.test(note)) {
           throw new Error(`the find bar said "${note}", not that it left a comment alone`);
@@ -1818,6 +1907,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "comment actions retain focus and announce the remaining count",
+      feature: "comments",
       async run(page) {
         const hadInspector = await page.locator(".inspector").count() > 0;
         const hadBinder = await page.locator(".binder").count() > 0;
@@ -1896,6 +1986,7 @@ export function smokeChecks({ audit, hold }) {
       // What the line IS reaches a screen reader: Enter's guess and a Tab through
       // the ring are each spoken through the announcer's polite region.
       name: "screen reader · element kind",
+      feature: "editor",
       async run(page) {
         const said = () =>
           page.evaluate(() => document.querySelector('[data-announcer="polite"]')?.textContent ?? "");
@@ -1933,12 +2024,13 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       // What VoiceOver is given, asked of the accessibility tree itself
-      // (docs/app/preferences-and-help/accessibility.md#A11Y-15, docs/app/preferences-and-help/accessibility.md#A11Y-16):
+      // (docs/app/preferences-and-help/accessibility.md#A11Y-19, docs/app/preferences-and-help/accessibility.md#A11Y-16):
       // Playwright's in smoke, WebKit's own in the native self-test. The script
       // is a text box whose value is what was just typed, and a kind announced
       // through ui/announce.ts is the live region's words in the tree, not only
       // in the DOM.
       name: "accessibility tree · the script is a text box that follows typing, and says the kind",
+      feature: "editor",
       async run(page) {
         const editor = page.locator(".editor-surface .ProseMirror").first();
         const before = await editor.innerText();
@@ -1979,12 +2071,13 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       // Where Tab goes, in order, as the tree names each stop
-      // (docs/app/preferences-and-help/accessibility.md#A11Y-15): through the Settings sheet until it
+      // (docs/app/preferences-and-help/accessibility.md#A11Y-19): through the Settings sheet until it
       // comes back round (docs/app/preferences-and-help/accessibility.md#A11Y-5 keeps it inside), held
       // against a checked-in list. WebKit's Tab reaches fewer controls than
       // Chromium's while the Mac's Keyboard Navigation is off, so each engine's
       // order is its own file where they differ.
       name: "accessibility tree · focus order under Tab",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -2018,6 +2111,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "caret popups activate with clicks and conventional menu keys",
+      feature: "editor",
       async run(page) {
         const before = await page.locator(".ProseMirror").first().innerText();
         await page.locator(".ProseMirror").first().focus();
@@ -2076,6 +2170,7 @@ export function smokeChecks({ audit, hold }) {
     // notices results and wrong turns by itself, and every lesson writes one play.
     {
       name: "tutorials · the guide shows where to type, catches a wrong turn and moves on by itself",
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         await page.keyboard.press("Meta+Digit1");
@@ -2153,6 +2248,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · every lesson, by hand, continues the same play",
+      feature: "tutorial",
       async run(page) {
         await tutorialStart(page,'Format the Script');
         const play = (await tutorialProgress(page)).course.id;
@@ -2197,6 +2293,7 @@ export function smokeChecks({ audit, hold }) {
         await page.locator('[data-tutorial="characters-page"] .ProseMirror').click();
         await page.keyboard.press('Meta+ArrowDown'); await page.keyboard.type(' Old friends.');
         await cueStep(page,3,4);
+        await settledOn(page,'[data-tutorial="add-character"]','Add Character');
         await page.locator('[data-tutorial="add-character"]').click();
         await until(page,'the new name has focus',()=>document.activeElement?.matches('[data-tutorial="character-name"]'));
         await cueSays(page,'Type a name');
@@ -2269,6 +2366,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · a new note's first line stays clear of its format bar in the app's own window",
+      feature: "tutorial",
       async run(page) {
         // At the app's own 1100×760 a new note's page is taller than its pane.
         // The guide brought it into view by its bottom, which put the page's
@@ -2314,6 +2412,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · Show Me and Skip work at every step, in place, and keep the writer's words",
+      feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
         await page.getByRole('button',{name:'Start Over in a New Play',exact:true}).click();
@@ -2389,6 +2488,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · stop returns to the play, Continue returns to the same place, and the keyboard reaches the guide",
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         const launch = await page.evaluate(()=>({root:localStorage.getItem('proscenium:dev:lastVault'),play:JSON.parse(localStorage.getItem('proscenium:dev:settings')??'{}').lastPlay}));
@@ -2419,6 +2519,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · Stop gives the keyboard back to the play's script, at the writer's place",
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         await until(page,'the writer\'s own play',()=>document.querySelector('.doctitle__label')?.textContent==='The Weight of Water');
@@ -2448,6 +2549,7 @@ export function smokeChecks({ audit, hold }) {
       // nothing; this asks whether a ⌘ chord is lost there, first with <body> made so on
       // purpose, then in the moment itself. allPlays says what became of the key.
       name: "tutorials · ⌘⇧O reaches All Plays with the keyboard on <body>, as it is when Stop's card goes",
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         await until(page,'the writer\'s own play',()=>document.querySelector('.doctitle__label')?.textContent==='The Weight of Water');
@@ -2473,6 +2575,7 @@ export function smokeChecks({ audit, hold }) {
       // ⌘⇧O in that moment: the window keymap left it for want of a script, and behind the
       // locked screen the menu bar never got it back. All Plays wants a play, not a script.
       name: "tutorials · ⌘⇧O reaches All Plays while the play Stop returned to is still reading its script", devMock: true,
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         await until(page,'the writer\'s own play',()=>document.querySelector('.doctitle__label')?.textContent==='The Weight of Water');
@@ -2492,6 +2595,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · narrow windows keep the guide on screen and its target clear, and a failed save waits", devMock: true,
+      feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
         await page.getByRole('button',{name:'Start Over in a New Play',exact:true}).click();
@@ -2527,6 +2631,7 @@ export function smokeChecks({ audit, hold }) {
     // Retained practice (docs/app/keeping-work/storage-and-file-format.md#STOR-170 to docs/app/keeping-work/storage-and-file-format.md#STOR-176), through the catalogue.
     {
       name: 'tutorials · reset keeps every practice play, and Saved Practice opens them',
+      feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
         await page.getByRole('button',{name:'Start Over in a New Play',exact:true}).click();
@@ -2561,6 +2666,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · Keep as a Play makes a complete same-name copy with its own identity',
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         await page.keyboard.press('Meta+s');
@@ -2611,6 +2717,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · retained practice waits for an explicit resume after relaunch',
+      feature: "tutorial",
       async run(page) {
         // Old versions keyed the cursor by this shared filename. A new attempt
         // must not inherit another attempt's position in the scene heading.
@@ -2632,6 +2739,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · relaunch resumes the same play without another invitation',
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         if (await page.locator('.tutorial-cue, .tutorial-invitation, .tutorials').count()) throw new Error('Relaunch forced a tutorial open');
@@ -2647,6 +2755,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · stale progress and damaged reset preserve practice', devMock:true,
+      feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
         await page.getByRole('button',{name:'Start Over in a New Play',exact:true}).click();
@@ -2679,6 +2788,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · partial copy keeps the original and retries into a new folder', devMock:true,
+      feature: "tutorial",
       async run(page) {
         await tutorialStart(page,'Write Your First Exchange'); await tutorialType(page,'COPY SURVIVES');
         await page.keyboard.press('Meta+s');
@@ -2708,6 +2818,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · legacy practice resumes and copies without moving its original', devMock:true,
+      feature: "tutorial",
       async run(page) {
         await tutorialStart(page,'Write Your First Exchange','Write the reply'); await tutorialType(page,'LEGACY WORDS');
         await page.evaluate(()=>{
@@ -2750,6 +2861,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · a newer practice manifest holds the step and keeps Stop reachable', devMock:true,
+      feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
         await page.getByRole('button',{name:'Start Over in a New Play',exact:true}).click();
@@ -2769,6 +2881,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · a writer who wanders off is led back, and Take Me There goes there",
+      feature: "tutorial",
       async run(page) {
         // A lesson left part-done in the play that Start Over leaves behind. A step of it
         // chosen afterwards belongs to the new play, not the old one (docs/app/preferences-and-help/tutorials.md#TUT-10).
@@ -2808,6 +2921,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · a new invitation, for the next check', devMock: true,
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         await page.evaluate(()=>{const key='proscenium:dev:tutorial-progress';const v=JSON.parse(localStorage.getItem(key));v.invitation='new';localStorage.setItem(key,JSON.stringify(v));});
@@ -2816,6 +2930,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: 'tutorials · Try the Tutorial opens the first lesson at the work', devMock: true,
+      feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
         await page.keyboard.press('Meta+Shift+KeyO');
@@ -2846,6 +2961,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "usability · tutorials, appearance, dictionary and formats",
+      feature: "app",
       async run(page) {
         await page.getByRole("button", { name: "Help & Tutorials", exact: true }).click();
         await page.getByRole("button", { name: "Format the Script", exact: true }).click();
@@ -2889,6 +3005,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "usability · add and reorder cast independently of the printed page",
+      feature: "app",
       async run(page) {
         await page.locator('.seg__btn', { hasText: "Cast" }).first().click();
         await page.getByRole("button", { name: "Add Character", exact: true }).click();
@@ -2924,6 +3041,7 @@ export function smokeChecks({ audit, hold }) {
       // between sections. Every section is shown, measured and audited, because a
       // section nobody opened in smoke is a section whose contrast nobody read.
       name: "settings · every section",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".sheet .prefs", { timeout: 5000 });
@@ -2992,6 +3110,7 @@ export function smokeChecks({ audit, hold }) {
       // A bare ⌘, reopens wherever the writer last was. (openSettings(section)
       // is the designer's way back to Settings › Formats: "formats · designer".)
       name: "settings · deep link",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -3014,6 +3133,7 @@ export function smokeChecks({ audit, hold }) {
       // The accent swatches are a radio group: one Tab stop, and an arrow moves
       // AND chooses, recolouring the document on the way.
       name: "keyboard · accent",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -3043,6 +3163,7 @@ export function smokeChecks({ audit, hold }) {
       // changed the colour in System Settings and came back. Each colour is
       // audited, so a derivation that lets text slip under 4.5:1 fails here.
       name: "settings · Follow Mac takes the Mac's accent",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.keyboard.press("Meta+Comma");
@@ -3083,6 +3204,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "interface text reaches 200 percent without changing the page",
+      feature: "ui",
       async run(page) {
         const pageSize = await page.evaluate(() => getComputedStyle(document.querySelector(".play-page")).fontSize);
         await page.keyboard.press("Meta+Comma");
@@ -3144,6 +3266,7 @@ export function smokeChecks({ audit, hold }) {
       // One setting, two switches: the document menu's Check Spelling as You
       // Type and Settings › Writing must never show different states.
       name: "settings · spell check in step",
+      feature: "spell",
       async run(page) {
         const menuChecked = async () => {
           await page.locator(".doctitle").click();
@@ -3188,6 +3311,7 @@ export function smokeChecks({ audit, hold }) {
       // engineering docs/engineering/release-engineering.md#REL-D6). In the real app the switch is written to settings.json
       // by settings.rs.
       name: "settings · updates",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -3235,6 +3359,7 @@ export function smokeChecks({ audit, hold }) {
       // "Have a key?" opens a field, and a key adds Alpha to the menu
       // (docs/app/preferences-and-help/settings.md#SET-37). All of it from the keyboard.
       name: "settings · updates, alpha's key",
+      feature: "app",
       async run(page) {
         await walkIntoPlay(page);
         await page.keyboard.press("Meta+Comma");
@@ -3281,6 +3406,7 @@ export function smokeChecks({ audit, hold }) {
       // starts on, goes off from the keyboard, and the section says what is
       // sent, what never is, and that off drops what was waiting.
       name: "settings · privacy",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -3318,6 +3444,7 @@ export function smokeChecks({ audit, hold }) {
       // Privacy points it at no update setting. Mock-only: the state is the
       // dev vault's to choose; the check puts back the one it found.
       name: "settings · a store copy offers no update controls",
+      feature: "app",
       devMock: true,
       async run(page) {
         const was = await page.evaluate(() => window.__prosceniumUpdateState({ kind: "unavailable" }));
@@ -3349,6 +3476,7 @@ export function smokeChecks({ audit, hold }) {
       // rename snapped back. The reason shows under the field now, and goes when
       // the writer types. The dictionary does the same for a word it has.
       name: "settings · a refused status or word says why",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -3409,6 +3537,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "published formats share editor and print geometry",
+      feature: "format",
       async run(page) {
         for (const name of ["UK / International (BBC)", "Samuel French / Concord — Manuscript", "Dramatists Guild — Traditional", "Dramatists Guild — Musical", "Proscenium House", "Sketch Comedy — Sketchworks"]) {
           await openFromDocumentMenu(page, name);
@@ -3490,6 +3619,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "sketch opening edits and overflow share editor and export sheets",
+      feature: "layout",
       async run(page) {
         await openFromDocumentMenu(page, "Sketch Comedy — Sketchworks");
         await openFromDocumentMenu(page, /Edit Opening Pages/);
@@ -3535,6 +3665,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "play language is keyboard accessible and persists",
+      feature: "spell",
       async run(page) {
         await openFromDocumentMenu(page, "Play Language…");
         await page.getByRole("button", { name: /^Language:/ }).click();
@@ -3556,6 +3687,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "changing language rechecks spelling without changing the script",
+      feature: "spell",
       async run(page) {
         const original = await page.evaluate(() => {
           const editor = document.querySelector(".ProseMirror").editor;
@@ -3598,6 +3730,7 @@ export function smokeChecks({ audit, hold }) {
       // Settings › Formats: every format, what can be done with each, and the
       // format new plays start in.
       name: "formats · settings",
+      feature: "format",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -3608,7 +3741,9 @@ export function smokeChecks({ audit, hold }) {
           throw new Error(`the formats list reads ${names.join(" · ")}`);
         }
         await visible(page, ".formatlist__row", { minWidth: 300, minHeight: 24 });
-        await audit(page, "settings · formats");
+        // Its own name, not "settings · every section"'s: a surface is audited
+        // by one check, so a pass that leaves the other out numbers it the same.
+        await audit(page, "formats · settings");
         await page.keyboard.press("Escape");
         await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
       },
@@ -3619,6 +3754,7 @@ export function smokeChecks({ audit, hold }) {
       // from the token menu, refuse a value that is not a number, save with ⌘S,
       // and use the format for the play.
       name: "formats · designer",
+      feature: "format",
       async run(page) {
         try {
           await this.body(page);
@@ -3761,6 +3897,7 @@ export function smokeChecks({ audit, hold }) {
       // Closing with unsaved changes names them, and ⏎ on Keep Editing keeps
       // editing; a built-in never changes — typing into one asks to duplicate.
       name: "formats · unsaved changes and built-ins",
+      feature: "format",
       async run(page) {
         try {
           await this.body(page);
@@ -3818,6 +3955,7 @@ export function smokeChecks({ audit, hold }) {
       // Delete sends a format to the Trash, unconfirmed and undoable, and says
       // which play loses it and what that play uses instead.
       name: "formats · move to trash",
+      feature: "format",
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -3847,6 +3985,7 @@ export function smokeChecks({ audit, hold }) {
       // — Modern, whose parentheticals are left-aligned: the
       // alignment where the caret sat outside (format css.ts).
       name: "a second Enter opens the element menu, and Shift+Enter still breaks the line",
+      feature: "editor",
       async run(page) {
         const script = page.locator(".ProseMirror").first();
         // The document, not the page's text: the page view's chrome (page
@@ -3928,6 +4067,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "seeded Find and export results use premounted status regions",
+      feature: "app",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
         // Set a known text selection, independent of the prior check's caret
@@ -3974,6 +4114,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "a failed version read is spoken inside Versions",
+      feature: "review",
       devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumGate("versionRead", null, { fail: "A619 version unavailable" }));
@@ -3989,6 +4130,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "Changes speaks delayed and unavailable comparisons",
+      feature: "review",
       devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
@@ -4029,6 +4171,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "versions",
+      feature: "review",
       async run(page) {
         await openFromDocumentMenu(page, /Versions/);
         await page.waitForSelector(".sheet", { timeout: 5000 });
@@ -4039,6 +4182,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "board",
+      feature: "workspace",
       async run(page) {
         await page.locator(".seg__btn", { hasText: "Board" }).first().click();
         await page.waitForSelector(".board", { timeout: 10000 });
@@ -4050,6 +4194,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "outline and cast",
+      feature: "workspace",
       async run(page) {
         await page.locator(".seg__btn", { hasText: "Outline" }).first().click();
         await page.waitForSelector(".outliner", { timeout: 10000 });
@@ -4072,6 +4217,7 @@ export function smokeChecks({ audit, hold }) {
       // asserted the minute strings when they went in, so nothing would have
       // noticed one coming back.
       name: "lengths are pages, never minutes",
+      feature: "layout",
       async run(page) {
         const minutes = /\bmin\b|minute/i;
         const count = /^\d+ pages?$/;
@@ -4128,6 +4274,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "editing fields identify their scene or character",
+      feature: "workspace",
       async run(page) {
         await page.locator(".seg__btn", { hasText: "Board" }).first().click();
         await page.waitForSelector(".card__synopsis");
@@ -4170,6 +4317,7 @@ export function smokeChecks({ audit, hold }) {
       // Ends on the document, in the view it was found in, at the zoom it was
       // found at.
       name: "sheets · a document is the script's page",
+      feature: "markdown",
       async run(page) {
         const doc = "1953 North Sea Flood";
         const label = () => page.locator(".zoomctl__label").innerText();
@@ -4269,6 +4417,7 @@ export function smokeChecks({ audit, hold }) {
       // fit starts from a level far from it (50% for the width, 200% for the
       // page), so a fit that did nothing cannot pass. Ends as it began.
       name: "sheets · a fit solves for the document's pane",
+      feature: "markdown",
       async run(page) {
         const doc = "1953 North Sea Flood";
         const label = () => page.locator(".zoomctl__label").innerText();
@@ -4405,6 +4554,7 @@ export function smokeChecks({ audit, hold }) {
       // focus on nothing. So: type a word, and find it on the page and in the
       // file, and not in the binder's name.
       name: "New ▸ Document puts the cursor on its page",
+      feature: "markdown",
       async run(page) {
         const word = "Quincunx";
         await page.locator(".seg__btn", { hasText: "Script" }).first().click();
@@ -4438,6 +4588,7 @@ export function smokeChecks({ audit, hold }) {
       // then ⏎ in the name carries the cursor onto its page, under its first
       // heading rather than into it (docs/app/preferences-and-help/accessibility.md#A11Y-4).
       name: "a new character is named, then ⏎ puts the cursor on its page",
+      feature: "workspace",
       async run(page) {
         const name = "Wren Thackeray";
         const words = "The lighthouse.";
@@ -4468,6 +4619,7 @@ export function smokeChecks({ audit, hold }) {
       // ⌘/ is generated from the keymap table, so an empty overlay means the
       // table and the renderer have come apart.
       name: "shortcuts overlay",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Slash");
         await page.waitForSelector(".keysheet", { timeout: 5000 });
@@ -4480,6 +4632,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "an installing update holds edits and a failure releases them",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.locator('.ProseMirror[contenteditable="true"]').first().click();
@@ -4507,6 +4660,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "folder access can be retried and reauthorised",
+      feature: "storage",
       devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumFolderAccess());
@@ -4522,6 +4676,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "feedback · keyboard draft and character limit",
+      feature: "feedback",
       async run(page) {
         await page.getByRole("button", { name: "Feedback", exact: true }).click();
         await page.waitForSelector("#feedback-message:not(:disabled)");
@@ -4544,6 +4699,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "feedback · three entry points and the acceptance message",
+      feature: "feedback",
       devMock: true,
       async run(page) {
         for (const entry of ["toolbar", "Help", "About"]) {
@@ -4572,6 +4728,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "feedback · drafts, offline retry, details, and enlarged text",
+      feature: "feedback",
       devMock: true,
       async run(page) {
         await page.evaluate(() => localStorage.setItem("proscenium:dev:feedback-fail", "true"));
@@ -4615,6 +4772,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "feedback · diagnostics failure does not block a message",
+      feature: "feedback",
       devMock: true,
       async run(page) {
         await page.evaluate(() => localStorage.setItem("proscenium:dev:feedback-details-fail", "true"));
@@ -4632,6 +4790,7 @@ export function smokeChecks({ audit, hold }) {
       // Copy Diagnostics says what it copied. Mock-only: the app's queue is in
       // Rust, and its Copy Diagnostics writes the real clipboard.
       name: "privacy · reports carry nothing of the play",
+      feature: "diagnostics",
       devMock: true,
       async run(page) {
         const seen = () => page.evaluate(() => window.__prosceniumTelemetry());
@@ -4687,6 +4846,7 @@ export function smokeChecks({ audit, hold }) {
       // keeps a word renamed out of the list. Progress off drops the header and
       // the cells together. Everything is put back the way it was found.
       name: "statuses and Progress are set in Settings",
+      feature: "workspace",
       async run(page) {
         const rows = () =>
           page.evaluate(() => [...document.querySelectorAll(".statuslist__row")].map((r) => r.dataset.status));
@@ -4789,6 +4949,7 @@ export function smokeChecks({ audit, hold }) {
       // back to the Plays screen left off there, and the relaunch below has to
       // open it rather than the play they had closed.
       name: "launch · a writer back on the Plays screen has left off there",
+      feature: "app",
       async run(page) {
         await page.keyboard.press("Meta+Shift+KeyO");
         await page.waitForSelector(".vault-list", { timeout: 15000 });
@@ -4803,6 +4964,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "launch · the relaunch opens on the Plays screen it was left on",
+      feature: "app",
       async run(page) {
         await page.waitForSelector(".vault-list", { timeout: 20000 });
         // Launch walks into a play only once the folder and the settings have
@@ -4827,6 +4989,7 @@ export function smokeChecks({ audit, hold }) {
       // Playwright's init script is the only way in that early, hence the dev
       // mock.
       name: "launch · watch every relaunch from its first frame",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.addInitScript(() => {
@@ -4869,6 +5032,7 @@ export function smokeChecks({ audit, hold }) {
       // in it — here the end of the last page — and that place has to be where
       // the play is FIRST seen, not somewhere it jumps to after.
       name: "launch · the script in front, the caret on its last page",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.locator(".binder .binder__label", { hasText: "The Weight of Water" }).first().click();
@@ -4892,6 +5056,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "launch · the play is in place before the launch screen goes",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.waitForSelector(".launch-screen", { state: "detached", timeout: 15000 });
@@ -4929,6 +5094,7 @@ export function smokeChecks({ audit, hold }) {
       // the default, must walk straight back into The Weight of Water, with
       // nothing clicked.
       name: "settings · open at launch",
+      feature: "app",
       async run(page) {
         // A page in front to come back to (the relaunch check below).
         await page.locator(".binder .binder__label", { hasText: "1953 North Sea Flood" }).first().click();
@@ -4967,6 +5133,7 @@ export function smokeChecks({ audit, hold }) {
     {
       // Straight after the relaunch above, and so last too.
       name: "settings · relaunch opens the last play",
+      feature: "app",
       async run(page) {
         // The play is seen when the launch screen goes, not before: it opens
         // under it.
@@ -5000,6 +5167,7 @@ export function smokeChecks({ audit, hold }) {
     {
       // Straight after the relaunch, from what the watcher above wrote down.
       name: "launch · the relaunch opens into the play, with nothing on the way",
+      feature: "app",
       devMock: true,
       async run(page) {
         const screens = await page.evaluate(() => window.__prosceniumLaunchScreens ?? null);
@@ -5020,6 +5188,7 @@ export function smokeChecks({ audit, hold }) {
       // that on 2026-09-13. "privacy · reports carry nothing of the play" set
       // the notice back to unseen before the relaunch above.
       name: "a relaunch into a play shows the privacy toast once",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.waitForSelector(".toast", { timeout: 5000 });
@@ -5041,6 +5210,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "a seen notice stays seen on the next launch",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.waitForSelector(".binder", { timeout: 20000 });
@@ -5058,6 +5228,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "a build without a key leaves the workspace notice pending",
+      feature: "app",
       devMock: true,
       async run(page) {
         await page.waitForSelector(".binder", { timeout: 20000 });
@@ -5079,6 +5250,7 @@ export function smokeChecks({ audit, hold }) {
       // opens with that script in front. `__prosceniumOpenFiles` is the mock's
       // stand-in for `RunEvent::Opened` — queue, then signal.
       name: "finder · a script in a play opens its play",
+      feature: "workspace",
       devMock: true,
       async run(page) {
         await page.evaluate(() =>
@@ -5094,6 +5266,7 @@ export function smokeChecks({ audit, hold }) {
       // A play from some other folder asks before anything changes, and Cancel
       // changes nothing.
       name: "finder · a play elsewhere asks first",
+      feature: "workspace",
       devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumOpenFiles(["/dev/elsewhere/Lear/Lear.proscenium"]));
@@ -5113,6 +5286,7 @@ export function smokeChecks({ audit, hold }) {
     {
       // A loose script offers to become a play, copied in (docs/app/keeping-work/storage-and-file-format.md#STOR-D12).
       name: "finder · a loose script becomes a play when asked",
+      feature: "workspace",
       devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumOpenFiles(["/dev/outside/Draft.fountain"]));
@@ -5135,6 +5309,7 @@ export function smokeChecks({ audit, hold }) {
       // One .fdx story (docs/app/importing/document-import.md#IMPT-35): opened with Proscenium, an .fdx
       // becomes a new play, and the .fdx is kept beside the script.
       name: "finder · an .fdx becomes a play and is kept",
+      feature: "import",
       devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumOpenFiles(["/dev/outside/Hamlet.fdx"]));
@@ -5159,6 +5334,7 @@ export function smokeChecks({ audit, hold }) {
       // opened from Finder is a folder. It reads like one chosen in the sheet,
       // and the play keeps it zipped whole, as Harbor.pages.zip.
       name: "finder · a package-form Pages document becomes a play and is kept zipped",
+      feature: "import",
       devMock: true,
       async run(page) {
         for (const file of harborPackage())
@@ -5177,6 +5353,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "finder · a file that is not there says so",
+      feature: "workspace",
       devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumOpenFiles(["/dev/outside/Gone.fountain"]));
@@ -5193,6 +5370,7 @@ export function smokeChecks({ audit, hold }) {
       // them over the second script instead. Then a click back on the open
       // script takes back a click on another that is still reading.
       name: "scripts · a slow open never mixes two scripts",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const first = "The Weight of Water.fountain";
@@ -5249,6 +5427,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "copies kept during a save are readable in Changes",
+      feature: "review",
       devMock: true,
       async run(page) {
         const rel = "Second Draft.fountain";
@@ -5281,6 +5460,7 @@ export function smokeChecks({ audit, hold }) {
       // used to count as "gone", so ours went over it with nothing kept. Once
       // it can be read, Keep this pins it and writes ours.
       name: "alternate event spelling gates unsaved words and Keep this preserves theirs",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const second = "Second Draft.fountain";
@@ -5330,6 +5510,7 @@ export function smokeChecks({ audit, hold }) {
       // is still opening; the open finishes before the version is read. The
       // version used to be written into the script that had just opened.
       name: "versions · a restore lands in the script it was chosen from, or nowhere",
+      feature: "review",
       devMock: true,
       async run(page) {
         const first = "The Weight of Water.fountain";
@@ -5377,6 +5558,7 @@ export function smokeChecks({ audit, hold }) {
       // sheet's "changed somewhere else" choice were dropped outright; now the
       // first land and the second are kept in Versions.
       name: "sheets · leaving the play keeps a sheet's last words",
+      feature: "markdown",
       devMock: true,
       async run(page) {
         const mara = "Characters/Mara.md";
@@ -5426,6 +5608,7 @@ export function smokeChecks({ audit, hold }) {
       // and write a play file at its root — after which the Plays folder
       // refused itself as "a play".
       name: "binder · an op waiting on a slow write never runs in the Plays folder",
+      feature: "workspace",
       devMock: true,
       async run(page) {
         const second = "Second Draft.fountain";
@@ -5469,6 +5652,7 @@ export function smokeChecks({ audit, hold }) {
       // loaded over the page when it landed — the typing gone — while the save
       // queued behind it wrote the page from before the move over the move.
       name: "board · a scene moved while the writer types keeps both",
+      feature: "workspace",
       devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
@@ -5520,6 +5704,7 @@ export function smokeChecks({ audit, hold }) {
       // stair." this way. Here the play file's write is held, so the plan is
       // made in that window every time.
       name: "outline · a note made while the binder is walked keeps every word",
+      feature: "workspace",
       devMock: true,
       async run(page) {
         const notes = ".outline-notes .ProseMirror";
@@ -5558,6 +5743,7 @@ export function smokeChecks({ audit, hold }) {
       // that old text over everything typed since. In the native self-test it
       // also caught WebKit's writing suggestions deleting "tur" (the next check).
       name: "outline · the scratchpad comes back with its latest words",
+      feature: "workspace",
       async run(page) {
         const notes = ".outline-notes .ProseMirror";
         const shown = () => page.evaluate((sel) => document.querySelector(sel)?.textContent ?? "", notes);
@@ -5591,6 +5777,7 @@ export function smokeChecks({ audit, hold }) {
       // the saving code had not moved the file's baseline. One writer's list held 54
       // of the first kind and their own Appearances edits as the second.
       name: "changes · coming back to the app lists nothing that did not change outside",
+      feature: "review",
       devMock: true,
       async run(page) {
         const notes = ".outline-notes .ProseMirror";
@@ -5644,6 +5831,7 @@ export function smokeChecks({ audit, hold }) {
       // "aph" in the Feedback box, "rehearsal" kept "arsal" in a new status),
       // so the body turns them off for every field, and none may turn them on.
       name: "text fields · writing suggestions are off wherever words are typed",
+      feature: "ui",
       async run(page) {
         const said = (sel) =>
           page.evaluate((s) => {
@@ -5679,6 +5867,7 @@ export function smokeChecks({ audit, hold }) {
       // another reason is news, and the words land once the gate opens and the
       // window comes back into focus, with nothing more typed.
       name: "saving · a refused save is said once, plainly, and lands when it can",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
@@ -5769,6 +5958,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "leaving waits for sheet saves already accepted by this play",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const path = "Characters/Mara.md";
@@ -5809,6 +5999,7 @@ export function smokeChecks({ audit, hold }) {
       // A refused sheet keeps a recovery copy. Leaving the play pins the
       // words in Versions and explains where they were kept.
       name: "saving · a refused sheet says where its words went",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const mara = "Characters/Mara.md";
@@ -5853,6 +6044,7 @@ export function smokeChecks({ audit, hold }) {
       // the message names the folder the note is made in. It used to name the
       // play's folder, which was not the one locked.
       name: "saving · a refused first outline note names the folder it goes in",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const notes = ".outline-notes .ProseMirror";
@@ -5904,6 +6096,7 @@ export function smokeChecks({ audit, hold }) {
       // editor's own startup, and the race is how a keystroke came to be
       // dropped.
       name: "saving · opening a document writes nothing",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const failed = () => page.evaluate(() => window.__prosceniumFailed("write"));
@@ -5934,6 +6127,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "sheet and outline recovery survive a crash and remain readable",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const hasCopy = (words) => Object.keys(sessionStorage).some((key) =>
@@ -5995,6 +6189,7 @@ export function smokeChecks({ audit, hold }) {
       // before a flush comes back to the file it last wrote, and the snapshot —
       // app data — is still there for the next check to find.
       name: "recovery · words behind the banner are kept through a crash",
+      feature: "storage",
       devMock: true,
       async run(page) {
         // The checks before this one left another play open.
@@ -6034,6 +6229,7 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "recovery · the reopened script offers the words back",
+      feature: "storage",
       devMock: true,
       async run(page) {
         // Launch lands wherever settings send it: the Welcome screen, the Plays
@@ -6118,6 +6314,7 @@ export function smokeChecks({ audit, hold }) {
       // the note that says so waits for the relaunch, which is the reload that
       // ends this check. `__prosceniumQuit` asks as ⌘Q does.
       name: "quit · the words a quit waits on land, or are kept for the next launch",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
@@ -6163,6 +6360,7 @@ export function smokeChecks({ audit, hold }) {
       // could not be saved, and why, once — after its script has opened, whose
       // open retires what was said before it and on the first try took this.
       name: "quit · the play says where a quit kept the words, when it opens again",
+      feature: "storage",
       devMock: true,
       async run(page) {
         await walkIntoPlay(page);
@@ -6193,6 +6391,7 @@ export function smokeChecks({ audit, hold }) {
       // says what quitting would lose. ⏎ and Escape are Don't Quit: nothing
       // brings back what Quit Anyway loses, so it is never the default.
       name: "quit · words that can be kept nowhere hold the quit, and ⏎ does not quit",
+      feature: "storage",
       devMock: true,
       async run(page) {
         const mara = "Characters/Mara.md";
@@ -6261,6 +6460,7 @@ export function smokeChecks({ audit, hold }) {
       // (⌘⇧I) as a binder document. Each keeps its source under Originals.
       // Last, because it adds to the play every later check would share.
       name: "document import · into the open play, as a script and as a document",
+      feature: "import",
       async run(page) {
         await walkIntoPlay(page);
         const choose = (name, base64) => page.evaluate(({ name, base64 }) => {
@@ -6793,6 +6993,27 @@ async function cueSays(page, text) {
 }
 async function cueTone(page, tone) {
   await until(page,`a ${tone} cue`,t=>!!document.querySelector('.tutorial-cue')?.classList.contains(`tutorial-cue--${t}`),tone);
+}
+/**
+ * The guide has finished moving to `selector`: its ring is drawn around that control, and
+ * neither has moved for three frames. When a step changes, the card scrolls its new target
+ * into view on the next frame (CueCard's place()). A click pressed before that scroll and
+ * released after it lands on nothing, and WebKit then sends no click at all: Add Character
+ * missed that way in about one WebKit run in six, with no row added and the step unmoved.
+ */
+async function settledOn(page, selector, what) {
+  await until(page,`the guide settled on ${what}`,async(sel)=>{
+    const at=()=>{
+      const t=document.querySelector(sel), r=document.querySelector('.tutorial-ring');
+      if(!t || !r || getComputedStyle(r).display==='none') return null;
+      const a=t.getBoundingClientRect(), b=r.getBoundingClientRect();
+      return Math.abs(b.left-(a.left-3))<=1 && Math.abs(b.top-(a.top-3))<=1 ? `${a.left},${a.top},${a.width},${a.height}` : null;
+    };
+    const first=at();
+    if(!first) return false;
+    for(let i=0;i<3;i++) await new Promise(r=>requestAnimationFrame(r));
+    return at()===first;
+  },selector);
 }
 /** Beside its target, never over it, and on screen (docs/app/preferences-and-help/tutorials.md#TUT-D103). */
 async function beside(page, what) {

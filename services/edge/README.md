@@ -10,8 +10,11 @@ address transiently, without application logs or persisted identifiers.
 
 From this directory, `bun install --frozen-lockfile`, `bun run typecheck` and
 `bun test ./test` check the Worker with an actual SQLite database and bounded
-upstream responses. `bunx wrangler deploy --dry-run` bundles the production
-entry without contacting an account or deploying anything.
+upstream responses. `test/index.test.ts` drives the production entry itself,
+with a global `fetch` that refuses what workerd refuses: the rehearsal below
+runs its own entry, so it cannot see how production wires the routes'
+dependencies. `bunx wrangler deploy --dry-run` bundles the production entry
+without contacting an account or deploying anything.
 
 The complete transport rehearsal uses no public repository, account or secret:
 
@@ -112,6 +115,31 @@ Primary references: [Worker rate-limit bindings](https://developers.cloudflare.c
 and [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/).
 
 ## Status
+
+**2026-09-26, later, second cause found, not yet deployed:** with fetch fixed
+and deployed (version `8c010c8e`, from `4112ae3`) and 1.0.0 published with a
+valid `latest.json`, every stable check and download through the Worker still
+answered 502. The same bundle answers 200 on all three routes in local workerd
+against the real GitHub, and the redirect chain answers from outside with no
+headers at all: GitHub refuses the request when it comes from Cloudflare's
+network naming no `User-Agent`, and the Worker sent none. Since `b6744c3`
+every upstream hop names the service, `User-Agent: proscenium-updates`, and
+still nothing of the visitor's. Until that is deployed, copies update through
+their GitHub fallback.
+
+**2026-09-26, fetch fixed, deployed as version `8c010c8e`:** since the first deploy, every
+stable check and download that reached GitHub answered 502. The production
+entry handed the update routes the global `fetch` as a property (`{ fetch }`),
+and workerd refuses fetch called as another object's method ("Illegal
+invocation"). The routes answer any throw as 502, the same answer as "GitHub
+unavailable", so the 502 seen on 2026-09-18 was this, not the missing release.
+Copies fell back to GitHub directly, and each check was still counted. The
+entry now wraps `fetch` in its own function, and `test/index.test.ts` holds it
+there. The production bundle, run in workerd with a GitHub stand-in as its only
+outbound, answered 502 to both check routes and the download without making a
+single request before the change, and 200 to all three after it. Patrons'
+`githubName` calls `fetch` bare and answered in workerd; the crash route
+already wrapped `connect`.
 
 **2026-09-21, production:** crash forwarding is on (Worker version
 `90a492ca`) to the configured Sentry project, whose DSN is the Worker secret

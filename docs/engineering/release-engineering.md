@@ -72,11 +72,14 @@ deliberately newer CSS feature makes it fail.
 
 **REL-10** GitHub Actions, in the `proscenium-app` organization.
 
-Every push and pull request to the private development repository runs the gates on the build
-host, a self-hosted runner registered to that repository alone, then the native self-test
-(docs/engineering/release-engineering.md#REL-D4) natively and, for the Intel slice, under Rosetta,
-with its negative control. A red result anywhere stops that commit, and a branch reaches `main`
-only once its run is green; a tag builds, signs and notarizes a release there. The public
+The private development repository's `main` is one queue on the build host, a self-hosted runner
+registered to that repository alone. Each run tests the tip of `main` as it stands when the run
+starts, covering every push since the last run, with the gates the changed files call for: the
+documents' checks always, the unit tests, smoke and the native self-test
+(docs/engineering/release-engineering.md#REL-D4) with its negative control for app changes, the
+Rust tests for Rust changes, everything for a change to the pipeline itself. A tag is tested in
+full before it builds, signs and notarizes: a release adds the universal build and the Intel
+slice under Rosetta, which is where the Intel slice is proven (docs/engineering/release-engineering.md#REL-124). The public
 repository's pull requests run the gates, not the native self-test, on GitHub's hosted runners,
 with no secrets. The requirements that stood here assumed no
 repository before launch and a matrix of GitHub-hosted macOS runners; the maintainer ruled out
@@ -224,6 +227,15 @@ draft release, which opens cleanly from a quarantined download.
   - <a id="REL-64"></a> **REL-64** The app menu gets "Check for Updates…". The Updates section in Settings
     (T3a's slot) has the switch, Check Now, the current version and the release
     notes link.
+- <a id="REL-124"></a> **REL-124** **An Intel Mac takes stable releases alone.** Alpha and beta builds are
+  Apple silicon only (`aarch64-apple-darwin`), and each one's manifest names
+  `darwin-aarch64` alone; a release stays universal. The Intel build follows
+  stable whatever `settings.json` holds, leaves a stored track as it is, and
+  refuses a change to another (docs/app/preferences-and-help/settings.md#SET-40).
+  The update service answers an older Intel copy that still asks a track as
+  stable answers it (docs/engineering/services-and-feedback.md#SERV-265). So the
+  Intel slice is built, and proven under Rosetta, once per release, and a
+  pre-release costs half the build.
 - <a id="REL-65"></a> **REL-65** **The network allowlist.** The update host is one of only two destinations the
   app may contact; T4 owns the allowlist and the proof. Use the plugin's
   Rust-side check, so the webview needs no network permission at all.
@@ -246,6 +258,21 @@ draft release, which opens cleanly from a quarantined download.
 
 **REL-67** **Acceptance:** a notarized 0.9.0 updates itself to 0.9.1 on a real Mac, with a
 dirty buffer present, and loses nothing.
+
+<a id="REL-125"></a>
+
+**REL-125** **Every build proves it can take an update.** `cargo test` runs the update
+path as the app runs it, on every push: the pinned plugin's check against a served
+manifest, the archive's signature against the key, and the installer's check against
+this copy's whole version, through the one function the app's check calls, then the
+install into a scratch bundle (`src-tauri/src/updates/tests/update_path.rs`). Only the
+transport is loopback, and the fixtures are signed by a throwaway key. A newer version
+is taken and installed on every track: stable to stable, alpha to alpha, stable to
+alpha, and alpha to the release that supersedes it. The same or an older version is up
+to date, and nothing is downloaded. An archive that is not the signed offer is refused.
+Each part had passing tests of its own while every copy built from 2026-09-23 refused
+every update, because the installer was handed the offer's version as this copy's; the
+test runs the parts together, and fails when that mistake is put back.
 
 <a id="REL-D7"></a>
 
@@ -767,26 +794,32 @@ In this order, once T5's clean tree is ready (the public-repository pass, docs/e
 1. ~~*Maintainer:* the organization `proscenium-app`~~: made 2026-09-22, with the private
    development repository, which keeps the project's whole history.
 2. ~~*Agent:* `gh auth login` on this Mac~~: signed in as the maintainer's GitHub account.
-3. *Agent,* on the maintainer's go: create `proscenium-app/proscenium`, public, and push
-   the whole project as its one commit; create `proscenium-app/homebrew-tap`,
-   public and empty.
-4. *Maintainer:* make the Homebrew token (below), and the release job's token for
+3. ~~*Agent,* on the maintainer's go: create `proscenium-app/proscenium`, public, and push
+   the whole project as its one commit; create `proscenium-app/homebrew-tap`, public~~:
+   both made 2026-09-25, the project's first commit pushed 2026-09-26. The tap was
+   left with no commits, and 1.0.0's first publish failed on it: the Homebrew
+   workflow checks the tap out before it writes the cask, and a repository with no
+   commits has no `main`. A new tap gets one commit on `main` before its first
+   release (a README naming the cask and
+   `brew install --cask proscenium-app/tap/proscenium`).
+4. ~~*Maintainer:* make the Homebrew token (below), and the release job's token for
    `proscenium-app/proscenium` (Contents read and write on that one repository),
-   which the build host needs to draft a release there: its runner's own token cannot write to the public repository.
+   which the build host needs to draft a release there~~: both made 2026-09-25. The
+   build host's runner token cannot write to the public repository, which is why
+   the release job has its own.
 5. ~~*Agent:* make sure the Tagged release run of the last 0.9.x kept its files~~:
    nothing starts from a 0.9.x DMG (step 8).
-6. *Agent:* `bun run version 1.0.0` if it is not already, tag `v1.0.0`, push
-   the tag, then `node scripts/release.mjs --publish`. It refuses unless the
-   tag on GitHub is exactly the tree it builds.
-7. Check the draft ([Every release](#every-release), steps 6–7), then publish it
-   (step 8 there). Publish only once `https://proscenium.ink/privacy` serves
-   the website's privacy page (its launch deploy, the website repository's
-   SPEC.md, privacy section): 1.0 is the first distributed copy that sends automatic reports,
-   and the page must be public before it does.
-8. *Agent:* nothing to run, and nothing to wait for. The Stable update proof
+6. ~~*Agent:* `bun run version 1.0.0` if it is not already, tag `v1.0.0`, push
+   the tag, then `node scripts/release.mjs --publish`~~: tagged and drafted
+   2026-09-26. It refuses unless the tag on GitHub is exactly the tree it builds.
+7. ~~Check the draft ([Every release](#every-release), steps 6–7), then publish it
+   (step 8 there)~~: published 2026-09-26, after `https://proscenium.ink/privacy`
+   served the website's privacy page (1.0 is the first distributed copy that
+   sends automatic reports, and the page had to be public before it did).
+8. ~~*Agent:* nothing to run, and nothing to wait for~~. The Stable update proof
    builds the version updated from out of its own tag, and no 0.9.x carries it,
    so the first update through the real address on stable, 0.9.x to 1.0.0, is
-   unproven, and the release record says so. The proof runs from 1.0.1 on
+   unproven. The proof runs from 1.0.1 on
    ([every release](#SHIP-D109), step 7).
 
 <a id="SHIP-D105"></a>

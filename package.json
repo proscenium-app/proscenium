@@ -28,7 +28,8 @@
     "version": "node scripts/version.mjs",
     "build:universal": "bun run icon && node scripts/build-app.mjs --universal --dmg",
     "build:selftest": "bun run icon && node scripts/build-app.mjs --universal --selftest",
-    "check:docs": "bun test ./scripts/check-docs.test.ts && bun scripts/check-docs.ts"
+    "check:docs": "bun test ./scripts/check-docs.test.ts && bun scripts/check-docs.ts",
+    "gates": "node scripts/gates.mjs"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",

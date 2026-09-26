@@ -11,6 +11,8 @@
  *   node scripts/selftest.mjs --out <dir>       report and screenshots (default .selftest/<run>)
  *   node scripts/selftest.mjs --only <text>     only the checks whose names contain <text>, for
  *                                               chasing one failure; never a verdict on the app
+ *   node scripts/selftest.mjs --features a,b    a narrowed pass, as smoke --only: leaves out the
+ *                                               detachable features' checks not named (smoke-checks.mjs)
  *
  * Build the app first: `bun run build:selftest` (universal, what CI runs) or
  * `node scripts/build-app.mjs --selftest` (this Mac's slice, faster).
@@ -46,6 +48,7 @@ const opt = (name) => {
 
 const BREAK = opt("--break");
 const ONLY = opt("--only");
+const FEATURES = opt("--features");
 const ARCH = opt("--arch");
 const TIMEOUT = Number(opt("--timeout") ?? 420);
 
@@ -115,6 +118,7 @@ const child = spawn(command[0], command[1], {
     PROSCENIUM_SELFTEST_ARIA: join(ROOT, "scripts/aria/native"),
     ...(BREAK ? { PROSCENIUM_SELFTEST_BREAK: BREAK } : {}),
     ...(ONLY ? { PROSCENIUM_SELFTEST_ONLY: ONLY } : {}),
+    ...(FEATURES ? { PROSCENIUM_SELFTEST_FEATURES: FEATURES } : {}),
   },
 });
 // The app has its own watchdog; this one is for an app that cannot even start.
@@ -162,18 +166,27 @@ if (interrupted) {
   if (code !== 0) problems.push(`exited ${code}`);
   if (report && !report.ok) problems.push(...report.failures);
   if (report && report.passes?.length !== 2) problems.push(`${report.passes?.length ?? 0} of 2 passes ran`);
-  verdict = problems.length ? "FAIL" : ONLY ? `ok for the checks matching "${ONLY}" — a partial run, not a verdict` : "clean";
+  verdict = problems.length
+    ? "FAIL"
+    : ONLY
+      ? `ok for the checks matching "${ONLY}" — a partial run, not a verdict`
+      : FEATURES
+        ? `clean, narrowed to ${FEATURES}`
+        : "clean";
 }
 
 if (report) {
   const checks = report.passes.flatMap((p) => p.checks ?? []);
   // A check that only works on the dev mock is skipped here and reported as
   // skipped: counted with the passes, it would read as proof it never gave.
-  const skipped = checks.filter((c) => c.skipped);
+  // Left out by --only or --features: not run here by choice, and not counted.
+  const unselected = checks.filter((c) => /^not (selected|in this run)/.test(c.skipped ?? ""));
+  const skipped = checks.filter((c) => c.skipped && !unselected.includes(c));
   const passed = checks.filter((c) => c.ok && !c.skipped);
   console.log(
     `\nselftest: ${report.app.macos} · ${report.app.arch}${report.app.translated ? " (Rosetta)" : ""} · ` +
-      `${passed.length}/${checks.length - skipped.length} checks` +
+      `${passed.length}/${checks.length - skipped.length - unselected.length} checks` +
+      `${unselected.length ? ` · ${unselected.length} not selected` : ""}` +
       `${skipped.length ? ` · ${skipped.length} skipped (${[...new Set(skipped.map((c) => c.name))].join(", ")})` : ""}` +
       ` · ${Math.round(report.durationMs / 1000)}s`,
   );

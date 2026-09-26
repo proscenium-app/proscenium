@@ -108,12 +108,14 @@ window. Dev runs unminified React on a different storage path, and every check
 that navigates by selector passes straight through a collapsed layout.
 
 So: **`bun run smoke`** before saying a UI change works. It builds `dist/` and
-drives the shipped bundle in headless Chromium on the app's own in-memory vault
-(`__PROSCENIUM_FIXTURE__`, fenced behind `!isTauri()`), and it asserts every
-surface has a real box — "present in the DOM, invisible on screen" is a
-failure. It also scans each surface with axe-core and presses the keys the
-accessibility contract promises. `bun run smoke -- --shots` writes PNGs to
-`.smoke/` for both schemes. Chromium is not WebKit.
+drives the shipped bundle in headless Chromium and in Playwright's WebKit on the
+app's own in-memory vault (`__PROSCENIUM_FIXTURE__`, fenced behind `!isTauri()`),
+and it asserts every surface has a real box — "present in the DOM, invisible on
+screen" is a failure. It also scans each surface with axe-core in both schemes,
+presses the keys the accessibility contract promises, and holds each surface's
+ARIA snapshot against `scripts/aria/<surface>.yml` (`--update-aria` rewrites
+them after a deliberate change). `bun run smoke -- --shots` writes PNGs to
+`.smoke/` for both schemes. Playwright's WebKit is not Apple's WKWebView.
 
 **The native self-test runs the same checks inside the real app** (WKWebView,
 the Rust vault, native keys and clicks; docs/engineering/release-engineering.md#REL-D4).

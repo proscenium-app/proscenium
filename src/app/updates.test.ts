@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
-import { describeUpdates, restartProblem, slowerTrackNote, trackOfVersion } from "./updates";
+import { describeUpdates, offeredTracks, restartProblem, slowerTrackNote, trackOfVersion } from "./updates";
 
 const rust = readFileSync(new URL("../../src-tauri/src/updates.rs", import.meta.url), "utf8");
 const ipc = readFileSync(new URL("../storage/ipc.ts", import.meta.url), "utf8");
@@ -95,6 +95,22 @@ describe("tracks", () => {
       ["stable", null],
     ] as const) {
       expect(slowerTrackNote(track, version)).toBeNull();
+    }
+  });
+});
+
+describe("offeredTracks", () => {
+  it("offers Stable and Beta, and Alpha only with its key or to a copy already on it (docs/app/preferences-and-help/settings.md#SET-37)", () => {
+    expect(offeredTracks("aarch64", "stable", false)).toEqual(["stable", "beta"]);
+    expect(offeredTracks("aarch64", "stable", true)).toEqual(["stable", "beta", "alpha"]);
+    expect(offeredTracks("aarch64", "alpha", false)).toEqual(["stable", "beta", "alpha"]);
+    expect(offeredTracks(null, "beta", false)).toEqual(["stable", "beta"]);
+  });
+
+  it("offers an Intel Mac Stable alone, whatever it holds (docs/app/preferences-and-help/settings.md#SET-40)", () => {
+    for (const track of ["stable", "beta", "alpha"] as const) {
+      expect(offeredTracks("x86_64", track, true)).toEqual(["stable"]);
+      expect(offeredTracks("x86_64", track, false)).toEqual(["stable"]);
     }
   });
 });

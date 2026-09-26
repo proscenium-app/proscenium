@@ -89,6 +89,16 @@ This reference covers owned endpoints, service behavior, protection and operatio
     from the same bucket, only of a version on the track's list and only its own
     three files. Publishing to either track writes R2 and needs no Worker deploy;
     stable keeps its admission list, its GitHub releases and its fallback.
+  - <a id="SERV-265"></a> **SERV-265** **Intel Macs take stable releases alone**
+    (docs/engineering/release-engineering.md#REL-124). A track's manifest names either
+    both platforms and the universal archive, as the first track builds did, or
+    `darwin-aarch64` alone and that version's `_aarch64` archive, as every track
+    build since does; anything else is refused. A track version's own files are
+    its universal three or its `_aarch64` three. A check from `x86_64` on `alpha`
+    or `beta`, from a copy built before the app followed stable on Intel, is
+    counted as the check it is and answered with stable's manifest, exactly as
+    the stable route answers it; alpha's key is still asked for first. A release's
+    manifest stays universal.
 - <a id="SERV-23"></a> **SERV-23** **Usage counts** (decision 2).
   - <a id="SERV-24"></a> **SERV-24** A batch carries the build's version, platform, architecture, macOS version
     and channel, and a list of events, each a name and its properties.
@@ -406,6 +416,8 @@ Proscenium's GitHub sponsors, by level, for Settings › About
   - <a id="SERV-263"></a> **SERV-263** alpha without its key, or with a wrong one, is an unknown track's bare
     404 before any switch or limit answers; with it, alpha answers; beta and stable
     need none; and no other route tells published alphas apart.
+  - an Apple-silicon-only track manifest and its files are served, a mixed one
+    is refused, and an Intel check on a track gets stable's manifest (SERV-265).
 - <a id="SERV-140"></a> **SERV-140** **Feedback:** a message sent from a release build is stored in the list, and
   a reply to the address the writer gave reaches it.
 - <a id="SERV-141"></a> **SERV-141** **The zone:** DNSSEC, CAA, HSTS and the rate limits are on, and the scheduled jobs'

@@ -3,7 +3,8 @@
 
 /**
  * Make a release (docs/engineering/release-engineering.md#REL-D5, docs/engineering/release-engineering.md#REL-D6, docs/engineering/release-engineering.md#SHIP-D100): one universal
- * Proscenium signed with Habiby LLC's Developer ID, notarized and stapled; its
+ * Proscenium (Apple silicon alone for an alpha or a beta, docs/engineering/release-engineering.md#REL-124)
+ * signed with Habiby LLC's Developer ID, notarized and stapled; its
  * DMG, notarized and stapled too; the archive installed copies update from, and
  * its signature; and the latest.json they read to find it.
  *
@@ -45,8 +46,13 @@
  * working tree with uncommitted changes, and, with --publish, a tag on GitHub
  * that is not the tree being built.
  *
+ * **Intel Macs take stable releases alone** (docs/engineering/release-engineering.md#REL-124). A
+ * track build is the Apple silicon slice only, `aarch64-apple-darwin`, and its
+ * manifest names `darwin-aarch64` alone: half the build, and no Intel Mac is
+ * ever offered a pre-release. Stable stays universal.
+ *
  * Writes .release-artifacts/v<version>/ (…-rehearsal/ for a rehearsal):
- *   Proscenium_<v>_universal.dmg
+ *   Proscenium_<v>_universal.dmg                     (_aarch64 on a track)
  *   Proscenium_<v>_universal.app.tar.gz  and  .sig   what the updater downloads and checks
  *   latest.json                                      what the updater reads
  *   notes.md · SHA256SUMS · build.json               the notes, the hashes, what was built from what
@@ -92,7 +98,11 @@ if (TRACK !== null && !["alpha", "beta"].includes(TRACK)) {
   process.exit(1);
 }
 
-const TARGET = join(ROOT, "src-tauri/target/universal-apple-darwin/release/bundle");
+/** What is built: every Mac for a release, Apple silicon alone for a track. */
+const RUST_TARGET = TRACK ? "aarch64-apple-darwin" : "universal-apple-darwin";
+/** The slice in the files' names, which the update service checks. */
+const SLICE = TRACK ? "aarch64" : "universal";
+const TARGET = join(ROOT, `src-tauri/target/${RUST_TARGET}/release/bundle`);
 const STAGE = join(ROOT, ".release");
 const conf = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
 /** The release this build is, or is a pre-release of: the release supersedes its pre-releases by semver. */
@@ -415,7 +425,7 @@ function build(material) {
     if (f.endsWith(".tar.gz") || f.endsWith(".tar.gz.sig")) rmSync(join(TARGET, "macos", f));
   }
 
-  const tauriArgs = ["build", "--bundles", "app,dmg", "--target", "universal-apple-darwin", "--config", "src-tauri/tauri.release.conf.json"];
+  const tauriArgs = ["build", "--bundles", "app,dmg", "--target", RUST_TARGET, "--config", "src-tauri/tauri.release.conf.json"];
   if (material.overlay) tauriArgs.push("--config", JSON.stringify(material.overlay));
   if (TRACK) tauriArgs.push("--config", JSON.stringify(trackOverlay()));
   // Only what this build means to hand over: signing variables inherited from
@@ -481,8 +491,8 @@ function notarizedBy(kind, path, extra = []) {
 }
 
 function checkApp() {
-  step("the app: universal, the floor, no self-test, signed");
-  run(process.execPath, ["scripts/check-bundle.mjs", APP, "--universal", "--release", "--version", BASE]);
+  step(`the app: ${TRACK ? "Apple silicon" : "universal"}, the floor, no self-test, signed`);
+  run(process.execPath, ["scripts/check-bundle.mjs", APP, TRACK ? "--arm64" : "--universal", "--release", "--version", BASE]);
   // What macOS reads, and the whole version a track build answers to.
   const plist = (key) => spawnSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, join(APP, "Contents/Info.plist")], { encoding: "utf8" });
   const short = plist("CFBundleShortVersionString").stdout.trim();
@@ -568,21 +578,22 @@ function artifacts({ notes, repo, dirty }, material, dmg, { archive, signature }
   step(`artifacts in ${OUT}`);
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
-  const dmgName = `${conf.productName}_${version}_universal.dmg`;
-  const archiveName = `${conf.productName}_${version}_universal.app.tar.gz`;
+  const dmgName = `${conf.productName}_${version}_${SLICE}.dmg`;
+  const archiveName = `${conf.productName}_${version}_${SLICE}.app.tar.gz`;
   copyFileSync(dmg, join(OUT, dmgName));
   copyFileSync(archive, join(OUT, archiveName));
   writeFileSync(join(OUT, `${archiveName}.sig`), `${signature}\n`);
 
   const base = (opt("--base-url") ?? (TRACK ? `${UPDATES}/v1/${TRACK}/download/v${version}` : `https://github.com/${repo}/releases/download/v${version}`)).replace(/\/$/, "");
   // One universal archive serves both architectures; the updater asks for its
-  // own (`darwin-aarch64`, or `darwin-x86_64` for the Intel slice, Rosetta included).
+  // own (`darwin-aarch64`, or `darwin-x86_64` for the Intel slice, Rosetta
+  // included). A track's archive is Apple silicon's alone, and so is its manifest.
   const platform = { signature, url: `${base}/${archiveName}` };
   const latest = {
     version,
     notes,
     pub_date: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
-    platforms: { "darwin-aarch64": platform, "darwin-x86_64": platform },
+    platforms: TRACK ? { "darwin-aarch64": platform } : { "darwin-aarch64": platform, "darwin-x86_64": platform },
   };
   writeFileSync(join(OUT, "latest.json"), `${JSON.stringify(latest, null, 2)}\n`);
   // A public key only, so the local updater rehearsal can verify this archive
@@ -609,7 +620,18 @@ function artifacts({ notes, repo, dirty }, material, dmg, { archive, signature }
         signedBy: material.identity ?? "ad hoc",
         notarized: !REHEARSE,
         builtOn: IN_CI ? `GitHub Actions, signed from ${FROM_SECRETS ? "its secrets" : KEYCHAIN}` : KEYCHAIN ? `a Mac, signed from ${KEYCHAIN}` : "a local Mac",
-        ...(TRACK ? { track: TRACK, release: BASE } : {}),
+        ...(TRACK ? { track: TRACK, release: BASE, slice: SLICE } : {}),
+        // What the pipeline tested before this build: its tier, and for a
+        // narrowed run the features it ran, so the build says how far it was proven.
+        ...(process.env.PROSCENIUM_PIPELINE_TIER
+          ? {
+              pipeline: {
+                tier: process.env.PROSCENIUM_PIPELINE_TIER,
+                features: (process.env.PROSCENIUM_PIPELINE_FEATURES ?? "").split(",").filter(Boolean),
+                run: process.env.GITHUB_RUN_ID ?? null,
+              },
+            }
+          : {}),
         builtAt: latest.pub_date,
         tools: {
           macos: tool("sw_vers", ["-productVersion"]),
@@ -701,7 +723,7 @@ function newerThan(a, b) {
  */
 function publishTrack(published) {
   step(`publish ${version} to the ${TRACK} track`);
-  const names = (v) => [`${conf.productName}_${v}_universal.dmg`, `${conf.productName}_${v}_universal.app.tar.gz`, `${conf.productName}_${v}_universal.app.tar.gz.sig`];
+  const names = (v, slice = SLICE) => [`${conf.productName}_${v}_${slice}.dmg`, `${conf.productName}_${v}_${slice}.app.tar.gz`, `${conf.productName}_${v}_${slice}.app.tar.gz.sig`];
   for (const name of names(version)) put(`${TRACK}/${version}/${name}`, join(OUT, name), "application/octet-stream");
   const list = [...published, version];
   const listFile = join(temp, "versions.json");
@@ -710,7 +732,8 @@ function publishTrack(published) {
   put(`${TRACK}/latest.json`, join(OUT, "latest.json"), "application/json");
   if (list.length > 5) {
     const gone = list[list.length - 6];
-    for (const name of names(gone)) {
+    // A version from before tracks were Apple silicon alone has universal files.
+    for (const name of [...names(gone, "aarch64"), ...names(gone, "universal")]) {
       const r = wrangler(["r2", "object", "delete", trackKey(`${TRACK}/${gone}/${name}`), "--remote"]);
       if (r.status !== 0) console.log(`  could not delete ${gone}'s ${name}, kept: ${r.stderr.trim().split("\n").pop()}`);
     }

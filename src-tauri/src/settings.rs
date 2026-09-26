@@ -111,6 +111,21 @@ pub enum UpdateTrack {
     Alpha,
 }
 
+/// Whether this copy is the Intel build. An Intel Mac takes stable releases
+/// alone: alpha and beta are built for Apple silicon only
+/// (docs/app/preferences-and-help/settings.md#SET-40).
+pub(crate) const INTEL: bool = cfg!(target_arch = "x86_64");
+
+/// The track a copy follows: the one stored, except that an Intel Mac follows
+/// stable whatever is stored, and leaves the stored value as it is.
+pub(crate) fn effective_track(stored: UpdateTrack, intel: bool) -> UpdateTrack {
+    if intel {
+        UpdateTrack::Stable
+    } else {
+        stored
+    }
+}
+
 /// Every preference, with its default filled in. What `get_settings` answers.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -377,11 +392,10 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
             .filter(|id| valid_play_ref(id))
             .map(str::to_string),
         check_for_updates: flag("checkForUpdates").unwrap_or(true),
-        update_track: obj
-            .get("updateTrack")
-            .cloned()
-            .and_then(|v| serde_json::from_value(v).ok())
-            .unwrap_or_default(),
+        update_track: effective_track(
+            obj.get("updateTrack").cloned().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default(),
+            INTEL,
+        ),
         has_update_track_key: obj.get(UPDATE_TRACK_KEY).and_then(Value::as_str).is_some_and(valid_track_key),
         default_format: obj
             .get(DEFAULT_FORMAT)
@@ -433,6 +447,9 @@ fn validate(patch: &SettingsPatch) -> Result<(), String> {
     }
     if patch.update_track_key.as_deref().is_some_and(|key| !valid_track_key(key)) {
         return Err("That is not a key".into());
+    }
+    if patch.update_track.is_some_and(|t| effective_track(t, INTEL) != t) {
+        return Err("An Intel Mac takes stable releases only".into());
     }
     if let Some(Some(id)) = &patch.default_format {
         if !valid_format_id(id) {

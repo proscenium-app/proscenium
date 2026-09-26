@@ -70,6 +70,14 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
      alpha needs a key this copy doesn't have and so it isn't checking, beside a Use
      Stable button, which moves focus to the menu. Such a copy asks nothing: the
      update service answers alpha only to its key.
+   - <a id="SET-40"></a> **SET-40** **An Intel Mac takes Stable alone.** Alpha and beta are built for
+     Apple silicon only (docs/engineering/release-engineering.md#REL-124), so on an
+     Intel Mac the track is the word Stable, not a menu, with the sentence "Each new
+     release. Test versions are made for Macs with Apple silicon only." and no Have a
+     key? button. The app follows stable there whatever `updateTrack` holds, leaves
+     the stored value as it is, and refuses a patch to another track. The note that
+     a slower track waits to pass the version already installed still shows while
+     it is true.
    - <a id="SET-15"></a> **SET-15** **About** — version and architecture; "Free software under the GNU AGPL"
      linking to the license; acknowledgements (Courier Prime OFL, the SCOWL
      dictionary, Tauri, React, ProseMirror and TipTap, pdf-lib). Copy Diagnostics and Report a Problem are slots for T4.

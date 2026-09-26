@@ -23,11 +23,25 @@
  * selector passes straight through that — which is how it shipped.
  *
  *   bun run smoke                   # headless, fails loudly
- *   bun run smoke -- --shots        # also writes PNGs to .smoke/
+ *   bun run smoke -- --shots        # a PNG in .smoke/ of each check that fails
+ *   bun run smoke -- --shots=all    # ... and of every check that passes
  *   bun run smoke -- --engine webkit  # one engine only (chromium or webkit)
+ *   bun run smoke -- --serial       # the engines one after the other, not side by side
+ *   bun run smoke -- --only import,spell  # a narrowed pass: leaves out the detachable
+ *                                   # features' checks not named (smoke-checks.mjs)
  *   bun run smoke -- --update-aria  # rewrite scripts/aria/*.yml from this run
+ *   bun run smoke -- --timing <file>  # each check's time, per pass, as JSON
  *
- * **It also asserts that things can be REACHED** (docs/app/preferences-and-help/accessibility.md#A11Y-15). Every surface
+ * **Behaviour once, the look in both schemes.** One pass per engine runs every
+ * check, in the light scheme. At each surface a check audits, the page is
+ * switched to dark and audited and held again, then switched back: a scheme
+ * changes contrast and what a surface says, not what a key or a save does. The
+ * dark audit sees exactly the page the light one saw. A whole second pass in
+ * dark cost as long as the first; running only the auditing checks in it
+ * changed the page under them, because the checks stand on each other's state
+ * (31 of them then failed on 2026-09-26).
+ *
+ * **It also asserts that things can be REACHED** (docs/app/preferences-and-help/accessibility.md#A11Y-19). Every surface
  * it opens is scanned with axe-core against WCAG 2.2 A and AA, and a critical
  * or serious finding fails the run. A scanner cannot press keys, though, and
  * the worst accessibility bugs this app had were key bugs no scanner sees —
@@ -35,7 +49,7 @@
  * a Go to Scene field that never had focus. Those are asserted by pressing
  * the keys, in the checks named "keyboard".
  *
- * **In two engines** (docs/app/preferences-and-help/accessibility.md#A11Y-15). Every check
+ * **In two engines** (docs/app/preferences-and-help/accessibility.md#A11Y-19). Every check
  * runs in Chromium and again in Playwright's WebKit, in both schemes. Playwright's
  * WebKit is a WebKit, built from WebKit's own source, but it is not Apple's
  * WKWebView and it is not the macOS floor's Safari: it catches a page that
@@ -43,7 +57,7 @@
  * (check:webkit-floor does that) and not the app's webview (the native
  * self-test does that).
  *
- * **And the tree a screen reader is given** (docs/app/preferences-and-help/accessibility.md#A11Y-15).
+ * **And the tree a screen reader is given** (docs/app/preferences-and-help/accessibility.md#A11Y-19).
  * At every surface it audits, Chromium takes Playwright's ARIA snapshot of the
  * page — roles, names, states, the live regions — and holds it against
  * scripts/aria/<surface>.yml in both schemes (scripts/aria-snapshots.mjs). The
@@ -64,13 +78,24 @@ import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, extname, join, normalize as normalizePath } from "node:path";
-import { AUDIT_TAGS, recordAudit, runAxe, smokeChecks } from "./smoke-checks.mjs";
+import { AUDIT_TAGS, recordAudit, runAxe, selected, smokeChecks } from "./smoke-checks.mjs";
 import { SurfaceNames, firstDifference, forSurface, normalize } from "./aria-snapshots.mjs";
+import { holdHostBench } from "./host-bench.mjs";
 
+const STARTED = Date.now();
 const DIST = new URL("../dist/", import.meta.url).pathname;
-const SHOTS = process.argv.includes("--shots");
+const argValue = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null);
+/** "failures": a PNG of each failing check; "all": of every check too. */
+const SHOTS = process.argv.includes("--shots=all") ? "all" : process.argv.includes("--shots") ? "failures" : null;
 const UPDATE_ARIA = process.argv.includes("--update-aria");
-const ONE_ENGINE = process.argv.includes("--engine") ? process.argv[process.argv.indexOf("--engine") + 1] : null;
+const ONE_ENGINE = argValue("--engine");
+/** The features a narrowed pass keeps (smoke-checks.mjs `selected`); none, every check. */
+const ONLY = (argValue("--only") ?? "").split(/[,\s]+/).filter(Boolean);
+const TIMING = argValue("--timing");
+if (ONLY.length && UPDATE_ARIA) {
+  console.error("smoke: --update-aria writes every surface's snapshot, so it runs every check; drop --only");
+  process.exit(2);
+}
 const ENGINES = { chromium, webkit };
 if (ONE_ENGINE && !ENGINES[ONE_ENGINE]) {
   console.error(`smoke: --engine is chromium or webkit, not ${ONE_ENGINE}`);
@@ -146,12 +171,13 @@ function serve() {
 /*
  * The checks themselves live in scripts/smoke-checks.mjs, shared with the
  * native self-test that runs them inside the real app (docs/engineering/release-engineering.md#REL-D4).
- * This file is the Chromium driver: it serves dist/, loads axe into the page,
- * and runs every check in both colour schemes.
+ * This file is the browser driver: it serves dist/, loads axe into the page,
+ * and runs every check once per engine, auditing each surface in both colour
+ * schemes. The engines run side by side, each in its own browser, since
+ * nothing one does reaches the other; `--update-aria` runs them one after the
+ * other, because WebKit's files are written against Chromium's.
  */
-const audits = { findings: [], advisories: new Map() };
-const findings = audits.findings;
-const advisories = audits.advisories;
+const advisories = new Map();
 
 /**
  * Where a `--shots` screenshot goes, named for its engine, scheme and its check
@@ -170,8 +196,52 @@ function shotPath(scheme, name) {
   return join(OUT, `${file}.png`);
 }
 
-/** Which pass is running, for the snapshot files and the report lines. */
-const pass = { engine: "", scheme: "", names: new SurfaceNames() };
+/**
+ * One engine's pass: which engine, which scheme the page is in right now, the
+ * snapshot names counted in each scheme, and the findings of the check running.
+ */
+function newPass(engine) {
+  return {
+    engine,
+    scheme: "light",
+    names: new SurfaceNames(),
+    darkNames: new SurfaceNames(),
+    audits: { findings: [], advisories },
+    runningCheck: "",
+  };
+}
+
+/**
+ * The page in the other scheme for `fn`, then back. The app follows the
+ * scheme through a matchMedia listener (src/ui/use-accent.ts) when its
+ * appearance follows the Mac; with a fixed appearance nothing changes, as in
+ * a pass that booted in that scheme.
+ */
+async function inScheme(P, page, scheme, fn) {
+  const saved = { scheme: P.scheme, names: P.names };
+  const settle = async (want) => {
+    await page.emulateMedia({ colorScheme: want });
+    await page.waitForFunction(
+      (w) => document.documentElement.dataset.appearance !== "system" || document.documentElement.dataset.theme === w,
+      want,
+      { timeout: 5000 },
+    );
+    // Two frames, so the new colours are drawn before anything reads them;
+    // never longer than a quarter second, should a frame not come.
+    await page.evaluate(() => new Promise((r) => {
+      requestAnimationFrame(() => requestAnimationFrame(r));
+      setTimeout(r, 250);
+    }));
+  };
+  await settle(scheme);
+  Object.assign(P, { scheme, names: P.darkNames });
+  try {
+    return await fn();
+  } finally {
+    Object.assign(P, saved);
+    await settle(saved.scheme);
+  }
+}
 /** Every snapshot file this run held a surface against (or wrote). */
 const heldFiles = new Set();
 
@@ -181,13 +251,13 @@ const heldFiles = new Set();
  * `--update-aria` writes the file from the first pass that meets the surface,
  * and the passes after it are held to it as usual.
  */
-async function holdSnapshot(page, surface) {
+async function holdSnapshot(P, page, surface) {
   // Playwright computes the snapshot itself, and it reads the same in both
   // engines; held twice, it only doubles the chances that a tab an earlier
   // check left open, or WebKit's timing, fails the run. Chromium holds each
   // surface; WebKit runs every check, axe and the checks that hold the tree
   // (hold, below), and the native self-test holds WebKit's own tree.
-  if (pass.engine !== ENGINE_ORDER[0]) return pass.names.next(surface);
+  if (P.engine !== ENGINE_ORDER[0]) return P.names.next(surface);
   // A toast is on screen for as long as its timer says, and its words were
   // already said through the announcer: it is timing, not the surface.
   const take = async () => {
@@ -205,28 +275,26 @@ async function holdSnapshot(page, surface) {
       );
     }
   };
-  await holdText(surface, await take(), take);
-}
-
-/** What a check read off the tree (the driver's `hold`), held the same way. */
-async function hold(_page, name, text) {
-  await holdText(name, normalize(text));
+  await holdText(P, surface, await take(), take);
 }
 
 /** How long a snapshot that differs is read again before it fails, as Playwright's toMatchAriaSnapshot waits. */
 const SETTLE_MS = 3000;
 
-async function holdText(surface, actual, retake) {
-  const name = pass.names.next(surface);
+async function holdText(P, surface, actual, retake) {
+  const name = P.names.next(surface);
+  const base = name.replace(/--\d+$/, "");
+  if (!surfaceChecks.has(base)) surfaceChecks.set(base, new Set());
+  surfaceChecks.get(base).add(P.runningCheck);
   // Most particular first: this engine in this scheme, this engine, this
   // scheme, then the shared file. Chromium in light is the shared file; each
-  // other pass has a file of its own only where it reads the surface otherwise.
-  const firstEngine = pass.engine === ENGINE_ORDER[0];
-  const firstScheme = pass.scheme === "light";
+  // other reading has a file of its own only where it reads the surface otherwise.
+  const firstEngine = P.engine === ENGINE_ORDER[0];
+  const firstScheme = P.scheme === "light";
   const candidates = [
-    !firstEngine && !firstScheme && `${name}.${pass.engine}.${pass.scheme}.yml`,
-    !firstEngine && `${name}.${pass.engine}.yml`,
-    !firstScheme && `${name}.${pass.scheme}.yml`,
+    !firstEngine && !firstScheme && `${name}.${P.engine}.${P.scheme}.yml`,
+    !firstEngine && `${name}.${P.engine}.yml`,
+    !firstScheme && `${name}.${P.scheme}.yml`,
     `${name}.yml`,
   ]
     .filter(Boolean)
@@ -258,10 +326,10 @@ async function holdText(surface, actual, retake) {
     actual = await retake();
   }
   if (expected === actual) return;
-  const kept = join(OUT, "aria", `${pass.engine}-${pass.scheme}`, `${name}.yml`);
+  const kept = join(OUT, "aria", `${P.engine}-${P.scheme}`, `${name}.yml`);
   mkdirSync(dirname(kept), { recursive: true });
   writeFileSync(kept, `${actual}\n`);
-  findings.push(
+  P.audits.findings.push(
     expected === null
       ? `ARIA snapshot of ${surface}: no expectation in scripts/aria/${name}.yml (\`bun run smoke -- --update-aria\` writes it; this run's is in .smoke/aria/)`
       : `ARIA snapshot of ${surface} (scripts/aria/${file.slice(ARIA.length)}), ${firstDifference(expected, actual)}`,
@@ -269,27 +337,48 @@ async function holdText(surface, actual, retake) {
 }
 const writtenNow = new Set();
 
-async function audit(page, surface) {
-  if (!(await page.evaluate(() => "axe" in window))) await page.addScriptTag({ url: AXE_PATH });
-  recordAudit(await page.evaluate(runAxe, AUDIT_TAGS), surface, audits);
-  await holdSnapshot(page, surface);
-  if (SHOTS && surface.startsWith("Send Feedback")) {
-    const dark = await page.evaluate(() => matchMedia("(prefers-color-scheme: dark)").matches);
-    await page.screenshot({ animations: "disabled", path: shotPath(`${pass.engine}-${dark ? "dark" : "light"}`, surface) });
-  }
+/** The driver a pass hands its checks: `audit` in both schemes, `hold` as the page is. */
+function driverFor(P) {
+  return {
+    async audit(page, surface) {
+      if (!(await page.evaluate(() => "axe" in window))) await page.addScriptTag({ url: AXE_PATH });
+      const look = async (label) => {
+        recordAudit(await page.evaluate(runAxe, AUDIT_TAGS), label, P.audits);
+        await holdSnapshot(P, page, surface);
+        if (SHOTS && surface.startsWith("Send Feedback")) {
+          await page.screenshot({ animations: "disabled", path: shotPath(`${P.engine}-${P.scheme}`, surface) });
+        }
+      };
+      await look(surface);
+      await inScheme(P, page, "dark", () => look(`${surface} (dark)`));
+    },
+    /** What a check read off the tree, held the same way. */
+    async hold(_page, name, text) {
+      await holdText(P, name, normalize(text));
+    },
+  };
 }
 
-const CHECKS = smokeChecks({ audit, hold });
+const ALL_CHECKS = smokeChecks(driverFor(newPass(""))).length;
+/** Which check audited each surface, so a surface two checks audit is caught (below). */
+const surfaceChecks = new Map();
+const timing = { passes: [] };
 
+// Two browsers' worth of pages: never beside a native self-test on the same host.
+await holdHostBench("smoke");
 const server = await serve();
 const port = server.address().port;
 let failures = 0;
 
-for (const engine of ENGINE_ORDER) {
-const browser = await ENGINES[engine].launch();
-for (const scheme of ["light", "dark"]) {
-  Object.assign(pass, { engine, scheme });
-  pass.names.reset();
+async function runEngine(engine) {
+  const P = newPass(engine);
+  const CHECKS = smokeChecks(driverFor(P)).filter((c) => selected(c, ONLY));
+  if (ONLY.length && engine === ENGINE_ORDER[0]) {
+    console.log(`  --only ${ONLY.join(", ")}: ${CHECKS.length} of ${ALL_CHECKS} checks${CHECKS.length === ALL_CHECKS ? " (no other feature's checks are detachable yet)" : ""}`);
+  }
+  const findings = P.audits.findings;
+  const scheme = P.scheme;
+  const browser = await ENGINES[engine].launch();
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     colorScheme: scheme,
@@ -308,6 +397,19 @@ for (const scheme of ["light", "dark"]) {
     },
   );
   const page = await context.newPage();
+  // Time spent waiting for selectors, for --timing: Playwright polls at 0, 20,
+  // 70, 170 and 270 ms, then every 500 ms, so a wait can outlast what it waits for.
+  const waiting = { ms: 0, count: 0 };
+  const waitForSelector = page.waitForSelector.bind(page);
+  page.waitForSelector = async (...args) => {
+    const t = Date.now();
+    try {
+      return await waitForSelector(...args);
+    } finally {
+      waiting.ms += Date.now() - t;
+      waiting.count++;
+    }
+  };
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -331,50 +433,82 @@ for (const scheme of ["light", "dark"]) {
   });
   await page.goto(`http://127.0.0.1:${port}/`);
 
+  const passTiming = { engine, scheme: "light+dark", startedAt: Date.now(), ms: 0, checks: [] };
+  timing.passes.push(passTiming);
   for (const check of CHECKS) {
+    P.runningCheck = check.name;
     findings.length = 0;
+    Object.assign(waiting, { ms: 0, count: 0 });
+    const started = Date.now();
     // A check that failed with a menu or sheet up must not take the next one
     // down with it: close what is open, and only what is open.
     for (let i = 0; i < 4 && (await page.locator(".menu, .sheet, .alert").count()); i++) {
       await page.keyboard.press("Escape");
       await page.waitForTimeout(120);
     }
+    let failed = false;
     try {
       await check.run(page);
       if (findings.length) throw new Error(`accessibility:\n        ${findings.join("\n        ")}`);
-      console.log(`  ok    ${engine} · ${scheme} · ${check.name}`);
+      console.log(`  ok    ${engine} · ${check.name} (${Date.now() - started} ms)`);
     } catch (e) {
       failures++;
+      failed = true;
       // An accessibility failure lists its findings on the lines below the
       // first; every other failure is one line.
       const text = String(e);
       const shown = text.startsWith("Error: accessibility") ? text : text.split("\n")[0];
-      console.log(`  FAIL  ${engine} · ${scheme} · ${check.name}\n        ${shown}`);
+      console.log(`  FAIL  ${engine} · ${check.name} (${Date.now() - started} ms)\n        ${shown}`);
     }
-    if (SHOTS) await page.screenshot({ path: shotPath(`${engine}-${scheme}`, check.name) });
+    passTiming.checks.push({ name: check.name, ms: Date.now() - started, ok: !failed, waitMs: waiting.ms, waits: waiting.count });
+    if (SHOTS === "all" || (SHOTS && failed)) await page.screenshot({ path: shotPath(`${engine}-${P.scheme}`, check.name) });
   }
+  passTiming.ms = Date.now() - passTiming.startedAt;
 
   if (errors.length) {
     failures++;
-    console.log(`  FAIL  ${engine} · ${scheme} · console\n        ${errors.slice(0, 3).join("\n        ")}`);
+    console.log(`  FAIL  ${engine} · console\n        ${errors.slice(0, 3).join("\n        ")}`);
   }
   if (external.length) {
     failures++;
-    console.log(`  FAIL  ${engine} · ${scheme} · the page reached outside the app\n        ${[...new Set(external)].slice(0, 5).join("\n        ")}`);
+    console.log(`  FAIL  ${engine} · the page reached outside the app\n        ${[...new Set(external)].slice(0, 5).join("\n        ")}`);
   } else {
-    console.log(`  ok    ${engine} · ${scheme} · no request left the app`);
+    console.log(`  ok    ${engine} · no request left the app`);
   }
   await context.close();
+  await browser.close();
 }
-await browser.close();
+
+// Side by side, unless the snapshots are being written: WebKit's own files are
+// the ones that differ from what Chromium just wrote.
+if (UPDATE_ARIA || process.argv.includes("--serial")) {
+  for (const engine of ENGINE_ORDER) await runEngine(engine);
+} else {
+  await Promise.all(ENGINE_ORDER.map(runEngine));
 }
 
 server.close();
 
+// A surface audited by two checks is numbered by the order they ran in, so a
+// pass that leaves one out (--only, a narrowed pipeline run) would hold the
+// other against the wrong file. One check per surface keeps every pass's
+// numbering the same.
+if (!ONLY.length) {
+  const shared = [...surfaceChecks].filter(([, checks]) => checks.size > 1);
+  if (shared.length) {
+    failures++;
+    console.log(
+      `  FAIL  a surface is audited by more than one check; give each its own name\n        ${shared
+        .map(([base, checks]) => `${base}: ${[...checks].join(" · ")}`)
+        .join("\n        ")}`,
+    );
+  }
+}
+
 // A file no surface was held against is a surface that is gone: it goes, or
 // it fails the run, so the folder never describes screens that no longer exist.
-// Only a run of every engine can say so.
-if (!ONE_ENGINE && existsSync(ARIA)) {
+// Only a run of every engine and every check can say so.
+if (!ONE_ENGINE && !ONLY.length && existsSync(ARIA)) {
   const stale = readdirSync(ARIA).filter((f) => f.endsWith(".yml") && !heldFiles.has(f));
   if (stale.length && UPDATE_ARIA) {
     for (const f of stale) rmSync(join(ARIA, f));
@@ -392,6 +526,14 @@ if (advisories.size) {
     console.log(`    ${id}: ${a.help} — ${[...a.surfaces].join(", ")}`);
   }
 }
+
+if (TIMING) {
+  mkdirSync(dirname(TIMING), { recursive: true });
+  writeFileSync(TIMING, `${JSON.stringify({ only: ONLY, ...timing }, null, 2)}\n`);
+}
+const waited = (p) => Math.round(p.checks.reduce((n, c) => n + c.waitMs, 0) / 1000);
+timing.wallMs = Date.now() - STARTED;
+console.log(`\n  time: ${Math.round(timing.wallMs / 1000)} s — ${timing.passes.map((p) => `${p.engine} ${Math.round(p.ms / 1000)} s (${waited(p)} s of it waiting for selectors)`).join(" · ")}`);
 
 if (failures) {
   console.log(`\nsmoke: ${failures} failure${failures === 1 ? "" : "s"}`);

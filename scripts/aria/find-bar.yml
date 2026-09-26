@@ -101,7 +101,7 @@
     - text: unmarked
   - text: Board note · never prints
   - textbox "Board note"
-  - text: On stage MARA 3 Comments here 0 in this scene
+  - text: On stage MARA 3 Comments here 1 in this scene
   - button "Show"
   - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:

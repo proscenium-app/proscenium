@@ -47,6 +47,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { requireDiskFloor } from "./disk-floor.mjs";
+import { holdHostBench } from "./host-bench.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -126,6 +127,9 @@ if (SELFTEST) {
   );
   env.PROSCENIUM_SELFTEST_HARNESS = harness;
 }
+
+// Every core the compiler can take, and never beside a native self-test on the same host.
+await holdHostBench("an app build");
 
 // A universal build compiles the crate twice, so it needs room for both
 // per-architecture target directories on top of the release one. Refusing here

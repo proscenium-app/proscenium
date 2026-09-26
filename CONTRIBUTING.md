@@ -66,7 +66,7 @@ What you need installed is in the [README](README.md#building-it). Then:
 
 ```sh
 bun install
-bunx playwright install chromium               # once, for smoke
+bunx playwright install chromium webkit        # once, for smoke
 bun run tauri dev                              # the macOS app
 bun run dev                                    # the frontend in a browser, on a sample vault
 ```

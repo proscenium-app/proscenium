@@ -224,7 +224,7 @@ The maintainer, 2026-09-25: "There's never going to be a human pass. Find your w
 
 <a id="A11Y-14"></a>
 
-**A11Y-14 — Withdrawn 2026-09-25.** It read: “`bun run smoke` runs axe-core against WCAG 2.2 A and AA on every surface it opens, in both schemes, and fails on a serious or critical finding; best-practice advice is printed and does not fail. It also presses the keys the rules above promise. Neither replaces a pass with VoiceOver on the real WKWebView: smoke is Chromium, and WebKit's accessibility tree is its own.” The VoiceOver pass it deferred to will not run. Replaced by [A11Y-15](../app/preferences-and-help/accessibility.md#A11Y-15) (smoke in Chromium and WebKit, with the tree held), [A11Y-16](../app/preferences-and-help/accessibility.md#A11Y-16) (WebKit's own tree in the real app) and [A11Y-17](../app/preferences-and-help/accessibility.md#A11Y-17) (what may be claimed).
+**A11Y-14 — Withdrawn 2026-09-25.** It read: “`bun run smoke` runs axe-core against WCAG 2.2 A and AA on every surface it opens, in both schemes, and fails on a serious or critical finding; best-practice advice is printed and does not fail. It also presses the keys the rules above promise. Neither replaces a pass with VoiceOver on the real WKWebView: smoke is Chromium, and WebKit's accessibility tree is its own.” The VoiceOver pass it deferred to will not run. Replaced by [A11Y-15](#A11Y-15) (smoke in Chromium and WebKit, with the tree held), [A11Y-16](../app/preferences-and-help/accessibility.md#A11Y-16) (WebKit's own tree in the real app) and [A11Y-17](../app/preferences-and-help/accessibility.md#A11Y-17) (what may be claimed).
 
 <a id="REL-1"></a>
 
@@ -283,6 +283,38 @@ The update proof could not start from a copy that was already built. A release b
 <a id="REL-122"></a>
 
 **REL-122 — Withdrawn 2026-09-26.** It read: “**The release contract:** one universal Proscenium, meant to launch correctly on every Mac from Sonoma up, Apple silicon and Intel alike; signed, notarized and self-updating. What is proven, and by what, is the machine's alone, and no release waits on a person: the frontend against the floor's Safari on every run (`check:webkit-floor`); the native app on the build host's macOS on Apple silicon, and its Intel slice under Rosetta, launch to export; the update itself on the build host, by the Stable update proof (launch day, step 8). A native launch on Sonoma and a launch on Intel hardware are not proven, because no machine this project uses can give either, and the release record says so. This replaces REL-1 (docs/engineering/withdrawn-requirements.md#REL-1), whose "proven on those Macs by CI" no machine this project uses can give for Sonoma or Intel hardware.” Replaced by [REL-123](release-engineering.md#REL-123).
+
+## Withdrawn 2026-09-26: one queue on main
+
+The private pipeline ran every push of every branch, then the same commit again on `main`, on one runner: every landing was tested twice, a documents-only commit took the whole run and made an alpha, and a push waited a median of 80 minutes for its result. The maintainer approved one queue on `main` in its place, with what each run tests following from what changed, and Intel proven only on the stable tag.
+
+<a id="CICD-9"></a>
+
+**CICD-9 — Withdrawn 2026-09-26.** It read: “**Three tracks.** Stable: tags `vX.Y.Z`. Beta: tags `vX.Y.Z-beta.N`. Alpha: every commit on backstage `main` whose gates and native self-test passed. [The maintainer's] own, behind a key.” An alpha now comes from the tip each green run tested, when its batch held app, Rust or harness files, and alpha and beta are built for Apple silicon only. Replaced by the private contract's CICD-69.
+
+<a id="CICD-24"></a>
+
+**CICD-24 — Withdrawn 2026-09-26.** It read: “**Every push and pull request to backstage runs the gates on the build host.** That is the list in AGENTS.md, installed from the lockfiles, followed by the native self-test and its negative control. A red result anywhere stops that commit. CI is the authority on `main`: a branch is fast-forwarded into `main` only once its run is green.” No branch starts a run now. Replaced by the private contract's CICD-66 (one queue on `main`, testing the tip), CICD-70 (what a run tests) and CICD-73 (landing is a push after the fast gates).
+
+<a id="CICD-25"></a>
+
+**CICD-25 — Withdrawn 2026-09-26.** It read: “**On `main`, when all of it is green, the alpha.** The build host builds the universal app, signs it with the Developer ID from its own keychain, has Apple notarize it, and staples the app and its DMG. It makes the update archive, signs it with the updater key, and publishes it to the alpha track. One job, one commit, no one asked.” The alpha is a step of the batch's own run, built for Apple silicon from the tip it tested. Replaced by the private contract's CICD-68.
+
+<a id="CICD-47"></a>
+
+**CICD-47 — Withdrawn 2026-09-26.** It read: “**The gates are green on `main` in the pipeline on the build host,** and a pull request shows them.” No pull request runs the private pipeline now. Replaced by the private contract's CICD-76: the queue's invariant, proven by run before it is recorded done.
+
+<a id="A11Y-15"></a>
+
+**A11Y-15 — Withdrawn 2026-09-26.** It read: “**Smoke, in two engines.** `bun run smoke` runs every check in Chromium and in Playwright's WebKit, in both schemes. On every surface it opens it runs axe-core against WCAG 2.2 A and AA, failing on a serious or critical finding (best-practice advice is printed and does not fail); it presses the keys the rules above promise. In Chromium, in both schemes, it takes Playwright's ARIA snapshot of every surface (`locator.ariaSnapshot()`) and holds it against the checked-in `scripts/aria/<surface>.yml`: roles, names, states and the live regions, with the page's own words and other timing left out. In both engines, dedicated checks hold the script as a named text box whose words are what was just typed, a live region whose words in the tree are what `src/ui/announce.ts` just said, and the order Tab takes through a sheet, each engine's own file where they differ. Limits: the snapshot is Playwright's own reading of the ARIA and HTML-AAM rules, which reads the same in both engines, so it is held once and is not either engine's platform tree; it gives an editable element no value; and Playwright's WebKit is a WebKit, not Apple's WKWebView and not the floor's Safari.” It ran every check again in a whole second pass in the dark scheme, which cost as long as the first. Running only the auditing checks there changed the page under them, since the checks stand on each other's state. Replaced by [A11Y-19](../app/preferences-and-help/accessibility.md#A11Y-19): one pass per engine, each audited surface switched to dark and read again in place.
+
+<a id="MINI-3"></a>
+
+**MINI-3 — Withdrawn 2026-09-26.** It read: “**The gates run on the Mini.** Every command in AGENTS.md's list is green there before a merge. That includes the native self-test and its negative control, and the Intel slice under Rosetta.” Nothing is tested before a merge now: every push to `main` is tested there, by the plan for the files it changed, and the Intel slice under Rosetta on a stable tag. Replaced by the private contract's MINI-14.
+
+<a id="CICD-55"></a>
+
+**CICD-55 — Withdrawn 2026-09-26.** It read: “**The Intel slice's proof is its run under Rosetta on the Mini, launch to export.** The self-test's x86_64 run launches the universal self-test app translated, runs every check, and exports a PDF through the Export sheet that the Intel slice's own writer puts on disk and the check reads back. The run keeps that PDF with its evidence. Rosetta is not an Intel Mac: a fault only Intel hardware shows is not covered, no real Intel Mac is used, and the release record says so. Replaces CICD-38.” The same proof now runs once, on the stable tag, since no Intel Mac runs anything below stable. Replaced by the private contract's CICD-67 and docs/engineering/release-engineering.md#REL-124.
 
 ## Withdrawn 2026-09-25: importing into an open play
 

@@ -5,7 +5,7 @@
  * The gate every built Proscenium.app passes before anyone ships, tests or
  * installs it (docs/engineering/release-engineering.md#REL-D1, docs/engineering/release-engineering.md#REL-D2, docs/engineering/release-engineering.md#REL-D4).
  *
- *   node scripts/check-bundle.mjs <Proscenium.app> [--universal] [--release] [--version <x.y.z>]
+ *   node scripts/check-bundle.mjs <Proscenium.app> [--universal | --arm64] [--release] [--version <x.y.z>]
  *
  * Nobody ever chose which Macs the app runs on, and the bundle said so three
  * different ways: `lipo -archs` printed `arm64` alone, which
@@ -14,6 +14,9 @@
  * binary said 11.0. Each of those was a default nobody read. This reads them.
  *
  *   --universal  both slices, x86_64 and arm64, or it fails
+ *   --arm64      the Apple silicon slice alone, in every Mach-O it carries: a
+ *                pre-release (alpha, beta) is built for Apple silicon only, since
+ *                an Intel Mac takes stable releases alone (docs/engineering/release-engineering.md#REL-124)
  *   (always)     LSMinimumSystemVersion and each slice's LC_BUILD_VERSION minos
  *                are the floor in tauri.conf.json; the bundle's version is the
  *                app's one version; LSRequiresNativeExecution is set, so no Mac
@@ -33,6 +36,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const app = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--version");
 const UNIVERSAL = args.includes("--universal");
+const ARM64 = args.includes("--arm64");
+if (UNIVERSAL && ARM64) {
+  console.error("check-bundle: --universal and --arm64 ask for different bundles");
+  process.exit(1);
+}
 const RELEASE = args.includes("--release");
 const VERSION_AT = args.indexOf("--version");
 const EXPECTED_VERSION = VERSION_AT >= 0 ? args[VERSION_AT + 1] : null;
@@ -59,6 +67,9 @@ if (UNIVERSAL) {
   const missing = ["x86_64", "arm64"].filter((a) => !archs.includes(a));
   if (missing.length) failures.push(`lipo -archs says "${archs.join(" ")}" — missing ${missing.join(" and ")}`);
   else passed.push(`universal (${archs.join(" + ")})`);
+} else if (ARM64) {
+  if (archs.join(" ") !== "arm64") failures.push(`lipo -archs says "${archs.join(" ")}" — expected arm64 alone`);
+  else passed.push("arm64 alone");
 } else {
   passed.push(archs.join(" + "));
 }
@@ -95,6 +106,7 @@ for (const dep of others) {
     const missing = ["x86_64", "arm64"].filter((a) => !depArchs.includes(a));
     if (missing.length) failures.push(`${short} says "${depArchs.join(" ")}" — missing ${missing.join(" and ")}`);
   }
+  if (ARM64 && !depArchs.includes("arm64")) failures.push(`${short} says "${depArchs.join(" ")}" — missing arm64`);
 }
 if (others.length) passed.push(`${others.length} other Mach-O file(s) checked`);
 

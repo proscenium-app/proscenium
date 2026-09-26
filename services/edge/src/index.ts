@@ -18,7 +18,8 @@ export default {
     if (url.origin === REPORTS) return url.pathname === CRASH_PATH
       ? crashes(request, env, new Date(), (bytes, dsn) => forward(bytes, dsn, (address, options) => connect(address, { ...options, allowHalfOpen: false })))
       : counts(request, env, new Date());
-    return updates(request, env, { fetch, cache: caches.default, now: () => new Date(), updatesOrigin: UPDATES });
+    // Never `{ fetch }`: workerd refuses fetch called as another object's method (test/index.test.ts).
+    return updates(request, env, { fetch: r => fetch(r), cache: caches.default, now: () => new Date(), updatesOrigin: UPDATES });
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> { await expireFeedback(env.DB, new Date()); await expireCounts(env.DB, new Date()); await expirePatrons(env.DB, new Date()); },
 } satisfies ExportedHandler<Env>;

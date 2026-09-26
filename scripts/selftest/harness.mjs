@@ -24,7 +24,7 @@
  * Playwright.
  */
 import axe from "axe-core";
-import { AUDIT_TAGS, recordAudit, runAxe, smokeChecks } from "../smoke-checks.mjs";
+import { AUDIT_TAGS, recordAudit, runAxe, selected, smokeChecks } from "../smoke-checks.mjs";
 import { SurfaceNames, firstDifference, forSurface, normalize as normalizeTree, renderWebKitTree } from "../aria-snapshots.mjs";
 
 // WKWebView can retain local preferences between process launches even though
@@ -762,14 +762,20 @@ async function audit(_page, surface) {
 async function webkitTree(selector) {
   // A render that replaces nodes mid-walk leaves the inspector holding ids it
   // no longer has: read it again, as a locator asks again for a detached element.
+  // A walk that never answered is not read again: it is still running in the
+  // inspector, and a second walk queues behind it (selftest_ax waits for it).
   for (let attempt = 1; ; attempt++) {
+    const started = performance.now();
     try {
       const answer = JSON.parse(await invoke("selftest_ax", { selector }));
       if (answer.error) throw new Error(`WebKit's accessibility tree: ${answer.error}`);
       return normalizeTree(renderWebKitTree(answer.tree));
     } catch (e) {
-      if (attempt >= 3 || !/Missing node|never answered|nothing matches/.test(String(e?.message ?? e))) throw e;
+      if (attempt >= 3 || !/Missing node|nothing matches/.test(String(e?.message ?? e))) throw e;
       await sleep(250);
+    } finally {
+      const ms = Math.round(performance.now() - started);
+      if (ms > 5000) log(`WebKit's accessibility tree of ${selector} took ${ms}ms`);
     }
   }
 }
@@ -844,7 +850,10 @@ async function visibleOrFail() {
 async function main() {
   const ctx = await invoke("selftest_context");
   const scheme = ctx.pass;
+  /** The features a narrowed pass keeps (smoke-checks.mjs `selected`). */
+  const features = (ctx.features ?? "").split(/[,\s]+/).filter(Boolean);
   log(`pass ${ctx.index + 1}/${ctx.total} (${scheme}) — ${navigator.userAgent}`);
+  if (features.length) log(`narrowed to ${features.join(", ")}: the other detachable features' checks are left out`);
   const drawing = { framesPerSecond: await frameRate(), visibility: document.visibilityState, hasFocus: document.hasFocus() };
   log(`drawing: ${JSON.stringify(drawing)}`);
 
@@ -869,6 +878,10 @@ async function main() {
     Object.assign(running, { index, check, started: performance.now(), scheme });
     if (ctx.only && !check.name.includes(ctx.only)) {
       await report(check, null, "not selected (--only)");
+      continue;
+    }
+    if (!selected(check, features)) {
+      await report(check, null, "not in this run's features");
       continue;
     }
     // A check that drives the dev-mock's hooks has nothing to drive here.

@@ -3,7 +3,7 @@
 
 /**
  * The accessibility tree of every surface smoke visits, held against a
- * checked-in expectation (docs/app/preferences-and-help/accessibility.md#A11Y-15,
+ * checked-in expectation (docs/app/preferences-and-help/accessibility.md#A11Y-19,
  * docs/app/preferences-and-help/accessibility.md#A11Y-16).
  *
  * What VoiceOver reads is the accessibility tree, not the DOM and not the
@@ -93,7 +93,7 @@ const MONTH = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?";
  * ("Jun 18, 2026, 5:10 PM" in Chromium, "… at 5:10 PM" in WebKit).
  */
 export function normalize(text) {
-  return savedCopies(sortRows(text)
+  return savedCopies(openSurfaces(sortRows(text))
     .replace(new RegExp(`\\b${MONTH} \\d{1,2}, \\d{4}(?:,| at) \\d{1,2}:\\d{2}(?::\\d{2})?\\s?[AP]M\\b`, "g"), "<date and time>")
     .replace(new RegExp(`\\b${MONTH} \\d{1,2}, \\d{4}\\b`, "g"), "<date>")
     // A saved copy's short date (9/25/2026) is the day the checks ran.
@@ -116,6 +116,33 @@ export function normalize(text) {
     .replace(/^(\s*- text: )(?:Saved(?: · <time>)?|Saving…|Editing…)$/gm, "$1<save status>")
     .replace(/[ \t]+$/gm, ""))
     .trimEnd();
+}
+
+/**
+ * A pane's tabs, "Open in this pane", as the list itself and the tab it shows.
+ * Which other surfaces are open is what the checks before happened to leave:
+ * a slower machine leaves another tab open, and the surface under audit is
+ * not its tabs. WebKit marks the shown tab `[current=true]`, and that one is
+ * kept; Playwright's form marks none, so it keeps the list alone.
+ */
+function openSurfaces(text) {
+  const lines = text.split("\n");
+  const out = [];
+  const depth = (line) => line.length - line.trimStart().length;
+  for (let i = 0; i < lines.length; ) {
+    const line = lines[i++];
+    out.push(line);
+    if (!/^\s*- '?(?:list|group) "Open in this pane"'?:?$/.test(line)) continue;
+    const indent = depth(line);
+    let item = null;
+    const keep = (block) => { if (block && block.some((l) => l.includes("[current"))) out.push(...block); };
+    while (i < lines.length && lines[i].trim() && depth(lines[i]) > indent) {
+      if (depth(lines[i]) === indent + 2) { keep(item); item = []; }
+      item?.push(lines[i++]);
+    }
+    keep(item);
+  }
+  return out.join("\n");
 }
 
 /**

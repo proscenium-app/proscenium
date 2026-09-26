@@ -19,7 +19,7 @@
  */
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { updates, type UpdateState } from "../storage/ipc";
-import type { UpdateTrack } from "../storage/settings-model";
+import { UPDATE_TRACKS, type UpdateTrack } from "../storage/settings-model";
 import { announce, useToast } from "../ui";
 import { UpdateRestart, type RestartResult } from "./update-restart";
 import { lockForUpdate } from "./update-lock";
@@ -158,6 +158,22 @@ export function describeUpdates(state: UpdateState, version: string | null): str
 
 /** Each track's name, as Settings › Updates shows it. */
 export const TRACK_LABELS: Record<UpdateTrack, string> = { stable: "Stable", beta: "Beta", alpha: "Alpha" };
+
+/**
+ * The tracks Settings › Updates offers. Alpha only to a copy that holds its key
+ * or is on it already (docs/app/preferences-and-help/settings.md#SET-37), so
+ * nobody's choice vanishes from under them. An Intel Mac is offered Stable
+ * alone (docs/app/preferences-and-help/settings.md#SET-40): alpha and beta are
+ * built for Apple silicon only, and the app follows stable there whatever was
+ * stored.
+ */
+export function offeredTracks(arch: string | null | undefined, current: UpdateTrack, hasKey: boolean): UpdateTrack[] {
+  if (arch === "x86_64") return ["stable"];
+  return UPDATE_TRACKS.filter((t) => t !== "alpha" || hasKey || current === "alpha");
+}
+
+/** What an Intel Mac is told in place of a track's sentence. */
+export const INTEL_TRACK_NOTE = "Each new release. Test versions are made for Macs with Apple silicon only.";
 
 /** Slowest first: a track's versions sort below the faster tracks' of the same release. */
 const SPEED: Record<UpdateTrack, number> = { stable: 0, beta: 1, alpha: 2 };

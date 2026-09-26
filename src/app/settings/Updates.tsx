@@ -22,15 +22,20 @@
  * Beta, and Alpha only to a copy that holds a key or is on alpha already. "Have a
  * key?" opens a field for one. A copy on alpha without a key says it is not
  * checking, and offers Stable (docs/app/preferences-and-help/settings.md#SET-38).
+ *
+ * **An Intel Mac takes Stable alone** (docs/app/preferences-and-help/settings.md#SET-40): the track is a
+ * line of text, not a menu of one, with no key to add.
  */
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Button, PopupButton, announce } from "../../ui";
 import { updates as ipc } from "../../storage/ipc";
-import { UPDATE_TRACKS, isUpdateTrackKey, type UpdateTrack } from "../../storage/settings-model";
+import { isUpdateTrackKey, type UpdateTrack } from "../../storage/settings-model";
 import {
   announceUpdates,
   checkForUpdatesNow,
   describeUpdates,
+  INTEL_TRACK_NOTE,
+  offeredTracks,
   restartProblem,
   restartToUpdate,
   slowerTrackNote,
@@ -40,7 +45,6 @@ import {
 import { Group, Note, SectionBody, SwitchRow, useAppInfo } from "./parts";
 import { updateSettings, useSettings } from "./store";
 
-const TRACK_OPTIONS = UPDATE_TRACKS.map((value) => ({ value, label: TRACK_LABELS[value] }));
 
 /** What arrives on each track, in one sentence. */
 const TRACK_NOTES: Record<UpdateTrack, string> = {
@@ -127,10 +131,9 @@ export function UpdatesSlot() {
   const info = useAppInfo();
   const { checkForUpdates, updateTrack, hasUpdateTrackKey } = useSettings();
   const trackRow = useRef<HTMLDivElement | null>(null);
-  // Alpha is offered to a copy that holds its key, or is on it already
-  // (docs/app/preferences-and-help/settings.md#SET-37): nobody's choice vanishes from under them.
-  const trackOptions = TRACK_OPTIONS.filter((o) => o.value !== "alpha" || hasUpdateTrackKey || updateTrack === "alpha");
-  const alphaWithoutKey = updateTrack === "alpha" && !hasUpdateTrackKey;
+  const intel = info?.arch === "x86_64";
+  const trackOptions = offeredTracks(info?.arch, updateTrack, hasUpdateTrackKey).map((value) => ({ value, label: TRACK_LABELS[value] }));
+  const alphaWithoutKey = updateTrack === "alpha" && !hasUpdateTrackKey && !intel;
   const state = useUpdateState();
   const version = info?.version ?? null;
   const asked = useRef(false);
@@ -167,13 +170,17 @@ export function UpdatesSlot() {
         <Group label="Update track">
           <div className="settings__row" ref={trackRow}>
             <span className="settings__rowlabel">Track</span>
-            <PopupButton
-              label="Track"
-              size="small"
-              options={trackOptions}
-              value={updateTrack}
-              onChange={(value) => updateSettings({ updateTrack: value })}
-            />
+            {intel ? (
+              <span className="settings__rowlabel">{TRACK_LABELS.stable}</span>
+            ) : (
+              <PopupButton
+                label="Track"
+                size="small"
+                options={trackOptions}
+                value={updateTrack}
+                onChange={(value) => updateSettings({ updateTrack: value })}
+              />
+            )}
           </div>
           {alphaWithoutKey ? (
             <div className="settings__row">
@@ -192,10 +199,10 @@ export function UpdatesSlot() {
               </Button>
             </div>
           ) : (
-            <Note>{TRACK_NOTES[updateTrack]}</Note>
+            <Note>{intel ? INTEL_TRACK_NOTE : TRACK_NOTES[updateTrack]}</Note>
           )}
           {slowerTrackNote(updateTrack, version) && <Note>{slowerTrackNote(updateTrack, version)}</Note>}
-          {!hasUpdateTrackKey && <AlphaKey trackRow={trackRow} />}
+          {!hasUpdateTrackKey && !intel && <AlphaKey trackRow={trackRow} />}
         </Group>
       )}
 

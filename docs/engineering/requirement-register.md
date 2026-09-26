@@ -4,7 +4,7 @@ Initial allocation: 2026-09-21. Every integer in each inclusive range is permane
 
 | Prefix | First | Last |
 |---|---:|---:|
-| A11Y | 1 | 18 |
+| A11Y | 1 | 19 |
 | COMM | 1 | 49 |
 | EDIT | 1 | 171 |
 | FMT | 1 | 157 |
@@ -12,9 +12,9 @@ Initial allocation: 2026-09-21. Every integer in each inclusive range is permane
 | PLAT | 1 | 66 |
 | PRIV | 1 | 85 |
 | PROD | 1 | 30 |
-| REL | 1 | 123 |
-| SERV | 1 | 264 |
-| SET | 1 | 39 |
+| REL | 1 | 125 |
+| SERV | 1 | 265 |
+| SET | 1 | 40 |
 | STOR | 1 | 176 |
 | TUT | 1 | 10 |
 | UI | 1 | 64 |

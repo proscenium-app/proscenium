@@ -58,6 +58,9 @@ struct Run {
     brk: Option<String>,
     /// Only the checks whose names contain this (`selftest.mjs --only`).
     only: Option<String>,
+    /// The features a narrowed run keeps (`selftest.mjs --features`, the
+    /// pipeline's plan): smoke-checks.mjs's `selected` decides which checks run.
+    features: Option<String>,
     started: Instant,
     state: Mutex<State>,
 }
@@ -269,6 +272,7 @@ fn begin() -> bool {
 
     let brk = std::env::var("PROSCENIUM_SELFTEST_BREAK").ok().filter(|b| !b.is_empty());
     let only = std::env::var("PROSCENIUM_SELFTEST_ONLY").ok().filter(|o| !o.is_empty());
+    let features = std::env::var("PROSCENIUM_SELFTEST_FEATURES").ok().filter(|f| !f.is_empty());
     let _ = RUN.set(Run {
         report,
         shots,
@@ -276,6 +280,7 @@ fn begin() -> bool {
         home,
         brk,
         only,
+        features,
         started: Instant::now(),
         state: Mutex::new(State::default()),
     });
@@ -423,6 +428,7 @@ pub fn selftest_context() -> Result<Value, String> {
         "total": PASSES.len(),
         "break": run.brk,
         "only": run.only,
+        "features": run.features,
         "resumeAt": state.resume_at,
     }))
 }
@@ -553,6 +559,9 @@ pub async fn selftest_capture(window: WebviewWindow, name: String) -> Result<(),
 /// scripts/selftest/ax-walk.js: WebKit's accessibility tree, read in the inspector.
 const AX_WALK: &str = include_str!("../../scripts/selftest/ax-walk.js");
 
+/// How long one walk may take to answer.
+const AX_ANSWER: Duration = Duration::from_secs(120);
+
 /// WebKit's own accessibility tree for the element `selector` names
 /// (docs/app/preferences-and-help/accessibility.md#A11Y-16), as JSON: the roles,
 /// names, states and live regions its NSAccessibility wrapper gives VoiceOver.
@@ -579,8 +588,11 @@ pub async fn selftest_ax(window: WebviewWindow, selector: String) -> Result<Stri
             Ok(())
         })
         .await?;
+        // A walk usually answers within a second or two. After the tutorial
+        // checks' relaunch it has taken 15 to 60 seconds, so the wait is long,
+        // and the harness does not start a second walk behind this one.
         let answer = tauri::async_runtime::spawn_blocking(move || {
-            rx.recv_timeout(Duration::from_secs(20))
+            rx.recv_timeout(AX_ANSWER)
                 .map_err(|_| "the inspector never answered".to_string())?
         })
         .await
@@ -739,6 +751,7 @@ fn finish(error: Option<String>) -> ! {
             "keyStatus": KEY_STATUS.get().copied().unwrap_or("real"),
             "break": run.brk,
             "only": run.only,
+            "features": run.features,
         },
         "durationMs": run.started.elapsed().as_millis() as u64,
         "passes": results,

@@ -54,9 +54,9 @@ jobs:
         id: install
         run: bun install --frozen-lockfile
 
-      - name: Chromium for smoke
+      - name: Chromium and WebKit for smoke
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bunx playwright install chromium
+        run: bunx playwright install chromium webkit
 
       # Every gate runs whenever the install worked, even after another gate
       # fails, so a run reports all of them.
