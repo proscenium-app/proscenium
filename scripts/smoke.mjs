@@ -26,6 +26,7 @@
  *   bun run smoke -- --shots        # a PNG in .smoke/ of each check that fails
  *   bun run smoke -- --shots=all    # ... and of every check that passes
  *   bun run smoke -- --engine webkit  # one engine only (chromium or webkit)
+ *   SMOKE_TIME_SCALE=3 bun run smoke  # a slow host: every wait may take three times as long
  *   bun run smoke -- --serial       # the engines one after the other, not side by side
  *   bun run smoke -- --only import,spell  # a narrowed pass: leaves out the detachable
  *                                   # features' checks not named (smoke-checks.mjs)
@@ -78,7 +79,14 @@ import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, extname, join, normalize as normalizePath } from "node:path";
-import { AUDIT_TAGS, recordAudit, runAxe, selected, smokeChecks } from "./smoke-checks.mjs";
+import {
+  AUDIT_TAGS,
+  TIME_SCALE,
+  recordAudit,
+  runAxe,
+  selected,
+  smokeChecks,
+} from "./smoke-checks.mjs";
 import { SurfaceNames, firstDifference, forSurface, normalize } from "./aria-snapshots.mjs";
 import { holdHostBench } from "./host-bench.mjs";
 
@@ -428,14 +436,19 @@ async function runEngine(engine) {
     },
   );
   const page = await context.newPage();
+  // A slow host's every wait stretched alike (smoke-checks.mjs's TIME_SCALE).
+  page.setDefaultTimeout(30000 * TIME_SCALE);
   // Time spent waiting for selectors, for --timing: Playwright polls at 0, 20,
   // 70, 170 and 270 ms, then every 500 ms, so a wait can outlast what it waits for.
   const waiting = { ms: 0, count: 0 };
   const waitForSelector = page.waitForSelector.bind(page);
-  page.waitForSelector = async (...args) => {
+  page.waitForSelector = async (selector, options = {}) => {
     const t = Date.now();
     try {
-      return await waitForSelector(...args);
+      return await waitForSelector(selector, {
+        ...options,
+        timeout: (options.timeout ?? 30000) * TIME_SCALE,
+      });
     } finally {
       waiting.ms += Date.now() - t;
       waiting.count++;

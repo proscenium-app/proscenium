@@ -97,11 +97,15 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run check:webkit-floor
       # smoke builds dist/, which the Rust steps below compile against.
-      # Chromium alone on this runner until the WebKit tutorial checks hold on a
-      # slower host: the build host runs both engines on every push to main.
       - name: smoke
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run smoke -- --shots --engine chromium
+        # This runner's WebKit takes several times the build host's for the same
+        # check, so every wait may take three times as long (TIME_SCALE in
+        # scripts/smoke-checks.mjs). It stretches deadlines; nothing waits longer
+        # than what it waits for.
+        env:
+          SMOKE_TIME_SCALE: "3"
+        run: bun run smoke -- --shots
       - name: cargo test
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked

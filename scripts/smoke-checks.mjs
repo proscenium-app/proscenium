@@ -42,6 +42,14 @@ import { harborPackage, harborPackageZip, harborPages, toBase64 } from "./pages-
 export const AUDIT_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 /**
+ * How much longer every wait may take on a slow host: `SMOKE_TIME_SCALE`, 1 by
+ * default. GitHub's hosted macOS runner sets it (public-repo/github/workflows/ci.yml):
+ * its WebKit takes several times the build host's for the same check. It
+ * stretches the deadlines only; a check never waits longer than what it waits for.
+ */
+export const TIME_SCALE = Math.max(1, Number(globalThis.process?.env?.SMOKE_TIME_SCALE) || 1);
+
+/**
  * A check's feature tags: the part of the app it is about, named as
  * ci/features.json names the folders of src/. A pipeline run whose changes
  * all sit in leaf features leaves out the DETACHABLE blocks it did not touch;
@@ -4282,14 +4290,27 @@ export function smokeChecks({ audit, hold }) {
           delete progress.course;
           localStorage.setItem(key, JSON.stringify({ ...progress, attempts: [a] }));
         });
-        // Stop checkpoints the current model, so install the legacy fixture only
-        // after stopping and restore it before the actual relaunch.
+        // Stop checkpoints the current model, and the dev vault writes its whole
+        // practice folder back to storage whenever it saves a practice file
+        // (persistPractice). So both halves of the legacy fixture are installed
+        // again after stopping, and the relaunch waits until they hold: on a slow
+        // host a save landing after the fixture wiped its folder, and Continue
+        // then found no practice to open.
         const legacy = await page.evaluate(() =>
-          localStorage.getItem("proscenium:dev:tutorial-progress"),
+          ["proscenium:dev:tutorial-progress", "proscenium:dev:tutorial-files"].map((k) => [
+            k,
+            localStorage.getItem(k),
+          ]),
         );
         await tutorialStop(page);
-        await page.evaluate(
-          (text) => localStorage.setItem("proscenium:dev:tutorial-progress", text),
+        await until(
+          page,
+          "the legacy fixture holds",
+          async (pairs) => {
+            for (const [k, v] of pairs) localStorage.setItem(k, v);
+            for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
+            return pairs.every(([k, v]) => localStorage.getItem(k) === v);
+          },
           legacy,
         );
         await page.reload();
@@ -9460,6 +9481,7 @@ async function walkIntoPlay(page) {
  * drivers, so waiting on a condition is this: evaluate, pause, again.
  */
 async function until(page, what, fn, arg, timeout = 10000) {
+  timeout *= TIME_SCALE;
   const deadline = Date.now() + timeout;
   for (;;) {
     const value = await page.evaluate(fn, arg);
@@ -9904,6 +9926,7 @@ async function cueReady(page) {
     undefined,
     15000,
   );
+  await guideStill(page);
 }
 /**
  * A deliberate entry (a lesson started, Next, a chosen step) moves the keyboard
@@ -9933,6 +9956,7 @@ async function cueStep(page, n, of) {
     [n, of],
     15000,
   );
+  await guideStill(page);
 }
 async function cueSays(page, text) {
   await until(
@@ -9941,6 +9965,7 @@ async function cueSays(page, text) {
     (t) => !!document.querySelector(".tutorial-cue__say")?.textContent.includes(t),
     text,
   );
+  await guideStill(page);
 }
 async function cueTone(page, tone) {
   await until(
@@ -9951,34 +9976,45 @@ async function cueTone(page, tone) {
   );
 }
 /**
- * The guide has finished moving to `selector`: its ring is drawn around that control, and
- * neither has moved for three frames. When a step changes, the card scrolls its new target
- * into view on the next frame (CueCard's place()). A click pressed before that scroll and
- * released after it lands on nothing, and WebKit then sends no click at all: Add Character
- * missed that way in about one WebKit run in six, with no row added and the step unmoved.
+ * The guide has stopped moving: its card and its ring hold the same place for
+ * three frames. When a step changes, the card moves to its new target, and may
+ * scroll it into view, on the next frame (CueCard's place()). A click pressed
+ * before that move and released after it lands on nothing, and WebKit then
+ * sends no click at all; a slow host lands in that frame often. So every
+ * helper that waits for the guide to say something waits for it to hold still
+ * too, and a click after one is never made mid-move. A writer's click never
+ * comes within that frame, so this is the test's timing, not the app's.
  */
+async function guideStill(page) {
+  await until(page, "the guide holds still", async () => {
+    const at = () =>
+      [...document.querySelectorAll(".tutorial-cue, .tutorial-ring")]
+        .map((e) => {
+          const r = e.getBoundingClientRect();
+          return `${r.left},${r.top},${r.width},${r.height}`;
+        })
+        .join("|");
+    const first = at();
+    for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
+    return at() === first;
+  });
+}
+/** The guide's ring is on `selector`, and the guide holds still. */
 async function settledOn(page, selector, what) {
   await until(
     page,
-    `the guide settled on ${what}`,
-    async (sel) => {
-      const at = () => {
-        const t = document.querySelector(sel),
-          r = document.querySelector(".tutorial-ring");
-        if (!t || !r || getComputedStyle(r).display === "none") return null;
-        const a = t.getBoundingClientRect(),
-          b = r.getBoundingClientRect();
-        return Math.abs(b.left - (a.left - 3)) <= 1 && Math.abs(b.top - (a.top - 3)) <= 1
-          ? `${a.left},${a.top},${a.width},${a.height}`
-          : null;
-      };
-      const first = at();
-      if (!first) return false;
-      for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
-      return at() === first;
+    `the guide's ring on ${what}`,
+    (sel) => {
+      const t = document.querySelector(sel),
+        r = document.querySelector(".tutorial-ring");
+      if (!t || !r || getComputedStyle(r).display === "none") return false;
+      const a = t.getBoundingClientRect(),
+        b = r.getBoundingClientRect();
+      return Math.abs(b.left - (a.left - 3)) <= 1 && Math.abs(b.top - (a.top - 3)) <= 1;
     },
     selector,
   );
+  await guideStill(page);
 }
 /** Beside its target, never over it, and on screen (docs/app/preferences-and-help/tutorials.md#TUT-D103). */
 async function beside(page, what) {
@@ -10005,6 +10041,7 @@ async function beside(page, what) {
       c.bottom <= innerHeight + 1
     );
   });
+  await guideStill(page);
 }
 /**
  * Keeps every announcement from here on. The guide speaks again as soon as its
@@ -10059,6 +10096,7 @@ async function lessonFinished(page) {
     undefined,
     15000,
   );
+  await guideStill(page);
 }
 async function nextLesson(page) {
   await page
@@ -10195,26 +10233,30 @@ async function keyboardBackInScript(page, how, place) {
  * Stop Tutorial, once the card holds still. A check often stops right after a
  * step changes, when the card is still moving to its new target on the next
  * frame, and a click pressed before that move and released after it gets no
- * click in WebKit (settledOn, above). On the hosted runner's slower WebKit,
+ * click in WebKit (guideStill, above). On the hosted runner's slower WebKit,
  * "retained practice waits for an explicit resume after relaunch" lost its
  * Stop that way and left the card open for the next check.
  */
 async function tutorialStop(page) {
-  await until(page, "the guide holds still", async () => {
-    const at = () => {
-      const c = document.querySelector(".tutorial-cue");
-      if (!c) return null;
-      const r = c.getBoundingClientRect();
-      return `${r.left},${r.top},${r.width},${r.height}`;
-    };
-    const first = at();
-    if (!first) return false;
-    for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
-    return at() === first;
-  });
+  await guideStill(page);
   await page
     .locator(".tutorial-cue")
     .getByRole("button", { name: "Stop Tutorial", exact: true })
     .click();
   await page.waitForSelector(".tutorial-cue", { state: "detached" });
+  // Stop's checkpoint and the practice files it saves are written through
+  // queues that finish after the card has gone. A check that writes a fixture
+  // or relaunches next waits for the stored state to stop changing, or on a
+  // slow host those writes land after it. Only the dev vault keeps these in
+  // storage; in the real app there is nothing to read, and it passes at once.
+  await until(page, "the stopped tutorial written", async () => {
+    if (window.__TAURI_INTERNALS__) return true;
+    const at = () =>
+      ["proscenium:dev:tutorial-progress", "proscenium:dev:tutorial-files"]
+        .map((k) => localStorage.getItem(k))
+        .join("\u0000");
+    const first = at();
+    await new Promise((r) => setTimeout(r, 300));
+    return at() === first;
+  });
 }
