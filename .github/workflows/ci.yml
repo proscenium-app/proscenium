@@ -46,6 +46,9 @@ jobs:
       # rust-toolchain.toml names the channel, components and targets.
       - name: Rust
         run: rustup toolchain install
+      # check:layout and check:design search the tree with ripgrep.
+      - name: ripgrep
+        run: brew install ripgrep
 
       - name: Install
         id: install
