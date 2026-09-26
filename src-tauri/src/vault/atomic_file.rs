@@ -6,15 +6,24 @@ use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
 
-pub fn sync_dir(path: &Path) -> io::Result<()> { File::open(path)?.sync_all() }
+pub fn sync_dir(path: &Path) -> io::Result<()> {
+    File::open(path)?.sync_all()
+}
 
 pub fn create_dir_durable(path: &Path) -> io::Result<()> {
-    if path.is_dir() { return Ok(()); }
-    let parent = path.parent().ok_or_else(|| io::Error::other("no journal parent"))?;
+    if path.is_dir() {
+        return Ok(());
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("no journal parent"))?;
     create_dir_durable(parent)?;
     let mut builder = std::fs::DirBuilder::new();
     #[cfg(unix)]
-    { use std::os::unix::fs::DirBuilderExt; builder.mode(0o700); }
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
     match builder.create(path) {
         Ok(()) => sync_dir(parent),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists && path.is_dir() => Ok(()),
@@ -23,24 +32,39 @@ pub fn create_dir_durable(path: &Path) -> io::Result<()> {
 }
 
 pub fn sync_parents(from: &Path, to: &Path) -> io::Result<()> {
-    if let Some(parent) = from.parent() { sync_dir(parent)?; }
+    if let Some(parent) = from.parent() {
+        sync_dir(parent)?;
+    }
     if to.parent() != from.parent() {
-        if let Some(parent) = to.parent() { sync_dir(parent)?; }
+        if let Some(parent) = to.parent() {
+            sync_dir(parent)?;
+        }
     }
     Ok(())
 }
 
 /// Install an immutable journal record. No existence query authorises replacement.
 pub fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let parent = path.parent().ok_or_else(|| io::Error::other("no journal directory"))?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("no journal directory"))?;
     create_dir_durable(parent)?;
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
-    { use std::os::unix::fs::OpenOptionsExt; options.mode(0o600); }
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
     let mut file = options.open(path)?;
-    let result = (|| { file.write_all(bytes)?; file.sync_all()?; sync_dir(parent) })();
-    if result.is_err() { let _ = std::fs::remove_file(path); }
+    let result = (|| {
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        sync_dir(parent)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(path);
+    }
     result
 }
 
@@ -58,17 +82,44 @@ pub fn rename_exclusive(from: &Path, to: &Path) -> io::Result<()> {
         let (from, to) = (c_path(from)?, c_path(to)?);
         // SAFETY: both C strings remain alive throughout the filesystem call.
         let result = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
-        if result == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
     #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         let (from, to) = (c_path(from)?, c_path(to)?);
         // SAFETY: valid C paths, no borrowed file descriptors.
-        let result = unsafe { libc::renameat2(libc::AT_FDCWD, from.as_ptr(), libc::AT_FDCWD, to.as_ptr(), libc::RENAME_NOREPLACE) };
-        if result == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                from.as_ptr(),
+                libc::AT_FDCWD,
+                to.as_ptr(),
+                libc::RENAME_NOREPLACE,
+            )
+        };
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
-    #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux", target_os = "android")))]
-    { let _ = (from, to); Err(io::Error::new(io::ErrorKind::Unsupported, "exclusive relocation is unavailable")) }
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "linux",
+        target_os = "android"
+    )))]
+    {
+        let _ = (from, to);
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "exclusive relocation is unavailable",
+        ))
+    }
 }
 
 /// Keep the displaced inode at the temporary name until its bytes are validated.
@@ -78,21 +129,50 @@ pub fn exchange(from: &Path, to: &Path) -> io::Result<()> {
         let (from, to) = (c_path(from)?, c_path(to)?);
         // SAFETY: both C strings remain alive throughout the filesystem call.
         let result = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_SWAP) };
-        if result == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
     #[cfg(any(target_os = "linux", target_os = "android"))]
     {
         let (from, to) = (c_path(from)?, c_path(to)?);
         // SAFETY: valid C paths, no borrowed file descriptors.
-        let result = unsafe { libc::renameat2(libc::AT_FDCWD, from.as_ptr(), libc::AT_FDCWD, to.as_ptr(), libc::RENAME_EXCHANGE) };
-        if result == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+        let result = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                from.as_ptr(),
+                libc::AT_FDCWD,
+                to.as_ptr(),
+                libc::RENAME_EXCHANGE,
+            )
+        };
+        if result == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
     }
-    #[cfg(not(any(target_os = "macos", target_os = "ios", target_os = "linux", target_os = "android")))]
-    { let _ = (from, to); Err(io::Error::new(io::ErrorKind::Unsupported, "atomic exchange is unavailable")) }
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "linux",
+        target_os = "android"
+    )))]
+    {
+        let _ = (from, to);
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "atomic exchange is unavailable",
+        ))
+    }
 }
 
 /// A stable app-data lock file is never unlinked: all processes lock one inode.
-pub struct FileLock { file: File }
+pub struct FileLock {
+    file: File,
+}
 
 impl FileLock {
     pub fn try_at(path: &Path) -> io::Result<Self> {
@@ -104,7 +184,9 @@ impl FileLock {
     }
 
     fn try_mode(path: &Path, exclusive: bool) -> io::Result<Self> {
-        if let Some(parent) = path.parent() { create_dir_durable(parent)?; }
+        if let Some(parent) = path.parent() {
+            create_dir_durable(parent)?;
+        }
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true).truncate(false);
         #[cfg(unix)]
@@ -117,14 +199,24 @@ impl FileLock {
         {
             use std::os::fd::AsRawFd;
             // SAFETY: this file owns its descriptor for the entire lock lifetime.
-            let mode = if exclusive { libc::LOCK_EX } else { libc::LOCK_SH };
+            let mode = if exclusive {
+                libc::LOCK_EX
+            } else {
+                libc::LOCK_SH
+            };
             if unsafe { libc::flock(file.as_raw_fd(), mode | libc::LOCK_NB) } != 0 {
                 return Err(io::Error::last_os_error());
             }
             Ok(Self { file })
         }
         #[cfg(not(unix))]
-        { let _ = (file, exclusive); Err(io::Error::new(io::ErrorKind::Unsupported, "interprocess file locking is unavailable")) }
+        {
+            let _ = (file, exclusive);
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "interprocess file locking is unavailable",
+            ))
+        }
     }
 }
 
@@ -147,7 +239,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a2_01_exchange_keeps_the_displaced_file_and_new_install_is_exclusive() {
+    fn exchange_keeps_the_displaced_file_and_new_install_is_exclusive() {
         let dir = tempfile::tempdir().unwrap();
         let a = dir.path().join("a");
         let b = dir.path().join("b");
@@ -162,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn a2_08_the_journal_and_its_lock_cannot_be_replaced_by_another_owner() {
+    fn the_journal_and_its_lock_cannot_be_replaced_by_another_owner() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("operation.json");
         write_new(&path, b"first intent").unwrap();

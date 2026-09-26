@@ -73,7 +73,10 @@ export function WelcomeScreen({
     const first = requestAnimationFrame(() => {
       second = requestAnimationFrame(onPrivacyNoticeSeen);
     });
-    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
     // Once, when it appears.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotice]);
@@ -85,8 +88,8 @@ export function WelcomeScreen({
         </span>
         <h1 className="empty-card__title">Where should your plays live?</h1>
         <p className="empty-card__sub">
-          One folder holds them all. Nothing is imported and nothing moves — the
-          folder stays a folder you can open in Finder.
+          One folder holds them all. Nothing is imported and nothing moves — the folder stays a
+          folder you can open in Finder.
         </p>
 
         <div className="welcome__choices">
@@ -118,7 +121,12 @@ export function WelcomeScreen({
         {showNotice && (
           <p className="welcome__privacy">
             {PRIVACY_NOTICE.slice(0, -"Privacy settings.".length)}
-            <button type="button" role="link" className="settings__link" onClick={onPrivacySettings}>
+            <button
+              type="button"
+              role="link"
+              className="settings__link"
+              onClick={onPrivacySettings}
+            >
               Privacy settings
             </button>
             .

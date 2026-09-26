@@ -81,7 +81,13 @@ export function classifyOpened(facts: OpenedFacts): OpenRoute {
   const nearest = facts.playDirs.find((d) => d.playFiles.some(isPlayFileName)) ?? null;
 
   if (facts.isDir) {
-    if (/\.(pages|scriv)$/i.test(name)) return { kind: "document-import", path: facts.path, name, inPlay: nearest ? locate(nearest.dir) : null };
+    if (/\.(pages|scriv)$/i.test(name))
+      return {
+        kind: "document-import",
+        path: facts.path,
+        name,
+        inPlay: nearest ? locate(nearest.dir) : null,
+      };
     // A play's own folder, dropped on the Dock icon or opened with Proscenium.
     return nearest && samePath(nearest.dir, facts.path)
       ? { kind: "play", ...locate(nearest.dir) }
@@ -107,7 +113,13 @@ export function classifyOpened(facts: OpenedFacts): OpenRoute {
       inPlay: nearest ? locate(nearest.dir) : null,
     };
   }
-  if (isImportFile(name)) return { kind: "document-import", path: facts.path, name, inPlay: nearest ? locate(nearest.dir) : null };
+  if (isImportFile(name))
+    return {
+      kind: "document-import",
+      path: facts.path,
+      name,
+      inPlay: nearest ? locate(nearest.dir) : null,
+    };
   return { kind: "unknown", path: facts.path, name };
 }
 

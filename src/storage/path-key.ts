@@ -7,7 +7,9 @@ export function pathKey(path: string): string {
   return path.normalize("NFC").replace(/\/+$/, "").toLowerCase().normalize("NFC");
 }
 
-export function samePath(a: string, b: string): boolean { return pathKey(a) === pathKey(b); }
+export function samePath(a: string, b: string): boolean {
+  return pathKey(a) === pathKey(b);
+}
 
 /** Rewrite by path segments: NFC and NFD prefixes can have different lengths. */
 export function replacePathPrefix(path: string, from: string, to: string): string {

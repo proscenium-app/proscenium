@@ -15,9 +15,7 @@ import { selectPages } from "./plan";
 import { renderPdf, type PdfFontBytes } from "./render";
 
 function ttf(name: string): Uint8Array {
-  return new Uint8Array(
-    readFileSync(fileURLToPath(new URL(`./fonts/${name}`, import.meta.url))),
-  );
+  return new Uint8Array(readFileSync(fileURLToPath(new URL(`./fonts/${name}`, import.meta.url))));
 }
 
 const FONTS: PdfFontBytes = {
@@ -56,21 +54,30 @@ describe("renderPdf", () => {
   it("docs/app/formatting/formats-and-layout.md#FMT-60: a long cast and setting add sheets and every rendered baseline stays on paper", async () => {
     const frontMatter = {
       title: "Long front matter",
-      characters: Array.from({ length: 40 }, (_, i) => ({ name: `Actor ${i + 1}`, description: "A person in the play." })),
+      characters: Array.from({ length: 40 }, (_, i) => ({
+        name: `Actor ${i + 1}`,
+        description: "A person in the play.",
+      })),
       setting: "The coast beyond the kitchen. ".repeat(180),
     };
     const front = paginateFrontMatter(frontMatter, DG);
     expect(front.filter((page) => page.kind === "characters").length).toBeGreaterThan(1);
     expect(front.filter((page) => page.kind === "setting").length).toBeGreaterThan(1);
     const layout = paginateDoc(speechDoc(1), DG);
-    const pdf = await PDFDocument.load(await renderPdf({ layout, spec: DG, meta: {}, fonts: FONTS, frontMatter }));
+    const pdf = await PDFDocument.load(
+      await renderPdf({ layout, spec: DG, meta: {}, fonts: FONTS, frontMatter }),
+    );
     expect(pdf.getPageCount()).toBe(front.length + layout.pages.length);
     front.forEach((planned, i) => {
       const page = pdf.getPage(i);
       const contents = page.node.Contents();
       const refs = contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : [];
-      const stream = refs.map((ref) => pdf.context.lookup(ref)).map((s) => s instanceof PDFRawStream
-        ? new TextDecoder().decode(decodePDFRawStream(s).decode()) : "").join("\n");
+      const stream = refs
+        .map((ref) => pdf.context.lookup(ref))
+        .map((s) =>
+          s instanceof PDFRawStream ? new TextDecoder().decode(decodePDFRawStream(s).decode()) : "",
+        )
+        .join("\n");
       const baselines = [...stream.matchAll(/1 0 0 1 [-\d.]+ ([-\d.]+) Tm/g)].map((m) => +m[1]);
       expect(baselines).toHaveLength(planned.lines.length);
       for (const y of baselines) {
@@ -141,7 +148,12 @@ describe("renderPdf", () => {
     const layout = paginateDoc(doc, DG, { title: "Tideline" });
     expect(layout.pages.length).toBeGreaterThan(3);
     const slice = selectPages(layout, [2, 3]);
-    const bytes = await renderPdf({ layout: slice, spec: DG, meta: { title: "Tideline" }, fonts: FONTS });
+    const bytes = await renderPdf({
+      layout: slice,
+      spec: DG,
+      meta: { title: "Tideline" },
+      fonts: FONTS,
+    });
     const parsed = await PDFDocument.load(bytes);
     expect(parsed.getPageCount()).toBe(2);
     // The excerpt's first page is page 2 of the play, header and all.
@@ -157,18 +169,32 @@ describe("renderPdf", () => {
       characters: [{ name: "Mara", description: "a hydrologist, 40s" }],
       setting: "A coastal kitchen.",
     };
-    const render = async (frontSheets: ("title" | "characters" | "setting")[] | undefined, pages: number[] | null) =>
-      PDFDocument.load(await renderPdf({
-        layout: selectPages(layout, pages), spec: DG, meta: { title: "Tideline" }, frontMatter, frontSheets, fonts: FONTS,
-      }));
+    const render = async (
+      frontSheets: ("title" | "characters" | "setting")[] | undefined,
+      pages: number[] | null,
+    ) =>
+      PDFDocument.load(
+        await renderPdf({
+          layout: selectPages(layout, pages),
+          spec: DG,
+          meta: { title: "Tideline" },
+          frontMatter,
+          frontSheets,
+          fonts: FONTS,
+        }),
+      );
     // An excerpt with a cover and a cast list, and no setting sheet.
     const excerpt = await render(["characters", "title"], [2, 3]);
     expect(excerpt.getPageCount()).toBe(2 + 2);
     const text = (pdf: PDFDocument, i: number) => {
       const contents = pdf.getPage(i).node.Contents();
       const refs = contents instanceof PDFArray ? contents.asArray() : contents ? [contents] : [];
-      return refs.map((ref) => pdf.context.lookup(ref)).map((s) => s instanceof PDFRawStream
-        ? new TextDecoder().decode(decodePDFRawStream(s).decode()) : "").join("\n");
+      return refs
+        .map((ref) => pdf.context.lookup(ref))
+        .map((s) =>
+          s instanceof PDFRawStream ? new TextDecoder().decode(decodePDFRawStream(s).decode()) : "",
+        )
+        .join("\n");
     };
     // The title sheet prints before the cast sheet whichever order they were ticked in.
     const glyphs = (pdf: PDFDocument, i: number) => [...text(pdf, i).matchAll(/Tj/g)].length;

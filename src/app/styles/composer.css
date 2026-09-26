@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* The @ / popup wears the menu's own clothes (docs/engineering/design-system.md#UI-D107): vibrant paper, radius 8,
    5px padding, 22px rows — the one anatomy, drawn where the caret is. */
 .composer__popup {
@@ -61,5 +60,3 @@
   color: inherit;
   opacity: 0.75;
 }
-
-

@@ -35,8 +35,8 @@
 pub mod allowlist;
 mod client;
 mod crash;
-mod envelope;
 mod diagnostics;
+mod envelope;
 mod errors;
 mod events;
 
@@ -94,7 +94,9 @@ struct State {
 
 impl Telemetry {
     fn state(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     fn record(&self, event: Event) {
@@ -110,7 +112,10 @@ impl Telemetry {
                 return;
             }
         }
-        state.queue.push(Pending { event, at: chrono::Utc::now() });
+        state.queue.push(Pending {
+            event,
+            at: chrono::Utc::now(),
+        });
         state.fresh = true;
     }
 
@@ -127,51 +132,88 @@ impl Telemetry {
 
     fn queue_crash(&self, file: PathBuf, record: crash::CrashRecord) {
         let mut state = self.state();
-        if self.client.is_none() || !state.on || !record.recent(chrono::Utc::now()) { return; }
-        while state.crashes.len() >= crash::KEPT { state.crashes.pop_front(); }
-        state.crashes.push_back((file, record)); state.fresh = true;
+        if self.client.is_none() || !state.on || !record.recent(chrono::Utc::now()) {
+            return;
+        }
+        while state.crashes.len() >= crash::KEPT {
+            state.crashes.pop_front();
+        }
+        state.crashes.push_back((file, record));
+        state.fresh = true;
     }
 
     /// One bounded flush. A quit does not wait behind the scheduled sender.
     fn flush(&self, timeout: Duration, quitting: bool) {
-        if self.started.elapsed() < FIRST_FLUSH_AFTER { return; }
-        let Some(client) = &self.client else { return; };
-        let Ok(_sender) = self.sending.try_lock() else { return; };
+        if self.started.elapsed() < FIRST_FLUSH_AFTER {
+            return;
+        }
+        let Some(client) = &self.client else {
+            return;
+        };
+        let Ok(_sender) = self.sending.try_lock() else {
+            return;
+        };
         let deadline = std::time::Instant::now() + timeout;
         {
             let mut state = self.state();
-            if !state.on || !state.notice_seen || (!quitting && !state.fresh) { return; }
+            if !state.on || !state.notice_seen || (!quitting && !state.fresh) {
+                return;
+            }
             state.fresh = false;
         }
         loop {
-            let Some(left) = deadline.checked_duration_since(std::time::Instant::now()).filter(|d| !d.is_zero()) else { return; };
+            let Some(left) = deadline
+                .checked_duration_since(std::time::Instant::now())
+                .filter(|d| !d.is_zero())
+            else {
+                return;
+            };
             let (batch, crash, consent) = {
                 let mut state = self.state();
-                if !state.on || !state.notice_seen { return; }
+                if !state.on || !state.notice_seen {
+                    return;
+                }
                 state.crashes.retain(|(_, r)| r.recent(chrono::Utc::now()));
                 let batch = state.queue.take_batch(chrono::Utc::now());
-                let crash = if batch.is_empty() { state.crashes.pop_front() } else { None };
+                let crash = if batch.is_empty() {
+                    state.crashes.pop_front()
+                } else {
+                    None
+                };
                 (batch, crash, state.consent)
             };
-            if batch.is_empty() && crash.is_none() { return; }
-            if self.state().consent != consent { return; }
+            if batch.is_empty() && crash.is_none() {
+                return;
+            }
+            if self.state().consent != consent {
+                return;
+            }
             let outcome = if let Some((_, record)) = &crash {
                 match envelope::encode(record) {
                     Some(bytes) => tauri::async_runtime::block_on(client.send_crash(bytes, left)),
                     None => Outcome::Refused,
                 }
-            } else { tauri::async_runtime::block_on(client.send(client::body(&batch, &self.context), left)) };
+            } else {
+                tauri::async_runtime::block_on(
+                    client.send(client::body(&batch, &self.context), left),
+                )
+            };
             match outcome {
                 Outcome::Sent => {
                     if self.state().consent == consent {
-                        if let Some((file, _)) = &crash { let _ = std::fs::remove_file(file); }
+                        if let Some((file, _)) = &crash {
+                            let _ = std::fs::remove_file(file);
+                        }
                     }
                 }
                 Outcome::Wait => {
                     let mut state = self.state();
                     if state.on && state.consent == consent {
-                        if let Some(crash) = crash { state.crashes.push_front(crash); }
-                        else { state.queue.put_back(batch); }
+                        if let Some(crash) = crash {
+                            state.crashes.push_front(crash);
+                        } else {
+                            state.queue.put_back(batch);
+                        }
                     }
                     return;
                 }
@@ -179,7 +221,6 @@ impl Telemetry {
             }
         }
     }
-
 }
 
 /// First thing in `run()`: crash files for panics from here on.
@@ -193,7 +234,12 @@ pub fn setup(app: &AppHandle) {
     let data_dir = app.path().app_data_dir().ok();
     let (os_name, os_version) = operating_system();
     if let Some(dir) = &data_dir {
-        crash::set_target(dir.join(CRASH_DIR), version.clone(), client::os_version(&os_version), std::env::consts::ARCH.into());
+        crash::set_target(
+            dir.join(CRASH_DIR),
+            version.clone(),
+            client::os_version(&os_version),
+            std::env::consts::ARCH.into(),
+        );
     }
     let settings = crate::settings::current(app);
     let telemetry = Telemetry {
@@ -206,7 +252,11 @@ pub fn setup(app: &AppHandle) {
             channel: Channel::of_this_build(),
         },
         data_dir: data_dir.clone(),
-        state: Mutex::new(State { on: settings.share_analytics, notice_seen: settings.privacy_notice_seen, ..State::default() }),
+        state: Mutex::new(State {
+            on: settings.share_analytics,
+            notice_seen: settings.privacy_notice_seen,
+            ..State::default()
+        }),
         started: std::time::Instant::now(),
         sending: Mutex::new(()),
     };
@@ -263,7 +313,9 @@ pub fn switched_off(app: &AppHandle) {
 
 /// The version that ran last, replaced by this one; the pair when they differ.
 fn version_change(file: &Path, now: &str) -> Option<(Version, Version)> {
-    let before = std::fs::read_to_string(file).ok().map(|s| s.trim().to_string());
+    let before = std::fs::read_to_string(file)
+        .ok()
+        .map(|s| s.trim().to_string());
     if before.as_deref() != Some(now) {
         if let Some(dir) = file.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -313,18 +365,27 @@ pub async fn telemetry_record(app: AppHandle, event: PageEvent) {
 pub async fn telemetry_page_error(app: AppHandle, name: String, frames: Vec<crash::PageFrame>) {
     with_telemetry(&app, |telemetry| {
         if let Some(dir) = &telemetry.data_dir {
-            let _ = crash::write_page_error(&dir.join(CRASH_DIR), &name, frames, &telemetry.context);
+            let _ =
+                crash::write_page_error(&dir.join(CRASH_DIR), &name, frames, &telemetry.context);
         }
     });
 }
 
 fn diagnostics_text(app: &AppHandle, formats_in_use: &[String]) -> Result<String, String> {
-    let telemetry = app.try_state::<Telemetry>().ok_or("diagnostics are not ready yet")?;
+    let telemetry = app
+        .try_state::<Telemetry>()
+        .ok_or("diagnostics are not ready yet")?;
     let config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let data_dir = telemetry.data_dir.clone().ok_or("the app has no data folder")?;
+    let data_dir = telemetry
+        .data_dir
+        .clone()
+        .ok_or("the app has no data folder")?;
     let home = crate::real_home();
     let is_icloud_item = |path: &Path| crate::scope::is_icloud_item(&path.to_string_lossy());
-    let os = format!("{} {}", telemetry.context.os_name, telemetry.context.os_version);
+    let os = format!(
+        "{} {}",
+        telemetry.context.os_name, telemetry.context.os_version
+    );
     let facts = diagnostics::gather(&diagnostics::Sources {
         config_dir: &config_dir,
         data_dir: &data_dir,
@@ -354,16 +415,24 @@ pub fn telemetry_configured(app: AppHandle) -> bool {
 
 /// Gather locally; feedback works even when this collection fails.
 #[tauri::command]
-pub async fn diagnostics_review(app: AppHandle, formats_in_use: Vec<String>) -> Result<String, String> {
+pub async fn diagnostics_review(
+    app: AppHandle,
+    formats_in_use: Vec<String>,
+) -> Result<String, String> {
     diagnostics_text(&app, &formats_in_use)
 }
 
-pub(crate) fn copy_text(text: &str) -> Result<(), String> { diagnostics::copy_to_clipboard(text) }
+pub(crate) fn copy_text(text: &str) -> Result<(), String> {
+    diagnostics::copy_to_clipboard(text)
+}
 
 /// Help › Copy Diagnostics: the text on the clipboard, and back to the page to
 /// say what was copied.
 #[tauri::command]
-pub async fn diagnostics_copy(app: AppHandle, formats_in_use: Vec<String>) -> Result<String, String> {
+pub async fn diagnostics_copy(
+    app: AppHandle,
+    formats_in_use: Vec<String>,
+) -> Result<String, String> {
     let text = diagnostics_text(&app, &formats_in_use)?;
     diagnostics::copy_to_clipboard(&text)?;
     Ok(text)
@@ -379,7 +448,9 @@ mod tests {
 
     /// A server on this machine that answers every request with `status` and
     /// reports each body it received.
-    fn server(status: u16) -> (String, mpsc::Receiver<String>) { server_with_delay(status, Duration::ZERO) }
+    fn server(status: u16) -> (String, mpsc::Receiver<String>) {
+        server_with_delay(status, Duration::ZERO)
+    }
 
     fn server_with_delay(status: u16, delay: Duration) -> (String, mpsc::Receiver<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -404,10 +475,15 @@ mod tests {
                 }
                 let mut body = vec![0; length];
                 let _ = reader.read_exact(&mut body);
-                if tx.send(String::from_utf8(body).unwrap()).is_err() { return; }
+                if tx.send(String::from_utf8(body).unwrap()).is_err() {
+                    return;
+                }
                 std::thread::sleep(delay);
                 let mut stream = stream;
-                let _ = write!(stream, "HTTP/1.1 {status} X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                let _ = write!(
+                    stream,
+                    "HTTP/1.1 {status} X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                );
             }
         });
         (url, rx)
@@ -424,21 +500,30 @@ mod tests {
                 channel: Channel::DeveloperId,
             },
             data_dir: None,
-            state: Mutex::new(State { on, notice_seen: true, ..State::default() }),
-                started: std::time::Instant::now() - FIRST_FLUSH_AFTER,
+            state: Mutex::new(State {
+                on,
+                notice_seen: true,
+                ..State::default()
+            }),
+            started: std::time::Instant::now() - FIRST_FLUSH_AFTER,
             sending: Mutex::new(()),
         }
     }
 
     fn events_in(body: &str) -> Vec<String> {
         let sent: serde_json::Value = serde_json::from_str(body).unwrap();
-        sent["events"].as_array().unwrap().iter().map(|e| e["name"].as_str().unwrap().to_string()).collect()
+        sent["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["name"].as_str().unwrap().to_string())
+            .collect()
     }
 
     const WAIT: Duration = Duration::from_secs(5);
 
     #[test]
-    fn a4_05_scheduled_and_quit_flushes_wait_for_the_notice_and_grace() {
+    fn scheduled_and_quit_flushes_wait_for_the_notice_and_grace() {
         for quitting in [false, true] {
             let (url, received) = server(200);
             let mut t = telemetry(&url, true);
@@ -457,7 +542,10 @@ mod tests {
 
             t.started -= FIRST_FLUSH_AFTER;
             t.flush(WAIT, quitting);
-            assert_eq!(events_in(&received.recv_timeout(WAIT).unwrap()), ["app_launched"]);
+            assert_eq!(
+                events_in(&received.recv_timeout(WAIT).unwrap()),
+                ["app_launched"]
+            );
         }
     }
 
@@ -466,19 +554,29 @@ mod tests {
         let (url, received) = server(200);
         let t = telemetry(&url, true);
         t.record(Event::FormatSaved);
-        t.record(Event::ErrorShown { code: ErrorCode::Save });
+        t.record(Event::ErrorShown {
+            code: ErrorCode::Save,
+        });
         t.set_on(false);
         t.flush(WAIT, true);
         t.record(Event::FormatSaved);
         t.flush(WAIT, true);
-        assert!(received.recv_timeout(Duration::from_millis(300)).is_err(), "something was sent after the switch went off");
+        assert!(
+            received.recv_timeout(Duration::from_millis(300)).is_err(),
+            "something was sent after the switch went off"
+        );
         assert!(t.state().queue.is_empty());
 
         // On again: only what happens from now on.
         t.set_on(true);
-        t.record(Event::PlayOpened { plays: PlaysBucket::One });
+        t.record(Event::PlayOpened {
+            plays: PlaysBucket::One,
+        });
         t.flush(WAIT, false);
-        assert_eq!(events_in(&received.recv_timeout(WAIT).unwrap()), ["play_opened"]);
+        assert_eq!(
+            events_in(&received.recv_timeout(WAIT).unwrap()),
+            ["play_opened"]
+        );
     }
 
     #[test]
@@ -487,18 +585,27 @@ mod tests {
         let t = telemetry(&url, true);
         t.record(Event::FormatSaved);
         t.flush(WAIT, false);
-        assert_eq!(events_in(&received.recv_timeout(WAIT).unwrap()), ["format_saved"]);
+        assert_eq!(
+            events_in(&received.recv_timeout(WAIT).unwrap()),
+            ["format_saved"]
+        );
         assert_eq!(t.state().queue.len(), 1, "a server error keeps the event");
 
         // No new event: the schedule does not try again.
         t.flush(WAIT, false);
         t.flush(WAIT, false);
-        assert!(received.recv_timeout(Duration::from_millis(300)).is_err(), "retried on its own");
+        assert!(
+            received.recv_timeout(Duration::from_millis(300)).is_err(),
+            "retried on its own"
+        );
 
         // A new event takes the waiting one with it.
         t.record(Event::AppLaunched);
         t.flush(WAIT, false);
-        assert_eq!(events_in(&received.recv_timeout(WAIT).unwrap()), ["format_saved", "app_launched"]);
+        assert_eq!(
+            events_in(&received.recv_timeout(WAIT).unwrap()),
+            ["format_saved", "app_launched"]
+        );
     }
 
     #[test]
@@ -519,10 +626,15 @@ mod tests {
     fn one_deadline_bounds_the_whole_quit_flush() {
         let (url, received) = server_with_delay(200, Duration::from_millis(200));
         let t = telemetry(&url, true);
-        for _ in 0..75 { t.record(Event::FormatSaved); }
+        for _ in 0..75 {
+            t.record(Event::FormatSaved);
+        }
         let start = std::time::Instant::now();
         t.flush(Duration::from_millis(300), true);
-        assert!(start.elapsed() < Duration::from_millis(550), "each batch must not get a fresh timeout");
+        assert!(
+            start.elapsed() < Duration::from_millis(550),
+            "each batch must not get a fresh timeout"
+        );
         assert!(received.recv_timeout(WAIT).is_ok());
         assert!(t.state().queue.len() >= 25, "unsent events stay queued");
     }
@@ -532,14 +644,29 @@ mod tests {
         let (url, received) = server_with_delay(200, Duration::from_millis(200));
         let t = std::sync::Arc::new(telemetry(&url, true));
         let dir = tempfile::tempdir().unwrap();
-        let record = crash::make_record(events::CrashKind::JsError, "TypeError", vec![crash::Frame { function: None, lineno: Some(1), colno: Some(2) }], "1.0.0", "15.6", "aarch64", chrono::Utc::now());
+        let record = crash::make_record(
+            events::CrashKind::JsError,
+            "TypeError",
+            vec![crash::Frame {
+                function: None,
+                lineno: Some(1),
+                colno: Some(2),
+            }],
+            "1.0.0",
+            "15.6",
+            "aarch64",
+            chrono::Utc::now(),
+        );
         let file = crash::write(dir.path(), &record).unwrap();
         t.queue_crash(file.clone(), record);
         let sending = t.clone();
         let join = std::thread::spawn(move || sending.flush(WAIT, false));
         // The server reports the body before replying, leaving an actual in-flight request.
-        received.recv_timeout(WAIT).unwrap(); t.set_on(false); join.join().unwrap();
-        assert!(file.exists()); assert!(t.state().crashes.is_empty());
+        received.recv_timeout(WAIT).unwrap();
+        t.set_on(false);
+        join.join().unwrap();
+        assert!(file.exists());
+        assert!(t.state().crashes.is_empty());
     }
 
     #[test]
@@ -547,31 +674,62 @@ mod tests {
         let (url, received) = server(200);
         let t = telemetry(&url, true);
         for _ in 0..3 {
-            t.record(Event::SurfaceShown { surface: Surface::Board });
+            t.record(Event::SurfaceShown {
+                surface: Surface::Board,
+            });
         }
-        t.record(Event::SurfaceShown { surface: Surface::Cast });
+        t.record(Event::SurfaceShown {
+            surface: Surface::Cast,
+        });
         t.flush(WAIT, false);
-        assert_eq!(events_in(&received.recv_timeout(WAIT).unwrap()), ["surface_shown", "surface_shown"]);
+        assert_eq!(
+            events_in(&received.recv_timeout(WAIT).unwrap()),
+            ["surface_shown", "surface_shown"]
+        );
     }
 
     #[test]
     fn a_crash_stays_local_until_accepted_and_keeps_the_same_id_on_retry() {
         let dir = tempfile::tempdir().unwrap();
-        let record = crash::make_record(events::CrashKind::JsError, "TypeError", vec![crash::Frame { function: None, lineno: Some(1), colno: Some(2) }], "1.0.0", "15.6", "aarch64", chrono::Utc::now());
+        let record = crash::make_record(
+            events::CrashKind::JsError,
+            "TypeError",
+            vec![crash::Frame {
+                function: None,
+                lineno: Some(1),
+                colno: Some(2),
+            }],
+            "1.0.0",
+            "15.6",
+            "aarch64",
+            chrono::Utc::now(),
+        );
         let file = crash::write(dir.path(), &record).unwrap();
-        let (url, received) = server(503); let t = telemetry(&url, true);
-        t.queue_crash(file.clone(), record.clone()); t.flush(WAIT, false);
-        let first = received.recv_timeout(WAIT).unwrap(); assert!(file.exists());
-        t.flush(WAIT, false); assert!(received.recv_timeout(Duration::from_millis(100)).is_err());
-        t.set_on(false); assert!(t.state().crashes.is_empty()); assert!(file.exists());
-        let (url, received) = server(200); let t = telemetry(&url, true);
-        t.queue_crash(file.clone(), record); t.flush(WAIT, false);
-        assert_eq!(first, received.recv_timeout(WAIT).unwrap()); assert!(!file.exists());
+        let (url, received) = server(503);
+        let t = telemetry(&url, true);
+        t.queue_crash(file.clone(), record.clone());
+        t.flush(WAIT, false);
+        let first = received.recv_timeout(WAIT).unwrap();
+        assert!(file.exists());
+        t.flush(WAIT, false);
+        assert!(received.recv_timeout(Duration::from_millis(100)).is_err());
+        t.set_on(false);
+        assert!(t.state().crashes.is_empty());
+        assert!(file.exists());
+        let (url, received) = server(200);
+        let t = telemetry(&url, true);
+        t.queue_crash(file.clone(), record);
+        t.flush(WAIT, false);
+        assert_eq!(first, received.recv_timeout(WAIT).unwrap());
+        assert!(!file.exists());
     }
 
     #[test]
     fn a_build_without_reports_records_nothing() {
-        let t = Telemetry { client: None, ..telemetry("http://127.0.0.1:9/", true) };
+        let t = Telemetry {
+            client: None,
+            ..telemetry("http://127.0.0.1:9/", true)
+        };
         t.record(Event::FormatSaved);
         assert!(t.state().queue.is_empty());
     }
@@ -580,7 +738,11 @@ mod tests {
     fn an_update_is_the_version_changing_between_launches() {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("data").join(LAST_VERSION);
-        assert_eq!(version_change(&file, "0.9.1"), None, "a first launch is not an update");
+        assert_eq!(
+            version_change(&file, "0.9.1"),
+            None,
+            "a first launch is not an update"
+        );
         assert_eq!(version_change(&file, "0.9.1"), None);
         let (from, to) = version_change(&file, "1.0.0").unwrap();
         assert_eq!((from.as_str(), to.as_str()), ("0.9.1", "1.0.0"));
@@ -592,7 +754,7 @@ mod tests {
     /// A batch already taken out of the queue when the switch
     /// goes off is not sent, and the crash file it carried is not deleted.
     #[test]
-    fn a4_03_a_batch_taken_before_opt_out_is_not_sent_after_it() {
+    fn a_batch_taken_before_opt_out_is_not_sent_after_it() {
         let (url, received) = server(200);
         let t = telemetry(&url, true);
         let dir = tempfile::tempdir().unwrap();
@@ -611,7 +773,13 @@ mod tests {
         assert_ne!(t.state().consent, consent);
         // What flush does from here with that batch: nothing.
         t.flush(WAIT, true);
-        assert!(received.recv_timeout(Duration::from_millis(300)).is_err(), "sent after opt-out");
-        assert!(crash.exists(), "a crash file is not marked sent after opt-out");
+        assert!(
+            received.recv_timeout(Duration::from_millis(300)).is_err(),
+            "sent after opt-out"
+        );
+        assert!(
+            crash.exists(),
+            "a crash file is not marked sent after opt-out"
+        );
     }
 }

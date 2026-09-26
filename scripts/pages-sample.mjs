@@ -6,7 +6,7 @@
  * (docs/app/importing/document-import.md#IMPT-87): the Harbor scene of
  * src/import/fixtures/Harbor.rtf, in a playwright's own paragraph styles.
  *
- * Synthetic on purpose (2026-09-24): fixtures ship with the code, so no
+ * Synthetic on purpose: fixtures ship with the code, so no
  * one's play is one. Real documents were checked where they live and are
  * never committed. This writes the
  * layout those documents have: `Index/*.iwa` files, each one chunk of raw
@@ -47,7 +47,16 @@ function iwa(objects) {
   const stream = [];
   for (const [id, type, fields] of objects) {
     const data = message(fields);
-    const info = message([[1, id], [2, [[1, type], [3, data.length]]]]);
+    const info = message([
+      [1, id],
+      [
+        2,
+        [
+          [1, type],
+          [3, data.length],
+        ],
+      ],
+    ]);
     stream.push(...varint(info.length), ...info, ...data);
   }
   const block = [...varint(stream.length)];
@@ -55,12 +64,21 @@ function iwa(objects) {
     const piece = stream.slice(i, i + 60);
     block.push((piece.length - 1) << 2, ...piece);
   }
-  return new Uint8Array([0, block.length & 255, (block.length >> 8) & 255, block.length >> 16, ...block]);
+  return new Uint8Array([
+    0,
+    block.length & 255,
+    (block.length >> 8) & 255,
+    block.length >> 16,
+    ...block,
+  ]);
 }
 const style = (id, type, name, parent, marks) => [
   id,
   type,
-  [[1, [...(name ? [[1, name]] : []), ...(parent ? [[3, ref(parent)]] : []), [5, ref(100)]]], ...(marks ? [[11, marks]] : [])],
+  [
+    [1, [...(name ? [[1, name]] : []), ...(parent ? [[3, ref(parent)]] : []), [5, ref(100)]]],
+    ...(marks ? [[11, marks]] : []),
+  ],
 ];
 
 /** The scene, a line per paragraph, with the style each is set in. */
@@ -81,7 +99,15 @@ export const HARBOR = [
   ["LIGHTS OUT.", "Stage Direction"],
 ];
 
-const STYLE_IDS = { Act: 101, Scene: 102, "Stage Direction": 103, Character: 104, Dialogue: 105, Parenthetical: 106, "Stage Direction*": 108 };
+const STYLE_IDS = {
+  Act: 101,
+  Scene: 102,
+  "Stage Direction": 103,
+  Character: 104,
+  Dialogue: 105,
+  Parenthetical: 106,
+  "Stage Direction*": 108,
+};
 
 /** The `Index/*.iwa` files of Harbor.pages. */
 export function harborIndex() {
@@ -96,13 +122,33 @@ export function harborIndex() {
     previous = id;
     // "would", in the named character style Emphasis.
     const would = line.indexOf("would");
-    if (would >= 0) chars.push([1, [[1, at + would], [2, ref(107)]]], [1, [[1, at + would + 5]]]);
+    if (would >= 0)
+      chars.push(
+        [
+          1,
+          [
+            [1, at + would],
+            [2, ref(107)],
+          ],
+        ],
+        [1, [[1, at + would + 5]]],
+      );
     at += line.length + 1;
   }
   return {
     "Index/Document.iwa": iwa([
       [1, 10000, [[4, ref(2)]]],
-      [2, 2001, [[1, 0], [2, ref(100)], [3, text], [5, paragraphs], [8, chars]]],
+      [
+        2,
+        2001,
+        [
+          [1, 0],
+          [2, ref(100)],
+          [3, text],
+          [5, paragraphs],
+          [8, chars],
+        ],
+      ],
     ]),
     "Index/DocumentStylesheet.iwa": iwa([
       [100, 401, [101, 102, 103, 104, 105, 106, 107, 108].map((id) => [1, ref(id)])],
@@ -120,7 +166,10 @@ export function harborIndex() {
 
 /** Harbor.pages as a single file: the ZIP Pages saves by default. */
 export function harborPages() {
-  return zipSync({ ...harborIndex(), "Metadata/DocumentIdentifier": strToU8("HARBOR-SAMPLE") }, { level: 0 });
+  return zipSync(
+    { ...harborIndex(), "Metadata/DocumentIdentifier": strToU8("HARBOR-SAMPLE") },
+    { level: 0 },
+  );
 }
 
 /** The same document in package form: a Harbor.pages folder holding Index.zip. */
@@ -134,12 +183,16 @@ export function harborPackage() {
 /** The package as the web view hands a chosen or dropped one over, and as
  * Finder's Compress makes it: Harbor.pages.zip, its folder at the root. */
 export function harborPackageZip() {
-  return zipSync(Object.fromEntries(harborPackage().map((f) => [`Harbor.pages/${f.path}`, f.bytes])), { level: 0 });
+  return zipSync(
+    Object.fromEntries(harborPackage().map((f) => [`Harbor.pages/${f.path}`, f.bytes])),
+    { level: 0 },
+  );
 }
 
 /** Bytes as base64, in Node and in the page alike. */
 export function toBase64(bytes) {
   let binary = "";
-  for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  for (let i = 0; i < bytes.length; i += 8192)
+    binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
   return btoa(binary);
 }

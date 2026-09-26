@@ -10,6 +10,8 @@ test("docs/app/keeping-work/storage-and-file-format.md#STOR-36: disk, manifest a
   expect(matchingPath("NOTES/Cafe\u0301.MD", ["Notes/Café.md"])).toBe("Notes/Café.md");
   expect(matchingPath("NOTE.md", ["Note.md", "note.md"])).toBeUndefined();
   expect(matchingPath("note.md", ["Note.md", "note.md"])).toBe("note.md");
-  expect(replacePathPrefix("Cafe\u0301/Notes/Test.md", "Café", "Drafts")).toBe("Drafts/Notes/Test.md");
+  expect(replacePathPrefix("Cafe\u0301/Notes/Test.md", "Café", "Drafts")).toBe(
+    "Drafts/Notes/Test.md",
+  );
   expect(replacePathPrefix("Cafétoo/Notes.md", "Café", "Drafts")).toBe("Cafétoo/Notes.md");
 });

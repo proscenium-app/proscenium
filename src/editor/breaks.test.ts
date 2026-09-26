@@ -92,9 +92,7 @@ function stateAt(content: unknown[], i: number, offset = 0): EditorState {
   let pos = 1;
   for (let k = 0; k < i; k++) pos += doc.child(k).nodeSize;
   const state = EditorState.create({ schema, doc });
-  return state.apply(
-    state.tr.setSelection(TextSelection.create(state.doc, pos + offset)),
-  );
+  return state.apply(state.tr.setSelection(TextSelection.create(state.doc, pos + offset)));
 }
 
 const types = (state: EditorState) => {
@@ -161,7 +159,10 @@ describe("a sigil after a soft break", () => {
 
   /** A state holding one block, and the position just after its `n`th child. */
   function afterChild(block: unknown, n: number) {
-    const state = EditorState.create({ schema, doc: schema.nodeFromJSON({ type: "doc", content: [block] }) });
+    const state = EditorState.create({
+      schema,
+      doc: schema.nodeFromJSON({ type: "doc", content: [block] }),
+    });
     let pos = 1;
     for (let k = 0; k <= n; k++) pos += state.doc.child(0).child(k).nodeSize;
     return { state, pos };

@@ -61,9 +61,7 @@ describe("editor schema ↔ fountain model", () => {
   it("accepts the sample doc and serializes identically through the schema", () => {
     const { frontMatter, doc } = parse(readFileSync(SAMPLE, "utf8"));
     const back = throughSchema(doc);
-    expect(serialize({ frontMatter, doc: back })).toBe(
-      serialize({ frontMatter, doc }),
-    );
+    expect(serialize({ frontMatter, doc: back })).toBe(serialize({ frontMatter, doc }));
   });
 
   it("accepts every node type and mark without dropping content", () => {
@@ -94,9 +92,7 @@ describe("editor schema ↔ fountain model", () => {
     }
 
     // Serialization survives the round-trip through the editor schema.
-    expect(serialize({ frontMatter, doc: back })).toBe(
-      serialize({ frontMatter, doc }),
-    );
+    expect(serialize({ frontMatter, doc: back })).toBe(serialize({ frontMatter, doc }));
   });
 
   it("carries scene number, character extension, and dual attrs", () => {

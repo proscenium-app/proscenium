@@ -41,8 +41,14 @@ const PLACES = [
   { file: "package.json", pattern: /^(\s*"version":\s*")([^"]+)(")/m },
   { file: "src-tauri/tauri.conf.json", pattern: /^(\s*"version":\s*")([^"]+)(")/m },
   { file: "src-tauri/Cargo.toml", pattern: /(\[package\][^[]*?\nversion\s*=\s*")([^"]+)(")/ },
-  { file: "src-tauri/Cargo.lock", pattern: /(\[\[package\]\]\nname = "proscenium"\nversion = ")([^"]+)(")/ },
-  { file: "src-tauri/gen/apple/project.yml", pattern: /(CFBundleShortVersionString:\s*)([^\s]+)()/ },
+  {
+    file: "src-tauri/Cargo.lock",
+    pattern: /(\[\[package\]\]\nname = "proscenium"\nversion = ")([^"]+)(")/,
+  },
+  {
+    file: "src-tauri/gen/apple/project.yml",
+    pattern: /(CFBundleShortVersionString:\s*)([^\s]+)()/,
+  },
   { file: "src-tauri/gen/apple/project.yml", pattern: /(CFBundleVersion:\s*")([^"]+)(")/ },
   {
     file: "src-tauri/gen/apple/proscenium_iOS/Info.plist",
@@ -76,7 +82,9 @@ function check() {
   const [version] = versions;
   // A heading `next` cannot read would stop the next alpha, so the gate reads it now.
   const upcoming = nextVersion(readFileSync(resolve(ROOT, "CHANGELOG.md"), "utf8"), version);
-  console.log(`version check: clean (${version} in ${new Set(found.map((f) => f.file)).size} files; next ${upcoming})`);
+  console.log(
+    `version check: clean (${version} in ${new Set(found.map((f) => f.file)).size} files; next ${upcoming})`,
+  );
 }
 
 /** Keep a Changelog: Unreleased becomes the release, and a fresh Unreleased opens. */
@@ -92,20 +100,28 @@ function cutChangelog(version) {
   }
   const date = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
   // The heading may have named this version; the fresh Unreleased names none.
-  writeFileSync(file, text.replace(/^## \[Unreleased\].*$/m, `## [Unreleased]\n\n## [${version}] - ${date}`));
+  writeFileSync(
+    file,
+    text.replace(/^## \[Unreleased\].*$/m, `## [Unreleased]\n\n## [${version}] - ${date}`),
+  );
   console.log(`version: CHANGELOG.md — Unreleased is now ${version} (${date})`);
 }
 
 function set(version) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
-    console.error(`version: "${version}" is not x.y.z — macOS reads CFBundleShortVersionString as three integers`);
+    console.error(
+      `version: "${version}" is not x.y.z — macOS reads CFBundleShortVersionString as three integers`,
+    );
     process.exit(1);
   }
   const edits = new Map();
   for (const { file, pattern } of PLACES) {
     const text = edits.get(file) ?? read(file);
     if (!pattern.test(text)) throw new Error(`version: cannot find the version in ${file}`);
-    edits.set(file, text.replace(pattern, (_, before, _old, after) => `${before}${version}${after}`));
+    edits.set(
+      file,
+      text.replace(pattern, (_, before, _old, after) => `${before}${version}${after}`),
+    );
   }
   for (const [file, text] of edits) writeFileSync(resolve(ROOT, file), text);
   console.log(`version: ${version} → ${[...edits.keys()].join(", ")}`);
@@ -157,14 +173,20 @@ function nextVersion(changelog, current) {
     const [major, minor, patch] = current.split(".").map(Number);
     return `${major}.${minor}.${patch + 1}`;
   }
-  if (!RELEASE.test(named)) throw new Error(`version: the Unreleased heading names "${named}", which is not x.y.z`);
-  if (!newer(named, current)) throw new Error(`version: the Unreleased heading names ${named}, which is not newer than ${current}`);
+  if (!RELEASE.test(named))
+    throw new Error(`version: the Unreleased heading names "${named}", which is not x.y.z`);
+  if (!newer(named, current))
+    throw new Error(
+      `version: the Unreleased heading names ${named}, which is not newer than ${current}`,
+    );
   return named;
 }
 
 function next() {
   const [{ version }] = current();
-  process.stdout.write(`${nextVersion(readFileSync(resolve(ROOT, "CHANGELOG.md"), "utf8"), version)}\n`);
+  process.stdout.write(
+    `${nextVersion(readFileSync(resolve(ROOT, "CHANGELOG.md"), "utf8"), version)}\n`,
+  );
 }
 
 const arg = process.argv[2];

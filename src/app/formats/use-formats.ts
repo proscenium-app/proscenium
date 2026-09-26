@@ -15,7 +15,11 @@ import {
 } from "../../format";
 
 export function useFormatRegistry(): FormatRegistry {
-  const registry = useSyncExternalStore(subscribeFormats, formatRegistrySnapshot, formatRegistrySnapshot);
+  const registry = useSyncExternalStore(
+    subscribeFormats,
+    formatRegistrySnapshot,
+    formatRegistrySnapshot,
+  );
   useEffect(() => ensureFormatsLoaded(), []);
   return registry;
 }

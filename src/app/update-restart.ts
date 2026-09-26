@@ -18,7 +18,10 @@ export class UpdateRestart {
   run(services: RestartServices): Promise<RestartResult> {
     if (this.pending) return this.pending;
     const unlock = services.lock();
-    this.pending = this.install(services).finally(() => { unlock(); this.pending = null; });
+    this.pending = this.install(services).finally(() => {
+      unlock();
+      this.pending = null;
+    });
     return this.pending;
   }
 
@@ -27,10 +30,19 @@ export class UpdateRestart {
     try {
       const settled = await Promise.race([
         services.settle(),
-        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Saving is taking longer than expected. Proscenium stayed open.")), 10_000); }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(new Error("Saving is taking longer than expected. Proscenium stayed open.")),
+            10_000,
+          );
+        }),
       ]);
       clearTimeout(timer);
-      if (settled?.lost.length) return { failed: `what was typed in ${settled.lost.map((t) => `“${t}”`).join(", ")} couldn't be saved or kept, so Proscenium stays open` };
+      if (settled?.lost.length)
+        return {
+          failed: `what was typed in ${settled.lost.map((t) => `“${t}”`).join(", ")} couldn't be saved or kept, so Proscenium stays open`,
+        };
       if (settled) await settled.leave();
       await services.confirmSaved();
       const deadline = Date.now() + 8000;
@@ -39,7 +51,10 @@ export class UpdateRestart {
         if (outcome.kind !== "unsaved" || Date.now() > deadline) return outcome.kind;
         await new Promise((r) => setTimeout(r, 250));
       }
-    } catch (e) { return { failed: String(e) }; }
-    finally { clearTimeout(timer); }
+    } catch (e) {
+      return { failed: String(e) };
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

@@ -34,31 +34,31 @@ export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
 
 export function ShortcutList() {
   return (
-      <div className="keysheet">
-        {GROUPS.map((g) => (
-          <section key={g} className="keysheet__group">
-            <h3 className="seclabel">{g}</h3>
-            <dl className="keysheet__list">
-              {SHORTCUTS.filter((s) => s.group === g).map((s) => (
-                <div key={s.keys} className="keysheet__row">
-                  <dt className="keysheet__keys">{s.keys}</dt>
-                  <dd className="keysheet__what">{s.what}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ))}
-        <section className="keysheet__group">
-          <h3 className="seclabel">Element menu: ; then a key</h3>
-          <div className="keysheet__leader">
-            {LEADER_ROWS.map((r) => (
-              <span key={r.key} className="keysheet__leaderrow">
-                <kbd className="keybadge">{r.key}</kbd>
-                {r.label}
-              </span>
+    <div className="keysheet">
+      {GROUPS.map((g) => (
+        <section key={g} className="keysheet__group">
+          <h3 className="seclabel">{g}</h3>
+          <dl className="keysheet__list">
+            {SHORTCUTS.filter((s) => s.group === g).map((s) => (
+              <div key={s.keys} className="keysheet__row">
+                <dt className="keysheet__keys">{s.keys}</dt>
+                <dd className="keysheet__what">{s.what}</dd>
+              </div>
             ))}
-          </div>
+          </dl>
         </section>
-      </div>
+      ))}
+      <section className="keysheet__group">
+        <h3 className="seclabel">Element menu: ; then a key</h3>
+        <div className="keysheet__leader">
+          {LEADER_ROWS.map((r) => (
+            <span key={r.key} className="keysheet__leaderrow">
+              <kbd className="keybadge">{r.key}</kbd>
+              {r.label}
+            </span>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }

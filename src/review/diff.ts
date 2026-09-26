@@ -55,9 +55,7 @@ function lcsDiff(a: string[], b: string[]): DiffLine[] {
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
       lengths[i][j] =
-        a[i] === b[j]
-          ? lengths[i + 1][j + 1] + 1
-          : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
+        a[i] === b[j] ? lengths[i + 1][j + 1] + 1 : Math.max(lengths[i + 1][j], lengths[i][j + 1]);
     }
   }
   const out: DiffLine[] = [];
@@ -82,7 +80,10 @@ function lcsDiff(a: string[], b: string[]): DiffLine[] {
 }
 
 /** Collapse long unchanged stretches for display (keep context lines). */
-export function compactDiff(lines: DiffLine[], context = 2): (DiffLine | { kind: "skip"; count: number })[] {
+export function compactDiff(
+  lines: DiffLine[],
+  context = 2,
+): (DiffLine | { kind: "skip"; count: number })[] {
   const out: (DiffLine | { kind: "skip"; count: number })[] = [];
   let sameRun: DiffLine[] = [];
   const flush = (isEnd: boolean, isStart: boolean) => {

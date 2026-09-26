@@ -106,11 +106,25 @@ describe("shipped format files", () => {
 
 describe("validation errors", () => {
   it("docs/app/formatting/formats-and-layout.md#FMT-115: only stacks headed by the embedded face are accepted", () => {
-    for (const family of ["Arial", "Courier New", "monospace", "Courier Prime, fantasy", "Courier Prime,, Courier"]) {
-      expect(mustFail({ ...dgModernRaw, type: { ...dgModernRaw.type, family } }).join("\n")).toContain("type.family");
+    for (const family of [
+      "Arial",
+      "Courier New",
+      "monospace",
+      "Courier Prime, fantasy",
+      "Courier Prime,, Courier",
+    ]) {
+      expect(
+        mustFail({ ...dgModernRaw, type: { ...dgModernRaw.type, family } }).join("\n"),
+      ).toContain("type.family");
     }
-    for (const family of ["Courier Prime", "'Courier Prime', monospace", '"Courier Prime", "Courier New", Courier, monospace']) {
-      expect(mustValidate({ ...dgModernRaw, type: { ...dgModernRaw.type, family } }).type.family).toBe(family);
+    for (const family of [
+      "Courier Prime",
+      "'Courier Prime', monospace",
+      '"Courier Prime", "Courier New", Courier, monospace',
+    ]) {
+      expect(
+        mustValidate({ ...dgModernRaw, type: { ...dgModernRaw.type, family } }).type.family,
+      ).toBe(family);
     }
   });
   it("rejects a missing required element, naming it", () => {
@@ -140,8 +154,9 @@ describe("validation errors", () => {
 
   it("rejects a negative indent", () => {
     const raw = dgCopy();
-    ((raw.elements as Record<string, unknown>).character as Record<string, unknown>)
-      .indentFromMargin = -1;
+    (
+      (raw.elements as Record<string, unknown>).character as Record<string, unknown>
+    ).indentFromMargin = -1;
     expect(mustFail(raw).join("\n")).toContain("elements.character.indentFromMargin");
   });
 
@@ -203,15 +218,15 @@ describe("parseFormatFile", () => {
 });
 
 // A font family is names, not a stylesheet: it goes into the editor's CSS verbatim.
-import { test as a105, expect as a105expect } from "bun:test";
+import { test as familyTest, expect as familyExpect } from "bun:test";
 import dgModern from "../../formats/dg-modern.json";
-a105("CSS syntax in type.family is refused, and the built-in families pass", () => {
+familyTest("CSS syntax in type.family is refused, and the built-in families pass", () => {
   const injected = JSON.parse(JSON.stringify(dgModern)) as { type: { family: string } };
   injected.type.family =
     'monospace; } body::before { content: "A1 CSS INJECTION"; position:fixed; inset:0; z-index:2147483647; background:white; color:black; } .a1 { font-family: monospace';
   const bad = validateFormatSpec(injected);
-  a105expect(bad.ok).toBe(false);
-  if (!bad.ok) a105expect(bad.errors.some((e) => e.startsWith("type.family"))).toBe(true);
+  familyExpect(bad.ok).toBe(false);
+  if (!bad.ok) familyExpect(bad.errors.some((e) => e.startsWith("type.family"))).toBe(true);
   const good = validateFormatSpec(dgModern);
-  a105expect(good.ok).toBe(true);
+  familyExpect(good.ok).toBe(true);
 });

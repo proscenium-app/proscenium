@@ -55,7 +55,10 @@ export interface ScriptPdfArgs {
 
 /** The finished file, whatever happens to it next. */
 export async function renderScriptPdf(args: ScriptPdfArgs): Promise<Uint8Array> {
-  const meta = { ...args.meta, frontMatter: args.frontMatter === undefined ? args.meta.frontMatter : args.frontMatter };
+  const meta = {
+    ...args.meta,
+    frontMatter: args.frontMatter === undefined ? args.meta.frontMatter : args.frontMatter,
+  };
   const layout = selectPages(paginateDoc(args.doc, args.spec, meta), args.pages);
   if (!layout.pages.length) throw new Error("No pages selected.");
   const fonts = await loadPdfFonts();

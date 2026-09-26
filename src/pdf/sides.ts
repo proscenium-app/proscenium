@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Actor sides: one character's part, derived from the play (backlog P5).
+ * Actor sides: one character's part, derived from the play.
  *
  * A side is what a rehearsal room actually hands an actor: their speeches in
  * full, each preceded by the tail of the line that cues them, with scene

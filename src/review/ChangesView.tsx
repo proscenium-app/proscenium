@@ -6,7 +6,7 @@
  * something you can read, keep, or undo.
  *
  * An entry's `note` is always absent now (the inbound note channel went with
- * the chat). Where an older entry still carries one it is rendered as PLAIN
+ * the chat panel). Where an older entry still carries one it is rendered as PLAIN
  * TEXT — a text node, never markup, never a link — because it was written by
  * something other than the app.
  */
@@ -80,11 +80,24 @@ export function ChangesView({
     return () => clearInterval(t);
   }, []);
 
-  const pending = entries.filter((e) => e.status === "pending").slice().reverse();
-  const settled = entries.filter((e) => e.status !== "pending").slice().reverse().slice(0, 20);
+  const pending = entries
+    .filter((e) => e.status === "pending")
+    .slice()
+    .reverse();
+  const settled = entries
+    .filter((e) => e.status !== "pending")
+    .slice()
+    .reverse()
+    .slice(0, 20);
 
-  if (entries.length === 0 && otherVersions.length === 0 && savedCopies.length === 0 && !savedCopiesError &&
-      !recoveryCopies?.copies.length && !recoveryCopies?.error) {
+  if (
+    entries.length === 0 &&
+    otherVersions.length === 0 &&
+    savedCopies.length === 0 &&
+    !savedCopiesError &&
+    !recoveryCopies?.copies.length &&
+    !recoveryCopies?.error
+  ) {
     return (
       <div className="changes changes--empty">
         <div className="emptysurface">
@@ -93,20 +106,24 @@ export function ChangesView({
           </span>
           <p className="emptysurface__title">Nothing has changed somewhere else</p>
           <p className="emptysurface__body">
-            When another device or another editor writes here, it lands live and
-            shows up in this list with a way back.
+            When another device or another editor writes here, it lands live and shows up in this
+            list with a way back.
           </p>
         </div>
       </div>
     );
   }
 
-
   return (
     <div className="changes">
       <SavedCopies copies={savedCopies} error={savedCopiesError} />
-      {recoveryCopies && <SavedCopies {...recoveryCopies} heading="Recovered document copies"
-        notice="Proscenium kept these words before a previous session ended. You can select and copy them here. Reading a copy does not change your play." />}
+      {recoveryCopies && (
+        <SavedCopies
+          {...recoveryCopies}
+          heading="Recovered document copies"
+          notice="Proscenium kept these words before a previous session ended. You can select and copy them here. Reading a copy does not change your play."
+        />
+      )}
       {/* A provider's conflict copy is not a change to a file — it is a second
           file claiming to be one. It goes first, because it is the only thing
           here that is still sitting in the folder waiting to be resolved. */}
@@ -173,17 +190,29 @@ function ChangeRow({ entry, now, open, onToggle, loadDiff, onKeep, onRevert }: R
   useEffect(() => {
     if (!open || rows || loadError) return;
     let dead = false;
-    void loadDiff(entry.id).then((d) => {
-      if (dead) return;
-      setRows(d ? compactDiff(diffLines(d.before, d.after)) : []);
-    }).catch((error) => { if (!dead) setLoadError(String(error)); });
+    void loadDiff(entry.id)
+      .then((d) => {
+        if (dead) return;
+        setRows(d ? compactDiff(diffLines(d.before, d.after)) : []);
+      })
+      .catch((error) => {
+        if (!dead) setLoadError(String(error));
+      });
     return () => {
       dead = true;
     };
   }, [open, rows, loadError, entry.id, loadDiff]);
-  useAnnouncedStatus(!open ? null : loadError ? `Could not read changes in ${entry.path}. ${loadError}`
-    : rows === null ? `Reading changes in ${entry.path}…`
-    : rows.length ? `Comparison ready for ${entry.path}.` : `No comparison available for ${entry.path}.`);
+  useAnnouncedStatus(
+    !open
+      ? null
+      : loadError
+        ? `Could not read changes in ${entry.path}. ${loadError}`
+        : rows === null
+          ? `Reading changes in ${entry.path}…`
+          : rows.length
+            ? `Comparison ready for ${entry.path}.`
+            : `No comparison available for ${entry.path}.`,
+  );
 
   const pending = entry.status === "pending";
 
@@ -203,7 +232,10 @@ function ChangeRow({ entry, now, open, onToggle, loadDiff, onKeep, onRevert }: R
                 <span className="change__del">−{entry.stats.removed}</span>
               </>
             ) : (
-              <span className="change__nobase" title="No record of what was here before this change">
+              <span
+                className="change__nobase"
+                title="No record of what was here before this change"
+              >
                 changed while closed
               </span>
             )}
@@ -256,7 +288,14 @@ function ChangeRow({ entry, now, open, onToggle, loadDiff, onKeep, onRevert }: R
           aria-label={`What changed in ${entry.path}`}
           aria-busy={rows === null && !loadError}
         >
-          {loadError && <p className="changes__hint">Could not read this comparison. {loadError} <Button size="small" onClick={() => setLoadError(null)}>Try Again</Button></p>}
+          {loadError && (
+            <p className="changes__hint">
+              Could not read this comparison. {loadError}{" "}
+              <Button size="small" onClick={() => setLoadError(null)}>
+                Try Again
+              </Button>
+            </p>
+          )}
           {rows === null && !loadError && <p className="changes__hint">Reading…</p>}
           {rows?.length === 0 && (
             <p className="changes__hint">
@@ -312,17 +351,29 @@ function OtherVersionRow({
   useEffect(() => {
     if (!open || rows || loadError) return;
     let live = true;
-    void loadOther(path).then((d) => {
-      if (!live) return;
-      setRows(d ? compactDiff(diffLines(d.ours, d.theirs)) : []);
-    }).catch((error) => { if (live) setLoadError(String(error)); });
+    void loadOther(path)
+      .then((d) => {
+        if (!live) return;
+        setRows(d ? compactDiff(diffLines(d.ours, d.theirs)) : []);
+      })
+      .catch((error) => {
+        if (live) setLoadError(String(error));
+      });
     return () => {
       live = false;
     };
   }, [open, rows, loadError, loadOther, path]);
-  useAnnouncedStatus(!open ? null : loadError ? `Could not read the other version of ${path}. ${loadError}`
-    : rows === null ? `Reading the other version of ${path}…`
-    : rows.length ? `Comparison ready for ${path}.` : `The other version of ${path} could not be read.`);
+  useAnnouncedStatus(
+    !open
+      ? null
+      : loadError
+        ? `Could not read the other version of ${path}. ${loadError}`
+        : rows === null
+          ? `Reading the other version of ${path}…`
+          : rows.length
+            ? `Comparison ready for ${path}.`
+            : `The other version of ${path} could not be read.`,
+  );
 
   return (
     <div className={`change${open ? " is-open" : ""}`}>
@@ -334,11 +385,16 @@ function OtherVersionRow({
       </button>
       {open && (
         <div className="change__body" aria-busy={rows === null && !loadError}>
-          {loadError && <p className="change__nobase">Could not read this comparison. {loadError} <Button size="small" onClick={() => setLoadError(null)}>Try Again</Button></p>}
-          {rows === null && !loadError && <p className="change__nobase">Loading…</p>}
-          {rows?.length === 0 && (
-            <p className="change__nobase">This one could not be read.</p>
+          {loadError && (
+            <p className="change__nobase">
+              Could not read this comparison. {loadError}{" "}
+              <Button size="small" onClick={() => setLoadError(null)}>
+                Try Again
+              </Button>
+            </p>
           )}
+          {rows === null && !loadError && <p className="change__nobase">Loading…</p>}
+          {rows?.length === 0 && <p className="change__nobase">This one could not be read.</p>}
           {rows && rows.length > 0 && (
             <div
               className="diffview__diff change__diff"

@@ -155,8 +155,6 @@ export function toEditorDoc(doc: Doc): Doc {
 /** Editor → model: `lineBreak` nodes become literal newlines; extensions become attributes. */
 export function fromEditorDoc(doc: Doc): Doc {
   return mapBlocks(doc, (block) =>
-    splitExtension(
-      block.content ? { ...block, content: fromEditorInline(block.content) } : block,
-    ),
+    splitExtension(block.content ? { ...block, content: fromEditorInline(block.content) } : block),
   );
 }

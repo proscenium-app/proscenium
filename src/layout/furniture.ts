@@ -22,11 +22,34 @@ export interface PagePosition {
   sceneNumber: number | null;
 }
 
-export const START_POSITION: Readonly<PagePosition> = { act: "", scene: "", actNumber: null, sceneNumber: null };
+export const START_POSITION: Readonly<PagePosition> = {
+  act: "",
+  scene: "",
+  actNumber: null,
+  sceneNumber: null,
+};
 
 const UNITS = [
-  "", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-  "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen",
+  "",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+  "thirteen",
+  "fourteen",
+  "fifteen",
+  "sixteen",
+  "seventeen",
+  "eighteen",
+  "nineteen",
 ];
 const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
 
@@ -57,8 +80,19 @@ export function toRoman(n: number): string {
   let out = "";
   let left = n;
   for (const [value, glyph] of [
-    [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"],
-    [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
+    [1000, "M"],
+    [900, "CM"],
+    [500, "D"],
+    [400, "CD"],
+    [100, "C"],
+    [90, "XC"],
+    [50, "L"],
+    [40, "XL"],
+    [10, "X"],
+    [9, "IX"],
+    [5, "V"],
+    [4, "IV"],
+    [1, "I"],
   ] as const) {
     for (; left >= value; left -= value) out += glyph;
   }
@@ -70,14 +104,20 @@ export function toRoman(n: number): string {
  * the act or scene at all ("SCENE TBD — THE DORM" does; "PROLOGUE" does not);
  * `number` is the number it gives, in digits, words or Roman numerals.
  */
-export function headingNumber(text: string, keyword: "act" | "scene"): { says: boolean; number: number | null } {
-  const match = new RegExp(`\\b${keyword}\\b[\\s:#.–—-]*(?:no\\.?\\s*)?([a-z0-9]+)(?:[-\\s]+([a-z]+))?`, "i").exec(text);
+export function headingNumber(
+  text: string,
+  keyword: "act" | "scene",
+): { says: boolean; number: number | null } {
+  const match = new RegExp(
+    `\\b${keyword}\\b[\\s:#.–—-]*(?:no\\.?\\s*)?([a-z0-9]+)(?:[-\\s]+([a-z]+))?`,
+    "i",
+  ).exec(text);
   if (!match) return { says: new RegExp(`\\b${keyword}\\b`, "i").test(text), number: null };
   const [, first, second] = match;
   const digits = /^\d+/.exec(first);
   const number = digits
     ? Number(digits[0])
-    : (second ? fromWords(`${first} ${second}`) : null) ?? fromWords(first) ?? fromRoman(first);
+    : ((second ? fromWords(`${first} ${second}`) : null) ?? fromWords(first) ?? fromRoman(first));
   return { says: true, number: number && number > 0 ? number : null };
 }
 
@@ -99,7 +139,8 @@ export function numberHeadings(
     if (block.type !== "act" && block.type !== "scene") continue;
     const keyword = block.type;
     const said = headingNumber(block.text, keyword);
-    const number = said.number ?? (said.says ? (keyword === "act" ? actCount : sceneCount) + 1 : null);
+    const number =
+      said.number ?? (said.says ? (keyword === "act" ? actCount : sceneCount) + 1 : null);
     numbers.set(block.sourceIndex, number);
     if (keyword === "act") {
       if (number !== null) actCount = number;
@@ -129,7 +170,9 @@ const SEPARATOR = /^[\s.:/·–—-]{1,3}$/;
 export function fillSlot(template: string, values: Readonly<Record<HeaderToken, string>>): string {
   // Even indices are literal text, odd ones tokens: "{a}-{b}" → ["", "{a}", "-", "{b}", ""].
   const parts = template.split(/(\{[^}]*\})/);
-  const out = parts.map((part, i) => (i % 2 ? (values[part.slice(1, -1) as HeaderToken] ?? part) : part));
+  const out = parts.map((part, i) =>
+    i % 2 ? (values[part.slice(1, -1) as HeaderToken] ?? part) : part,
+  );
   for (let i = 1; i < parts.length; i += 2) {
     if (out[i] !== "" || !NUMBERS.has(parts[i].slice(1, -1))) continue;
     if (i + 2 < parts.length && SEPARATOR.test(out[i + 1])) out[i + 1] = "";
@@ -157,6 +200,9 @@ export function slotValues(args: {
     actRoman: at.actNumber === null ? "" : toRoman(at.actNumber),
     sceneNumber: at.sceneNumber === null ? "" : String(at.sceneNumber),
     // A draft date may be written over several title-page lines; a slot has one.
-    draftDate: (args.draftDate ?? "").split(/\s*\n\s*/).filter(Boolean).join(" "),
+    draftDate: (args.draftDate ?? "")
+      .split(/\s*\n\s*/)
+      .filter(Boolean)
+      .join(" "),
   };
 }

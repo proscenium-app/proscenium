@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /*
  * ── Inspector (docs/app/organizing/workspace-model.md#WORK-D105) ──────────────────────────────────────────────────────
  */
@@ -188,4 +187,3 @@
   line-height: 1.5;
   color: var(--ink-2);
 }
-

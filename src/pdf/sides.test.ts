@@ -154,7 +154,10 @@ describe("sidesDoc", () => {
     );
     const sides = sidesDoc(dual, "MARA");
     const cue = sides.content.find(
-      (blk) => blk.type === "character" && blk.content?.[0]?.type === "text" && blk.content[0].text === "MARA",
+      (blk) =>
+        blk.type === "character" &&
+        blk.content?.[0]?.type === "text" &&
+        blk.content[0].text === "MARA",
     );
     expect(cue?.attrs?.dual).toBeUndefined();
     expect(cue?.attrs?.extension).toBe("(O.S.)"); // the rest of the attrs survive

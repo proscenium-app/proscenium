@@ -126,7 +126,8 @@ const DEVELOPER_ID = /\b([0-9A-F]{40}) "(Developer ID Application: (.+) \(([A-Z0
  */
 export function store(name, bytes, { replace = false } = {}) {
   if (!(name in ITEMS)) throw new Error(`release-keychain: no item called ${name}`);
-  if (has(name) && !replace) throw new Error(`release-keychain: the keychain already holds ${ITEMS[name]} (${name})`);
+  if (has(name) && !replace)
+    throw new Error(`release-keychain: the keychain already holds ${ITEMS[name]} (${name})`);
   const encoded = Buffer.from(bytes).toString("base64");
   unlock();
   // Errors are named by exit status only: security's messages are not known
@@ -134,7 +135,8 @@ export function store(name, bytes, { replace = false } = {}) {
   const result = security(
     `add-generic-password ${replace ? "-U " : ""}-s "${SERVICE}" -a ${name} -l "${SERVICE}: ${ITEMS[name]}" -w ${encoded}${into()}`,
   );
-  if (result.status !== 0) throw new Error(`release-keychain: could not store ${name} (security exited ${result.status})`);
+  if (result.status !== 0)
+    throw new Error(`release-keychain: could not store ${name} (security exited ${result.status})`);
 }
 
 export function has(name) {
@@ -145,7 +147,9 @@ export function has(name) {
 /** The stored bytes, or null. For handing to a child process — never print it. */
 export function load(name) {
   unlock();
-  const result = security(`find-generic-password -s "${SERVICE}" -a ${name} -w${into()}`, { capture: true });
+  const result = security(`find-generic-password -s "${SERVICE}" -a ${name} -w${into()}`, {
+    capture: true,
+  });
   return result.status === 0 ? Buffer.from(result.stdout.toString().trim(), "base64") : null;
 }
 
@@ -158,10 +162,15 @@ function unlock() {
   if (!KEYCHAIN) return;
   const file = join(homedir(), HOST_PASSWORD);
   if (!existsSync(file)) {
-    throw new Error(`release-keychain: no password for ${KEYCHAIN} at ~/${HOST_PASSWORD} — run \`move\` from the Mac that holds the keys`);
+    throw new Error(
+      `release-keychain: no password for ${KEYCHAIN} at ~/${HOST_PASSWORD} — run \`move\` from the Mac that holds the keys`,
+    );
   }
   const password = readFileSync(file, "utf8").trim();
-  if (security(`unlock-keychain -p ${JSON.stringify(password)} ${JSON.stringify(KEYCHAIN)}`).status !== 0) {
+  if (
+    security(`unlock-keychain -p ${JSON.stringify(password)} ${JSON.stringify(KEYCHAIN)}`)
+      .status !== 0
+  ) {
     throw new Error(`release-keychain: could not unlock ${KEYCHAIN}`);
   }
 }
@@ -169,11 +178,17 @@ function unlock() {
 /** The token's Copy button is used with the maintainer's explicit yes. The value stays
  * between the clipboard, this process and the login keychain, never a tool result. */
 function cloudflare() {
-  const token = execFileSync("pbpaste", [], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  if (!/^[A-Za-z0-9_-]{40,200}$/.test(token)) throw new Error("The clipboard does not hold a deploy token. Nothing was stored.");
+  const token = execFileSync("pbpaste", [], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+  if (!/^[A-Za-z0-9_-]{40,200}$/.test(token))
+    throw new Error("The clipboard does not hold a deploy token. Nothing was stored.");
   store("CLOUDFLARE_API_TOKEN", token);
   execFileSync("pbcopy", [], { input: "", stdio: ["pipe", "ignore", "ignore"] });
-  console.log("The Proscenium Worker deploy token is in the login keychain; the clipboard is clear.");
+  console.log(
+    "The Proscenium Worker deploy token is in the login keychain; the clipboard is clear.",
+  );
 }
 
 /**
@@ -191,9 +206,13 @@ export function minisignKeyId(encodedFile, what) {
 /** Every valid Developer ID Application identity in the keychains. Public names, not keys. */
 export function developerIds() {
   unlock();
-  const out = execFileSync("security", ["find-identity", "-v", "-p", "codesigning", ...(KEYCHAIN ? [KEYCHAIN] : [])], {
-    encoding: "utf8",
-  });
+  const out = execFileSync(
+    "security",
+    ["find-identity", "-v", "-p", "codesigning", ...(KEYCHAIN ? [KEYCHAIN] : [])],
+    {
+      encoding: "utf8",
+    },
+  );
   return out
     .split("\n")
     .map((line) => line.match(DEVELOPER_ID))
@@ -215,7 +234,10 @@ export function readProfile(path) {
     execFileSync("security", ["cms", "-D", "-i", path, "-o", plist], { stdio: "ignore" });
     const get = (key) => {
       try {
-        return execFileSync("plutil", ["-extract", key, "raw", "-o", "-", plist], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+        return execFileSync("plutil", ["-extract", key, "raw", "-o", "-", plist], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }).trim();
       } catch {
         return null;
       }
@@ -224,13 +246,18 @@ export function readProfile(path) {
     for (let i = 0; i < 20; i++) {
       const der = get(`DeveloperCertificates.${i}`);
       if (!der) break;
-      certificates.push(createHash("sha1").update(Buffer.from(der, "base64")).digest("hex").toUpperCase());
+      certificates.push(
+        createHash("sha1").update(Buffer.from(der, "base64")).digest("hex").toUpperCase(),
+      );
     }
     return {
       certificates,
-      entitlements: JSON.parse(execFileSync("plutil", ["-extract", "Entitlements", "json", "-o", "-", plist], {
-        encoding: "utf8", stdio: ["ignore", "pipe", "ignore"],
-      })),
+      entitlements: JSON.parse(
+        execFileSync("plutil", ["-extract", "Entitlements", "json", "-o", "-", plist], {
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "ignore"],
+        }),
+      ),
       appId: get("Entitlements.com\\.apple\\.application-identifier"),
       team: get("Entitlements.com\\.apple\\.developer\\.team-identifier"),
       expires: get("ExpirationDate"),
@@ -255,7 +282,9 @@ function downloaded(test, what) {
     .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
   if (found.length === 0) throw new Error(`release-keychain: no ${what} in ~/Downloads`);
   if (found.length > 1) {
-    throw new Error(`release-keychain: ${found.length} files that look like ${what} in ~/Downloads — leave only the new one`);
+    throw new Error(
+      `release-keychain: ${found.length} files that look like ${what} in ~/Downloads — leave only the new one`,
+    );
   }
   return found[0];
 }
@@ -263,7 +292,10 @@ function downloaded(test, what) {
 /** A line of text from the maintainer, typed into a dialog that hides it. */
 function ask(prompt) {
   const script = `text returned of (display dialog ${JSON.stringify(prompt)} default answer "" with hidden answer with title "Proscenium release setup" buttons {"Cancel", "Save"} default button "Save")`;
-  const result = spawnSync("osascript", ["-e", script], { stdio: ["ignore", "pipe", "ignore"], encoding: "utf8" });
+  const result = spawnSync("osascript", ["-e", script], {
+    stdio: ["ignore", "pipe", "ignore"],
+    encoding: "utf8",
+  });
   if (result.status !== 0) throw new Error("release-keychain: the dialog was cancelled");
   return result.stdout.trim();
 }
@@ -276,19 +308,35 @@ function moveForSafekeeping(file) {
 }
 
 function notary() {
-  const p8 = downloaded((f) => /^AuthKey_[A-Z0-9]{10}\.p8$/.test(f), "App Store Connect API key (AuthKey_….p8)");
+  const p8 = downloaded(
+    (f) => /^AuthKey_[A-Z0-9]{10}\.p8$/.test(f),
+    "App Store Connect API key (AuthKey_….p8)",
+  );
   const keyId = basename(p8).slice("AuthKey_".length, -".p8".length);
   const issuer = ask(
     "Paste the Issuer ID.\n\nIt is shown above the list of keys in App Store Connect → Users and Access → Integrations → App Store Connect API.",
   );
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(issuer)) {
-    throw new Error("release-keychain: that is not an Issuer ID (it looks like 69a6de70-…-…, 36 characters). Nothing was stored.");
+    throw new Error(
+      "release-keychain: that is not an Issuer ID (it looks like 69a6de70-…-…, 36 characters). Nothing was stored.",
+    );
   }
   // Ask Apple before storing anything: a key that cannot list its own
   // submissions cannot notarize either.
   const check = spawnSync(
     "xcrun",
-    ["notarytool", "history", "--key", p8, "--key-id", keyId, "--issuer", issuer, "--output-format", "json"],
+    [
+      "notarytool",
+      "history",
+      "--key",
+      p8,
+      "--key-id",
+      keyId,
+      "--issuer",
+      issuer,
+      "--output-format",
+      "json",
+    ],
     { stdio: "ignore" },
   );
   if (check.status !== 0) {
@@ -311,39 +359,54 @@ function notary() {
 }
 
 function profile() {
-  const file = downloaded((f) => f.endsWith(".provisionprofile"), "provisioning profile (.provisionprofile)");
+  const file = downloaded(
+    (f) => f.endsWith(".provisionprofile"),
+    "provisioning profile (.provisionprofile)",
+  );
   const info = readProfile(file);
   const want = identifier();
   if (!info.appId?.endsWith(`.${want}`)) {
     throw new Error(`release-keychain: that profile is for ${info.appId ?? "no app"}, not ${want}`);
   }
   if (!info.allDevices) {
-    throw new Error("release-keychain: that is not a Developer ID profile (it names devices) — make a Developer ID one");
+    throw new Error(
+      "release-keychain: that is not a Developer ID profile (it names devices) — make a Developer ID one",
+    );
   }
   // Not secret, and made again from the developer website whenever needed,
   // so it is filed rather than archived.
   mkdirSync(PROFILE_DIR, { recursive: true, mode: 0o700 });
   renameSync(file, PROFILE);
-  console.log(`release-keychain: profile "${info.name}" for ${info.appId}, until ${info.expires}\n  filed at ${PROFILE}`);
+  console.log(
+    `release-keychain: profile "${info.name}" for ${info.appId}, until ${info.expires}\n  filed at ${PROFILE}`,
+  );
 }
 
 /** Why Apple accepted or rejected a submission: the log names each file and problem. */
 function notaryLog(id) {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id ?? "")) {
-    throw new Error("usage: node scripts/release-keychain.mjs log <submission id from the release output>");
+    throw new Error(
+      "usage: node scripts/release-keychain.mjs log <submission id from the release output>",
+    );
   }
   const keyId = load("APPLE_API_KEY")?.toString();
   const issuer = load("APPLE_API_ISSUER")?.toString();
   const p8 = load("APPLE_API_KEY_P8");
-  if (!keyId || !issuer || !p8) throw new Error("release-keychain: no notarization key in the keychain (run notary first)");
+  if (!keyId || !issuer || !p8)
+    throw new Error("release-keychain: no notarization key in the keychain (run notary first)");
   const dir = mkdtempSync(join(tmpdir(), "proscenium-notary-"));
   try {
     const key = join(dir, `AuthKey_${keyId}.p8`);
     writeFileSync(key, p8, { mode: 0o600 });
-    const result = spawnSync("xcrun", ["notarytool", "log", id, "--key", key, "--key-id", keyId, "--issuer", issuer], {
-      stdio: ["ignore", "inherit", "inherit"],
-    });
-    if (result.status !== 0) throw new Error(`release-keychain: notarytool log failed (exit ${result.status})`);
+    const result = spawnSync(
+      "xcrun",
+      ["notarytool", "log", id, "--key", key, "--key-id", keyId, "--issuer", issuer],
+      {
+        stdio: ["ignore", "inherit", "inherit"],
+      },
+    );
+    if (result.status !== 0)
+      throw new Error(`release-keychain: notarytool log failed (exit ${result.status})`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -368,9 +431,15 @@ function notaryLog(id) {
  * temporary files on the host are removed whether or not the import worked.
  */
 function move() {
-  if (KEYCHAIN) throw new Error("release-keychain: `move` runs on the Mac that holds the originals, not on the build host");
+  if (KEYCHAIN)
+    throw new Error(
+      "release-keychain: `move` runs on the Mac that holds the originals, not on the build host",
+    );
   const host = opt("--host") ?? DEFAULT_HOST;
-  if (!host) throw new Error("release-keychain: `move` needs the build host, as --host user@host or PROSCENIUM_BUILD_HOST");
+  if (!host)
+    throw new Error(
+      "release-keychain: `move` needs the build host, as --host user@host or PROSCENIUM_BUILD_HOST",
+    );
 
   // `security export -t identities` takes EVERY identity in the keychain.
   // With a second one present it would travel too, silently, and nothing
@@ -384,14 +453,21 @@ function move() {
     );
   }
   const missing = Object.keys(ITEMS).filter((name) => !has(name));
-  if (missing.length) throw new Error(`release-keychain: nothing to move for ${missing.join(", ")} — this Mac does not have them`);
-  if (!existsSync(PROFILE)) throw new Error(`release-keychain: no provisioning profile at ${PROFILE}`);
+  if (missing.length)
+    throw new Error(
+      `release-keychain: nothing to move for ${missing.join(", ")} — this Mac does not have them`,
+    );
+  if (!existsSync(PROFILE))
+    throw new Error(`release-keychain: no provisioning profile at ${PROFILE}`);
 
   console.log(`release-keychain: moving to ${host}`);
   console.log(`  identity  ${ids[0].identity}`);
 
   const dir = remote(host, SETUP, { capture: true }).trim();
-  if (!dir.startsWith("/")) throw new Error(`release-keychain: the build host did not open a working directory (${dir || "no answer"})`);
+  if (!dir.startsWith("/"))
+    throw new Error(
+      `release-keychain: the build host did not open a working directory (${dir || "no answer"})`,
+    );
   try {
     // The certificate and its private key. macOS asks the maintainer before letting the
     // key leave the keychain; that dialog is the only part of this they click.
@@ -404,7 +480,9 @@ function move() {
         `export -k login.keychain-db -t identities -f pkcs12 -P ${JSON.stringify(passphrase)} -o ${JSON.stringify(p12)}`,
       );
       if (exported.status !== 0 || !existsSync(p12)) {
-        throw new Error("release-keychain: the certificate could not be exported — was the dialog denied?");
+        throw new Error(
+          "release-keychain: the certificate could not be exported — was the dialog denied?",
+        );
       }
       send(host, join(dir, "id.p12"), readFileSync(p12));
     } finally {
@@ -481,7 +559,9 @@ printf 'set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "%s" ${HOST
 
 ${names
   .map(
-    (name) => `printf 'add-generic-password -U -s "${SERVICE}" -a "${name}" -l "${SERVICE}: ${ITEMS[name]}" -w "%s" ${HOST_KEYCHAIN}\\n' \\
+    (
+      name,
+    ) => `printf 'add-generic-password -U -s "${SERVICE}" -a "${name}" -l "${SERVICE}: ${ITEMS[name]}" -w "%s" ${HOST_KEYCHAIN}\\n' \\
   "$(base64 < "$DIR/${name}" | tr -d '\\n')" | security -i`,
   )
   .join("\n")}
@@ -508,8 +588,14 @@ if ! codesign -dvvv "$DIR/probe" 2>&1 | grep -q "^Authority=Apple Root CA$"; the
   echo "    the test signature does not chain to Apple Root CA" >&2
   exit 1
 fi
-${names.map((name) => `printf 'find-generic-password -s "${SERVICE}" -a "${name}" ${HOST_KEYCHAIN}\\n' | security -i >/dev/null 2>&1 \\
-  && echo "    present   ${name}" || echo "    MISSING   ${name}"`).join("\n")}
+${names
+  .map(
+    (
+      name,
+    ) => `printf 'find-generic-password -s "${SERVICE}" -a "${name}" ${HOST_KEYCHAIN}\\n' | security -i >/dev/null 2>&1 \\
+  && echo "    present   ${name}" || echo "    MISSING   ${name}"`,
+  )
+  .join("\n")}
 `;
 }
 
@@ -531,13 +617,21 @@ function chain(identity) {
   const dir = mkdtempSync(join(tmpdir(), "proscenium-chain-"));
   try {
     const leaf = join(dir, "leaf.pem");
-    writeFileSync(leaf, execFileSync("security", ["find-certificate", "-c", identity.identity, "-p"], { encoding: "utf8" }));
-    const url = execFileSync("openssl", ["x509", "-in", leaf, "-noout", "-text"], { encoding: "utf8" })
-      .match(/CA Issuers - URI:(\S+)/)?.[1];
+    writeFileSync(
+      leaf,
+      execFileSync("security", ["find-certificate", "-c", identity.identity, "-p"], {
+        encoding: "utf8",
+      }),
+    );
+    const url = execFileSync("openssl", ["x509", "-in", leaf, "-noout", "-text"], {
+      encoding: "utf8",
+    }).match(/CA Issuers - URI:(\S+)/)?.[1];
     if (!url) throw new Error("release-keychain: the certificate names no issuer to fetch");
     const host = new URL(url).hostname;
     if (host !== "certs.apple.com") {
-      throw new Error(`release-keychain: the certificate points its issuer at ${host}, which is not Apple`);
+      throw new Error(
+        `release-keychain: the certificate points its issuer at ${host}, which is not Apple`,
+      );
     }
     const der = join(dir, "ca.der");
     const pem = join(dir, "ca.pem");
@@ -552,19 +646,34 @@ function chain(identity) {
     // a real signature that has to chain to Apple Root CA or `move` fails.
     writeFileSync(
       roots,
-      execFileSync("security", ["find-certificate", "-a", "-c", "Apple Root CA", "-p", SYSTEM_ROOTS], { encoding: "utf8" }),
+      execFileSync(
+        "security",
+        ["find-certificate", "-a", "-c", "Apple Root CA", "-p", SYSTEM_ROOTS],
+        { encoding: "utf8" },
+      ),
     );
     try {
       execFileSync("openssl", ["verify", "-CAfile", roots, pem], { stdio: "ignore" });
     } catch {
-      throw new Error(`release-keychain: what ${url} served is not issued by Apple Root CA — nothing was sent`);
+      throw new Error(
+        `release-keychain: what ${url} served is not issued by Apple Root CA — nothing was sent`,
+      );
     }
     const id = (file, field) =>
       execFileSync("openssl", ["x509", "-in", file, "-noout", "-text"], { encoding: "utf8" })
         .split("\n")
-        .reduce((found, line, i, all) => found ?? (line.includes(field) ? all[i + 1]?.replace(/[\s]|keyid:/g, "") : null), null);
-    if (!id(leaf, "Authority Key Identifier") || id(leaf, "Authority Key Identifier") !== id(pem, "Subject Key Identifier")) {
-      throw new Error(`release-keychain: what ${url} served did not issue this certificate — nothing was sent`);
+        .reduce(
+          (found, line, i, all) =>
+            found ?? (line.includes(field) ? all[i + 1]?.replace(/[\s]|keyid:/g, "") : null),
+          null,
+        );
+    if (
+      !id(leaf, "Authority Key Identifier") ||
+      id(leaf, "Authority Key Identifier") !== id(pem, "Subject Key Identifier")
+    ) {
+      throw new Error(
+        `release-keychain: what ${url} served did not issue this certificate — nothing was sent`,
+      );
     }
     return readFileSync(pem);
   } finally {
@@ -579,7 +688,8 @@ function remote(host, script, { capture = false } = {}) {
     stdio: ["pipe", capture ? "pipe" : "inherit", "inherit"],
     encoding: "utf8",
   });
-  if (result.status !== 0) throw new Error(`release-keychain: the build host refused (ssh exited ${result.status})`);
+  if (result.status !== 0)
+    throw new Error(`release-keychain: the build host refused (ssh exited ${result.status})`);
   return capture ? result.stdout : "";
 }
 
@@ -593,7 +703,8 @@ function send(host, path, bytes) {
     input: Buffer.isBuffer(bytes) ? bytes : Buffer.from(String(bytes)),
     stdio: ["pipe", "ignore", "inherit"],
   });
-  if (write.status !== 0) throw new Error(`release-keychain: could not write ${path} on the build host`);
+  if (write.status !== 0)
+    throw new Error(`release-keychain: could not write ${path} on the build host`);
 }
 
 /**
@@ -608,10 +719,14 @@ function send(host, path, bytes) {
  */
 export function p12Leaf(p12, password) {
   for (const extra of [[], ["-legacy"]]) {
-    const read = spawnSync("openssl", ["pkcs12", ...extra, "-in", p12, "-clcerts", "-nokeys", "-passin", "stdin"], {
-      input: `${password}\n`,
-      stdio: ["pipe", "pipe", "ignore"],
-    });
+    const read = spawnSync(
+      "openssl",
+      ["pkcs12", ...extra, "-in", p12, "-clcerts", "-nokeys", "-passin", "stdin"],
+      {
+        input: `${password}\n`,
+        stdio: ["pipe", "pipe", "ignore"],
+      },
+    );
     if (read.status === 0 && read.stdout.length) return read.stdout;
   }
   return null;
@@ -639,27 +754,53 @@ const REPOSITORY = "proscenium-app/backstage";
  * a screen, or a process list.
  */
 function secrets() {
-  if (KEYCHAIN) throw new Error("release-keychain: `secrets` runs on the Mac that holds the originals");
-  if (spawnSync("gh", ["auth", "status"], { stdio: "ignore" }).status !== 0) throw new Error("release-keychain: gh is not signed in");
+  if (KEYCHAIN)
+    throw new Error("release-keychain: `secrets` runs on the Mac that holds the originals");
+  if (spawnSync("gh", ["auth", "status"], { stdio: "ignore" }).status !== 0)
+    throw new Error("release-keychain: gh is not signed in");
   const ids = developerIds();
-  if (ids.length !== 1) throw new Error(`release-keychain: expected one Developer ID identity, found ${ids.length}`);
-  const missing = ["APPLE_API_KEY", "APPLE_API_ISSUER", "APPLE_API_KEY_P8", "TAURI_SIGNING_PRIVATE_KEY"].filter((n) => !has(n));
-  if (missing.length) throw new Error(`release-keychain: this keychain has no ${missing.join(", ")}`);
-  if (!existsSync(PROFILE)) throw new Error(`release-keychain: no provisioning profile at ${PROFILE}`);
+  if (ids.length !== 1)
+    throw new Error(`release-keychain: expected one Developer ID identity, found ${ids.length}`);
+  const missing = [
+    "APPLE_API_KEY",
+    "APPLE_API_ISSUER",
+    "APPLE_API_KEY_P8",
+    "TAURI_SIGNING_PRIVATE_KEY",
+  ].filter((n) => !has(n));
+  if (missing.length)
+    throw new Error(`release-keychain: this keychain has no ${missing.join(", ")}`);
+  if (!existsSync(PROFILE))
+    throw new Error(`release-keychain: no provisioning profile at ${PROFILE}`);
 
   const dir = mkdtempSync(join(tmpdir(), "proscenium-secrets-"));
   try {
-    console.log("release-keychain: exporting the certificate — click Allow on the dialog macOS shows");
+    console.log(
+      "release-keychain: exporting the certificate — click Allow on the dialog macOS shows",
+    );
     const password = randomBytes(33).toString("base64url");
     const p12 = join(dir, "id.p12");
-    const exported = security(`export -k login.keychain-db -t identities -f pkcs12 -P ${JSON.stringify(password)} -o ${JSON.stringify(p12)}`);
-    if (exported.status !== 0 || !existsSync(p12)) throw new Error("release-keychain: the certificate could not be exported — was the dialog denied?");
+    const exported = security(
+      `export -k login.keychain-db -t identities -f pkcs12 -P ${JSON.stringify(password)} -o ${JSON.stringify(p12)}`,
+    );
+    if (exported.status !== 0 || !existsSync(p12))
+      throw new Error(
+        "release-keychain: the certificate could not be exported — was the dialog denied?",
+      );
 
     // Exactly the read release.mjs makes of APPLE_CERTIFICATE in CI.
     const leaf = p12Leaf(p12, password);
-    if (!leaf) throw new Error("release-keychain: openssl cannot read the exported certificate, so CI could not either. Nothing was uploaded.");
-    const sha1 = createHash("sha1").update(new X509Certificate(leaf).raw).digest("hex").toUpperCase();
-    if (sha1 !== ids[0].sha1) throw new Error("release-keychain: the exported certificate is not the one in the keychain. Nothing was uploaded.");
+    if (!leaf)
+      throw new Error(
+        "release-keychain: openssl cannot read the exported certificate, so CI could not either. Nothing was uploaded.",
+      );
+    const sha1 = createHash("sha1")
+      .update(new X509Certificate(leaf).raw)
+      .digest("hex")
+      .toUpperCase();
+    if (sha1 !== ids[0].sha1)
+      throw new Error(
+        "release-keychain: the exported certificate is not the one in the keychain. Nothing was uploaded.",
+      );
 
     const values = {
       APPLE_CERTIFICATE: readFileSync(p12).toString("base64"),
@@ -671,15 +812,32 @@ function secrets() {
       TAURI_SIGNING_PRIVATE_KEY: load("TAURI_SIGNING_PRIVATE_KEY").toString(),
     };
     for (const [name, value] of Object.entries(values)) {
-      const set = spawnSync("gh", ["secret", "set", name, "--repo", REPOSITORY], { input: value, stdio: ["pipe", "ignore", "ignore"] });
-      if (set.status !== 0) throw new Error(`release-keychain: GitHub refused ${name} (gh exited ${set.status})`);
+      const set = spawnSync("gh", ["secret", "set", name, "--repo", REPOSITORY], {
+        input: value,
+        stdio: ["pipe", "ignore", "ignore"],
+      });
+      if (set.status !== 0)
+        throw new Error(`release-keychain: GitHub refused ${name} (gh exited ${set.status})`);
       console.log(`  secret    ${name}`);
     }
     // A public name, printed by `status` itself: a variable, not a secret.
-    const variable = spawnSync("gh", ["variable", "set", "APPLE_SIGNING_IDENTITY", "--repo", REPOSITORY, "--body", ids[0].identity], {
-      stdio: ["ignore", "ignore", "ignore"],
-    });
-    if (variable.status !== 0) throw new Error("release-keychain: GitHub refused the APPLE_SIGNING_IDENTITY variable");
+    const variable = spawnSync(
+      "gh",
+      [
+        "variable",
+        "set",
+        "APPLE_SIGNING_IDENTITY",
+        "--repo",
+        REPOSITORY,
+        "--body",
+        ids[0].identity,
+      ],
+      {
+        stdio: ["ignore", "ignore", "ignore"],
+      },
+    );
+    if (variable.status !== 0)
+      throw new Error("release-keychain: GitHub refused the APPLE_SIGNING_IDENTITY variable");
     console.log(`  variable  APPLE_SIGNING_IDENTITY = ${ids[0].identity}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -702,10 +860,23 @@ function askApple() {
     writeFileSync(key, p8, { mode: 0o600 });
     const asked = spawnSync(
       "xcrun",
-      ["notarytool", "history", "--key", key, "--key-id", keyId, "--issuer", issuer, "--output-format", "json"],
+      [
+        "notarytool",
+        "history",
+        "--key",
+        key,
+        "--key-id",
+        keyId,
+        "--issuer",
+        issuer,
+        "--output-format",
+        "json",
+      ],
       { stdio: ["ignore", "ignore", "ignore"] },
     );
-    return asked.status === 0 ? "Apple accepts this notarization key" : "APPLE REFUSED this notarization key";
+    return asked.status === 0
+      ? "Apple accepts this notarization key"
+      : "APPLE REFUSED this notarization key";
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

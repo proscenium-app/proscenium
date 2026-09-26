@@ -26,16 +26,35 @@
   border: 0.5px solid var(--rule-strong);
   border-radius: var(--r-menu);
   /* The tone strip on the leading edge: accent to do, amber to correct, green when done. */
-  box-shadow: var(--sh-menu), inset 3px 0 0 0 var(--accent);
+  box-shadow:
+    var(--sh-menu),
+    inset 3px 0 0 0 var(--accent);
   font-family: var(--font-ui);
   font-size: var(--t-body);
   line-height: 1.45;
-  transition: left var(--motion), top var(--motion);
+  transition:
+    left var(--motion),
+    top var(--motion);
 }
-.tutorial-cue--fix { box-shadow: var(--sh-menu), inset 3px 0 0 0 var(--warn-dot); }
-.tutorial-cue--done { box-shadow: var(--sh-menu), inset 3px 0 0 0 var(--ok-dot); }
-.tutorial-cue p { margin: 0; }
-.tutorial-cue__head { display: flex; align-items: center; gap: var(--s-3); min-width: 0; }
+.tutorial-cue--fix {
+  box-shadow:
+    var(--sh-menu),
+    inset 3px 0 0 0 var(--warn-dot);
+}
+.tutorial-cue--done {
+  box-shadow:
+    var(--sh-menu),
+    inset 3px 0 0 0 var(--ok-dot);
+}
+.tutorial-cue p {
+  margin: 0;
+}
+.tutorial-cue__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
 .tutorial-cue__practice {
   flex: none;
   padding: 1px var(--s-2);
@@ -63,15 +82,44 @@
   text-align: left;
   cursor: pointer;
 }
-.tutorial-cue__steps:hover { background: var(--hover); }
-.tutorial-cue__steps:focus-visible { box-shadow: var(--focus-ring); outline: none; }
-.tutorial-cue__lesson { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tutorial-cue__count { flex: none; font-variant-numeric: tabular-nums; }
-.tutorial-cue__say { font-size: var(--t-body); color: var(--ink); outline: none; }
-.tutorial-cue__say:focus-visible { box-shadow: var(--focus-ring); border-radius: var(--r-chip); }
-.tutorial-cue__tone { display: inline-flex; margin-right: var(--s-2); vertical-align: -1px; color: var(--accent-text); }
-.tutorial-cue--done .tutorial-cue__tone { color: var(--ok-text); }
-.tutorial-cue--fix .tutorial-cue__tone { color: var(--warn-text); }
+.tutorial-cue__steps:hover {
+  background: var(--hover);
+}
+.tutorial-cue__steps:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+}
+.tutorial-cue__lesson {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tutorial-cue__count {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.tutorial-cue__say {
+  font-size: var(--t-body);
+  color: var(--ink);
+  outline: none;
+}
+.tutorial-cue__say:focus-visible {
+  box-shadow: var(--focus-ring);
+  border-radius: var(--r-chip);
+}
+.tutorial-cue__tone {
+  display: inline-flex;
+  margin-right: var(--s-2);
+  vertical-align: -1px;
+  color: var(--accent-text);
+}
+.tutorial-cue--done .tutorial-cue__tone {
+  color: var(--ok-text);
+}
+.tutorial-cue--fix .tutorial-cue__tone {
+  color: var(--warn-text);
+}
 .tutorial-cue__type {
   padding: 0 var(--s-2);
   border-radius: var(--r-chip-sm);
@@ -80,12 +128,31 @@
   font-size: var(--t-body);
   white-space: nowrap;
 }
-.tutorial-cue__keep { white-space: nowrap; }
-.tutorial-cue__help { color: var(--ink-2); font-size: var(--t-small); }
-.tutorial-cue__error { color: var(--bad-text); font-size: var(--t-small); }
-.tutorial-cue__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
-.tutorial-cue__spacer { flex: 1; }
-.tutorial-cue .btn { height: auto; min-height: var(--h-small); white-space: nowrap; }
+.tutorial-cue__keep {
+  white-space: nowrap;
+}
+.tutorial-cue__help {
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.tutorial-cue__error {
+  color: var(--bad-text);
+  font-size: var(--t-small);
+}
+.tutorial-cue__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+.tutorial-cue__spacer {
+  flex: 1;
+}
+.tutorial-cue .btn {
+  height: auto;
+  min-height: var(--h-small);
+  white-space: nowrap;
+}
 /* The arrow: a square turned 45°, drawn in the card's own paper and hairline. */
 .tutorial-cue__arrow {
   position: absolute;
@@ -96,10 +163,34 @@
   transform: rotate(45deg);
   display: none;
 }
-.tutorial-cue[data-side="below"] .tutorial-cue__arrow { display: block; top: -6px; left: calc(var(--arrow) - 5px); border-right: 0; border-bottom: 0; }
-.tutorial-cue[data-side="above"] .tutorial-cue__arrow { display: block; bottom: -6px; left: calc(var(--arrow) - 5px); border-left: 0; border-top: 0; }
-.tutorial-cue[data-side="right"] .tutorial-cue__arrow { display: block; left: -6px; top: calc(var(--arrow) - 5px); border-top: 0; border-right: 0; }
-.tutorial-cue[data-side="left"] .tutorial-cue__arrow { display: block; right: -6px; top: calc(var(--arrow) - 5px); border-bottom: 0; border-left: 0; }
+.tutorial-cue[data-side="below"] .tutorial-cue__arrow {
+  display: block;
+  top: -6px;
+  left: calc(var(--arrow) - 5px);
+  border-right: 0;
+  border-bottom: 0;
+}
+.tutorial-cue[data-side="above"] .tutorial-cue__arrow {
+  display: block;
+  bottom: -6px;
+  left: calc(var(--arrow) - 5px);
+  border-left: 0;
+  border-top: 0;
+}
+.tutorial-cue[data-side="right"] .tutorial-cue__arrow {
+  display: block;
+  left: -6px;
+  top: calc(var(--arrow) - 5px);
+  border-top: 0;
+  border-right: 0;
+}
+.tutorial-cue[data-side="left"] .tutorial-cue__arrow {
+  display: block;
+  right: -6px;
+  top: calc(var(--arrow) - 5px);
+  border-bottom: 0;
+  border-left: 0;
+}
 /* The ring: where to click, drawn over the control without touching it. */
 .tutorial-ring {
   position: fixed;
@@ -108,11 +199,23 @@
   display: none;
   pointer-events: none;
   border-radius: var(--r-control);
-  box-shadow: 0 0 0 2px var(--accent-text), 0 0 0 5px var(--accent-ring);
+  box-shadow:
+    0 0 0 2px var(--accent-text),
+    0 0 0 5px var(--accent-ring);
 }
 /* The line to type on, and what to type there (ghost.ts). */
-.tutorial-line { box-shadow: -6px 0 0 0 var(--accent-softer), 6px 0 0 0 var(--accent-softer); background: var(--accent-softer); border-radius: var(--r-chip-sm); }
-.tutorial-ghost { pointer-events: none; user-select: none; -webkit-user-select: none; }
+.tutorial-line {
+  box-shadow:
+    -6px 0 0 0 var(--accent-softer),
+    6px 0 0 0 var(--accent-softer);
+  background: var(--accent-softer);
+  border-radius: var(--r-chip-sm);
+}
+.tutorial-ghost {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
 /* A suggestion, not yet the writer's: the placeholder colour (4.5:1, a hint is text too) and a dotted rule. */
 .tutorial-ghost__text {
   color: var(--placeholder);
@@ -121,7 +224,8 @@
   text-decoration-color: var(--rule-strong);
   text-underline-offset: 3px;
 }
-.tutorial-ghost__key, .keycap {
+.tutorial-ghost__key,
+.keycap {
   display: inline-block;
   margin-left: var(--s-3);
   padding: 0 var(--s-2);
@@ -138,23 +242,60 @@
   text-transform: none;
   letter-spacing: 0;
 }
-.keycap { margin: 0 var(--s-1); color: var(--ink); }
+.keycap {
+  margin: 0 var(--s-1);
+  color: var(--ink);
+}
 /* A key is chrome, not script: upright even on an italic stage direction. */
-.tutorial-ghost__key { font-style: normal; }
+.tutorial-ghost__key {
+  font-style: normal;
+}
 @media (prefers-reduced-motion: reduce) {
-  .tutorial-cue { transition: none; }
+  .tutorial-cue {
+    transition: none;
+  }
 }
 @media (prefers-contrast: more) {
-  .tutorial-ring { box-shadow: 0 0 0 3px var(--accent-text); }
+  .tutorial-ring {
+    box-shadow: 0 0 0 3px var(--accent-text);
+  }
 }
 
 /* Help & Tutorials: the course in order (docs/app/preferences-and-help/tutorials.md#TUT-D102) ----------------- */
-.tutorials { padding: var(--s-5) var(--s-7) var(--s-6); display: flex; flex-direction: column; gap: var(--s-4); font-size: var(--t-body); color: var(--ink); }
-.tutorials p { margin: 0; line-height: 1.5; }
-.tutorials__resume { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-2); padding-bottom: var(--s-4); border-bottom: 0.5px solid var(--rule); }
-.tutorials__resume p, .tutorials__note { color: var(--ink-2); font-size: var(--t-small); }
-.tutorials__lessons, .tutorials__saved { list-style: none; margin: 0; padding: 0; }
-.tutorials__lesson { border-bottom: 0.5px solid var(--rule); }
+.tutorials {
+  padding: var(--s-5) var(--s-7) var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+.tutorials p {
+  margin: 0;
+  line-height: 1.5;
+}
+.tutorials__resume {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  padding-bottom: var(--s-4);
+  border-bottom: 0.5px solid var(--rule);
+}
+.tutorials__resume p,
+.tutorials__note {
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.tutorials__lessons,
+.tutorials__saved {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tutorials__lesson {
+  border-bottom: 0.5px solid var(--rule);
+}
 .tutorials__topic {
   display: flex;
   align-items: baseline;
@@ -168,25 +309,99 @@
   text-align: left;
   cursor: pointer;
 }
-.tutorials__topic:focus-visible { box-shadow: var(--focus-ring); outline: none; border-radius: var(--r-chip); }
-.tutorials__number { flex: none; width: 18px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
-.tutorials__title { flex: 1; font-weight: 600; }
-.tutorials__status { flex: none; color: var(--ink-2); font-size: var(--t-small); }
-.tutorials__detail { display: flex; flex-direction: column; gap: var(--s-3); padding: 0 0 var(--s-5) calc(18px + var(--s-4)); }
-.tutorials__detail > p { color: var(--ink-2); }
-.tutorials__steps { margin: 0; padding-left: var(--s-6); }
-.tutorials__steps li { padding: var(--s-1) 0; }
-.tutorials__steps span { margin-left: var(--s-3); color: var(--ink-2); font-size: var(--t-small); }
-.tutorials__actions { display: flex; flex-wrap: wrap; gap: var(--s-3); align-items: center; }
-.tutorials__more { padding-top: var(--s-2); }
-.tutorials .btn { white-space: normal; height: auto; min-height: var(--h-small); }
-.tutorials__saved { padding: var(--s-5) var(--s-7); }
-.tutorials__saved > li { display: flex; flex-direction: column; gap: var(--s-2); padding: var(--s-4) 0; border-bottom: 0.5px solid var(--rule); }
-.tutorials__saved p { margin: 0; color: var(--ink-2); font-size: var(--t-small); overflow-wrap: anywhere; }
-.tutorials__notice { display: flex; flex-direction: column; align-items: flex-start; gap: var(--s-3); }
-.tutorials__dialog { padding: var(--s-6); display: flex; flex-direction: column; gap: var(--s-4); }
-.tutorials__dialog p { margin: 0; line-height: 1.55; }
-.tutorials__field { display: flex; flex-direction: column; gap: var(--s-2); font-size: var(--t-small); }
+.tutorials__topic:focus-visible {
+  box-shadow: var(--focus-ring);
+  outline: none;
+  border-radius: var(--r-chip);
+}
+.tutorials__number {
+  flex: none;
+  width: 18px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.tutorials__title {
+  flex: 1;
+  font-weight: 600;
+}
+.tutorials__status {
+  flex: none;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.tutorials__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: 0 0 var(--s-5) calc(18px + var(--s-4));
+}
+.tutorials__detail > p {
+  color: var(--ink-2);
+}
+.tutorials__steps {
+  margin: 0;
+  padding-left: var(--s-6);
+}
+.tutorials__steps li {
+  padding: var(--s-1) 0;
+}
+.tutorials__steps span {
+  margin-left: var(--s-3);
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.tutorials__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  align-items: center;
+}
+.tutorials__more {
+  padding-top: var(--s-2);
+}
+.tutorials .btn {
+  white-space: normal;
+  height: auto;
+  min-height: var(--h-small);
+}
+.tutorials__saved {
+  padding: var(--s-5) var(--s-7);
+}
+.tutorials__saved > li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4) 0;
+  border-bottom: 0.5px solid var(--rule);
+}
+.tutorials__saved p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--t-small);
+  overflow-wrap: anywhere;
+}
+.tutorials__notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+}
+.tutorials__dialog {
+  padding: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.tutorials__dialog p {
+  margin: 0;
+  line-height: 1.55;
+}
+.tutorials__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font-size: var(--t-small);
+}
 
 /* The three sentences, once (docs/app/preferences-and-help/tutorials.md#TUT-D9) ------------------------------- */
 .firstrun {
@@ -203,7 +418,7 @@
   line-height: 1.45;
   color: var(--ink-2);
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .firstrun {
     background: var(--cream);
   }
@@ -293,13 +508,42 @@
 }
 
 /* Paragraph styles, drawn at the size they apply (docs/engineering/design-system.md#UI-D107) ---------------- */
-.fmt__blockrow--h1 { font-size: var(--t-title); font-weight: 600; }
-.fmt__blockrow--h2 { font-size: var(--t-head); font-weight: 600; }
-.fmt__blockrow--h3 { font-size: var(--t-body); font-weight: 600; }
-.fmt__blockrow--quote { font-style: italic; }
-.fmt__blockrow--code { font-family: var(--font-script); }
+.fmt__blockrow--h1 {
+  font-size: var(--t-title);
+  font-weight: 600;
+}
+.fmt__blockrow--h2 {
+  font-size: var(--t-head);
+  font-weight: 600;
+}
+.fmt__blockrow--h3 {
+  font-size: var(--t-body);
+  font-weight: 600;
+}
+.fmt__blockrow--quote {
+  font-style: italic;
+}
+.fmt__blockrow--code {
+  font-family: var(--font-script);
+}
 
-.tutorial-invitation { padding: var(--s-5) 0; margin-bottom: var(--s-5); border-bottom: 0.5px solid var(--rule); font-size: var(--t-body); color: var(--ink); }
-.tutorial-invitation h2 { margin: 0; font-size: var(--t-head); }
-.tutorial-invitation p { margin: var(--s-4) 0; line-height: 1.55; }
-.tutorial-invitation .btn { white-space: normal; height: auto; min-height: var(--h-small); }
+.tutorial-invitation {
+  padding: var(--s-5) 0;
+  margin-bottom: var(--s-5);
+  border-bottom: 0.5px solid var(--rule);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+.tutorial-invitation h2 {
+  margin: 0;
+  font-size: var(--t-head);
+}
+.tutorial-invitation p {
+  margin: var(--s-4) 0;
+  line-height: 1.55;
+}
+.tutorial-invitation .btn {
+  white-space: normal;
+  height: auto;
+  min-height: var(--h-small);
+}

@@ -30,7 +30,15 @@
  * Drive archive. The Desktop copy goes to the Trash once the archive is made.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -73,13 +81,17 @@ if (!PLACEHOLDER.test(text)) {
 
 mkdirSync(FOR_ARCHIVE, { recursive: true });
 chmodSync(FOR_ARCHIVE, 0o700);
-execFileSync(join(ROOT, "node_modules/.bin/tauri"), ["signer", "generate", "--ci", "--write-keys", KEY], {
-  cwd: ROOT,
-  // Never inherit: this CLI's output is the one place a key could reach a
-  // terminal or a transcript.
-  stdio: "ignore",
-  env: { ...process.env, CI: "true" },
-});
+execFileSync(
+  join(ROOT, "node_modules/.bin/tauri"),
+  ["signer", "generate", "--ci", "--write-keys", KEY],
+  {
+    cwd: ROOT,
+    // Never inherit: this CLI's output is the one place a key could reach a
+    // terminal or a transcript.
+    stdio: "ignore",
+    env: { ...process.env, CI: "true" },
+  },
+);
 chmodSync(KEY, 0o600);
 
 const pubkey = readFileSync(`${KEY}.pub`, "utf8").trim();
@@ -126,7 +138,9 @@ function restore(file) {
   }
   const pubkey = JSON.parse(readFileSync(CONF, "utf8")).plugins?.updater?.pubkey;
   if (!pubkey) {
-    console.error("updater-keygen: tauri.conf.json has no updater public key to check a restored key against");
+    console.error(
+      "updater-keygen: tauri.conf.json has no updater public key to check a restored key against",
+    );
     process.exit(1);
   }
   const bytes = readFileSync(file);
@@ -134,11 +148,22 @@ function restore(file) {
   try {
     const probe = join(dir, "probe");
     writeFileSync(probe, "proscenium: an updater key, restored\n");
-    const env = { ...process.env, CI: "true", TAURI_SIGNING_PRIVATE_KEY_PATH: resolve(file), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "" };
+    const env = {
+      ...process.env,
+      CI: "true",
+      TAURI_SIGNING_PRIVATE_KEY_PATH: resolve(file),
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: "",
+    };
     delete env.TAURI_SIGNING_PRIVATE_KEY;
-    const signed = spawnSync(join(ROOT, "node_modules/.bin/tauri"), ["signer", "sign", probe], { cwd: ROOT, stdio: "ignore", env });
+    const signed = spawnSync(join(ROOT, "node_modules/.bin/tauri"), ["signer", "sign", probe], {
+      cwd: ROOT,
+      stdio: "ignore",
+      env,
+    });
     if (signed.status !== 0 || !existsSync(`${probe}.sig`)) {
-      console.error("updater-keygen: that file could not sign anything — it is not a Tauri updater private key, or it is damaged");
+      console.error(
+        "updater-keygen: that file could not sign anything — it is not a Tauri updater private key, or it is damaged",
+      );
       process.exit(1);
     }
     const signedWith = minisignKeyId(readFileSync(`${probe}.sig`, "utf8"), "the probe's signature");
@@ -155,7 +180,9 @@ function restore(file) {
   }
   if (has("TAURI_SIGNING_PRIVATE_KEY")) {
     if (Buffer.compare(load("TAURI_SIGNING_PRIVATE_KEY"), bytes) === 0) {
-      console.log("updater-keygen: that is the key installed copies trust, and the keychain already holds it. Nothing changed.");
+      console.log(
+        "updater-keygen: that is the key installed copies trust, and the keychain already holds it. Nothing changed.",
+      );
       return;
     }
     console.error(
@@ -165,5 +192,7 @@ function restore(file) {
     process.exit(1);
   }
   store("TAURI_SIGNING_PRIVATE_KEY", bytes);
-  console.log("updater-keygen: restored — it is the key installed copies trust, and it is in the keychain.");
+  console.log(
+    "updater-keygen: restored — it is the key installed copies trust, and it is in the keychain.",
+  );
 }

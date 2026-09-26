@@ -26,7 +26,12 @@ export interface FrontMatterPanelProps {
   onClose: () => void;
 }
 
-export function FrontMatterPanel({ frontMatter, scriptKey, onSave, onClose }: FrontMatterPanelProps) {
+export function FrontMatterPanel({
+  frontMatter,
+  scriptKey,
+  onSave,
+  onClose,
+}: FrontMatterPanelProps) {
   const [forScript] = useState(scriptKey);
   const [title, setTitle] = useState(frontMatter.title ?? "");
   const [credit, setCredit] = useState(frontMatter.credit ?? "");
@@ -50,16 +55,18 @@ export function FrontMatterPanel({ frontMatter, scriptKey, onSave, onClose }: Fr
       .filter(Boolean);
     const saved = onSave(
       {
-      ...frontMatter,
-      title: title.trim() || undefined,
-      credit: credit.trim() || undefined,
-      authors: authorList.length ? authorList : undefined,
-      contact: contactLines.length ? contactLines : undefined,
-      draftDate: draftDate.trim() || undefined,
-      setting: undefined, time: undefined, place: undefined,
-      openingNotes: notes,
-      openingNotesBeforeCharacters: notesFirst,
-      titlePage: customTitle ? titleText : undefined,
+        ...frontMatter,
+        title: title.trim() || undefined,
+        credit: credit.trim() || undefined,
+        authors: authorList.length ? authorList : undefined,
+        contact: contactLines.length ? contactLines : undefined,
+        draftDate: draftDate.trim() || undefined,
+        setting: undefined,
+        time: undefined,
+        place: undefined,
+        openingNotes: notes,
+        openingNotesBeforeCharacters: notesFirst,
+        titlePage: customTitle ? titleText : undefined,
       },
       forScript,
     );
@@ -141,27 +148,58 @@ export function FrontMatterPanel({ frontMatter, scriptKey, onSave, onClose }: Fr
             value={draftDate}
             onChange={(e) => setDraftDate(e.target.value)}
           />
-
         </div>
-        <label className="settings__row"><span>Write the title page freely</span>
-          <input type="checkbox" checked={customTitle} onChange={(e) => {
-            if (e.target.checked && !hasTitleDraft) {
-              setTitleText(titlePageText({ title, credit, authors: authors.split(",").map((a) => a.trim()).filter(Boolean), contact: contact.split("\n"), draftDate }));
-              setHasTitleDraft(true);
-            }
-            setCustomTitle(e.target.checked);
-          }} />
+        <label className="settings__row">
+          <span>Write the title page freely</span>
+          <input
+            type="checkbox"
+            checked={customTitle}
+            onChange={(e) => {
+              if (e.target.checked && !hasTitleDraft) {
+                setTitleText(
+                  titlePageText({
+                    title,
+                    credit,
+                    authors: authors
+                      .split(",")
+                      .map((a) => a.trim())
+                      .filter(Boolean),
+                    contact: contact.split("\n"),
+                    draftDate,
+                  }),
+                );
+                setHasTitleDraft(true);
+              }
+              setCustomTitle(e.target.checked);
+            }}
+          />
         </label>
-        {customTitle && <FrontPageEditor label="Title page text" value={titleText} onChange={setTitleText} />}
+        {customTitle && (
+          <FrontPageEditor label="Title page text" value={titleText} onChange={setTitleText} />
+        )}
         <h2 className="castview__title">Opening Notes</h2>
-        <p className="settings__note">An optional page for setting, time, place, a dedication or other notes. Write your own headings, or leave it empty to omit the page.</p>
-        <div data-tutorial="opening-notes"><FrontPageEditor label="Opening notes text" value={notes} onChange={setNotes} /></div>
-        <div className="settings__row"><span>Place opening notes</span>
-          <PopupButton label="Place opening notes" value={notesFirst ? "before" : "after"} options={[
-            { value: "after", label: "After Characters" }, { value: "before", label: "Before Characters" },
-          ]} onChange={(v) => setNotesFirst(v === "before")} />
+        <p className="settings__note">
+          An optional page for setting, time, place, a dedication or other notes. Write your own
+          headings, or leave it empty to omit the page.
+        </p>
+        <div data-tutorial="opening-notes">
+          <FrontPageEditor label="Opening notes text" value={notes} onChange={setNotes} />
         </div>
-        <p className="settings__note">Edit the Characters page in Cast. Export lets you choose which opening pages to include.</p>
+        <div className="settings__row">
+          <span>Place opening notes</span>
+          <PopupButton
+            label="Place opening notes"
+            value={notesFirst ? "before" : "after"}
+            options={[
+              { value: "after", label: "After Characters" },
+              { value: "before", label: "Before Characters" },
+            ]}
+            onChange={(v) => setNotesFirst(v === "before")}
+          />
+        </div>
+        <p className="settings__note">
+          Edit the Characters page in Cast. Export lets you choose which opening pages to include.
+        </p>
       </div>
     </Sheet>
   );

@@ -43,7 +43,12 @@ function Program() {
   const wings = inTheWings(ROLL);
   // The address is Rust's (telemetry/allowlist.rs): the page holds none.
   const join = (label: string) => (
-    <button type="button" role="link" className="settings__link" onClick={() => void ipc.openSupport()}>
+    <button
+      type="button"
+      role="link"
+      className="settings__link"
+      onClick={() => void ipc.openSupport()}
+    >
       {label}
     </button>
   );
@@ -69,8 +74,8 @@ function Program() {
         </div>
       )}
       <Note>
-        Proscenium's sponsors on GitHub, by level, as of this version. Only names they chose to make public
-        appear.{isDark(ROLL) ? null : <> {join("Join them")}.</>}
+        Proscenium's sponsors on GitHub, by level, as of this version. Only names they chose to make
+        public appear.{isDark(ROLL) ? null : <> {join("Join them")}.</>}
       </Note>
     </Group>
   );
@@ -94,9 +99,8 @@ function Diagnostics({ plays }: { plays: readonly VaultPlay[] }) {
         </Button>
       </div>
       <Note>
-        Copies the Proscenium and macOS versions, your settings and recent errors as text for you
-        to paste. Nothing is sent. It never includes play, file or folder names, or dictionary
-        words.
+        Copies the Proscenium and macOS versions, your settings and recent errors as text for you to
+        paste. Nothing is sent. It never includes play, file or folder names, or dictionary words.
       </Note>
       <div className="settings__row">
         <span className="settings__rowlabel">Feedback</span>
@@ -132,7 +136,12 @@ export function About({
       <Note>
         {/* Opens in the writer's own browser, never the window. The address is
             Rust's (telemetry/allowlist.rs): the page holds none. */}
-        <button type="button" role="link" className="settings__link" onClick={() => void ipc.openLicense()}>
+        <button
+          type="button"
+          role="link"
+          className="settings__link"
+          onClick={() => void ipc.openLicense()}
+        >
           Free software under the GNU AGPL
         </button>
         , version 3 or later. You may use, study, share and change it. © 2026 Alexander Habiby.

@@ -15,7 +15,13 @@ let failFinish = false;
 let pendingMoves: Map<string, PendingMove>;
 let afterMove: (() => void) | null = null;
 const hashOf = (s: string) =>
-  "sha256:" + s.length + "-" + (s.split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0)).toString(16);
+  "sha256:" +
+  s.length +
+  "-" +
+  s
+    .split("")
+    .reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0)
+    .toString(16);
 
 const vaultMock = {
   async read(rel: string) {
@@ -44,7 +50,8 @@ const vaultMock = {
     });
   },
   async rename(from: string, to: string) {
-    if (from.toLowerCase() !== to.toLowerCase() && await this.exists(to)) throw new Error("destination occupied");
+    if (from.toLowerCase() !== to.toLowerCase() && (await this.exists(to)))
+      throw new Error("destination occupied");
     for (const k of [...store.keys()].filter((k) => k === from || k.startsWith(from + "/"))) {
       store.set(to + k.slice(from.length), store.get(k)!);
       store.delete(k);
@@ -54,8 +61,12 @@ const vaultMock = {
     const intent = { id: "a208", from, to, manifest, payload };
     if (pendingMoves.size) return { status: "refused", message: "unfinished move", blocked: true };
     pendingMoves.set(intent.id, intent);
-    try { await this.rename(from, to); }
-    catch (error) { pendingMoves.delete(intent.id); return { status: "refused", message: String(error), blocked: false }; }
+    try {
+      await this.rename(from, to);
+    } catch (error) {
+      pendingMoves.delete(intent.id);
+      return { status: "refused", message: String(error), blocked: false };
+    }
     afterMove?.();
     return { status: "ok", intent };
   },
@@ -99,7 +110,9 @@ const {
   importIntoPlay,
 } = await import("./binder-apply");
 const { titleOf } = await import("./binder");
-const { recoverBinderMoves, applyRelocation, decodeRelocation } = await import("./binder-relocation");
+const { recoverBinderMoves, applyRelocation, decodeRelocation } = await import(
+  "./binder-relocation"
+);
 
 const PLAY_PATH = "The Weight of Water.proscenium";
 
@@ -151,9 +164,16 @@ describe("data-loss reproductions: safe outcomes", () => {
     const original = ctx();
     const newer = structuredClone(original.play);
     newer.binder.push({ id: "new-script", type: "script", path: "Another.fountain" });
-    newer.scripts["new-script"] = { scenes: [{ id: "new-scene",
-      anchor: { ordinal: 0, headingHash: "h", embeddedId: null },
-      card: { color: "cream", status: "draft", label: "", boardNote: "ONLY COPY OF NOTES" } }], orphans: [] };
+    newer.scripts["new-script"] = {
+      scenes: [
+        {
+          id: "new-scene",
+          anchor: { ordinal: 0, headingHash: "h", embeddedId: null },
+          card: { color: "cream", status: "draft", label: "", boardNote: "ONLY COPY OF NOTES" },
+        },
+      ],
+      orphans: [],
+    };
     store.set(PLAY_PATH, stringifyCanonical(newer, PLAY_TMPL));
     const out = await reorderItem(original, "notes", 0);
     expect(out.ok).toBe(true);
@@ -179,8 +199,13 @@ describe("data-loss reproductions: safe outcomes", () => {
     newer.binder.push({ id: "B", type: "script", path: "B.fountain" });
     newer.scripts.B = { scenes: [], orphans: [], note: "UNIQUE LATER NOTE" };
     store.set(PLAY_PATH, stringifyCanonical(newer, PLAY_TMPL));
-    const restored = await restoreBinderItem({ playPath: PLAY_PATH, play: removed.play, hash: removed.hash },
-      original.play.binder[0], null, 0, { script: original.play.scripts.script });
+    const restored = await restoreBinderItem(
+      { playPath: PLAY_PATH, play: removed.play, hash: removed.hash },
+      original.play.binder[0],
+      null,
+      0,
+      { script: original.play.scripts.script },
+    );
     expect(restored.ok).toBe(true);
     if (!restored.ok) return;
     expect(restored.play.binder.map((row) => row.id)).toEqual(["script", "chars", "notes", "B"]);
@@ -208,13 +233,22 @@ describe("data-loss reproductions: safe outcomes", () => {
 
   it("docs/app/keeping-work/storage-and-file-format.md#STOR-91: an interrupted move reopens under its original item id and retains later notes", async () => {
     const original = ctx();
-    const op = { version: 1 as const, itemId: "script", from: "The Weight of Water.fountain", to: "Renamed.fountain" };
+    const op = {
+      version: 1 as const,
+      itemId: "script",
+      from: "The Weight of Water.fountain",
+      to: "Renamed.fountain",
+    };
     await vaultMock.beginMove(op.from, op.to, PLAY_PATH, JSON.stringify(op));
     const fresh = structuredClone(original.play);
     fresh.binder.push({ id: "later", type: "document", path: "Later.md" });
     fresh.scripts.script.note = "LATEST CARD NOTE";
     store.set(PLAY_PATH, stringifyCanonical(fresh, PLAY_TMPL));
-    const recovered = await recoverBinderMoves(PLAY_PATH, { data: original.play, hash: original.hash }, [...pendingMoves.values()]);
+    const recovered = await recoverBinderMoves(
+      PLAY_PATH,
+      { data: original.play, hash: original.hash },
+      [...pendingMoves.values()],
+    );
     expect(recovered.data.binder[0]).toMatchObject({ id: "script", path: op.to });
     expect(recovered.data.binder[recovered.data.binder.length - 1]?.id).toBe("later");
     expect(recovered.data.scripts.script.note).toBe("LATEST CARD NOTE");
@@ -231,16 +265,33 @@ describe("data-loss reproductions: safe outcomes", () => {
     expect(JSON.parse(current.content).binder[0].path).toBe("Renamed.fountain");
     expect(pendingMoves.size).toBe(1);
     failFinish = false;
-    const recovered = await recoverBinderMoves(PLAY_PATH, { data: JSON.parse(current.content), hash: current.hash }, [...pendingMoves.values()]);
+    const recovered = await recoverBinderMoves(
+      PLAY_PATH,
+      { data: JSON.parse(current.content), hash: current.hash },
+      [...pendingMoves.values()],
+    );
     expect(recovered.data.binder.filter((item) => item.id === "script")).toHaveLength(1);
     expect(pendingMoves.size).toBe(0);
   });
 
   it("docs/app/keeping-work/storage-and-file-format.md#STOR-91: recovery refuses mismatched paths, another play, or an externally moved identity", async () => {
-    const op = { version: 1 as const, itemId: "script", from: "The Weight of Water.fountain", to: "Renamed.fountain" };
-    const intent = { id: "a208", from: op.from, to: op.to, manifest: PLAY_PATH, payload: JSON.stringify(op) };
+    const op = {
+      version: 1 as const,
+      itemId: "script",
+      from: "The Weight of Water.fountain",
+      to: "Renamed.fountain",
+    };
+    const intent = {
+      id: "a208",
+      from: op.from,
+      to: op.to,
+      manifest: PLAY_PATH,
+      payload: JSON.stringify(op),
+    };
     expect(() => decodeRelocation({ ...intent, to: "Different.fountain" })).toThrow();
-    await expect(recoverBinderMoves("Other.proscenium", { data: seedRef.play, hash: seedRef.hash }, [intent])).rejects.toThrow();
+    await expect(
+      recoverBinderMoves("Other.proscenium", { data: seedRef.play, hash: seedRef.hash }, [intent]),
+    ).rejects.toThrow();
     const moved = structuredClone(seedRef.play);
     moved.binder[0].path = "Somewhere Else.fountain";
     expect(() => applyRelocation(moved, op)).toThrow();
@@ -248,10 +299,20 @@ describe("data-loss reproductions: safe outcomes", () => {
 
   it("docs/app/keeping-work/storage-and-file-format.md#STOR-36: move replay matches a normalized manifest and rewrites child paths by segment", () => {
     const play = structuredClone(seedRef.play);
-    play.binder = [{ id: "folder", type: "folder", path: "Cafe\u0301", children: [
-      { id: "script", type: "script", path: "Cafe\u0301/Act.fountain" },
-    ] }];
-    const moved = applyRelocation(play, { version: 1, itemId: "folder", from: "Café", to: "Drafts" });
+    play.binder = [
+      {
+        id: "folder",
+        type: "folder",
+        path: "Cafe\u0301",
+        children: [{ id: "script", type: "script", path: "Cafe\u0301/Act.fountain" }],
+      },
+    ];
+    const moved = applyRelocation(play, {
+      version: 1,
+      itemId: "folder",
+      from: "Café",
+      to: "Drafts",
+    });
     expect(moved.binder[0].path).toBe("Drafts");
     expect(moved.binder[0].children![0].path).toBe("Drafts/Act.fountain");
   });
@@ -410,12 +471,7 @@ describe("binder-apply disk mapping", () => {
     expect(titleOf(copy)).toBe("The Weight of Water copy");
     expect(store.has("The Weight of Water copy.fountain")).toBe(true);
     // Beside the original, not at the end.
-    expect(res.play.binder.map((b) => b.id)).toEqual([
-      "script",
-      res.createdId!,
-      "chars",
-      "notes",
-    ]);
+    expect(res.play.binder.map((b) => b.id)).toEqual(["script", res.createdId!, "chars", "notes"]);
     // Scene ids are unique to a script, so the copy starts with none of its
     // own rather than sharing the original's board.
     expect(res.play.scripts[res.createdId!]).toBeUndefined();
@@ -466,14 +522,25 @@ describe("an import added to the open play", () => {
     binder.flatMap((it) => [it, ...(it.children ?? [])]).find((it) => it.path === path);
 
   it("a script lands at the play root, its source kept under Originals, and the binder is written last", async () => {
-    const out = await importIntoPlay(ctx(), "script", "Tide", "Title: Tide\n\nMARA\nHello.\n", kept);
+    const out = await importIntoPlay(
+      ctx(),
+      "script",
+      "Tide",
+      "Title: Tide\n\nMARA\nHello.\n",
+      kept,
+    );
     expect(out.ok).toBe(true);
     if (!out.ok) return;
     expect(store.get("Tide.fountain")).toBe("Title: Tide\n\nMARA\nHello.\n");
     expect(store.get("Originals/Tide.docx")).toBe("PK\u0003\u0004 the source");
-    expect(out.play.binder.find((it) => it.id === out.createdId)).toMatchObject({ type: "script", path: "Tide.fountain" });
+    expect(out.play.binder.find((it) => it.id === out.createdId)).toMatchObject({
+      type: "script",
+      path: "Tide.fountain",
+    });
     const originals = out.play.binder.find((it) => it.type === "folder" && it.path === "Originals");
-    expect(originals?.children).toEqual([expect.objectContaining({ type: "reference", path: "Originals/Tide.docx" })]);
+    expect(originals?.children).toEqual([
+      expect.objectContaining({ type: "reference", path: "Originals/Tide.docx" }),
+    ]);
     // Written through the guarded play-file writer: the manifest on disk says so too.
     expect(store.get(PLAY_PATH)).toContain("Originals/Tide.docx");
   });
@@ -509,7 +576,9 @@ describe("an import added to the open play", () => {
     expect(script.ok).toBe(true);
     if (!script.ok) return;
     expect(store.has("Characters/Tide.fountain")).toBe(true);
-    expect(script.play.binder.find((it) => it.id === "chars")?.children?.map((c) => c.path)).toEqual(["Characters/Mara.md", "Characters/Tide.fountain"]);
+    expect(
+      script.play.binder.find((it) => it.id === "chars")?.children?.map((c) => c.path),
+    ).toEqual(["Characters/Mara.md", "Characters/Tide.fountain"]);
     seedRef = { play: script.play, hash: script.hash };
     const doc = await importIntoPlay(ctx(), "document", "Tide", "Words.\n", kept, "chars");
     expect(doc.ok).toBe(true);
@@ -522,10 +591,16 @@ describe("an import added to the open play", () => {
 
   it("a play without a Notes folder row gets one; a zipped Pages package keeps both extensions", async () => {
     seedRef.play.binder = seedRef.play.binder.filter((it) => it.id !== "notes");
-    const out = await importIntoPlay(ctx(), "document", "Harbor", "Words.\n", { name: "Harbor.pages.zip", base64: btoa("PK") });
+    const out = await importIntoPlay(ctx(), "document", "Harbor", "Words.\n", {
+      name: "Harbor.pages.zip",
+      base64: btoa("PK"),
+    });
     expect(out.ok).toBe(true);
     if (!out.ok) return;
-    expect(out.play.binder.find((it) => it.type === "folder" && it.path === "Notes")?.children?.[0]?.path).toBe("Notes/Harbor.md");
+    expect(
+      out.play.binder.find((it) => it.type === "folder" && it.path === "Notes")?.children?.[0]
+        ?.path,
+    ).toBe("Notes/Harbor.md");
     expect(store.has("Originals/Harbor.pages.zip")).toBe(true);
   });
 });

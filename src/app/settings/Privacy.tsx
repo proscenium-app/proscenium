@@ -19,17 +19,31 @@ export function PrivacySlot() {
   // Store copies have no automatic updater setting.
   const checksForUpdates = useUpdateState().kind !== "unavailable";
   const toast = useToast();
-  return <SectionBody title="Privacy">
-    <Group label="Reports">
-      <SwitchRow label="Share anonymous usage and crash reports" on={shareAnalytics}
-        onChange={(on) => updateSettings({ shareAnalytics: on })}
-        note="Counts launches and features used, with the Proscenium and macOS versions and chip. Crash reports include stack traces and the kind of failure. Never includes your writing, titles, character names, file names, paths, error messages or memory dumps." />
-      <Note>
-        Turning this off also discards reports that haven’t been sent.
-        {checksForUpdates && " Checking for updates is a separate setting, in Updates."}
-        {" Send Feedback works with reports off."}
-      </Note>
-      <Button size="small" onClick={() => void ipc.openPrivacy().catch(() => toast({ kind: "error", title: "Could not open the privacy page." }))}>Read the Privacy Policy</Button>
-    </Group>
-  </SectionBody>;
+  return (
+    <SectionBody title="Privacy">
+      <Group label="Reports">
+        <SwitchRow
+          label="Share anonymous usage and crash reports"
+          on={shareAnalytics}
+          onChange={(on) => updateSettings({ shareAnalytics: on })}
+          note="Counts launches and features used, with the Proscenium and macOS versions and chip. Crash reports include stack traces and the kind of failure. Never includes your writing, titles, character names, file names, paths, error messages or memory dumps."
+        />
+        <Note>
+          Turning this off also discards reports that haven’t been sent.
+          {checksForUpdates && " Checking for updates is a separate setting, in Updates."}
+          {" Send Feedback works with reports off."}
+        </Note>
+        <Button
+          size="small"
+          onClick={() =>
+            void ipc
+              .openPrivacy()
+              .catch(() => toast({ kind: "error", title: "Could not open the privacy page." }))
+          }
+        >
+          Read the Privacy Policy
+        </Button>
+      </Group>
+    </SectionBody>
+  );
 }

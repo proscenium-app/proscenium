@@ -98,7 +98,12 @@ export {
 export type { CastGroup, CastTier, CharacterWeight } from "./cast-weight";
 
 export { findOutlineNote, hasContent, OUTLINE_NOTE_TITLE } from "./outline-note";
-export { split as splitFrontMatter, reconstruct as withFrontMatter, setField, parseTags } from "./front-matter";
+export {
+  split as splitFrontMatter,
+  reconstruct as withFrontMatter,
+  setField,
+  parseTags,
+} from "./front-matter";
 export type { FrontMatter } from "./front-matter";
 
 export {

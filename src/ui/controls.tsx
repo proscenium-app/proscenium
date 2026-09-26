@@ -119,7 +119,11 @@ export function Segmented<T extends string>({
     e.preventDefault();
     const n = buttons.length;
     const to =
-      e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (at + (e.key === "ArrowLeft" ? -1 : 1) + n) % n;
+      e.key === "Home"
+        ? 0
+        : e.key === "End"
+          ? n - 1
+          : (at + (e.key === "ArrowLeft" ? -1 : 1) + n) % n;
     buttons[to]?.focus();
   };
   return (

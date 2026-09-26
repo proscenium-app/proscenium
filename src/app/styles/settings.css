@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /*
  * ── Settings (⌘,) — sections down the left (src/app/settings/) ────────────
  *
@@ -107,7 +106,9 @@
   transition: box-shadow var(--motion);
 }
 .accentswatch.is-on {
-  box-shadow: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 4px var(--accent);
 }
 /* Focus is an OUTLINE here, not --focus-ring: the swatch's box-shadow is
    already its selection, and the focused swatch is almost always the selected
@@ -343,4 +344,3 @@ button.settings__link {
   line-height: 1.5;
   color: var(--ink-2);
 }
-

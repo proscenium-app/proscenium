@@ -44,7 +44,11 @@ export type OpenRequest =
 
 type Outcome = "done" | "wait";
 
-export function useFinderOpens(ws: Workspace, notify: (t: ToastSpec) => void, reviewImport: (path: string) => Promise<void>) {
+export function useFinderOpens(
+  ws: Workspace,
+  notify: (t: ToastSpec) => void,
+  reviewImport: (path: string) => Promise<void>,
+) {
   const [request, setRequest] = useState<OpenRequest | null>(null);
   const answerRef = useRef<((yes: boolean) => void) | null>(null);
   const queue = useRef<string[]>([]);
@@ -104,7 +108,12 @@ export function useFinderOpens(ws: Workspace, notify: (t: ToastSpec) => void, re
   const route = async (path: string): Promise<Outcome> => {
     const name = path.slice(path.lastIndexOf("/") + 1);
     const couldNot = (why: string) =>
-      notifyRef.current({ kind: "error", title: `Proscenium couldn't open “${name}”.`, detail: why, code: "E-FINDER-OPEN" });
+      notifyRef.current({
+        kind: "error",
+        title: `Proscenium couldn't open “${name}”.`,
+        detail: why,
+        code: "E-FINDER-OPEN",
+      });
     let facts;
     try {
       facts = await opened.facts(path);
@@ -161,7 +170,12 @@ export function useFinderOpens(ws: Workspace, notify: (t: ToastSpec) => void, re
           // said; it used to stay at the head and stop every later open.
           queue.current.shift();
           const name = path.slice(path.lastIndexOf("/") + 1);
-          notifyRef.current({ kind: "error", title: `Proscenium couldn't open “${name}”.`, detail: String(e), code: "E-FINDER-OPEN" });
+          notifyRef.current({
+            kind: "error",
+            title: `Proscenium couldn't open “${name}”.`,
+            detail: String(e),
+            code: "E-FINDER-OPEN",
+          });
           continue;
         }
         queue.current.shift();
@@ -215,7 +229,8 @@ export function useFinderOpens(ws: Workspace, notify: (t: ToastSpec) => void, re
   // A Plays folder just opened: whatever was waiting for one can go now.
   useEffect(() => {
     if (!ws.vaultRoot || waiting.current.length === 0) return;
-    for (const p of waiting.current.splice(0)) if (!queue.current.includes(p)) queue.current.push(p);
+    for (const p of waiting.current.splice(0))
+      if (!queue.current.includes(p)) queue.current.push(p);
     void pump();
   }, [ws.vaultRoot, pump]);
 

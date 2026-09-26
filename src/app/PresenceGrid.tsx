@@ -55,8 +55,8 @@ export function PresenceGrid({ names, appearances, cards, onOpenScene }: Presenc
     <section className="presence">
       <h3 className="presence__title">Who’s on stage</h3>
       <p className="presence__sub">
-        A mark where a character speaks. Read across for a part’s shape, down for
-        how full a scene is.
+        A mark where a character speaks. Read across for a part’s shape, down for how full a scene
+        is.
       </p>
       <div className="presence__scroll">
         <table className="presence__grid">
@@ -69,7 +69,12 @@ export function PresenceGrid({ names, appearances, cards, onOpenScene }: Presenc
                   <span className="sr-only">Act</span>
                 </th>
                 {actSpans.map((a, i) => (
-                  <th key={`${a.act}-${i}`} colSpan={a.span} scope="colgroup" className="presence__act">
+                  <th
+                    key={`${a.act}-${i}`}
+                    colSpan={a.span}
+                    scope="colgroup"
+                    className="presence__act"
+                  >
                     {a.act}
                   </th>
                 ))}

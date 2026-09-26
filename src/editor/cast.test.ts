@@ -164,9 +164,7 @@ describe("leader contract (docs/app/writing/editor-ux.md#EDIT-D100)", () => {
   });
 
   it("offers every leader key as a menu row", () => {
-    expect(LEADER_MENU.map((r) => r.key).sort()).toEqual(
-      Object.keys(LEADER_ELEMENTS).sort(),
-    );
+    expect(LEADER_MENU.map((r) => r.key).sort()).toEqual(Object.keys(LEADER_ELEMENTS).sort());
   });
 
   // The node stays `note` (the Fountain name); every label a writer reads or

@@ -77,7 +77,6 @@ export function useMenuActions({ editor, run, allowWhileLayer }: MenuHandlers): 
   const latest = useRef({ editor, run, allowWhileLayer });
   latest.current = { editor, run, allowWhileLayer };
   useEffect(() => {
-
     let dead = false;
     let stop: (() => void) | undefined;
     const handle = (id: string) => {
@@ -98,7 +97,7 @@ export function useMenuActions({ editor, run, allowWhileLayer }: MenuHandlers): 
       window.addEventListener("proscenium:fixture-menu", fixtureMenu);
       return () => window.removeEventListener("proscenium:fixture-menu", fixtureMenu);
     }
-    void listen<string>(EVENT_MENU_ACTION, e => handle(e.payload)).then((un) => {
+    void listen<string>(EVENT_MENU_ACTION, (e) => handle(e.payload)).then((un) => {
       if (dead) un();
       else stop = un;
     });

@@ -66,5 +66,9 @@ function subscribe(listener: () => void): () => void {
 
 /** The Mac's accent as it last answered, for Follow Mac's swatch; null where there is no Mac. */
 export function useSystemAccent(): string | null {
-  return useSyncExternalStore(subscribe, () => current, () => current);
+  return useSyncExternalStore(
+    subscribe,
+    () => current,
+    () => current,
+  );
 }

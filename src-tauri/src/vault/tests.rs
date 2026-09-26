@@ -27,25 +27,35 @@ fn imported_binary_original_is_exact_and_create_only() {
     let (_dir, vault) = new_vault();
     let original = [0, 255, 128, 13, 10, 80, 75];
     let path = "Imported/Originals/Draft.docx";
-    assert!(matches!(vault.write(path, &original, Some("")).unwrap(), WriteOutcome::Ok { .. }));
+    assert!(matches!(
+        vault.write(path, &original, Some("")).unwrap(),
+        WriteOutcome::Ok { .. }
+    ));
     assert_eq!(vault.read(path).unwrap(), original);
-    assert!(matches!(vault.write(path, b"replacement", Some("")).unwrap(), WriteOutcome::Collision { .. }));
+    assert!(matches!(
+        vault.write(path, b"replacement", Some("")).unwrap(),
+        WriteOutcome::Collision { .. }
+    ));
     assert_eq!(vault.read(path).unwrap(), original);
     assert!(vault.write("../outside.docx", &original, Some("")).is_err());
 }
 
-/// Transplanted from the review's native reproduction: the other writer waits
+/// A native reproduction of the race: the other writer waits
 /// for the real temp file, after the original hash check, then changes the file.
 #[test]
-fn a2_01_an_external_edit_after_the_hash_check_is_never_discarded() {
+fn an_external_edit_after_the_hash_check_is_never_discarded() {
     let (dir, vault) = new_vault();
     std::fs::write(dir.path().join("race.fountain"), b"BASE").unwrap();
     let root = dir.path().to_path_buf();
     let other = std::thread::spawn(move || {
         let deadline = Instant::now() + Duration::from_secs(10);
         while Instant::now() < deadline {
-            if std::fs::read_dir(&root).unwrap().flatten().any(|entry|
-                entry.file_name().to_string_lossy().starts_with(".race.fountain.")) {
+            if std::fs::read_dir(&root).unwrap().flatten().any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with(".race.fountain.")
+            }) {
                 std::fs::write(root.join("race.fountain"), b"EXTERNAL WORDS").unwrap();
                 return;
             }
@@ -53,38 +63,57 @@ fn a2_01_an_external_edit_after_the_hash_check_is_never_discarded() {
         }
         panic!("the production writer never created its temporary file");
     });
-    let out = vault.write("race.fountain", &vec![b'L'; 32 * 1024 * 1024], Some(&sha256_hex(b"BASE"))).unwrap();
+    let out = vault
+        .write(
+            "race.fountain",
+            &vec![b'L'; 32 * 1024 * 1024],
+            Some(&sha256_hex(b"BASE")),
+        )
+        .unwrap();
     other.join().unwrap();
     assert!(matches!(out, WriteOutcome::Collision { .. }));
-    assert_eq!(std::fs::read(dir.path().join("race.fountain")).unwrap(), b"EXTERNAL WORDS");
+    assert_eq!(
+        std::fs::read(dir.path().join("race.fountain")).unwrap(),
+        b"EXTERNAL WORDS"
+    );
     let copies = vault.saved_copies().unwrap();
     assert_eq!(copies.len(), 1);
-    assert_eq!(vault.read_saved_copy(&copies[0].id).unwrap(), b"EXTERNAL WORDS");
+    assert_eq!(
+        vault.read_saved_copy(&copies[0].id).unwrap(),
+        b"EXTERNAL WORDS"
+    );
 }
 
 #[test]
-fn a2_09_a_missing_expected_file_conflicts_instead_of_reappearing() {
+fn a_missing_expected_file_conflicts_instead_of_reappearing() {
     let (dir, vault) = new_vault();
-    let WriteOutcome::Ok { hash } = vault.write("A.fountain", b"before", None).unwrap() else { panic!() };
+    let WriteOutcome::Ok { hash } = vault.write("A.fountain", b"before", None).unwrap() else {
+        panic!()
+    };
     std::fs::remove_file(dir.path().join("A.fountain")).unwrap();
-    assert!(matches!(vault.write("A.fountain", b"later", Some(&hash)).unwrap(), WriteOutcome::Collision { .. }));
+    assert!(matches!(
+        vault.write("A.fountain", b"later", Some(&hash)).unwrap(),
+        WriteOutcome::Collision { .. }
+    ));
     assert!(!dir.path().join("A.fountain").exists());
 }
 
 #[test]
-fn a2_09_icloud_stub_is_unavailable_and_cannot_be_overwritten_as_absent() {
+fn an_icloud_stub_is_unavailable_and_cannot_be_overwritten_as_absent() {
     let (dir, vault) = new_vault();
     std::fs::write(dir.path().join(".A.fountain.icloud"), b"provider stub").unwrap();
     assert!(vault.exists("A.fountain"));
     let err = vault.read("A.fountain").unwrap_err();
     assert_ne!(err.kind(), std::io::ErrorKind::NotFound);
-    assert!(vault.write("A.fountain", b"stale", Some("old hash")).is_err());
+    assert!(vault
+        .write("A.fountain", b"stale", Some("old hash"))
+        .is_err());
     assert!(vault.write("A.fountain", b"new", Some("")).is_err());
     assert!(!dir.path().join("A.fountain").exists());
 }
 
 #[test]
-fn a2_09_a_different_directory_at_the_old_root_never_receives_the_buffer() {
+fn a_different_directory_at_the_old_root_never_receives_the_buffer() {
     let base = tempfile::tempdir().unwrap();
     let root = base.path().join("Play");
     std::fs::create_dir(&root).unwrap();
@@ -125,7 +154,9 @@ fn all_files(root: &Path) -> Vec<String> {
 #[test]
 fn i3_atomic_write_lands_complete_with_no_temp_left() {
     let (_dir, vault) = new_vault();
-    let out = vault.write("Scenes/play.fountain", b"# ACT ONE\n", None).unwrap();
+    let out = vault
+        .write("Scenes/play.fountain", b"# ACT ONE\n", None)
+        .unwrap();
     assert!(matches!(out, WriteOutcome::Ok { .. }));
     assert_eq!(vault.read("Scenes/play.fountain").unwrap(), b"# ACT ONE\n");
 
@@ -179,8 +210,7 @@ fn i2_a_collision_writes_nothing_and_reports_disk_truth() {
     // both sides still survive — one on disk, one in app data — and the play
     // folder stays the writer's.
     let (_dir, vault) = new_vault();
-    let WriteOutcome::Ok { hash: expected } =
-        vault.write("a.txt", b"ours-base", None).unwrap()
+    let WriteOutcome::Ok { hash: expected } = vault.write("a.txt", b"ours-base", None).unwrap()
     else {
         panic!("expected Ok")
     };
@@ -207,9 +237,9 @@ fn i2_a_collision_writes_nothing_and_reports_disk_truth() {
 #[test]
 fn a_rebasable_write_reports_stale_so_the_caller_can_rebuild() {
     // The play file has several legitimate writers: our own reconcile, a card
-    // edit, another tool, any sync. On 2026-07-26 a stale expectation that
-    // nothing ever refreshed produced 48 conflict copies in one sitting, one
-    // per autosave tick. It reports disk truth and writes NOTHING.
+    // edit, another tool, any sync. A stale expectation that nothing ever
+    // refreshed once produced 48 conflict copies in one sitting, one per
+    // autosave tick. It reports disk truth and writes NOTHING.
     let (_dir, vault) = new_vault();
     let WriteOutcome::Ok { hash: expected } = vault
         .write_rebasable("Play.proscenium", b"ours-base", None)
@@ -257,10 +287,17 @@ fn an_expected_hash_no_content_has_writes_only_where_nothing_is() {
     // beside them. A name that turned out to be taken — a folder
     // whose name differs only by Unicode form, say — is left exactly as it was.
     let (_dir, vault) = new_vault();
-    let out = vault.write("Lear/Lear.fountain", b"new play", Some("")).unwrap();
-    assert!(matches!(out, WriteOutcome::Ok { .. }), "nothing there: it lands");
+    let out = vault
+        .write("Lear/Lear.fountain", b"new play", Some(""))
+        .unwrap();
+    assert!(
+        matches!(out, WriteOutcome::Ok { .. }),
+        "nothing there: it lands"
+    );
 
-    let out = vault.write("Lear/Lear.fountain", b"another new play", Some("")).unwrap();
+    let out = vault
+        .write("Lear/Lear.fountain", b"another new play", Some(""))
+        .unwrap();
     assert!(matches!(out, WriteOutcome::Collision { .. }), "got {out:?}");
     assert_eq!(vault.read("Lear/Lear.fountain").unwrap(), b"new play");
 }
@@ -305,8 +342,7 @@ fn milestone_external_edit_handled_safely_on_real_script() {
 
     // Draft + autosave: edit lands in place because nothing changed under us.
     let edited = [&original[..], b"\nA new line of action.\n"].concat();
-    let WriteOutcome::Ok { hash: saved } = vault.write(rel, &edited, Some(&opened)).unwrap()
-    else {
+    let WriteOutcome::Ok { hash: saved } = vault.write(rel, &edited, Some(&opened)).unwrap() else {
         panic!("expected Ok")
     };
     assert_eq!(vault.read(rel).unwrap(), edited);
@@ -325,7 +361,11 @@ fn milestone_external_edit_handled_safely_on_real_script() {
         panic!("expected Collision")
     };
     assert_eq!(vault.read(rel).unwrap(), theirs, "their version survived");
-    assert_eq!(all_files(vault.root()), vec![rel], "the folder stayed clean");
+    assert_eq!(
+        all_files(vault.root()),
+        vec![rel],
+        "the folder stayed clean"
+    );
 
     // "Keep this" resolution: the caller pins a version of theirs (app data,
     // tested in store::tests) and promotes ours against disk truth.
@@ -355,11 +395,15 @@ fn rename_relocates_atomically_and_suppresses_echo() {
 fn a_case_only_rename_changes_the_name_on_disk() {
     // "charlie" → "Charlie": one file twice over on a Mac volume (docs/app/keeping-work/storage-and-file-format.md#STOR-D4).
     let (_dir, vault) = new_vault();
-    let WriteOutcome::Ok { hash } = vault.write("Characters/charlie.md", b"# CHARLIE\n", None).unwrap()
+    let WriteOutcome::Ok { hash } = vault
+        .write("Characters/charlie.md", b"# CHARLIE\n", None)
+        .unwrap()
     else {
         panic!()
     };
-    vault.rename("Characters/charlie.md", "Characters/Charlie.md").unwrap();
+    vault
+        .rename("Characters/charlie.md", "Characters/Charlie.md")
+        .unwrap();
     // What the directory lists is what Finder and the binder show — and the
     // temporary name it went through is gone.
     assert_eq!(all_files(vault.root()), vec!["Characters/Charlie.md"]);
@@ -371,7 +415,9 @@ fn a_case_only_rename_changes_the_name_on_disk() {
 #[test]
 fn a_case_only_rename_carries_a_folder_and_its_subtree() {
     let (_dir, vault) = new_vault();
-    vault.write("characters/Mara.md", b"# MARA\n", None).unwrap();
+    vault
+        .write("characters/Mara.md", b"# MARA\n", None)
+        .unwrap();
     vault.rename("characters", "Characters").unwrap();
     assert_eq!(all_files(vault.root()), vec!["Characters/Mara.md"]);
     let dirs: Vec<String> = std::fs::read_dir(vault.root())
@@ -388,7 +434,9 @@ fn list_flags_provider_artifacts_and_sorts() {
     vault.write("b.fountain", b"b", None).unwrap();
     vault.write("a.fountain", b"a", None).unwrap();
     std::fs::write(
-        vault.root().join("a.sync-conflict-20260618-120000-ABCDEFG.fountain"),
+        vault
+            .root()
+            .join("a.sync-conflict-20260618-120000-ABCDEFG.fountain"),
         b"theirs",
     )
     .unwrap();
@@ -402,7 +450,10 @@ fn list_flags_provider_artifacts_and_sorts() {
 
     let entries = vault.list(".").unwrap();
     let names: Vec<_> = entries.iter().map(|e| e.name.as_str()).collect();
-    assert_eq!(names.first(), Some(&"a (Robin's conflicted copy 2026-07-18).fountain"));
+    assert_eq!(
+        names.first(),
+        Some(&"a (Robin's conflicted copy 2026-07-18).fountain")
+    );
     for marked in [
         "a.sync-conflict-20260618-120000-ABCDEFG.fountain",
         "a (Robin's conflicted copy 2026-07-18).fountain",
@@ -423,7 +474,12 @@ fn a_temp_sibling_is_never_listed() {
     vault.write("a.fountain", b"a", None).unwrap();
     std::fs::write(vault.root().join(".a.fountain.beef1.tmp"), b"in flight").unwrap();
 
-    let names: Vec<String> = vault.list(".").unwrap().into_iter().map(|e| e.name).collect();
+    let names: Vec<String> = vault
+        .list(".")
+        .unwrap()
+        .into_iter()
+        .map(|e| e.name)
+        .collect();
     assert_eq!(names, vec!["a.fountain"], "temp sibling leaked: {names:?}");
 }
 
@@ -440,7 +496,10 @@ fn an_evicted_icloud_file_lists_under_its_real_name() {
     let entries = vault.list(".").unwrap();
     let names: Vec<_> = entries.iter().map(|e| e.name.as_str()).collect();
 
-    assert!(names.contains(&"evicted.fountain"), "evicted play vanished: {names:?}");
+    assert!(
+        names.contains(&"evicted.fountain"),
+        "evicted play vanished: {names:?}"
+    );
     assert!(names.contains(&"here.fountain"));
     // The stub itself is never a binder item.
     assert!(
@@ -448,7 +507,10 @@ fn an_evicted_icloud_file_lists_under_its_real_name() {
         "the stub leaked into the binder: {names:?}"
     );
 
-    let evicted = entries.iter().find(|e| e.name == "evicted.fountain").unwrap();
+    let evicted = entries
+        .iter()
+        .find(|e| e.name == "evicted.fountain")
+        .unwrap();
     assert!(!evicted.is_dir);
     assert_eq!(evicted.rel_path, "evicted.fountain");
 }
@@ -462,7 +524,10 @@ fn a_landing_download_is_not_reported_twice() {
     std::fs::write(vault.root().join(".landing.fountain.icloud"), b"").unwrap();
 
     let entries = vault.list(".").unwrap();
-    let hits = entries.iter().filter(|e| e.name == "landing.fountain").count();
+    let hits = entries
+        .iter()
+        .filter(|e| e.name == "landing.fountain")
+        .count();
     assert_eq!(hits, 1, "duplicate entry while a download was landing");
 }
 
@@ -476,8 +541,9 @@ fn two_writes_expecting_the_same_hash_never_both_land() {
     let (_dir, vault) = new_vault();
     let vault = Arc::new(vault);
     for round in 0..60 {
-        let WriteOutcome::Ok { hash: base } =
-            vault.write("race.txt", format!("base {round}").as_bytes(), None).unwrap()
+        let WriteOutcome::Ok { hash: base } = vault
+            .write("race.txt", format!("base {round}").as_bytes(), None)
+            .unwrap()
         else {
             panic!("expected Ok")
         };
@@ -488,7 +554,9 @@ fn two_writes_expecting_the_same_hash_never_both_land() {
                 let (vault, gate, base) = (vault.clone(), gate.clone(), base.clone());
                 std::thread::spawn(move || {
                     gate.wait();
-                    vault.write("race.txt", format!("{who} {round}").as_bytes(), Some(&base)).unwrap()
+                    vault
+                        .write("race.txt", format!("{who} {round}").as_bytes(), Some(&base))
+                        .unwrap()
                 })
             })
             .collect();
@@ -497,7 +565,10 @@ fn two_writes_expecting_the_same_hash_never_both_land() {
             .map(|w| w.join().unwrap())
             .filter(|out| matches!(out, WriteOutcome::Ok { .. }))
             .count();
-        assert_eq!(landed, 1, "round {round}: {landed} writes landed on one expected hash");
+        assert_eq!(
+            landed, 1,
+            "round {round}: {landed} writes landed on one expected hash"
+        );
     }
 }
 
@@ -509,7 +580,11 @@ struct LockedInFinder(std::path::PathBuf);
 #[cfg(target_os = "macos")]
 impl LockedInFinder {
     fn new(path: std::path::PathBuf) -> Self {
-        let status = std::process::Command::new("chflags").arg("uchg").arg(&path).status().unwrap();
+        let status = std::process::Command::new("chflags")
+            .arg("uchg")
+            .arg(&path)
+            .status()
+            .unwrap();
         assert!(status.success(), "chflags uchg {}", path.display());
         LockedInFinder(path)
     }
@@ -518,14 +593,17 @@ impl LockedInFinder {
 #[cfg(target_os = "macos")]
 impl Drop for LockedInFinder {
     fn drop(&mut self) {
-        let _ = std::process::Command::new("chflags").arg("nouchg").arg(&self.0).status();
+        let _ = std::process::Command::new("chflags")
+            .arg("nouchg")
+            .arg(&self.0)
+            .status();
     }
 }
 
 #[cfg(target_os = "macos")]
 #[test]
 fn a_script_locked_in_finder_is_refused_as_locked_and_left_alone() {
-    // Seen 2026-09-13 in the installed app: a locked script's autosave reached
+    // Seen in the installed app: a locked script's autosave reached
     // the writer as "Operation not permitted (os error 1)", which is also what
     // a privacy refusal says. The vault names the lock, keeps the OS's words
     // behind it, and changes nothing on disk.
@@ -534,11 +612,20 @@ fn a_script_locked_in_finder_is_refused_as_locked_and_left_alone() {
         panic!("expected Ok")
     };
     let _lock = LockedInFinder::new(vault.root().join("Hamlet.fountain"));
-    let err = vault.write("Hamlet.fountain", b"ours", Some(&hash)).unwrap_err();
-    assert_eq!(err.to_string(), "locked: Operation not permitted (os error 1)");
+    let err = vault
+        .write("Hamlet.fountain", b"ours", Some(&hash))
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "locked: Operation not permitted (os error 1)"
+    );
     assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
     assert_eq!(vault.read("Hamlet.fountain").unwrap(), b"theirs");
-    assert_eq!(all_files(vault.root()), vec!["Hamlet.fountain"], "a temp sibling was left behind");
+    assert_eq!(
+        all_files(vault.root()),
+        vec!["Hamlet.fountain"],
+        "a temp sibling was left behind"
+    );
 }
 
 #[cfg(target_os = "macos")]
@@ -547,8 +634,13 @@ fn a_folder_locked_in_finder_is_refused_as_the_folder_locked() {
     let (_dir, vault) = new_vault();
     vault.write("Characters/Mara.md", b"theirs", None).unwrap();
     let _lock = LockedInFinder::new(vault.root().join("Characters"));
-    let err = vault.write("Characters/Mara.md", b"ours", None).unwrap_err();
-    assert_eq!(err.to_string(), "folder-locked: Operation not permitted (os error 1)");
+    let err = vault
+        .write("Characters/Mara.md", b"ours", None)
+        .unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "folder-locked: Operation not permitted (os error 1)"
+    );
     assert_eq!(vault.read("Characters/Mara.md").unwrap(), b"theirs");
 }
 
@@ -567,7 +659,10 @@ fn a_folder_nobody_may_change_is_refused_in_the_os_words_alone() {
     let result = vault.write("Drafts/one.md", b"ours", None);
     std::fs::set_permissions(&drafts, std::fs::Permissions::from_mode(0o755)).unwrap();
     if unwritable {
-        assert_eq!(result.unwrap_err().to_string(), "Permission denied (os error 13)");
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Permission denied (os error 13)"
+        );
     }
 }
 
@@ -598,7 +693,7 @@ fn a_write_never_makes_again_the_folder_its_vault_was() {
 /// A name planted at the temp sibling — here a symlink to a file the
 /// writer would never mean to touch — is not opened, so it is not truncated.
 #[test]
-fn a1_04_a_planted_temp_name_is_never_opened() {
+fn a_planted_temp_name_is_never_opened() {
     let (dir, _vault) = new_vault();
     let outside = tempfile::tempdir().unwrap();
     let victim = outside.path().join("private.txt");
@@ -610,7 +705,13 @@ fn a1_04_a_planted_temp_name_is_never_opened() {
     let err = write_atomic_via(&tmp, &target, b"new words").unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
     assert_eq!(std::fs::read(&victim).unwrap(), b"the writer's other file");
-    assert!(std::fs::symlink_metadata(&tmp).unwrap().file_type().is_symlink(), "the planted link is not ours to remove");
+    assert!(
+        std::fs::symlink_metadata(&tmp)
+            .unwrap()
+            .file_type()
+            .is_symlink(),
+        "the planted link is not ours to remove"
+    );
     assert!(!target.exists());
 
     // The public writer just takes another token.
@@ -621,7 +722,7 @@ fn a1_04_a_planted_temp_name_is_never_opened() {
 
 /// A file the writer restricted to themselves stays restricted after a save.
 #[test]
-fn a1_09_a_save_keeps_the_files_permission_bits() {
+fn a_save_keeps_the_files_permission_bits() {
     use std::os::unix::fs::PermissionsExt;
     let (dir, vault) = new_vault();
     let target = dir.path().join("private.md");
@@ -629,18 +730,24 @@ fn a1_09_a_save_keeps_the_files_permission_bits() {
     std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).unwrap();
     vault.write("private.md", b"after", None).unwrap();
     assert_eq!(std::fs::read(&target).unwrap(), b"after");
-    assert_eq!(std::fs::metadata(&target).unwrap().permissions().mode() & 0o777, 0o600);
+    assert_eq!(
+        std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+        0o600
+    );
 }
 
 /// A legal name at the filesystem's limit can still be saved — the temp
 /// sibling does not repeat all of it.
 #[test]
-fn a2_22_a_name_at_the_length_limit_still_saves() {
+fn a_name_at_the_length_limit_still_saves() {
     let (dir, vault) = new_vault();
     let name = format!("{}.md", "n".repeat(247));
     std::fs::write(dir.path().join(&name), b"read but never saved").unwrap();
     vault.write(&name, b"saved after all", None).unwrap();
-    assert_eq!(std::fs::read(dir.path().join(&name)).unwrap(), b"saved after all");
+    assert_eq!(
+        std::fs::read(dir.path().join(&name)).unwrap(),
+        b"saved after all"
+    );
     assert_eq!(all_files(dir.path()), vec![name]);
 }
 
@@ -648,12 +755,13 @@ fn a2_22_a_name_at_the_length_limit_still_saves() {
 /// component, so nothing outside the chosen folder is read, written, renamed or
 /// removed through it.
 #[test]
-fn a1_02_a_symlink_inside_the_play_is_not_followed() {
+fn a_symlink_inside_the_play_is_not_followed() {
     let (dir, vault) = new_vault();
     let outside = tempfile::tempdir().unwrap();
     std::fs::write(outside.path().join("secret.md"), b"outside the play").unwrap();
     std::os::unix::fs::symlink(outside.path(), dir.path().join("escape")).unwrap();
-    std::os::unix::fs::symlink(outside.path().join("secret.md"), dir.path().join("leaf.md")).unwrap();
+    std::os::unix::fs::symlink(outside.path().join("secret.md"), dir.path().join("leaf.md"))
+        .unwrap();
 
     for rel in ["escape/secret.md", "leaf.md", "escape"] {
         let err = vault.read(rel).unwrap_err();
@@ -663,21 +771,30 @@ fn a1_02_a_symlink_inside_the_play_is_not_followed() {
         assert!(vault.rename("moved.md", rel).is_err(), "{rel}");
     }
     assert!(vault.mkdir("escape/new-folder").is_err());
-    assert_eq!(std::fs::read(outside.path().join("secret.md")).unwrap(), b"outside the play");
+    assert_eq!(
+        std::fs::read(outside.path().join("secret.md")).unwrap(),
+        b"outside the play"
+    );
     assert!(!outside.path().join("new-folder").exists());
     assert!(!outside.path().join("moved.md").exists());
 }
 
 /// A move never lands on a file that is already there.
 #[test]
-fn a2_02_a_rename_onto_an_occupied_name_moves_nothing() {
+fn a_rename_onto_an_occupied_name_moves_nothing() {
     let (dir, vault) = new_vault();
     std::fs::write(dir.path().join("a.md"), b"a's words").unwrap();
     std::fs::write(dir.path().join("b.md"), b"b's words").unwrap();
     let err = vault.rename("a.md", "b.md").unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
-    assert_eq!(std::fs::read(dir.path().join("a.md")).unwrap(), b"a's words");
-    assert_eq!(std::fs::read(dir.path().join("b.md")).unwrap(), b"b's words");
+    assert_eq!(
+        std::fs::read(dir.path().join("a.md")).unwrap(),
+        b"a's words"
+    );
+    assert_eq!(
+        std::fs::read(dir.path().join("b.md")).unwrap(),
+        b"b's words"
+    );
     // The same file under another case is still allowed.
     vault.rename("a.md", "A.md").unwrap();
 }
@@ -685,13 +802,19 @@ fn a2_02_a_rename_onto_an_occupied_name_moves_nothing() {
 /// A provider-shaped name with a multi-byte character where the date
 /// should be is not a conflict copy — and does not panic the watcher's thread.
 #[test]
-fn a2_17_a_conflict_name_with_multibyte_characters_does_not_panic() {
-    assert!(!sync_names::is_conflict_copy("draft.sync-conflict-€€€€€€€€.fountain"));
-    assert!(!sync_names::is_conflict_copy("draft (Robin's conflicted copy €€€€-€€-€€).md"));
-    assert!(sync_names::is_conflict_copy("draft.sync-conflict-20260915-101010-ABCDEFG.fountain"));
+fn a_conflict_name_with_multibyte_characters_does_not_panic() {
+    assert!(!sync_names::is_conflict_copy(
+        "draft.sync-conflict-€€€€€€€€.fountain"
+    ));
+    assert!(!sync_names::is_conflict_copy(
+        "draft (Robin's conflicted copy €€€€-€€-€€).md"
+    ));
+    assert!(sync_names::is_conflict_copy(
+        "draft.sync-conflict-20260915-101010-ABCDEFG.fountain"
+    ));
 }
 #[test]
-fn a220_aliases_share_self_write_generations_and_in_process_locks() {
+fn aliases_share_self_write_generations_and_in_process_locks() {
     let writes = SelfWrites::default();
     let old = writes.record(Path::new("Notes/Café.md"), "old");
     writes.committed(&old);
@@ -699,5 +822,8 @@ fn a220_aliases_share_self_write_generations_and_in_process_locks() {
     writes.committed(&new);
     assert!(!writes.is_self_write(Path::new("notes/café.md"), "old"));
     assert!(writes.is_self_write(Path::new("Notes/Café.md"), "new"));
-    assert!(Arc::ptr_eq(&write_lock(Path::new("Notes/Café.md")), &write_lock(Path::new("NOTES/Cafe\u{301}.MD"))));
+    assert!(Arc::ptr_eq(
+        &write_lock(Path::new("Notes/Café.md")),
+        &write_lock(Path::new("NOTES/Cafe\u{301}.MD"))
+    ));
 }

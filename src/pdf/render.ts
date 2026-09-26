@@ -12,12 +12,26 @@
  * plain bun tests; the Vite asset loading lives in fonts.ts.
  */
 import fontkit from "@pdf-lib/fontkit";
-import { PDFDocument, popGraphicsState, pushGraphicsState, setCharacterSpacing, type PDFFont, type PDFPage } from "pdf-lib";
+import {
+  PDFDocument,
+  popGraphicsState,
+  pushGraphicsState,
+  setCharacterSpacing,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
 
 import { MONO_ADVANCE_EM } from "../format/metrics";
 import { PAGE_SIZES, type ElementFontStyle, type FormatSpec } from "../format";
 import type { FrontMatter } from "../fountain";
-import { paginateFrontMatter, type FrontMatterLine, type LayoutMeta, type LayoutPage, type LayoutResult, type StyleRun } from "../layout";
+import {
+  paginateFrontMatter,
+  type FrontMatterLine,
+  type LayoutMeta,
+  type LayoutPage,
+  type LayoutResult,
+  type StyleRun,
+} from "../layout";
 import { selectFrontMatter, styleSegments, type FrontSheet } from "./plan";
 import { TaggedPdf, type PdfElement } from "./tagged";
 import { canonicalLanguage, DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
@@ -115,18 +129,24 @@ export async function renderPdf(args: {
     return paragraph;
   };
   const drawFrontLine = (p: PDFPage, line: FrontMatterLine, kind: string) => {
-    tags.content(p, frontParagraph(kind, line), () => drawStyledLine(p, line.text, line.runs ?? [], {
-      x0: (m.left + line.xIn) * PT_PER_IN,
-      baseline: pageH - m.top * PT_PER_IN - line.row * pitch - ascent,
-      size, advance, faces, base: baseStyle(line.fontStyle),
-    }));
+    tags.content(p, frontParagraph(kind, line), () =>
+      drawStyledLine(p, line.text, line.runs ?? [], {
+        x0: (m.left + line.xIn) * PT_PER_IN,
+        baseline: pageH - m.top * PT_PER_IN - line.row * pitch - ascent,
+        size,
+        advance,
+        faces,
+        base: baseStyle(line.fontStyle),
+      }),
+    );
   };
   for (const page of selectFrontMatter(paginateFrontMatter(frontMatter, spec), args.frontSheets)) {
     const p = doc.addPage([pageW, pageH]);
     for (const line of page.lines) drawFrontLine(p, line, page.kind);
   }
   // Establish the opening's semantic order before adding body paragraphs.
-  for (const page of layout.pages) for (const line of page.intro ?? []) frontParagraph("opening", line);
+  for (const page of layout.pages)
+    for (const line of page.intro ?? []) frontParagraph("opening", line);
 
   // Source order, not the page's x/y order: read the entire left speech before
   // the right speech in dual dialogue. Wrapped paragraphs keep one owner even
@@ -136,9 +156,13 @@ export async function renderPdf(args: {
   const paragraphs = new Map<number, PdfElement>();
   let section = body;
   let speech: PdfElement | null = null;
-  const firstLines = new Map(layout.pages.flatMap((p) => p.lines)
-    .filter((line) => line.kind === "text" && line.text)
-    .reverse().map((line) => [line.sourceIndex, line] as const));
+  const firstLines = new Map(
+    layout.pages
+      .flatMap((p) => p.lines)
+      .filter((line) => line.kind === "text" && line.text)
+      .reverse()
+      .map((line) => [line.sourceIndex, line] as const),
+  );
   for (const [index, line] of [...firstLines].sort(([a], [b]) => a - b)) {
     if (["act", "scene", "sceneHeading"].includes(line.type)) {
       section = tags.element("Sect", body);
@@ -147,10 +171,20 @@ export async function renderPdf(args: {
     if (line.type === "character") speech = tags.element("Speech", section);
     const inSpeech = ["character", "dialogue", "parenthetical", "lyric"].includes(line.type);
     if (!inSpeech) speech = null;
-    const tag = line.type === "act" ? "H1" : line.type === "scene" ? "H2"
-      : line.type === "sceneHeading" ? "H3" : line.type === "character" ? "Speaker"
-        : line.type === "dialogue" || line.type === "lyric" ? "Dialogue"
-          : line.type === "action" || line.type === "parenthetical" ? "StageDirection" : "P";
+    const tag =
+      line.type === "act"
+        ? "H1"
+        : line.type === "scene"
+          ? "H2"
+          : line.type === "sceneHeading"
+            ? "H3"
+            : line.type === "character"
+              ? "Speaker"
+              : line.type === "dialogue" || line.type === "lyric"
+                ? "Dialogue"
+                : line.type === "action" || line.type === "parenthetical"
+                  ? "StageDirection"
+                  : "P";
     paragraphs.set(index, tags.element(tag, speech ?? section));
   }
   const leadingCue = layout.pages[0]?.lines.find((line) => line.text);
@@ -176,7 +210,12 @@ export async function renderPdf(args: {
     for (const slot of ["left", "center", "right"] as const) {
       const text = slots[slot];
       if (!text) continue;
-      p.drawText(text, { x: xFor[slot](text.length * advance), y: baseline, size, font: faces.regular });
+      p.drawText(text, {
+        x: xFor[slot](text.length * advance),
+        y: baseline,
+        size,
+        font: faces.regular,
+      });
     }
   };
 
@@ -184,9 +223,15 @@ export async function renderPdf(args: {
     const p = doc.addPage([pageW, pageH]);
 
     // Header: its text's top `position` inches below the top edge.
-    if (page.header) tags.artifact(p, () => drawSlots(p, page.header!, pageH - spec.header.position * PT_PER_IN - ascent));
+    if (page.header)
+      tags.artifact(p, () =>
+        drawSlots(p, page.header!, pageH - spec.header.position * PT_PER_IN - ascent),
+      );
     // Footer: its text's bottom `position` inches above the bottom edge.
-    if (page.footer) tags.artifact(p, () => drawSlots(p, page.footer!, spec.footer.position * PT_PER_IN + descent));
+    if (page.footer)
+      tags.artifact(p, () =>
+        drawSlots(p, page.footer!, spec.footer.position * PT_PER_IN + descent),
+      );
 
     for (const line of page.intro ?? []) drawFrontLine(p, line, "opening");
 
@@ -196,15 +241,17 @@ export async function renderPdf(args: {
       const base = baseStyle(el.fontStyle);
       const baseline = pageH - m.top * PT_PER_IN - line.row * pitch - ascent;
       const x0 = m.left * PT_PER_IN + line.xIn * PT_PER_IN;
-      const drawLine = () => drawStyledLine(p, line.text, line.runs, {
-        x0,
-        baseline,
-        size,
-        advance: advance + el.letterSpacing * size,
-        faces,
-        base,
-      });
-      const paragraph = line === leadingCue && excerptCue ? excerptCue : paragraphs.get(line.sourceIndex);
+      const drawLine = () =>
+        drawStyledLine(p, line.text, line.runs, {
+          x0,
+          baseline,
+          size,
+          advance: advance + el.letterSpacing * size,
+          faces,
+          base,
+        });
+      const paragraph =
+        line === leadingCue && excerptCue ? excerptCue : paragraphs.get(line.sourceIndex);
       if (paragraph) tags.content(p, paragraph, drawLine);
       else tags.artifact(p, drawLine);
     }
@@ -236,7 +283,10 @@ function drawStyledLine(
     // this run so following furniture/front matter cannot inherit tracking.
     // Use the face's actual advance (Courier Prime is just shy of 0.6 em) so
     // glyphs and styled-run starts stay on the same shared character grid.
-    p.pushOperators(pushGraphicsState(), setCharacterSpacing(o.advance - font.widthOfTextAtSize("M", o.size)));
+    p.pushOperators(
+      pushGraphicsState(),
+      setCharacterSpacing(o.advance - font.widthOfTextAtSize("M", o.size)),
+    );
     p.drawText(seg.text, {
       x,
       y: o.baseline,

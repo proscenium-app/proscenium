@@ -113,11 +113,26 @@ function fontDecls(doc: WpDocument): string {
 /* Styles                                                               */
 /* ------------------------------------------------------------------ */
 
-function textProps(o: { bold?: boolean; italic?: boolean; underline?: boolean; caps?: boolean; trackingPt?: number }): string {
+function textProps(o: {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  caps?: boolean;
+  trackingPt?: number;
+}): string {
   const attrs: string[] = [];
-  if (o.bold) attrs.push('fo:font-weight="bold" style:font-weight-asian="bold" style:font-weight-complex="bold"');
-  if (o.italic) attrs.push('fo:font-style="italic" style:font-style-asian="italic" style:font-style-complex="italic"');
-  if (o.underline) attrs.push('style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"');
+  if (o.bold)
+    attrs.push(
+      'fo:font-weight="bold" style:font-weight-asian="bold" style:font-weight-complex="bold"',
+    );
+  if (o.italic)
+    attrs.push(
+      'fo:font-style="italic" style:font-style-asian="italic" style:font-style-complex="italic"',
+    );
+  if (o.underline)
+    attrs.push(
+      'style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"',
+    );
   if (o.caps) attrs.push('fo:text-transform="uppercase"');
   if (o.trackingPt) attrs.push(`fo:letter-spacing="${points(o.trackingPt)}"`);
   return attrs.length ? `<style:text-properties ${attrs.join(" ")}/>` : "";
@@ -189,7 +204,9 @@ const variable = (tag: "hdr" | "ftr", slot: string, index: number) => `${tag}_${
 
 /** How many stretches of text each slot has: one more than its page numbers. */
 function shape(hf: HeaderFooterSpec): Record<string, number> {
-  return Object.fromEntries(SLOTS.map((slot) => [slot, (hf.content[slot]?.match(/\{page\}/g) ?? []).length + 1]));
+  return Object.fromEntries(
+    SLOTS.map((slot) => [slot, (hf.content[slot]?.match(/\{page\}/g) ?? []).length + 1]),
+  );
 }
 
 const PAGE_FIELD = '<text:page-number text:select-page="current">1</text:page-number>';
@@ -198,9 +215,20 @@ const PAGE_FIELD = '<text:page-number text:select-page="current">1</text:page-nu
  * One header or footer line: literal text when it never changes, or the
  * variables the sections set when it follows the headings.
  */
-function furnitureLine(tag: "hdr" | "ftr", f: Furniture | null, hf: HeaderFooterSpec, doc: WpDocument, style: string): string {
+function furnitureLine(
+  tag: "hdr" | "ftr",
+  f: Furniture | null,
+  hf: HeaderFooterSpec,
+  doc: WpDocument,
+  style: string,
+): string {
   const counts = shape(hf);
-  const prints = SLOTS.map((slot) => counts[slot] > 1 || (!!f && f[slot].some(Boolean)) || (doc.followsHeadings && !!hf.content[slot]));
+  const prints = SLOTS.map(
+    (slot) =>
+      counts[slot] > 1 ||
+      (!!f && f[slot].some(Boolean)) ||
+      (doc.followsHeadings && !!hf.content[slot]),
+  );
   const last = prints.lastIndexOf(true);
   let out = "";
   const state: TextState = { atStart: true, afterSpace: false };
@@ -224,7 +252,10 @@ function furnitureLine(tag: "hdr" | "ftr", f: Furniture | null, hf: HeaderFooter
 function variableSets(section: WpSection, doc: WpDocument): string {
   if (!doc.followsHeadings || section.kind !== "script") return "";
   let out = "";
-  for (const [tag, hf, f] of [["hdr", doc.spec.header, section.header], ["ftr", doc.spec.footer, section.footer]] as const) {
+  for (const [tag, hf, f] of [
+    ["hdr", doc.spec.header, section.header],
+    ["ftr", doc.spec.footer, section.footer],
+  ] as const) {
     const counts = shape(hf);
     for (const slot of SLOTS) {
       for (let k = 0; k < counts[slot]; k++) {
@@ -238,10 +269,14 @@ function variableSets(section: WpSection, doc: WpDocument): string {
 function variableDecls(doc: WpDocument): string {
   if (!doc.followsHeadings) return "";
   let out = "";
-  for (const [tag, hf] of [["hdr", doc.spec.header], ["ftr", doc.spec.footer]] as const) {
+  for (const [tag, hf] of [
+    ["hdr", doc.spec.header],
+    ["ftr", doc.spec.footer],
+  ] as const) {
     const counts = shape(hf);
     for (const slot of SLOTS) {
-      for (let k = 0; k < counts[slot]; k++) out += `<text:variable-decl text:name="${variable(tag, slot, k)}" office:value-type="string"/>`;
+      for (let k = 0; k < counts[slot]; k++)
+        out += `<text:variable-decl text:name="${variable(tag, slot, k)}" office:value-type="string"/>`;
     }
   }
   return `<text:variable-decls>${out}</text:variable-decls>`;
@@ -319,7 +354,9 @@ class AutoStyles {
     if (known) return known;
     const name = `T${this.texts.size + 1}`;
     this.texts.set(key, name);
-    this.xml.push(`<style:style style:name="${name}" style:family="text">${textProps(o)}</style:style>`);
+    this.xml.push(
+      `<style:style style:name="${name}" style:family="text">${textProps(o)}</style:style>`,
+    );
     return name;
   }
 
@@ -350,23 +387,41 @@ function inlinesXml(inlines: WpInline[], auto: AutoStyles): string {
     .join("");
 }
 
-function paragraphXml(p: WpParagraph, g: Geometry, auto: AutoStyles, opening: Opening | null): string {
+function paragraphXml(
+  p: WpParagraph,
+  g: Geometry,
+  auto: AutoStyles,
+  opening: Opening | null,
+): string {
   const props: string[] = [];
-  if (p.spaceBeforeRows !== undefined) props.push(`fo:margin-top="${points(p.spaceBeforeRows * g.pitchPt)}"`);
-  if (p.pageBreakBefore !== undefined) props.push(`fo:break-before="${p.pageBreakBefore ? "page" : "auto"}"`);
+  if (p.spaceBeforeRows !== undefined)
+    props.push(`fo:margin-top="${points(p.spaceBeforeRows * g.pitchPt)}"`);
+  if (p.pageBreakBefore !== undefined)
+    props.push(`fo:break-before="${p.pageBreakBefore ? "page" : "auto"}"`);
   if (p.align) props.push(`fo:text-align="${p.align}"`);
-  if (p.inCell) props.push(`fo:margin-left="${NONE}" fo:margin-right="${NONE}" fo:keep-with-next="auto"`);
+  if (p.inCell)
+    props.push(`fo:margin-left="${NONE}" fo:margin-right="${NONE}" fo:keep-with-next="auto"`);
   if (opening?.pageNumber) props.push(`style:page-number="${opening.pageNumber}"`);
   const parent = g.names.get(p.style)!;
-  const name = props.length || opening?.master ? auto.paragraph(parent, props, opening?.master ?? null) : parent;
-  const level = p.style === "act" ? 1 : p.style === "scene" ? 2 : p.style === "sceneHeading" ? 3 : 0;
+  const name =
+    props.length || opening?.master
+      ? auto.paragraph(parent, props, opening?.master ?? null)
+      : parent;
+  const level =
+    p.style === "act" ? 1 : p.style === "scene" ? 2 : p.style === "sceneHeading" ? 3 : 0;
   const body = (opening?.sets ?? "") + inlinesXml(p.inlines, auto);
   return level
     ? `<text:h text:style-name="${name}" text:outline-level="${level}">${body}</text:h>`
     : `<text:p text:style-name="${name}">${body}</text:p>`;
 }
 
-function dualXml(d: WpDual, doc: WpDocument, g: Geometry, auto: AutoStyles, opening: Opening | null): string {
+function dualXml(
+  d: WpDual,
+  doc: WpDocument,
+  g: Geometry,
+  auto: AutoStyles,
+  opening: Opening | null,
+): string {
   const c = dualColumns(doc.spec);
   const name = auto.nextTable();
   const leftWidth = c.leftWidthIn + c.gutterIn;
@@ -385,7 +440,16 @@ function dualXml(d: WpDual, doc: WpDocument, g: Geometry, auto: AutoStyles, open
   );
   const cell = (style: string, paragraphs: WpParagraph[], sets: string) => {
     const inner = paragraphs.length
-      ? paragraphs.map((p, i) => paragraphXml(p, g, auto, i === 0 && sets ? { master: null, pageNumber: null, sets } : null)).join("")
+      ? paragraphs
+          .map((p, i) =>
+            paragraphXml(
+              p,
+              g,
+              auto,
+              i === 0 && sets ? { master: null, pageNumber: null, sets } : null,
+            ),
+          )
+          .join("")
       : `<text:p text:style-name="Standard">${sets}</text:p>`;
     return `<table:table-cell table:style-name="${style}" office:value-type="string">${inner}</table:table-cell>`;
   };
@@ -405,7 +469,9 @@ function dualXml(d: WpDual, doc: WpDocument, g: Geometry, auto: AutoStyles, open
 
 export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
   const { spec } = doc;
-  const names = new Map<StyleKey, string>(doc.styles.map((style) => [style.key, styleName(style.name)]));
+  const names = new Map<StyleKey, string>(
+    doc.styles.map((style) => [style.key, styleName(style.name)]),
+  );
   const g: Geometry = { pitchPt: linePitchIn(spec) * 72, blockIn: textBlockWidthIn(spec), names };
   const auto = new AutoStyles();
 
@@ -423,13 +489,21 @@ export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
   const masters =
     `<style:master-page style:name="Front" style:display-name="Opening Pages" style:page-layout-name="PageFront"/>` +
     `<style:master-page style:name="Script" style:page-layout-name="PageScript">` +
-    (hasHeader ? `<style:header>${furnitureLine("hdr", sample?.header ?? null, spec.header, doc, names.get("header")!)}</style:header>` : "") +
-    (hasFooter ? `<style:footer>${furnitureLine("ftr", sample?.footer ?? null, spec.footer, doc, names.get("footer")!)}</style:footer>` : "") +
+    (hasHeader
+      ? `<style:header>${furnitureLine("hdr", sample?.header ?? null, spec.header, doc, names.get("header")!)}</style:header>`
+      : "") +
+    (hasFooter
+      ? `<style:footer>${furnitureLine("ftr", sample?.footer ?? null, spec.footer, doc, names.get("footer")!)}</style:footer>`
+      : "") +
     `</style:master-page>` +
     (firstMaster !== "Script"
       ? `<style:master-page style:name="Script_20_First" style:display-name="Script First Page" style:page-layout-name="PageScriptFirst" style:next-style-name="Script">` +
-        (firstHeader ? `<style:header>${furnitureLine("hdr", sample?.header ?? null, spec.header, doc, names.get("header")!)}</style:header>` : "") +
-        (firstFooter ? `<style:footer>${furnitureLine("ftr", sample?.footer ?? null, spec.footer, doc, names.get("footer")!)}</style:footer>` : "") +
+        (firstHeader
+          ? `<style:header>${furnitureLine("hdr", sample?.header ?? null, spec.header, doc, names.get("header")!)}</style:header>`
+          : "") +
+        (firstFooter
+          ? `<style:footer>${furnitureLine("ftr", sample?.footer ?? null, spec.footer, doc, names.get("footer")!)}</style:footer>`
+          : "") +
         `</style:master-page>`
       : "");
 
@@ -449,7 +523,11 @@ export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
     };
     section.items.forEach((item, i) => {
       const opening = i === 0 ? opens : null;
-      body.push(item.kind === "dual" ? dualXml(item, doc, g, auto, opening) : paragraphXml(item, g, auto, opening));
+      body.push(
+        item.kind === "dual"
+          ? dualXml(item, doc, g, auto, opening)
+          : paragraphXml(item, g, auto, opening),
+      );
     });
     if (!section.items.length && (opens.master || opens.sets)) {
       body.push(paragraphXml({ kind: "p", style: "action", inlines: [] }, g, auto, opens));
@@ -482,16 +560,24 @@ export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
   const metaXml =
     `${XML_DECLARATION}<office:document-meta ${NS} office:version="1.3"><office:meta>` +
     `<meta:generator>Proscenium</meta:generator><dc:title>${esc(doc.title)}</dc:title>` +
-    (doc.author ? `<meta:initial-creator>${esc(doc.author)}</meta:initial-creator><dc:creator>${esc(doc.author)}</dc:creator>` : "") +
+    (doc.author
+      ? `<meta:initial-creator>${esc(doc.author)}</meta:initial-creator><dc:creator>${esc(doc.author)}</dc:creator>`
+      : "") +
     `<dc:language>${esc(doc.language)}</dc:language></office:meta></office:document-meta>`;
 
   const manifest =
     `${XML_DECLARATION}<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">` +
     `<manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="${MIMETYPE}"/>` +
     ["content.xml", "styles.xml", "meta.xml"]
-      .map((path) => `<manifest:file-entry manifest:full-path="${path}" manifest:media-type="text/xml"/>`)
+      .map(
+        (path) =>
+          `<manifest:file-entry manifest:full-path="${path}" manifest:media-type="text/xml"/>`,
+      )
       .join("") +
-    FACES.map((face) => `<manifest:file-entry manifest:full-path="${FONT_FILE[face]}" manifest:media-type="application/x-font-ttf"/>`).join("") +
+    FACES.map(
+      (face) =>
+        `<manifest:file-entry manifest:full-path="${FONT_FILE[face]}" manifest:media-type="application/x-font-ttf"/>`,
+    ).join("") +
     `</manifest:manifest>`;
 
   return zipEntries([

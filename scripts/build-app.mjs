@@ -62,7 +62,9 @@ if (SELFTEST && DMG) {
   process.exit(1);
 }
 if (LOCAL && (SELFTEST || DMG || UNIVERSAL)) {
-  console.error("build-app: --local is this Mac's own copy, for app:install — not with --selftest, --dmg or --universal");
+  console.error(
+    "build-app: --local is this Mac's own copy, for app:install — not with --selftest, --dmg or --universal",
+  );
   process.exit(1);
 }
 
@@ -82,8 +84,12 @@ if (LOCAL) tauriArgs.push("--features", "custom-protocol,local", "--", "--no-def
 function selftestInfoPlist() {
   const path = join(ROOT, "src-tauri/target/selftest/Info.plist");
   const real = readFileSync(join(ROOT, "src-tauri/Info.plist"), "utf8");
-  const plist = real.replace(/<\/dict>\s*<\/plist>\s*$/, "  <key>NSAppSleepDisabled</key>\n  <true/>\n</dict>\n</plist>\n");
-  if (plist === real) throw new Error("build-app: src-tauri/Info.plist does not end in </dict></plist>");
+  const plist = real.replace(
+    /<\/dict>\s*<\/plist>\s*$/,
+    "  <key>NSAppSleepDisabled</key>\n  <true/>\n</dict>\n</plist>\n",
+  );
+  if (plist === real)
+    throw new Error("build-app: src-tauri/Info.plist does not end in </dict></plist>");
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, plist);
   return path;
@@ -100,7 +106,9 @@ if (SELFTEST) {
     // acceptFirstMouse: a click reaches the page even when the window is not
     // key, so a run survives someone clicking another app mid-test. The shipped
     // app keeps the Mac default (the first click only activates).
-    app: { windows: conf.app.windows.map((w) => ({ ...w, incognito: true, acceptFirstMouse: true })) },
+    app: {
+      windows: conf.app.windows.map((w) => ({ ...w, incognito: true, acceptFirstMouse: true })),
+    },
     bundle: { macOS: { infoPlist: selftestInfoPlist() } },
   };
   tauriArgs.push("--config", JSON.stringify(overlay));
@@ -122,7 +130,14 @@ if (SELFTEST) {
   const harness = join(ROOT, "src-tauri/target/selftest/harness.js");
   execFileSync(
     "bun",
-    ["build", "scripts/selftest/harness.mjs", "--target=browser", "--format=iife", "--minify", `--outfile=${harness}`],
+    [
+      "build",
+      "scripts/selftest/harness.mjs",
+      "--target=browser",
+      "--format=iife",
+      "--minify",
+      `--outfile=${harness}`,
+    ],
     { cwd: ROOT, stdio: "inherit" },
   );
   env.PROSCENIUM_SELFTEST_HARNESS = harness;
@@ -141,12 +156,16 @@ try {
     label: `a ${UNIVERSAL ? "universal " : ""}build of ${productName}`,
   });
 } catch (err) {
-  console.error(err.message);   // Already says the numbers; a stack adds nothing.
+  console.error(err.message); // Already says the numbers; a stack adds nothing.
   process.exit(1);
 }
 
 console.log(`build-app: tauri ${tauriArgs.join(" ")}`);
-execFileSync(join(ROOT, "node_modules/.bin/tauri"), tauriArgs, { cwd: ROOT, stdio: "inherit", env });
+execFileSync(join(ROOT, "node_modules/.bin/tauri"), tauriArgs, {
+  cwd: ROOT,
+  stdio: "inherit",
+  env,
+});
 
 const app = join(
   ROOT,
@@ -157,9 +176,15 @@ const app = join(
 );
 
 if (SELFTEST) {
-  const sleep = execFileSync("plutil", ["-extract", "NSAppSleepDisabled", "raw", join(app, "Contents/Info.plist")], { encoding: "utf8" }).trim();
+  const sleep = execFileSync(
+    "plutil",
+    ["-extract", "NSAppSleepDisabled", "raw", join(app, "Contents/Info.plist")],
+    { encoding: "utf8" },
+  ).trim();
   if (sleep !== "true") {
-    console.error(`build-app: the self-test app's NSAppSleepDisabled is ${sleep || "missing"}, not true`);
+    console.error(
+      `build-app: the self-test app's NSAppSleepDisabled is ${sleep || "missing"}, not true`,
+    );
     process.exit(1);
   }
   // Ad hoc and WITHOUT Entitlements.plist: its iCloud keys need a provisioning

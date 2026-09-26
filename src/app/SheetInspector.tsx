@@ -68,7 +68,9 @@ export function SheetInspector({
 
   const fm = split(content);
   const schema = schemaFor(item.type);
-  const fields = (schema?.frontMatter ?? [{ key: "tags", hint: "Labels you choose for this document." }]).filter((f) => !OWNED.has(f.key));
+  const fields = (
+    schema?.frontMatter ?? [{ key: "tags", hint: "Labels you choose for this document." }]
+  ).filter((f) => !OWNED.has(f.key));
   const tags = parseTags(fm.fields.tags);
 
   const write = (key: string, value: string) => onSetField(key, value);
@@ -76,9 +78,7 @@ export function SheetInspector({
   return (
     <div className="inspector__scroll insp">
       <div className="insp__head">
-        <div className="seclabel">
-          {item.type === "character" ? "Character sheet" : "Sheet"}
-        </div>
+        <div className="seclabel">{item.type === "character" ? "Character sheet" : "Sheet"}</div>
         <h2 className="insp__title">{titleOf(item)}</h2>
         <div className="insp__path mono">{item.path}</div>
       </div>
@@ -91,8 +91,7 @@ export function SheetInspector({
       )}
       {fields.length === 0 ? (
         <p className="insp__foot">
-          A document is a blank page — it carries no front matter to edit. The whole
-          file is yours.
+          A document is a blank page — it carries no front matter to edit. The whole file is yours.
         </p>
       ) : (
         <div className="insp__fields">
@@ -257,7 +256,13 @@ function SheetField({
   );
 }
 
-function NewTagField({ onCommit, onDone }: { onCommit: (tag: string) => void; onDone: () => void }) {
+function NewTagField({
+  onCommit,
+  onDone,
+}: {
+  onCommit: (tag: string) => void;
+  onDone: () => void;
+}) {
   const field = useCommitOnLeave("", (t) => onCommit(t.trim()));
   return (
     <input

@@ -29,14 +29,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BINDER_MIME } from "../app/PaneTree";
-import {
-  ancestorsOf,
-  dropPlan,
-  filterBinder,
-  findItem,
-  folderIds,
-  type DropWhere,
-} from "./binder";
+import { ancestorsOf, dropPlan, filterBinder, findItem, folderIds, type DropWhere } from "./binder";
 import { BinderIcon, DisclosureIcon, PencilIcon, type IconKind } from "./BinderIcons";
 import { Menu, PlusIcon, announce, requestPageFocus, useMenu, type MenuEntry } from "../ui";
 import { normalizeType } from "../materials/schema";
@@ -171,7 +164,11 @@ const CREATE_KINDS: {
  * A drag from outside the app carrying files, over a binder that can import
  * them. A drag of the binder's own rows carries no files and sets `dragId`.
  */
-function fromFinder(e: React.DragEvent, dragId: string | null, p: Pick<BinderProps, "onImportFiles" | "readOnly">): boolean {
+function fromFinder(
+  e: React.DragEvent,
+  dragId: string | null,
+  p: Pick<BinderProps, "onImportFiles" | "readOnly">,
+): boolean {
   return !dragId && !!p.onImportFiles && !p.readOnly && e.dataTransfer.types.includes("Files");
 }
 
@@ -186,23 +183,47 @@ function expandKey(playTitle: string): string {
 }
 
 /** A row as the tree actually renders it — the unit keyboard navigation moves over. */
-type Row = {
-  kind: "file"; id: string; label: string; item: BinderItem; depth: number; parentId: string | null;
-} | {
-  kind: "scene"; id: string; label: string; scene: BinderScene; depth: number; parentId: string;
-};
+type Row =
+  | {
+      kind: "file";
+      id: string;
+      label: string;
+      item: BinderItem;
+      depth: number;
+      parentId: string | null;
+    }
+  | {
+      kind: "scene";
+      id: string;
+      label: string;
+      scene: BinderScene;
+      depth: number;
+      parentId: string;
+    };
 
 const sceneRowId = (script: string, scene: string) => `scene:${script}:${scene}`;
 
 function visibleRows(
-  items: BinderItem[], isOpen: (id: string) => boolean, activeId: string | null,
-  scenes: BinderScene[], depth = 0, parentId: string | null = null, out: Row[] = [],
+  items: BinderItem[],
+  isOpen: (id: string) => boolean,
+  activeId: string | null,
+  scenes: BinderScene[],
+  depth = 0,
+  parentId: string | null = null,
+  out: Row[] = [],
 ): Row[] {
   for (const item of items) {
     out.push({ kind: "file", id: item.id, label: titleOf(item), item, depth, parentId });
     if (item.type === "script" && item.id === activeId) {
-      for (const scene of scenes) out.push({ kind: "scene", id: sceneRowId(item.id, scene.id), label: scene.label,
-        scene, depth: depth + 1, parentId: item.id });
+      for (const scene of scenes)
+        out.push({
+          kind: "scene",
+          id: sceneRowId(item.id, scene.id),
+          label: scene.label,
+          scene,
+          depth: depth + 1,
+          parentId: item.id,
+        });
     }
     if (item.type === "folder" && item.children?.length && isOpen(item.id)) {
       visibleRows(item.children, isOpen, activeId, scenes, depth + 1, item.id, out);
@@ -266,7 +287,10 @@ export function Binder(props: BinderProps) {
     (id: string) => (query.trim() ? true : !collapsed.has(id)),
     [collapsed, query],
   );
-  const rows = useMemo(() => visibleRows(filtered, isOpen, activeId, props.scenes ?? []), [filtered, isOpen, activeId, props.scenes]);
+  const rows = useMemo(
+    () => visibleRows(filtered, isOpen, activeId, props.scenes ?? []),
+    [filtered, isOpen, activeId, props.scenes],
+  );
   const treeHadFocus = useRef(false);
 
   /* The cursor's row can vanish under it — Move to Trash, a file gone from
@@ -337,12 +361,16 @@ export function Binder(props: BinderProps) {
     if (springRef.current) clearTimeout(springRef.current.timer);
     springRef.current = {
       id,
-      timer: setTimeout(() => setCollapsed((cur) => {
-        if (!cur.has(id)) return cur;
-        const next = new Set(cur);
-        next.delete(id);
-        return next;
-      }), 600),
+      timer: setTimeout(
+        () =>
+          setCollapsed((cur) => {
+            if (!cur.has(id)) return cur;
+            const next = new Set(cur);
+            next.delete(id);
+            return next;
+          }),
+        600,
+      ),
     };
   }, []);
 
@@ -404,10 +432,19 @@ export function Binder(props: BinderProps) {
 
     if (current?.kind === "scene") {
       // A scene has navigation and activation, never file mutation commands.
-      if (e.key === "Enter") { e.preventDefault(); props.onOpenScene?.(current.scene.ordinal); return; }
-      if (e.key === "ArrowLeft") { e.preventDefault(); setCursorId(current.parentId); return; }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        props.onOpenScene?.(current.scene.ordinal);
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setCursorId(current.parentId);
+        return;
+      }
       if (["F2", "Backspace", "Delete"].includes(e.key) || e.ctrlKey || e.metaKey) {
-        e.preventDefault(); return;
+        e.preventDefault();
+        return;
       }
     }
 
@@ -481,7 +518,8 @@ export function Binder(props: BinderProps) {
         return;
       case "ArrowLeft": {
         e.preventDefault();
-        if (row?.item.type === "folder" && isOpen(row.item.id)) return toggle(row.item.id, false, binder);
+        if (row?.item.type === "folder" && isOpen(row.item.id))
+          return toggle(row.item.id, false, binder);
         if (row?.parentId) setCursorId(row.parentId);
         return;
       }
@@ -544,8 +582,13 @@ export function Binder(props: BinderProps) {
     const row = document.getElementById(`binderrow-${cursorId}`);
     if (!row) return;
     const active = document.activeElement;
-    const naming = active instanceof HTMLInputElement && active.classList.contains("binder__rename");
-    if (treeHadFocus.current && !naming && (treeRef.current?.contains(active) || active === document.body)) {
+    const naming =
+      active instanceof HTMLInputElement && active.classList.contains("binder__rename");
+    if (
+      treeHadFocus.current &&
+      !naming &&
+      (treeRef.current?.contains(active) || active === document.body)
+    ) {
       row.focus({ preventScroll: true });
     }
     row.scrollIntoView({ block: "nearest" });
@@ -624,7 +667,6 @@ export function Binder(props: BinderProps) {
         </button>
       )}
 
-
       {/* The scroller IS the root drop zone: everything below the last row is
           "put it at the top level", which is where a writer instinctively drags
           something they want out of a folder. */}
@@ -642,7 +684,8 @@ export function Binder(props: BinderProps) {
           }
         }}
         onBlurCapture={(e) => {
-          if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node)) treeHadFocus.current = false;
+          if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget as Node))
+            treeHadFocus.current = false;
         }}
         onKeyDown={onKeyDown}
         onDragOver={(e) => {
@@ -722,7 +765,12 @@ export function Binder(props: BinderProps) {
           <span className="binder__foothint">
             {(() => {
               const t = createTarget();
-              const p = t.parentId ? (() => { const f = findItem(binder, t.parentId); return f ? titleOf(f.item) : null; })() : null;
+              const p = t.parentId
+                ? (() => {
+                    const f = findItem(binder, t.parentId);
+                    return f ? titleOf(f.item) : null;
+                  })()
+                : null;
               return p ? `in ${p}` : "at the top level";
             })()}
           </span>
@@ -746,21 +794,27 @@ export function Binder(props: BinderProps) {
         />
       )}
       {movingId && !readOnly && (
-        <BinderMoveSheet binder={binder} itemId={movingId} playTitle={playTitle}
-          onClose={() => setMovingId(null)} onMove={(parentId, index) => {
+        <BinderMoveSheet
+          binder={binder}
+          itemId={movingId}
+          playTitle={playTitle}
+          onClose={() => setMovingId(null)}
+          onMove={(parentId, index) => {
             const source = findItem(binder, movingId);
             if (!source) return;
-            if (parentId) setCollapsed((current) => {
-              const next = new Set(current);
-              for (const id of [...ancestorsOf(binder, parentId), parentId]) next.delete(id);
-              return next;
-            });
+            if (parentId)
+              setCollapsed((current) => {
+                const next = new Set(current);
+                for (const id of [...ancestorsOf(binder, parentId), parentId]) next.delete(id);
+                return next;
+              });
             setQuery("");
             setCursorId(movingId);
             setMovingId(null);
             if (source.parentId === parentId) props.onReorder(movingId, index);
             else props.onMove(movingId, parentId, index);
-          }} />
+          }}
+        />
       )}
     </nav>
   );
@@ -857,7 +911,9 @@ function BinderNode(p: NodeProps) {
         id={`binderrow-${item.id}`}
         role="treeitem"
         tabIndex={cursored ? 0 : -1}
-        onFocus={(e) => { if (e.target === e.currentTarget) p.setCursorId(item.id); }}
+        onFocus={(e) => {
+          if (e.target === e.currentTarget) p.setCursorId(item.id);
+        }}
         aria-selected={selected}
         aria-expanded={isFolder ? open : undefined}
         aria-level={depth + 1}
@@ -1052,12 +1108,12 @@ function BinderNode(p: NodeProps) {
                 aria-level={depth + 2}
                 aria-selected={sc.ordinal === actions.caretScene}
                 onFocus={() => p.setCursorId(sceneRowId(item.id, sc.id))}
-                onClick={() => { p.setCursorId(sceneRowId(item.id, sc.id)); actions.onOpenScene?.(sc.ordinal); }}
+                onClick={() => {
+                  p.setCursorId(sceneRowId(item.id, sc.id));
+                  actions.onOpenScene?.(sc.ordinal);
+                }}
               >
-                <span
-                  className={`binder__huedot swatch--${sc.color}`}
-                  aria-hidden="true"
-                />
+                <span className={`binder__huedot swatch--${sc.color}`} aria-hidden="true" />
                 <span className="binder__label">{sc.label}</span>
                 {sc.pages && <span className="binder__pages">{sc.pages}</span>}
               </div>
@@ -1069,13 +1125,7 @@ function BinderNode(p: NodeProps) {
         <ul role="group" aria-label={titleOf(item)}>
           {item.children?.length ? (
             item.children.map((child) => (
-              <BinderNode
-                {...p}
-                key={child.id}
-                item={child}
-                depth={depth + 1}
-                parentId={item.id}
-              />
+              <BinderNode {...p} key={child.id} item={child} depth={depth + 1} parentId={item.id} />
             ))
           ) : (
             <li
@@ -1163,6 +1213,54 @@ function CreateMenu({
   );
 }
 
+/**
+ * The row menu's entries. The shortcuts it shows are the keys the binder's
+ * own handler answers (`onKeyDown` above): F2 renames the row and ⏎ opens it,
+ * so the menu says F2 beside Rename. It said ⏎, which opened the row instead.
+ */
+export function rowMenuEntries(
+  item: BinderItem,
+  actions: Pick<BinderProps, "onOpenInNewPane" | "onDuplicate" | "onReveal" | "onDelete">,
+  on: { create: (kind: string) => void; rename: (id: string) => void; move: (id: string) => void },
+): MenuEntry[] {
+  const isFolder = item.type === "folder";
+  const entries: MenuEntry[] = [];
+  if (!isFolder && actions.onOpenInNewPane) {
+    entries.push({
+      label: "Open in New Pane",
+      onSelect: () => actions.onOpenInNewPane?.(item),
+    });
+  }
+  entries.push({
+    label: "New",
+    submenu: CREATE_KINDS.map((k) => ({
+      label: k.label,
+      onSelect: () => on.create(k.label),
+    })),
+  });
+  entries.push({ kind: "sep" });
+  entries.push({ label: "Rename", shortcut: "F2", onSelect: () => on.rename(item.id) });
+  entries.push({ label: "Move…", onSelect: () => on.move(item.id) });
+  if (actions.onDuplicate && !isFolder) {
+    entries.push({
+      label: "Duplicate",
+      shortcut: "⌘D",
+      onSelect: () => actions.onDuplicate?.(item.id),
+    });
+  }
+  if (actions.onReveal) {
+    entries.push({ label: "Reveal in Finder", onSelect: () => actions.onReveal?.(item.id) });
+  }
+  entries.push({ kind: "sep" });
+  entries.push({
+    label: "Move to Trash",
+    shortcut: "⌘⌫",
+    destructive: true,
+    onSelect: () => actions.onDelete(item.id),
+  });
+  return entries;
+}
+
 /** The right-click menu for one row, on the same anatomy as every other. */
 function RowMenu({
   x,
@@ -1184,40 +1282,10 @@ function RowMenu({
   onCreate: (kind: (typeof CREATE_KINDS)[number]) => void;
 }) {
   if (!item) return null;
-  const isFolder = item.type === "folder";
-  const entries: MenuEntry[] = [];
-  if (!isFolder && actions.onOpenInNewPane) {
-    entries.push({
-      label: "Open in New Pane",
-      onSelect: () => actions.onOpenInNewPane?.(item),
-    });
-  }
-  entries.push({
-    label: "New",
-    submenu: CREATE_KINDS.map((k) => ({
-      label: k.label,
-      onSelect: () => onCreate(k),
-    })),
-  });
-  entries.push({ kind: "sep" });
-  entries.push({ label: "Rename", shortcut: "⏎", onSelect: () => onRename(item.id) });
-  entries.push({ label: "Move…", onSelect: () => onMove(item.id) });
-  if (actions.onDuplicate && !isFolder) {
-    entries.push({
-      label: "Duplicate",
-      shortcut: "⌘D",
-      onSelect: () => actions.onDuplicate?.(item.id),
-    });
-  }
-  if (actions.onReveal) {
-    entries.push({ label: "Reveal in Finder", onSelect: () => actions.onReveal?.(item.id) });
-  }
-  entries.push({ kind: "sep" });
-  entries.push({
-    label: "Move to Trash",
-    shortcut: "⌘⌫",
-    destructive: true,
-    onSelect: () => actions.onDelete(item.id),
+  const entries = rowMenuEntries(item, actions, {
+    create: (kind) => onCreate(CREATE_KINDS.find((k) => k.label === kind) ?? CREATE_KINDS[0]),
+    rename: onRename,
+    move: onMove,
   });
 
   /* No title header row: the menu opened AT the row, which already says which

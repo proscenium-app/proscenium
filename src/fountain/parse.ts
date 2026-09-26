@@ -18,12 +18,7 @@ import { Fountain } from "fountain-js";
 import type { Token } from "fountain-js";
 import { splitCueExtension } from "./cue";
 import { parseInline } from "./inline";
-import type {
-  BlockNode,
-  Doc,
-  InlineNode,
-  ParsedScript,
-} from "./model";
+import type { BlockNode, Doc, InlineNode, ParsedScript } from "./model";
 import { splitTitlePage } from "./titlepage";
 
 const BONEYARD_SENTINEL = /^BY(\d+)$/;
@@ -47,17 +42,15 @@ function safeTokenize(body: string): Token[] {
     let emptyLine = "EMPTY-SPEECH";
     while (body.includes(emptyLine)) emptyLine += "";
     const protectedBody = body.replace(/^ {2}$/gm, emptyLine);
-    return new Fountain().parse(protectedBody, true).tokens.flatMap(tok => {
+    return new Fountain().parse(protectedBody, true).tokens.flatMap((tok) => {
       if (!tok.text?.includes(emptyLine)) return [tok];
       const text = tok.text.replaceAll(emptyLine, "");
       // A standalone two-space line is still just whitespace, not a new Action.
-      return tok.type === "action" && !text.trim() ? [] : [{...tok, text}];
+      return tok.type === "action" && !text.trim() ? [] : [{ ...tok, text }];
     });
   } catch {
     // docs/app/keeping-work/storage-and-file-format.md#STOR-107: degrade, don't crash.
-    return body.trim()
-      ? [{ type: "action", text: body, addTo: (t: Token[]) => t }]
-      : [];
+    return body.trim() ? [{ type: "action", text: body, addTo: (t: Token[]) => t }] : [];
   }
 }
 

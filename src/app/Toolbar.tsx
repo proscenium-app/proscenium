@@ -96,10 +96,18 @@ export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => v
       checked: f.id === a.activeFormatId,
       onSelect: () => a.onSetFormat(f.id),
     })),
-    { label: "All Formats", submenu: [
-      ...a.formats.map((f) => ({ label: f.name, checked: f.id === a.activeFormatId, onSelect: () => a.onSetFormat(f.id) })),
-      { kind: "sep" }, { label: "Manage Formats…", onSelect: () => openSettings("formats") },
-    ] },
+    {
+      label: "All Formats",
+      submenu: [
+        ...a.formats.map((f) => ({
+          label: f.name,
+          checked: f.id === a.activeFormatId,
+          onSelect: () => a.onSetFormat(f.id),
+        })),
+        { kind: "sep" },
+        { label: "Manage Formats…", onSelect: () => openSettings("formats") },
+      ],
+    },
     { label: "Edit Current Format…", onSelect: a.onEditFormats },
     { label: "Play Language…", onSelect: onLanguage },
     { kind: "sep" },
@@ -126,8 +134,18 @@ export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => v
       disabled: a.exporting,
       onSelect: a.onExport,
     },
-    { id: "export-docx", label: "Export .docx…", disabled: a.exporting, onSelect: () => a.onExportAs("docx") },
-    { id: "export-odt", label: "Export .odt…", disabled: a.exporting, onSelect: () => a.onExportAs("odt") },
+    {
+      id: "export-docx",
+      label: "Export .docx…",
+      disabled: a.exporting,
+      onSelect: () => a.onExportAs("docx"),
+    },
+    {
+      id: "export-odt",
+      label: "Export .odt…",
+      disabled: a.exporting,
+      onSelect: () => a.onExportAs("odt"),
+    },
     { label: "Print…", shortcut: "⌘P", disabled: a.exporting, onSelect: a.onPrint },
   ];
 }
@@ -173,10 +191,16 @@ export function Toolbar({
   const addRef = useRef<HTMLButtonElement | null>(null);
   const menu = useMenu();
   const { formatOrder } = useSettings();
-  const orderedDoc = doc && { ...doc, formats: [...doc.formats].sort((a, b) => {
-    const rank = (id: string) => { const i = formatOrder.indexOf(id); return i < 0 ? formatOrder.length : i; };
-    return rank(a.id) - rank(b.id);
-  }) };
+  const orderedDoc = doc && {
+    ...doc,
+    formats: [...doc.formats].sort((a, b) => {
+      const rank = (id: string) => {
+        const i = formatOrder.indexOf(id);
+        return i < 0 ? formatOrder.length : i;
+      };
+      return rank(a.id) - rank(b.id);
+    }),
+  };
   const [languageOpen, setLanguageOpen] = useState(false);
   const addMenu = useMenu();
 
@@ -233,7 +257,13 @@ export function Toolbar({
       </div>
 
       <div className="toolbar__centre">
-        {languageOpen && doc && <LanguageSheet language={doc.language} onSave={doc.onSaveLanguage} onClose={() => setLanguageOpen(false)} />}
+        {languageOpen && doc && (
+          <LanguageSheet
+            language={doc.language}
+            onSave={doc.onSaveLanguage}
+            onClose={() => setLanguageOpen(false)}
+          />
+        )}
         {scriptOpen && (
           <div className="viewswitch" data-tutorial="views">
             <Segmented
@@ -276,8 +306,12 @@ export function Toolbar({
       </div>
 
       <div className="toolbar__right">
-        <Button size="small" treatment="borderless" data-tutorial="help" onClick={openHelp}>Help & Tutorials</Button>
-        <Button size="small" treatment="borderless" onClick={() => openFeedback()}>Feedback</Button>
+        <Button size="small" treatment="borderless" data-tutorial="help" onClick={openHelp}>
+          Help & Tutorials
+        </Button>
+        <Button size="small" treatment="borderless" onClick={() => openFeedback()}>
+          Feedback
+        </Button>
         {/* Inline tracked changes. Only offered when there is something to
             show — a dead toggle teaches nothing. */}
         {scriptOpen && hasTrackedChanges && (

@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /*
  * ── Focus mode, ⌃⌘F (docs/app/preferences-and-help/accessibility.md#A11Y-7) ─────────────────────────────────────────
  *
@@ -70,4 +69,3 @@
 .app-shell.is-focus.is-peeking::after {
   content: none;
 }
-

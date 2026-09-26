@@ -3,7 +3,13 @@
 
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
-import { describeUpdates, offeredTracks, restartProblem, slowerTrackNote, trackOfVersion } from "./updates";
+import {
+  describeUpdates,
+  offeredTracks,
+  restartProblem,
+  slowerTrackNote,
+  trackOfVersion,
+} from "./updates";
 
 const rust = readFileSync(new URL("../../src-tauri/src/updates.rs", import.meta.url), "utf8");
 const ipc = readFileSync(new URL("../storage/ipc.ts", import.meta.url), "utf8");
@@ -20,12 +26,15 @@ describe("describeUpdates", () => {
   });
 
   it("gives download progress only when the size is known", () => {
-    expect(describeUpdates({ kind: "downloading", version: "0.9.1", received: 50, total: 200 }, "0.9.0")).toBe(
-      "Downloading Proscenium 0.9.1… 25%",
-    );
-    expect(describeUpdates({ kind: "downloading", version: "0.9.1", received: 50, total: null }, "0.9.0")).toBe(
-      "Downloading Proscenium 0.9.1…",
-    );
+    expect(
+      describeUpdates({ kind: "downloading", version: "0.9.1", received: 50, total: 200 }, "0.9.0"),
+    ).toBe("Downloading Proscenium 0.9.1… 25%");
+    expect(
+      describeUpdates(
+        { kind: "downloading", version: "0.9.1", received: 50, total: null },
+        "0.9.0",
+      ),
+    ).toBe("Downloading Proscenium 0.9.1…");
   });
 
   it("says a downloaded update is ready to install, and leaves the restart to its button", () => {
@@ -36,10 +45,18 @@ describe("describeUpdates", () => {
 
   it("words each failure for the writer, never as the plugin's error", () => {
     const at = Date.UTC(2026, 8, 12, 15, 0);
-    expect(describeUpdates({ kind: "failed", reason: "offline", message: "error sending request", checkedAt: at }, "0.9.0"))
-      .toMatch(/^Couldn’t connect to check for updates\. Tried /);
-    expect(describeUpdates({ kind: "failed", reason: "signature", message: "x", checkedAt: at }, "0.9.0"))
-      .toMatch(/failed Proscenium’s security check.*Nothing was installed/);
+    expect(
+      describeUpdates(
+        { kind: "failed", reason: "offline", message: "error sending request", checkedAt: at },
+        "0.9.0",
+      ),
+    ).toMatch(/^Couldn’t connect to check for updates\. Tried /);
+    expect(
+      describeUpdates(
+        { kind: "failed", reason: "signature", message: "x", checkedAt: at },
+        "0.9.0",
+      ),
+    ).toMatch(/failed Proscenium’s security check.*Nothing was installed/);
   });
 });
 
@@ -47,7 +64,9 @@ describe("restartProblem", () => {
   it("never leaves a writer wondering why nothing happened", () => {
     expect(restartProblem("unsaved")).toMatch(/haven’t finished saving/);
     expect(restartProblem("notReady")).toMatch(/no downloaded update/);
-    expect(restartProblem({ failed: "Failed to move the new app into place" })).toMatch(/move the new app/);
+    expect(restartProblem({ failed: "Failed to move the new app into place" })).toMatch(
+      /move the new app/,
+    );
   });
 });
 
@@ -59,8 +78,13 @@ describe("the page and updates.rs agree", () => {
   });
 
   it("on every state the Rust side can send", () => {
-    const body = rust.slice(rust.indexOf("pub enum UpdateState"), rust.indexOf("pub enum FailReason"));
-    const variants = [...body.matchAll(/^\s{4}([A-Z][A-Za-z]+)\b/gm)].map((m) => m[1][0].toLowerCase() + m[1].slice(1));
+    const body = rust.slice(
+      rust.indexOf("pub enum UpdateState"),
+      rust.indexOf("pub enum FailReason"),
+    );
+    const variants = [...body.matchAll(/^\s{4}([A-Z][A-Za-z]+)\b/gm)].map(
+      (m) => m[1][0].toLowerCase() + m[1].slice(1),
+    );
     expect(variants.length).toBeGreaterThan(5);
     for (const kind of variants) expect(ipc).toContain(`kind: "${kind}"`);
   });
@@ -84,8 +108,12 @@ describe("tracks", () => {
     expect(slowerTrackNote("stable", "1.0.1-alpha.57")).toBe(
       "Proscenium never installs an older version, so Stable updates install once one is newer than 1.0.1-alpha.57.",
     );
-    expect(slowerTrackNote("beta", "1.0.1-alpha.57")).toMatch(/^Proscenium never installs an older version, so Beta updates/);
-    expect(slowerTrackNote("stable", "1.0.1-beta.2")).toMatch(/Stable updates install once one is newer than 1\.0\.1-beta\.2\.$/);
+    expect(slowerTrackNote("beta", "1.0.1-alpha.57")).toMatch(
+      /^Proscenium never installs an older version, so Beta updates/,
+    );
+    expect(slowerTrackNote("stable", "1.0.1-beta.2")).toMatch(
+      /Stable updates install once one is newer than 1\.0\.1-beta\.2\.$/,
+    );
     for (const [track, version] of [
       ["alpha", "1.0.1-alpha.57"],
       ["alpha", "1.0.0"],

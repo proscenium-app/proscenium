@@ -10,19 +10,25 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 use std::time::{Duration, Instant};
 
 use notify::{RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
+use crate::vault::path_key::comparison_path;
 use crate::vault::sync_names::{is_conflict_copy, is_provider_artifact};
 use crate::vault::{is_temp_sibling, SelfWrites};
-use crate::vault::path_key::comparison_path;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WatchedFile { path: PathBuf, hash: String }
+pub struct WatchedFile {
+    path: PathBuf,
+    hash: String,
+}
 type ObservedFiles = HashMap<PathBuf, WatchedFile>;
 
 pub const EVENT_EXTERNAL_CHANGE: &str = "vault://external-change";
@@ -59,11 +65,18 @@ pub struct WatchHandle {
 }
 
 impl WatchHandle {
-    pub fn health(&self) -> WatchHealth { self.health.lock().unwrap_or_else(|p| p.into_inner()).clone() }
+    pub fn health(&self) -> WatchHealth {
+        self.health
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
 }
 
 impl Drop for WatchHandle {
-    fn drop(&mut self) { self.stop.store(true, Ordering::Release); }
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+    }
 }
 
 fn rel_of(root: &Path, abs: &Path) -> String {
@@ -81,8 +94,14 @@ pub fn start(
 ) -> notify::Result<WatchHandle> {
     let (tx, rx) = std::sync::mpsc::channel::<notify::Result<notify::Event>>();
     let stop = Arc::new(AtomicBool::new(false));
-    let health = Arc::new(Mutex::new(WatchHealth { root: root.to_string_lossy().into(), status: "restarting" }));
-    let handle = WatchHandle { stop: stop.clone(), health: health.clone() };
+    let health = Arc::new(Mutex::new(WatchHealth {
+        root: root.to_string_lossy().into(),
+        status: "restarting",
+    }));
+    let handle = WatchHandle {
+        stop: stop.clone(),
+        health: health.clone(),
+    };
     std::thread::spawn(move || {
         let mut last_emitted = ObservedFiles::new();
         let mut watcher = None;
@@ -93,50 +112,71 @@ pub fn start(
             if current.status != status {
                 current.status = status;
                 // A failed event delivery remains queryable through watcher_status.
-                if app.emit(EVENT_HEALTH, current.clone()).is_err() { current.status = "unavailable"; }
+                if app.emit(EVENT_HEALTH, current.clone()).is_err() {
+                    current.status = "unavailable";
+                }
             }
         };
         while !stop.load(Ordering::Acquire) {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(), ()> {
-                if watcher.is_none() && Instant::now() >= retry_at {
-                    say("restarting");
-                    let tx = tx.clone();
-                    let mut fresh = notify::recommended_watcher(move |event| { let _ = tx.send(event); }).map_err(|_| ())?;
-                    fresh.watch(&root, RecursiveMode::Recursive).map_err(|_| ())?;
-                    watcher = Some(fresh);
-                    scan_at = Instant::now();
-                }
-                if Instant::now() >= scan_at {
-                    let mut observed = last_emitted.clone();
-                    let changes = rescan(&root, &self_writes, &mut observed).map_err(|_| ())?;
-                    for (path, decision) in changes {
-                        if stop.load(Ordering::Acquire) { return Ok(()); }
-                        emit_decision(&app, &root, &path, decision).map_err(|_| ())?;
+            let result =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<(), ()> {
+                    if watcher.is_none() && Instant::now() >= retry_at {
+                        say("restarting");
+                        let tx = tx.clone();
+                        let mut fresh = notify::recommended_watcher(move |event| {
+                            let _ = tx.send(event);
+                        })
+                        .map_err(|_| ())?;
+                        fresh
+                            .watch(&root, RecursiveMode::Recursive)
+                            .map_err(|_| ())?;
+                        watcher = Some(fresh);
+                        scan_at = Instant::now();
                     }
-                    last_emitted = observed;
-                    scan_at = Instant::now() + Duration::from_secs(30);
-                    if watcher.is_some() { say("watching"); }
-                }
-                match rx.recv_timeout(Duration::from_millis(250)) {
-                    Ok(Ok(event)) => {
-                        if event.need_rescan() { return Err(()); }
-                        if needs_rescan(&event) { scan_at = Instant::now(); }
-                        for path in event.paths {
-                            if stop.load(Ordering::Acquire) { return Ok(()); }
-                            let mut observed = last_emitted.clone();
-                            let decision = classify(&self_writes, &mut observed, &path);
-                            if decision == WatchDecision::Uncertain { scan_at = Instant::now(); }
-                            else {
-                                emit_decision(&app, &root, &path, decision).map_err(|_| ())?;
-                                last_emitted = observed;
+                    if Instant::now() >= scan_at {
+                        let mut observed = last_emitted.clone();
+                        let changes = rescan(&root, &self_writes, &mut observed).map_err(|_| ())?;
+                        for (path, decision) in changes {
+                            if stop.load(Ordering::Acquire) {
+                                return Ok(());
                             }
+                            emit_decision(&app, &root, &path, decision).map_err(|_| ())?;
+                        }
+                        last_emitted = observed;
+                        scan_at = Instant::now() + Duration::from_secs(30);
+                        if watcher.is_some() {
+                            say("watching");
                         }
                     }
-                    Ok(Err(_)) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return Err(()),
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                }
-                Ok(())
-            }));
+                    match rx.recv_timeout(Duration::from_millis(250)) {
+                        Ok(Ok(event)) => {
+                            if event.need_rescan() {
+                                return Err(());
+                            }
+                            if needs_rescan(&event) {
+                                scan_at = Instant::now();
+                            }
+                            for path in event.paths {
+                                if stop.load(Ordering::Acquire) {
+                                    return Ok(());
+                                }
+                                let mut observed = last_emitted.clone();
+                                let decision = classify(&self_writes, &mut observed, &path);
+                                if decision == WatchDecision::Uncertain {
+                                    scan_at = Instant::now();
+                                } else {
+                                    emit_decision(&app, &root, &path, decision).map_err(|_| ())?;
+                                    last_emitted = observed;
+                                }
+                            }
+                        }
+                        Ok(Err(_)) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                            return Err(())
+                        }
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    }
+                    Ok(())
+                }));
             if !matches!(result, Ok(Ok(()))) {
                 watcher = None;
                 say("unavailable");
@@ -149,38 +189,68 @@ pub fn start(
 }
 
 fn needs_rescan(event: &notify::Event) -> bool {
-    use notify::{EventKind, event::{ModifyKind, RemoveKind}};
-    event.need_rescan() || event.paths.is_empty() || event.paths.iter().any(|path| path.is_dir()) ||
-        matches!(event.kind, EventKind::Any | EventKind::Other |
-            EventKind::Modify(ModifyKind::Name(_)) | EventKind::Remove(RemoveKind::Folder | RemoveKind::Any))
+    use notify::{
+        event::{ModifyKind, RemoveKind},
+        EventKind,
+    };
+    event.need_rescan()
+        || event.paths.is_empty()
+        || event.paths.iter().any(|path| path.is_dir())
+        || matches!(
+            event.kind,
+            EventKind::Any
+                | EventKind::Other
+                | EventKind::Modify(ModifyKind::Name(_))
+                | EventKind::Remove(RemoveKind::Folder | RemoveKind::Any)
+        )
 }
 
 /// A complete walk precedes deletion inference. Unreadable trees retain the
 /// prior map; a later retry can still report every missed deletion.
-fn rescan(root: &Path, tokens: &SelfWrites, last: &mut ObservedFiles)
-    -> std::io::Result<Vec<(PathBuf, WatchDecision)>> {
+fn rescan(
+    root: &Path,
+    tokens: &SelfWrites,
+    last: &mut ObservedFiles,
+) -> std::io::Result<Vec<(PathBuf, WatchDecision)>> {
     fn walk(dir: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            if matches!(name.as_str(), ".stfolder" | ".stversions") || is_temp_sibling(&name) || is_provider_artifact(&name) { continue; }
+            if matches!(name.as_str(), ".stfolder" | ".stversions")
+                || is_temp_sibling(&name)
+                || is_provider_artifact(&name)
+            {
+                continue;
+            }
             let kind = entry.file_type()?;
-            if kind.is_symlink() { continue; }
-            if kind.is_dir() { walk(&entry.path(), files)?; }
-            else { files.push(entry.path()); }
+            if kind.is_symlink() {
+                continue;
+            }
+            if kind.is_dir() {
+                walk(&entry.path(), files)?;
+            } else {
+                files.push(entry.path());
+            }
         }
         Ok(())
     }
     let mut files = Vec::new();
     walk(root, &mut files)?;
     let present: HashSet<_> = files.iter().map(|path| comparison_path(path)).collect();
-    let missing: Vec<_> = last.iter().filter(|(key, _)| !present.contains(*key)).map(|(_, file)| file.path.clone()).collect();
+    let missing: Vec<_> = last
+        .iter()
+        .filter(|(key, _)| !present.contains(*key))
+        .map(|(_, file)| file.path.clone())
+        .collect();
     let mut changes = Vec::new();
     let mut observed = last.clone();
     for path in files.into_iter().chain(missing) {
         let decision = classify(tokens, &mut observed, &path);
         if decision == WatchDecision::Uncertain {
-            return Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "a watched file is not readable yet"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "a watched file is not readable yet",
+            ));
         }
         changes.push((path, decision));
     }
@@ -243,7 +313,9 @@ pub fn classify(
     }
 
     let key = comparison_path(path);
-    if path.is_dir() || crate::vault::icloud::unavailable(path) { return WatchDecision::Uncertain; }
+    if path.is_dir() || crate::vault::icloud::unavailable(path) {
+        return WatchDecision::Uncertain;
+    }
     if !path.exists() {
         last_emitted.remove(&key);
         return WatchDecision::Removed;
@@ -255,15 +327,30 @@ pub fn classify(
 
     // Echo of our own atomic write — drop it (docs/app/keeping-work/storage-and-file-format.md#STOR-D9 self-write suppression).
     if own {
-        last_emitted.insert(key, WatchedFile { path: path.to_path_buf(), hash });
+        last_emitted.insert(
+            key,
+            WatchedFile {
+                path: path.to_path_buf(),
+                hash,
+            },
+        );
         return WatchDecision::SelfWrite;
     }
     // notify can fire several events per save; only report real content changes.
-    if last_emitted.get(&key).is_some_and(|file| file.hash == hash && file.path == path) {
+    if last_emitted
+        .get(&key)
+        .is_some_and(|file| file.hash == hash && file.path == path)
+    {
         return WatchDecision::Duplicate;
     }
     // An unchanged hash with a changed spelling still reaches reconciliation.
-    last_emitted.insert(key, WatchedFile { path: path.to_path_buf(), hash: hash.clone() });
+    last_emitted.insert(
+        key,
+        WatchedFile {
+            path: path.to_path_buf(),
+            hash: hash.clone(),
+        },
+    );
     WatchDecision::External(hash)
 }
 
@@ -277,22 +364,33 @@ fn emit_decision(
     let root = root.to_string_lossy().into_owned();
 
     match decision {
-        WatchDecision::Ignore | WatchDecision::Uncertain | WatchDecision::SelfWrite | WatchDecision::Duplicate => Ok(()),
-        WatchDecision::ConflictCopy => {
-            app.emit(EVENT_CONFLICT_COPY, ConflictCopy { root, rel_path: rel })
-        }
-        WatchDecision::Removed => {
-            app.emit(
-                EVENT_EXTERNAL_CHANGE,
-                ExternalChange { root, rel_path: rel, hash: None },
-            )
-        }
-        WatchDecision::External(hash) => {
-            app.emit(
-                EVENT_EXTERNAL_CHANGE,
-                ExternalChange { root, rel_path: rel, hash: Some(hash) },
-            )
-        }
+        WatchDecision::Ignore
+        | WatchDecision::Uncertain
+        | WatchDecision::SelfWrite
+        | WatchDecision::Duplicate => Ok(()),
+        WatchDecision::ConflictCopy => app.emit(
+            EVENT_CONFLICT_COPY,
+            ConflictCopy {
+                root,
+                rel_path: rel,
+            },
+        ),
+        WatchDecision::Removed => app.emit(
+            EVENT_EXTERNAL_CHANGE,
+            ExternalChange {
+                root,
+                rel_path: rel,
+                hash: None,
+            },
+        ),
+        WatchDecision::External(hash) => app.emit(
+            EVENT_EXTERNAL_CHANGE,
+            ExternalChange {
+                root,
+                rel_path: rel,
+                hash: Some(hash),
+            },
+        ),
     }
 }
 

@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Export PDF / Print dialog — page picking with a real preview -----------
    The sheets inside are drawn from the layout engine's pages and the format's
    own CSS variables (see ExportPanel.tsx). Everything here is chrome: the
@@ -290,8 +289,12 @@
   gap: var(--s-3);
   font-size: var(--t-small);
 }
-.exportpanel__language input { width: 8ch; }
-.exportpanel__language .sheet__hint { flex-basis: 100%; }
+.exportpanel__language input {
+  width: 8ch;
+}
+.exportpanel__language .sheet__hint {
+  flex-basis: 100%;
+}
 .exportpanel__anonymous {
   display: flex;
   flex-direction: column;
@@ -304,7 +307,9 @@
 }
 /* The name found on a sheet an anonymous copy holds: a caution, not an error —
    the copy can still go, and it may be meant (a character who shares a name). */
-.exportpanel__anonymous .sheet__hint.is-warning { color: var(--warn-text); }
+.exportpanel__anonymous .sheet__hint.is-warning {
+  color: var(--warn-text);
+}
 .exportpanel__check {
   display: flex;
   align-items: center;
@@ -333,4 +338,3 @@
   margin-right: auto;
   align-self: center;
 }
-

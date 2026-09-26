@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Title Page editor (front-matter slice) -------------------------------- */
 /* Cast (docs/app/organizing/workspace-model.md#WORK-D105) — a real view (peer to Board/Outline), not a modal. -------- */
 .castview {
@@ -125,7 +124,7 @@
   font-size: var(--t-mini);
   color: var(--ink-2);
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .castcard__meta {
     color: var(--ink-2);
   }
@@ -158,4 +157,3 @@
   align-items: center;
   gap: var(--s-4);
 }
-

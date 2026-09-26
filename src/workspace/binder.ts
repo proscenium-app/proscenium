@@ -50,18 +50,12 @@ function transformContaining(
 ): BinderItem[] {
   if (binder.some((x) => x.id === id)) return fn(binder);
   return binder.map((item) =>
-    item.children
-      ? { ...item, children: transformContaining(item.children, id, fn) }
-      : item,
+    item.children ? { ...item, children: transformContaining(item.children, id, fn) } : item,
   );
 }
 
 /** Reorder an item within its current parent. */
-export function reorder(
-  binder: BinderItem[],
-  id: string,
-  toIndex: number,
-): BinderItem[] {
+export function reorder(binder: BinderItem[], id: string, toIndex: number): BinderItem[] {
   return transformContaining(binder, id, (arr) => {
     const i = arr.findIndex((x) => x.id === id);
     if (i === -1) return arr;
@@ -110,9 +104,7 @@ export function insert(
       kids.splice(clamp(atIndex, 0, kids.length), 0, item);
       return { ...it, children: kids };
     }
-    return it.children
-      ? { ...it, children: insert(it.children, parentId, item, atIndex) }
-      : it;
+    return it.children ? { ...it, children: insert(it.children, parentId, item, atIndex) } : it;
   });
 }
 
@@ -134,26 +126,17 @@ export function move(
 }
 
 /** True if `ancestorId` is `id` or contains `id` in its subtree. */
-export function isAncestor(
-  binder: BinderItem[],
-  ancestorId: string,
-  id: string,
-): boolean {
+export function isAncestor(binder: BinderItem[], ancestorId: string, id: string): boolean {
   const loc = findItem(binder, ancestorId);
   if (!loc) return false;
   if (ancestorId === id) return true;
   const walk = (items?: BinderItem[]): boolean =>
-    !!items &&
-    items.some((it) => it.id === id || walk(it.children));
+    !!items && items.some((it) => it.id === id || walk(it.children));
   return walk(loc.item.children);
 }
 
 /** Patch arbitrary fields of an item (used by binder-apply to set new paths). */
-export function patch(
-  binder: BinderItem[],
-  id: string,
-  fields: Partial<BinderItem>,
-): BinderItem[] {
+export function patch(binder: BinderItem[], id: string, fields: Partial<BinderItem>): BinderItem[] {
   return binder.map((it) => {
     if (it.id === id) return { ...it, ...fields };
     return it.children ? { ...it, children: patch(it.children, id, fields) } : it;

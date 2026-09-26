@@ -199,11 +199,11 @@ describe("closing", () => {
   });
 
   it("keeps surviving panes' proportions when a sibling closes", () => {
-    const t = split("row", [
-      leaf([SCRIPT], 0, "a"),
-      leaf([BOARD], 0, "b"),
-      leaf([OUTLINE], 0, "c"),
-    ], [0.5, 0.2, 0.3]);
+    const t = split(
+      "row",
+      [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")],
+      [0.5, 0.2, 0.3],
+    );
     const next = closeTab(t, "b", 0)! as { sizes: number[] };
     // 0.5 : 0.3 renormalized, not reset to 0.5 : 0.5.
     expect(next.sizes[0]).toBeCloseTo(0.625, 3);
@@ -231,11 +231,7 @@ describe("moving tabs", () => {
   it("reorders within one pane", () => {
     const t = leaf([SCRIPT, BOARD, OUTLINE], 0, "a");
     const next = moveTab(t, { leafId: "a", index: 2 }, "a", 0);
-    expect(findLeaf(next, "a")!.tabs.map(surfaceKey)).toEqual([
-      "outliner",
-      "script",
-      "corkboard",
-    ]);
+    expect(findLeaf(next, "a")!.tabs.map(surfaceKey)).toEqual(["outliner", "script", "corkboard"]);
   });
 
   it("collapses the source pane when its last tab leaves", () => {
@@ -253,11 +249,11 @@ describe("moving tabs", () => {
 
 describe("resizing", () => {
   it("redistributes between the two neighbours of one divider only", () => {
-    const t = split("row", [
-      leaf([SCRIPT], 0, "a"),
-      leaf([BOARD], 0, "b"),
-      leaf([OUTLINE], 0, "c"),
-    ], [0.4, 0.3, 0.3]);
+    const t = split(
+      "row",
+      [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")],
+      [0.4, 0.3, 0.3],
+    );
     const next = setSize(t, t.id, 0, 0.5) as { sizes: number[] };
     expect(next.sizes[0]).toBeCloseTo(0.5, 5);
     expect(next.sizes[1]).toBeCloseTo(0.2, 5);

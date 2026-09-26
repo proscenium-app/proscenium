@@ -34,7 +34,8 @@ const MAC_ACCENTS: Record<string, string> = {
   navy: "#0a1a40",
 };
 
-const worst = (text: string, surfaces: readonly string[]) => Math.min(...surfaces.map((s) => contrast(text, s)));
+const worst = (text: string, surfaces: readonly string[]) =>
+  Math.min(...surfaces.map((s) => contrast(text, s)));
 const rgbaColour = (value: string) => {
   const m = /^rgba\((\d+), (\d+), (\d+), (0?\.\d+)\)$/.exec(value);
   return m ? [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])] : null;
@@ -53,15 +54,28 @@ describe("Follow Mac's tokens", () => {
           expect(parseHex(tokens[key]), `${scheme} ${key}`).not.toBeNull();
         }
         // Words on the fill, and on the fill under the pointer.
-        expect(contrast(tokens.onAccent, tokens.accent), `${scheme} words on the fill`).toBeGreaterThanOrEqual(ACCENT_FLOOR);
-        expect(contrast(tokens.onAccent, tokens.accentDeep), `${scheme} words on the pressed fill`).toBeGreaterThanOrEqual(ACCENT_FLOOR);
+        expect(
+          contrast(tokens.onAccent, tokens.accent),
+          `${scheme} words on the fill`,
+        ).toBeGreaterThanOrEqual(ACCENT_FLOOR);
+        expect(
+          contrast(tokens.onAccent, tokens.accentDeep),
+          `${scheme} words on the pressed fill`,
+        ).toBeGreaterThanOrEqual(ACCENT_FLOOR);
         // Accent text on every surface it sits on.
-        expect(worst(tokens.accentText, surfaces), `${scheme} accent text`).toBeGreaterThanOrEqual(ACCENT_FLOOR);
+        expect(worst(tokens.accentText, surfaces), `${scheme} accent text`).toBeGreaterThanOrEqual(
+          ACCENT_FLOOR,
+        );
         // The tints are the fill, thinned.
         for (const key of ["accentSoft", "accentSofter", "accentRing"] as const) {
           const tint = rgbaColour(tokens[key]);
           expect(tint, `${scheme} ${key}`).not.toBeNull();
-          expect(tint!.slice(0, 3).map((c) => c.toString(16).padStart(2, "0")).join("")).toBe(tokens.accent.slice(1));
+          expect(
+            tint!
+              .slice(0, 3)
+              .map((c) => c.toString(16).padStart(2, "0"))
+              .join(""),
+          ).toBe(tokens.accent.slice(1));
         }
       }
       // At night every accent's fill carries near-black, as the hand-picked four do.
@@ -96,7 +110,8 @@ describe("Follow Mac's tokens", () => {
   });
 
   it("answers nothing for a colour that is not #rrggbb", () => {
-    for (const bad of ["", "#fff", "blue", "#12345g", "rgb(0,0,0)"]) expect(deriveSystemAccent(bad)).toBeNull();
+    for (const bad of ["", "#fff", "blue", "#12345g", "rgb(0,0,0)"])
+      expect(deriveSystemAccent(bad)).toBeNull();
     expect(deriveSystemAccent("0a66e0")).not.toBeNull();
   });
 

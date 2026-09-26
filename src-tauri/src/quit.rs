@@ -4,8 +4,8 @@
 //! Quitting keeps the words (docs/app/keeping-work/storage-and-file-format.md#STOR-D13: "Blur, hide, tab close, and quit
 //! flush immediately"; docs/app/keeping-work/storage-and-file-format.md#STOR-104, no silent loss of an unsaved edit).
 //!
-//! On 2026-09-13 a scratch build showed that quitting kept nothing the disk did
-//! not already have. ⌘Q, the Dock's Quit, an AppleScript `quit` and logging out
+//! A scratch build once showed that quitting kept nothing the disk did not
+//! already have. ⌘Q, the Dock's Quit, an AppleScript `quit` and logging out
 //! all reach AppKit's `terminate:`, and tao's app delegate answers only
 //! `applicationWillTerminate:`, which is too late to ask anything: the process
 //! was gone in about 120 ms, and the page was never told. Words typed in a
@@ -60,7 +60,12 @@ enum Stage {
     /// Nobody has asked to quit, or the last quit was called off.
     Idle,
     /// Question `id` went to the page at `asked`, and holds the quit.
-    Asking { id: u64, asked: Instant, heard: bool, at_risk: bool },
+    Asking {
+        id: u64,
+        asked: Instant,
+        heard: bool,
+        at_risk: bool,
+    },
     /// The page did not acknowledge a dirty buffer. Only the native alert's
     /// answer decides this held quit; a late page message cannot discard it.
     Confirming { id: u64 },
@@ -105,7 +110,10 @@ pub struct Gate {
 
 impl Gate {
     pub const fn new() -> Self {
-        Gate { stage: Stage::Idle, last: 0 }
+        Gate {
+            stage: Stage::Idle,
+            last: 0,
+        }
     }
 
     /// Someone asked to quit. `at_risk` is the unsaved-work beacon: whether the
@@ -117,7 +125,12 @@ impl Gate {
             Stage::Asking { .. } | Stage::Confirming { .. } => Request::Hold,
             Stage::Idle => {
                 self.last += 1;
-                self.stage = Stage::Asking { id: self.last, asked: now, heard: false, at_risk };
+                self.stage = Stage::Asking {
+                    id: self.last,
+                    asked: now,
+                    heard: false,
+                    at_risk,
+                };
                 Request::Ask(self.last)
             }
         }
@@ -150,14 +163,24 @@ impl Gate {
 
     /// Question `id` has waited until `now`.
     pub fn tick(&mut self, now: Instant, id: u64) -> Verdict {
-        let Stage::Asking { id: out, asked, heard, at_risk } = self.stage else {
+        let Stage::Asking {
+            id: out,
+            asked,
+            heard,
+            at_risk,
+        } = self.stage
+        else {
             return Verdict::Done;
         };
         if out != id {
             return Verdict::Done;
         }
         let waited = now.saturating_duration_since(asked);
-        let hearing = if at_risk { HEARD_WITHIN_AT_RISK } else { HEARD_WITHIN };
+        let hearing = if at_risk {
+            HEARD_WITHIN_AT_RISK
+        } else {
+            HEARD_WITHIN
+        };
         if !heard && waited >= hearing {
             if at_risk {
                 self.stage = Stage::Confirming { id };
@@ -189,7 +212,11 @@ impl Gate {
             return Verdict::Done;
         }
         self.stage = if go { Stage::Leaving } else { Stage::Idle };
-        if go { Verdict::Quit } else { Verdict::Stay }
+        if go {
+            Verdict::Quit
+        } else {
+            Verdict::Stay
+        }
     }
 }
 
@@ -340,7 +367,11 @@ mod appkit {
     extern "C" {
         static kCFRunLoopCommonModes: *const c_void;
         fn CFRunLoopGetMain() -> *mut c_void;
-        fn CFRunLoopPerformBlock(rl: *mut c_void, mode: *const c_void, block: &block2::Block<dyn Fn()>);
+        fn CFRunLoopPerformBlock(
+            rl: *mut c_void,
+            mode: *const c_void,
+            block: &block2::Block<dyn Fn()>,
+        );
         fn CFRunLoopWakeUp(rl: *mut c_void);
     }
 
@@ -366,8 +397,14 @@ mod appkit {
     /// AppKit asks before every `terminate:` — ⌘Q, the Dock, an Apple Event,
     /// logging out. Holding it (`NSTerminateLater`) keeps the process, the
     /// window and the page alive until `replyToApplicationShouldTerminate:`.
-    unsafe extern "C-unwind" fn should_terminate(_this: *mut AnyObject, _cmd: Sel, _sender: *mut AnyObject) -> usize {
-        let Some(app) = APP.get() else { return TERMINATE_NOW };
+    unsafe extern "C-unwind" fn should_terminate(
+        _this: *mut AnyObject,
+        _cmd: Sel,
+        _sender: *mut AnyObject,
+    ) -> usize {
+        let Some(app) = APP.get() else {
+            return TERMINATE_NOW;
+        };
         match request(app) {
             Request::Quit => TERMINATE_NOW,
             Request::Ask(_) | Request::Hold => TERMINATE_LATER,
@@ -389,7 +426,13 @@ mod appkit {
                 Imp,
             >(should_terminate);
             // `Q@:@`: an NSUInteger back, from self, _cmd and the sender.
-            ffi::class_addMethod(class, sel!(applicationShouldTerminate:), imp, c"Q@:@".as_ptr()).as_bool()
+            ffi::class_addMethod(
+                class,
+                sel!(applicationShouldTerminate:),
+                imp,
+                c"Q@:@".as_ptr(),
+            )
+            .as_bool()
         }
     }
 
@@ -411,9 +454,13 @@ mod appkit {
             if super::gate().stage != (super::Stage::Confirming { id }) {
                 return;
             }
-            let Some(mtm) = MainThreadMarker::new() else { return };
+            let Some(mtm) = MainThreadMarker::new() else {
+                return;
+            };
             let alert = NSAlert::new(mtm);
-            alert.setMessageText(ns_string!("Proscenium couldn't confirm your latest words were saved."));
+            alert.setMessageText(ns_string!(
+                "Proscenium couldn't confirm your latest words were saved."
+            ));
             alert.addButtonWithTitle(ns_string!("Don't Quit"));
             alert.addButtonWithTitle(ns_string!("Quit Anyway"));
             let go = alert.runModal() == NSAlertSecondButtonReturn;
@@ -445,9 +492,15 @@ mod tests {
     fn a_quit_asks_the_page_and_quits_when_it_says_go() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(id) = gate.request(t, false) else { panic!("the page was not asked") };
+        let Request::Ask(id) = gate.request(t, false) else {
+            panic!("the page was not asked")
+        };
         gate.heard(id);
-        assert_eq!(gate.tick(at(t, 5_000), id), Verdict::Wait, "a page that heard is waited for");
+        assert_eq!(
+            gate.tick(at(t, 5_000), id),
+            Verdict::Wait,
+            "a page that heard is waited for"
+        );
         assert_eq!(gate.answered(id, true), Verdict::Quit);
         // Once it has said go, nothing is asked again: the quit goes.
         assert_eq!(gate.request(at(t, 5_001), true), Request::Quit);
@@ -457,11 +510,15 @@ mod tests {
     fn words_that_could_be_kept_nowhere_call_the_quit_off() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(id) = gate.request(t, true) else { panic!() };
+        let Request::Ask(id) = gate.request(t, true) else {
+            panic!()
+        };
         gate.heard(id);
         assert_eq!(gate.answered(id, false), Verdict::Stay);
         // The app goes on, and the next quit asks again, with a new question.
-        let Request::Ask(next) = gate.request(at(t, 60_000), true) else { panic!("the next quit asked nothing") };
+        let Request::Ask(next) = gate.request(at(t, 60_000), true) else {
+            panic!("the next quit asked nothing")
+        };
         assert_ne!(next, id);
     }
 
@@ -469,7 +526,9 @@ mod tests {
     fn a_second_quit_while_one_is_held_asks_nothing_new() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(id) = gate.request(t, false) else { panic!() };
+        let Request::Ask(id) = gate.request(t, false) else {
+            panic!()
+        };
         assert_eq!(gate.request(at(t, 100), false), Request::Hold);
         assert_eq!(gate.answered(id, true), Verdict::Quit);
     }
@@ -478,9 +537,15 @@ mod tests {
     fn a_page_that_never_hears_is_not_waited_for() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(id) = gate.request(t, false) else { panic!() };
+        let Request::Ask(id) = gate.request(t, false) else {
+            panic!()
+        };
         assert_eq!(gate.tick(at(t, 1_900), id), Verdict::Wait);
-        assert_eq!(gate.tick(at(t, 2_000), id), Verdict::Quit, "nothing on screen to settle");
+        assert_eq!(
+            gate.tick(at(t, 2_000), id),
+            Verdict::Quit,
+            "nothing on screen to settle"
+        );
         // The answer of a page that woke up too late changes nothing.
         assert_eq!(gate.answered(id, false), Verdict::Done);
     }
@@ -489,24 +554,40 @@ mod tests {
     fn unsaved_words_get_a_busy_page_longer_to_hear() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(id) = gate.request(t, true) else { panic!() };
-        assert_eq!(gate.tick(at(t, 2_000), id), Verdict::Wait, "the beacon says words are at risk");
+        let Request::Ask(id) = gate.request(t, true) else {
+            panic!()
+        };
+        assert_eq!(
+            gate.tick(at(t, 2_000), id),
+            Verdict::Wait,
+            "the beacon says words are at risk"
+        );
         assert_eq!(gate.tick(at(t, 9_999), id), Verdict::Wait);
         assert_eq!(gate.tick(at(t, 10_000), id), Verdict::Confirm);
         assert_eq!(gate.request(at(t, 11_000), true), Request::Hold);
-        assert_eq!(gate.tick(at(t, 60_000), id), Verdict::Done, "the alert is opened only once");
+        assert_eq!(
+            gate.tick(at(t, 60_000), id),
+            Verdict::Done,
+            "the alert is opened only once"
+        );
         gate.heard(id);
-        assert_eq!(gate.answered(id, true), Verdict::Done, "a late page response cannot answer the native alert");
+        assert_eq!(
+            gate.answered(id, true),
+            Verdict::Done,
+            "a late page response cannot answer the native alert"
+        );
         assert_eq!(gate.confirmed(id + 1, true), Verdict::Done);
         assert_eq!(gate.confirmed(id, false), Verdict::Stay);
         assert!(matches!(gate.request(at(t, 61_000), true), Request::Ask(next) if next != id));
     }
 
     #[test]
-    fn a2_14_only_quit_anyway_releases_an_unacknowledged_dirty_buffer() {
+    fn only_quit_anyway_releases_an_unacknowledged_dirty_buffer() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(id) = gate.request(t, true) else { panic!() };
+        let Request::Ask(id) = gate.request(t, true) else {
+            panic!()
+        };
         assert_eq!(gate.tick(at(t, 10_000), id), Verdict::Confirm);
         assert_eq!(gate.confirmed(id, true), Verdict::Quit);
         assert_eq!(gate.request(at(t, 11_000), true), Request::Quit);
@@ -517,40 +598,62 @@ mod tests {
     fn a_page_that_heard_is_never_cut_short() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(id) = gate.request(t, false) else { panic!() };
+        let Request::Ask(id) = gate.request(t, false) else {
+            panic!()
+        };
         gate.heard(id);
         assert_eq!(gate.tick(at(t, 29_999), id), Verdict::Wait);
         // Still writing after half a minute: the quit is called off, not the words.
         assert_eq!(gate.tick(at(t, 30_000), id), Verdict::Stay);
-        assert_eq!(gate.tick(at(t, 30_250), id), Verdict::Done, "a decided question is not decided twice");
+        assert_eq!(
+            gate.tick(at(t, 30_250), id),
+            Verdict::Done,
+            "a decided question is not decided twice"
+        );
     }
 
     #[test]
     fn answers_and_ticks_for_another_question_change_nothing() {
         let t = Instant::now();
         let mut gate = Gate::new();
-        let Request::Ask(first) = gate.request(t, false) else { panic!() };
+        let Request::Ask(first) = gate.request(t, false) else {
+            panic!()
+        };
         assert_eq!(gate.answered(first, false), Verdict::Stay);
-        let Request::Ask(second) = gate.request(at(t, 1_000), false) else { panic!() };
+        let Request::Ask(second) = gate.request(at(t, 1_000), false) else {
+            panic!()
+        };
         // The first question's watcher, and a late answer to it.
         assert_eq!(gate.tick(at(t, 5_000), first), Verdict::Done);
         assert_eq!(gate.answered(first, true), Verdict::Done);
         gate.heard(first);
-        assert_eq!(gate.tick(at(t, 3_000), second), Verdict::Quit, "hearing the first question is not hearing the second");
+        assert_eq!(
+            gate.tick(at(t, 3_000), second),
+            Verdict::Quit,
+            "hearing the first question is not hearing the second"
+        );
     }
 
     #[test]
     fn quit_anyway_ends_a_held_quit_or_starts_one_that_asks_nothing() {
         let t = Instant::now();
         let mut held = Gate::new();
-        let Request::Ask(id) = held.request(t, true) else { panic!() };
+        let Request::Ask(id) = held.request(t, true) else {
+            panic!()
+        };
         assert!(held.leave(), "the held quit is the one that ends");
         assert_eq!(held.tick(at(t, 20_000), id), Verdict::Done);
 
         let mut called_off = Gate::new();
-        let Request::Ask(id) = called_off.request(t, true) else { panic!() };
+        let Request::Ask(id) = called_off.request(t, true) else {
+            panic!()
+        };
         assert_eq!(called_off.answered(id, false), Verdict::Stay);
         assert!(!called_off.leave(), "nothing held: a new quit starts");
-        assert_eq!(called_off.request(at(t, 1), true), Request::Quit, "and asks nothing");
+        assert_eq!(
+            called_off.request(at(t, 1), true),
+            Request::Quit,
+            "and asks nothing"
+        );
     }
 }

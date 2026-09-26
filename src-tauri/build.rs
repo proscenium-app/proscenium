@@ -52,20 +52,30 @@ fn selftest_assets() {
         );
     }
     println!("cargo:rerun-if-changed={}", harness.display());
-    println!("cargo:rustc-env=PROSCENIUM_SELFTEST_HARNESS={}", harness.display());
+    println!(
+        "cargo:rustc-env=PROSCENIUM_SELFTEST_HARNESS={}",
+        harness.display()
+    );
 }
 
 /// Every file under `dir`, skipping dotfiles (a `.DS_Store` is not the fixture).
 fn collect(root: &Path, dir: &Path, files: &mut Vec<(String, String)>) {
     for entry in fs::read_dir(dir).expect("selftest: read sample-vault/") {
         let path = entry.expect("selftest: read sample-vault/").path();
-        if path.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.')) {
+        if path
+            .file_name()
+            .is_some_and(|n| n.to_string_lossy().starts_with('.'))
+        {
             continue;
         }
         if path.is_dir() {
             collect(root, &path, files);
         } else {
-            let rel = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
+            let rel = path
+                .strip_prefix(root)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
             files.push((rel, path.to_string_lossy().to_string()));
         }
     }

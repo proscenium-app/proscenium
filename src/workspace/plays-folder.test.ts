@@ -23,11 +23,15 @@ const folder = (path: string, patch: Partial<FolderFacts> = {}): FolderFacts => 
 describe("what may be the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-D2)", () => {
   it("an ordinary folder may", () => {
     expect(playsFolderRefusal(folder("/Users/w/Documents/Plays"), null)).toBeNull();
-    expect(playsFolderRefusal(folder("/Users/w/Dropbox/Plays", { providers: ["dropbox"] }), null)).toBeNull();
+    expect(
+      playsFolderRefusal(folder("/Users/w/Dropbox/Plays", { providers: ["dropbox"] }), null),
+    ).toBeNull();
   });
 
   it("the Plays folder already open may be chosen again", () => {
-    expect(playsFolderRefusal(folder("/Users/w/Plays"), { path: "/Users/w/Plays/", plays: 4 })).toBeNull();
+    expect(
+      playsFolderRefusal(folder("/Users/w/Plays"), { path: "/Users/w/Plays/", plays: 4 }),
+    ).toBeNull();
   });
 
   it("refuses a play, pointing at the folder that holds it", () => {
@@ -118,7 +122,9 @@ describe("a Plays folder chosen one level too high (docs/app/keeping-work/storag
     expect(hint?.sentence).toBe(
       "Your plays look like they are in “A”, “B”, “C”, and 2 other folders inside this folder.",
     );
-    expect(playsFolderHint(0, below.slice(0, 4))?.sentence).toContain("“C”, and 1 other folder inside");
+    expect(playsFolderHint(0, below.slice(0, 4))?.sentence).toContain(
+      "“C”, and 1 other folder inside",
+    );
     // Writer-facing words only (docs/app/keeping-work/storage-and-file-format.md#STOR-D1).
     expect(hint?.sentence).not.toMatch(/vault|sync|project/i);
   });

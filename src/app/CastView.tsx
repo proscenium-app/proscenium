@@ -29,7 +29,15 @@ import {
 } from "../workspace";
 import { PresenceGrid } from "./PresenceGrid";
 import { FrontPageEditor, charactersPageText } from "./FrontPageEditor";
-import { Button, CloseIcon, PlusIcon, IconButton, ArrowUpIcon, ArrowDownIcon, announce } from "../ui";
+import {
+  Button,
+  CloseIcon,
+  PlusIcon,
+  IconButton,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  announce,
+} from "../ui";
 
 export interface CastViewProps {
   characters: CharacterEntry[];
@@ -54,7 +62,7 @@ export interface CastViewProps {
   cards: SceneCard[];
   /** Jump to a scene from a grid column heading. */
   onOpenScene?: (ordinal: number) => void;
-  /** Open the export dialog on this character's sides (backlog P5). */
+  /** Open the export dialog on this character's sides. */
   onExportSides?: (name: string) => void;
 }
 
@@ -82,14 +90,11 @@ function weightSummary(w: CharacterWeight | undefined): string | null {
   return `${lines} · ${scenes}`;
 }
 
-
 export function CastView(props: CastViewProps) {
   // Local working copy, re-seeded when the play changes (so switching plays or
   // an external edit is picked up on (re)mount of this surface). A ref
   // mirrors the rows so save-on-blur never depends on a stale render closure.
-  const [rows, setRows] = useState<CharacterEntry[]>(() =>
-    props.characters.map((c) => ({ ...c })),
-  );
+  const [rows, setRows] = useState<CharacterEntry[]>(() => props.characters.map((c) => ({ ...c })));
   const rowsRef = useRef(rows);
   const apply = (next: CharacterEntry[]) => {
     rowsRef.current = next;
@@ -150,7 +155,12 @@ export function CastView(props: CastViewProps) {
 
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const names = useRef<(HTMLInputElement | null)[]>([]);
-  useLayoutEffect(() => { if (focusRow !== null) { names.current[focusRow]?.focus(); setFocusRow(null); } }, [focusRow, rows]);
+  useLayoutEffect(() => {
+    if (focusRow !== null) {
+      names.current[focusRow]?.focus();
+      setFocusRow(null);
+    }
+  }, [focusRow, rows]);
   const addRow = () => {
     dirty.current = true;
     setFocusRow(rowsRef.current.length);
@@ -158,8 +168,13 @@ export function CastView(props: CastViewProps) {
   };
   const moveRow = (from: number, to: number) => {
     if (to < 0 || to >= rowsRef.current.length) return;
-    const next = [...rowsRef.current]; const [row] = next.splice(from, 1); next.splice(to, 0, row);
-    dirty.current = true; apply(next); commit(); setFocusRow(to);
+    const next = [...rowsRef.current];
+    const [row] = next.splice(from, 1);
+    next.splice(to, 0, row);
+    dirty.current = true;
+    apply(next);
+    commit();
+    setFocusRow(to);
     announce(`Moved “${row.name}” to ${to + 1}.`);
   };
 
@@ -179,13 +194,35 @@ export function CastView(props: CastViewProps) {
           </p>
         </header>
 
-        <div data-tutorial="characters-page"><FrontPageEditor label="Printed characters page" value={props.printedPage ?? charactersPageText(props.characters)} onChange={props.onSavePage} /></div>
-        <details className="castview__page-options"><summary>Page Options</summary>
-          <Button size="small" onClick={() => props.onSavePage(undefined)}>Use Cast List Automatically</Button>
-          <Button size="small" onClick={() => props.onSavePage(charactersPageText(rowsRef.current.filter((r) => r.name.trim())))}>Replace Page from Cast List</Button>
-          <p className="settings__note">Replacing uses the names and descriptions below. Changes to the cast list do not change a page you have edited.</p>
+        <div data-tutorial="characters-page">
+          <FrontPageEditor
+            label="Printed characters page"
+            value={props.printedPage ?? charactersPageText(props.characters)}
+            onChange={props.onSavePage}
+          />
+        </div>
+        <details className="castview__page-options">
+          <summary>Page Options</summary>
+          <Button size="small" onClick={() => props.onSavePage(undefined)}>
+            Use Cast List Automatically
+          </Button>
+          <Button
+            size="small"
+            onClick={() =>
+              props.onSavePage(charactersPageText(rowsRef.current.filter((r) => r.name.trim())))
+            }
+          >
+            Replace Page from Cast List
+          </Button>
+          <p className="settings__note">
+            Replacing uses the names and descriptions below. Changes to the cast list do not change
+            a page you have edited.
+          </p>
         </details>
-        <header className="castview__head"><h2 className="castview__title">Cast Tools</h2><p className="castview__sub">Names, private notes, appearances and sides.</p></header>
+        <header className="castview__head">
+          <h2 className="castview__title">Cast Tools</h2>
+          <p className="castview__sub">Names, private notes, appearances and sides.</p>
+        </header>
         {rows.length === 0 && (
           <p className="castview__empty">
             No characters yet — write a cue in the script and they'll appear here.
@@ -209,10 +246,14 @@ export function CastView(props: CastViewProps) {
                 const summary = weightSummary(weight);
                 return (
                   <div className="castcard" key={i} role="group" aria-labelledby={headingId}>
-                    <span className="sr-only" id={headingId}>{characterName}</span>
+                    <span className="sr-only" id={headingId}>
+                      {characterName}
+                    </span>
                     <div className="castcard__fields">
                       <input
-                        ref={(el) => { names.current[i] = el; }}
+                        ref={(el) => {
+                          names.current[i] = el;
+                        }}
                         data-tutorial="character-name"
                         aria-label={`Name — ${characterName}`}
                         className="castcard__name"
@@ -243,8 +284,20 @@ export function CastView(props: CastViewProps) {
                       </button>
                     </div>
                     <div className="castcard__meta">
-                      <IconButton label={`Move ${characterName} up`} disabled={i === 0} onClick={() => moveRow(i, i - 1)}><ArrowUpIcon size={12} /></IconButton>
-                      <IconButton label={`Move ${characterName} down`} disabled={i === rows.length - 1} onClick={() => moveRow(i, i + 1)}><ArrowDownIcon size={12} /></IconButton>
+                      <IconButton
+                        label={`Move ${characterName} up`}
+                        disabled={i === 0}
+                        onClick={() => moveRow(i, i - 1)}
+                      >
+                        <ArrowUpIcon size={12} />
+                      </IconButton>
+                      <IconButton
+                        label={`Move ${characterName} down`}
+                        disabled={i === rows.length - 1}
+                        onClick={() => moveRow(i, i + 1)}
+                      >
+                        <ArrowDownIcon size={12} />
+                      </IconButton>
                       {summary && <span className="castcard__weight">{summary}</span>}
                       <span className="castcard__appears">
                         {appearances.length
@@ -306,7 +359,12 @@ export function CastView(props: CastViewProps) {
         )}
 
         <div className="castview__adders">
-          <Button size="small" treatment="borderless" data-tutorial="add-character" onClick={addRow}>
+          <Button
+            size="small"
+            treatment="borderless"
+            data-tutorial="add-character"
+            onClick={addRow}
+          >
             <PlusIcon size={11} />
             Add Character
           </Button>

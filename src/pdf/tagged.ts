@@ -7,8 +7,15 @@
  * Reference: ISO 32000, sections 14.6–14.9 (marked content and logical structure).
  */
 import {
-  PDFArray, PDFDocument, PDFHexString, PDFName, PDFNumber, PDFOperator,
-  PDFOperatorNames, type PDFPage, type PDFRef,
+  PDFArray,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNumber,
+  PDFOperator,
+  PDFOperatorNames,
+  type PDFPage,
+  type PDFRef,
 } from "pdf-lib";
 
 export interface PdfElement {
@@ -27,11 +34,17 @@ export class TaggedPdf {
     const context = pdf.context;
     this.parentNums = context.obj([]);
     const parentTree = context.register(context.obj({ Nums: this.parentNums }));
-    this.root = context.obj({ Type: "StructTreeRoot", ParentTree: parentTree, ParentTreeNextKey: 0,
-      RoleMap: { Speech: "Div", Speaker: "P", Dialogue: "P", StageDirection: "P" } });
+    this.root = context.obj({
+      Type: "StructTreeRoot",
+      ParentTree: parentTree,
+      ParentTreeNextKey: 0,
+      RoleMap: { Speech: "Div", Speaker: "P", Dialogue: "P", StageDirection: "P" },
+    });
     const rootRef = context.register(this.root);
     const children = context.obj([]);
-    const ref = context.register(context.obj({ Type: "StructElem", S: "Document", P: rootRef, K: children }));
+    const ref = context.register(
+      context.obj({ Type: "StructElem", S: "Document", P: rootRef, K: children }),
+    );
     this.document = { ref, children, tag: "Document" };
     this.root.set(PDFName.of("K"), context.obj([ref]));
     pdf.catalog.set(PDFName.of("StructTreeRoot"), rootRef);
@@ -66,15 +79,27 @@ export class TaggedPdf {
     element.children.push(context.obj({ Type: "MCR", Pg: page.ref, MCID: mcid }));
     // PDFOperator's typed arguments omit PDFDict. The serialized property list
     // contains only this page's generated integer, never unsanitized source text.
-    page.pushOperators(PDFOperator.of(PDFOperatorNames.BeginMarkedContentSequence,
-      [PDFName.of(element.tag), `<< /MCID ${mcid} >>`]));
-    try { draw(); }
-    finally { page.pushOperators(PDFOperator.of(PDFOperatorNames.EndMarkedContent)); }
+    page.pushOperators(
+      PDFOperator.of(PDFOperatorNames.BeginMarkedContentSequence, [
+        PDFName.of(element.tag),
+        `<< /MCID ${mcid} >>`,
+      ]),
+    );
+    try {
+      draw();
+    } finally {
+      page.pushOperators(PDFOperator.of(PDFOperatorNames.EndMarkedContent));
+    }
   }
 
   artifact(page: PDFPage, draw: () => void): void {
-    page.pushOperators(PDFOperator.of(PDFOperatorNames.BeginMarkedContent, [PDFName.of("Artifact")]));
-    try { draw(); }
-    finally { page.pushOperators(PDFOperator.of(PDFOperatorNames.EndMarkedContent)); }
+    page.pushOperators(
+      PDFOperator.of(PDFOperatorNames.BeginMarkedContent, [PDFName.of("Artifact")]),
+    );
+    try {
+      draw();
+    } finally {
+      page.pushOperators(PDFOperator.of(PDFOperatorNames.EndMarkedContent));
+    }
   }
 }

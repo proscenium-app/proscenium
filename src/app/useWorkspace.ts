@@ -15,7 +15,12 @@
  * Mutable orchestration state lives in refs so the autosave/watcher callbacks
  * never see stale closures; React state drives rendering.
  */
-import { settleWorkspaceDocuments, settleQuitDocuments, type ScriptSettlement as Settled, type WorkspaceSettlement } from "./workspace-transition";
+import {
+  settleWorkspaceDocuments,
+  settleQuitDocuments,
+  type ScriptSettlement as Settled,
+  type WorkspaceSettlement,
+} from "./workspace-transition";
 import type { KeptFile } from "../storage/import-bytes";
 import { useOutlineSession } from "./use-outline-session";
 import { captureDocumentScope } from "./document-scope";
@@ -222,7 +227,12 @@ async function isListed(path: string): Promise<boolean> {
   const name = path.slice(slash + 1);
   try {
     const entries = await vault.list(slash < 0 ? "" : path.slice(0, slash));
-    return matchingPath(name, entries.map((e) => e.name)) !== undefined;
+    return (
+      matchingPath(
+        name,
+        entries.map((e) => e.name),
+      ) !== undefined
+    );
   } catch {
     return true;
   }
@@ -236,7 +246,10 @@ async function modifiedMsOf(path: string): Promise<number | null> {
   const name = path.slice(slash + 1);
   try {
     const entries = await vault.list(slash < 0 ? "" : path.slice(0, slash));
-    const match = matchingPath(name, entries.filter((e) => !e.isDir).map((e) => e.name));
+    const match = matchingPath(
+      name,
+      entries.filter((e) => !e.isDir).map((e) => e.name),
+    );
     return entries.find((e) => e.name === match)?.modifiedMs ?? null;
   } catch {
     return null;
@@ -381,7 +394,10 @@ function affectsBinder(relPath: string): boolean {
 /** The binder item for a play-relative path, compared the way the Mac compares names. */
 function findByPath(binder: BinderItem[], path: string): BinderItem | null {
   const rows = flatten(binder);
-  const match = matchingPath(path, rows.map((item) => item.path));
+  const match = matchingPath(
+    path,
+    rows.map((item) => item.path),
+  );
   return rows.find((item) => item.path === match) ?? null;
 }
 
@@ -408,9 +424,14 @@ function holdsItem(binder: BinderItem[], id: string, target: string): boolean {
 export interface Workspace {
   /** Tutorial practice uses the same workspace and guarded writers, with a separate root. */
   practicing: boolean;
-  startPractice: (title: string, script: string, resumeDir?: string, session?: string) => Promise<{id: string; dir: string; session?: string} | null>;
-  keepPractice: (title: string) => Promise<{dir: string; base: string}>;
-  openPracticeCopy: (copy: {dir: string; base: string}) => Promise<boolean>;
+  startPractice: (
+    title: string,
+    script: string,
+    resumeDir?: string,
+    session?: string,
+  ) => Promise<{ id: string; dir: string; session?: string } | null>;
+  keepPractice: (title: string) => Promise<{ dir: string; base: string }>;
+  openPracticeCopy: (copy: { dir: string; base: string }) => Promise<boolean>;
   canKeepPractice: boolean;
   stopPractice: () => Promise<boolean>;
   isPractice: (id: string) => boolean;
@@ -590,7 +611,7 @@ export interface Workspace {
   unhideFromCast: (name: string) => void;
   /** Paginate the open script for the export dialog's preview — the same call
    * the export itself makes, so what you pick is what you get. Pass a
-   * character name to paginate that character's SIDES instead (backlog P5).
+   * character name to paginate that character's SIDES instead.
    * `anonymous` lays out the copy without the writer's name
    * (docs/app/formatting/formats-and-layout.md#FMT-143). */
   layoutForExport: (sidesFor?: string | null, anonymous?: boolean) => LayoutResult | null;
@@ -704,7 +725,13 @@ export interface Workspace {
    * (docs/app/importing/document-import.md#IMPT-98). False when nothing was
    * filed; the reason is on the error line.
    */
-  addImport: (kind: "script" | "document", title: string, content: string, keep: KeptFile, parentId?: string | null) => Promise<boolean>;
+  addImport: (
+    kind: "script" | "document",
+    title: string,
+    content: string,
+    keep: KeptFile,
+    parentId?: string | null,
+  ) => Promise<boolean>;
   /** Copy a file beside itself and open the copy. Files only, never folders. */
   duplicate: (id: string) => void;
   /** Show one binder item in the OS file manager. */
@@ -729,7 +756,11 @@ export function useWorkspace(): Workspace {
   const practiceSessionRef = useRef<string | undefined>(undefined);
   const practiceSourceRef = useRef<PracticeSource | null>(null);
   const practiceRootRef = useRef<string | null>(null);
-  const practiceReturnRef = useRef<{base: string | null; dir: string | null; script: string | null} | null>(null);
+  const practiceReturnRef = useRef<{
+    base: string | null;
+    dir: string | null;
+    script: string | null;
+  } | null>(null);
   /* "picker" until a play has loaded, never "workspace" first: the first
      folder opens (setRoot) a few awaits before its plays are listed, and a
      shell that started in "workspace" drew an empty play for that moment on
@@ -806,14 +837,25 @@ export function useWorkspace(): Workspace {
   const reloadSeqRef = useRef(0);
   // Unlike read cancellation, document ownership lasts through settlement.
   const documentEpochRef = useRef(0);
-  const captureSessionScope = useCallback(() => captureDocumentScope(() => ({
-    playId: playIdRef.current, generation: documentEpochRef.current, changes: changesRef.current,
-  }), vault), []);
+  const captureSessionScope = useCallback(
+    () =>
+      captureDocumentScope(
+        () => ({
+          playId: playIdRef.current,
+          generation: documentEpochRef.current,
+          changes: changesRef.current,
+        }),
+        vault,
+      ),
+    [],
+  );
   const materials = useMaterialSessions({
     currentScope: captureSessionScope,
     bufferGeneration: () => workspaceGenRef.current,
     syncBeacon: () => syncBeaconRef.current(),
-    captureRecovery: () => { void bufferRecoveryRef.current?.captureNow(); },
+    captureRecovery: () => {
+      void bufferRecoveryRef.current?.captureNow();
+    },
     setSheetStatus: (status) => setSheetStatus(status),
     setActiveId: (id) => setActiveId(id),
     setError: (error) => setError(error),
@@ -865,7 +907,9 @@ export function useWorkspace(): Workspace {
     currentScope: captureSessionScope,
     bufferGeneration: () => workspaceGenRef.current,
     syncBeacon: () => syncBeaconRef.current(),
-    captureRecovery: () => { void bufferRecoveryRef.current?.captureNow(); },
+    captureRecovery: () => {
+      void bufferRecoveryRef.current?.captureNow();
+    },
     setSheetStatus: (status) => setSheetStatus(status),
     setError: (error) => setError(error),
     setPreserved: (update) => setPreserved(update),
@@ -1015,18 +1059,23 @@ export function useWorkspace(): Workspace {
   const playPathRef = useRef<string | null>(null);
   const playIdRef = useRef<string | null>(null);
   const bufferRecoveryRef = useRef<BufferRecovery | null>(null);
-  if (!bufferRecoveryRef.current) bufferRecoveryRef.current = new BufferRecovery(recovery, () => {
-    const playId = playIdRef.current;
-    if (!playId) return [];
-    const copies: RecoveryBuffer[] = [];
-    copies.push(...materials.recoveryCopies((id) => findById(playRef.current?.data.binder ?? [], id)?.path));
-    copies.push(...outline.recoveryCopies());
-    return copies;
-  });
+  if (!bufferRecoveryRef.current)
+    bufferRecoveryRef.current = new BufferRecovery(recovery, () => {
+      const playId = playIdRef.current;
+      if (!playId) return [];
+      const copies: RecoveryBuffer[] = [];
+      copies.push(
+        ...materials.recoveryCopies((id) => findById(playRef.current?.data.binder ?? [], id)?.path),
+      );
+      copies.push(...outline.recoveryCopies());
+      return copies;
+    });
   useEffect(() => {
     const copies = bufferRecoveryRef.current!;
     copies.start();
-    return () => { void copies.stop(); };
+    return () => {
+      void copies.stop();
+    };
   }, []);
   /** The play's own directory name, for the ‹ back path and the Plays screen. */
   const playDirRef = useRef<string | null>(null);
@@ -1064,7 +1113,11 @@ export function useWorkspace(): Workspace {
   const saveSubject = useCallback((kind: SaveSubject["kind"], path: string): SaveSubject => {
     const dirs = path.split("/").slice(0, -1);
     const play = playDirRef.current ?? "";
-    return { kind, name: titleFromFileName(path), folder: dirs.pop() ?? play.slice(play.lastIndexOf("/") + 1) };
+    return {
+      kind,
+      name: titleFromFileName(path),
+      folder: dirs.pop() ?? play.slice(play.lastIndexOf("/") + 1),
+    };
   }, []);
   const saveRefused = useCallback((key: string, e: VaultWriteError, subject: SaveSubject) => {
     const refusal = saveRefusal(e);
@@ -1091,7 +1144,9 @@ export function useWorkspace(): Workspace {
    */
   const changeRefused = useCallback(
     (e: unknown, kind: SaveSubject["kind"], path: string | null): string | SaveProblem =>
-      e instanceof VaultWriteError && path ? saveProblem(saveRefusal(e), saveSubject(kind, path), "change") : String(e),
+      e instanceof VaultWriteError && path
+        ? saveProblem(saveRefusal(e), saveSubject(kind, path), "change")
+        : String(e),
     [saveSubject],
   );
 
@@ -1121,9 +1176,7 @@ export function useWorkspace(): Workspace {
       .run();
     editorRef.current?.commands.resetHistory();
     loadingRef.current = false;
-    docRef.current = editorRef.current
-      ? fromEditorDoc(editorRef.current.getJSON() as Doc)
-      : doc;
+    docRef.current = editorRef.current ? fromEditorDoc(editorRef.current.getJSON() as Doc) : doc;
   }, []);
 
   /**
@@ -1142,7 +1195,10 @@ export function useWorkspace(): Workspace {
     const editor = editorRef.current;
     // Every retained attempt has a Practice Play.fountain. Its remembered
     // cursor belongs to that play, not to the shared filename.
-    const key = practiceRef.current && vaultRootRef.current === practiceRootRef.current && playIdRef.current ? `practice:${playIdRef.current}/${path}` : path;
+    const key =
+      practiceRef.current && vaultRootRef.current === practiceRootRef.current && playIdRef.current
+        ? `practice:${playIdRef.current}/${path}`
+        : path;
     const pos = editor ? recallCaret(key, editor.state.doc.content.size) : null;
     const generation = workspaceGenRef.current;
     const loadedDoc = editor?.state.doc;
@@ -1150,8 +1206,16 @@ export function useWorkspace(): Workspace {
     const place = (moveCaret: boolean) => {
       if (pos === null) return;
       const live = editorRef.current;
-      if (!live || live !== editor || generation !== workspaceGenRef.current || scriptPathRef.current !== path
-        || live.state.doc !== loadedDoc || !selection || !live.state.selection.eq(selection)) return;
+      if (
+        !live ||
+        live !== editor ||
+        generation !== workspaceGenRef.current ||
+        scriptPathRef.current !== path ||
+        live.state.doc !== loadedDoc ||
+        !selection ||
+        !live.state.selection.eq(selection)
+      )
+        return;
       try {
         if (moveCaret) {
           live.chain().setTextSelection(pos).setMeta("addToHistory", false).run();
@@ -1287,7 +1351,7 @@ export function useWorkspace(): Workspace {
 
   // Flushes are strictly serialized: a debounce flush racing a blur/⌘S/quit
   // flush would read a stale `expected` hash and collide WITH OUR OWN prior
-  // write (self-conflict siblings + a bogus dirty-gate — seen live 2026-07-17).
+  // write (self-conflict siblings + a bogus dirty-gate, seen on a real vault).
   // One flush in flight; latecomers coalesce into one follow-up that reads a
   // fresh expected hash after the first completes.
   const flushInFlightRef = useRef(false);
@@ -1399,9 +1463,13 @@ export function useWorkspace(): Workspace {
           // The words stay in the buffer and the recovery snapshot, and the next
           // pause in the typing tries again.
           if (!(e instanceof VaultWriteError)) setError(String(e));
-          else if (stillOpen()) saveRefused(`script:${sid ?? path}`, e, saveSubject("script", path));
+          else if (stillOpen())
+            saveRefused(`script:${sid ?? path}`, e, saveSubject("script", path));
           else setError(saveProblem(saveRefusal(e), saveSubject("script", path)));
-          if (stillOpen()) { void recoveryRef.current?.writeNow(); setStatus("idle"); }
+          if (stillOpen()) {
+            void recoveryRef.current?.writeNow();
+            setStatus("idle");
+          }
         }
       } while (flushQueuedRef.current);
 
@@ -1548,30 +1616,32 @@ export function useWorkspace(): Workspace {
    * Every abandoned owner is independent of the new editor's recovery file.
    * All eligible copies are offered in order, with pinned versions behind them.
    */
-  const checkRecovery = useCallback(
-    async (playId: string, item: BinderItem, fileText: string) => {
-      if (!item.path) return;
-      const scriptId = item.id;
-      const check = ++recoveryCheckRef.current;
-      const gen = workspaceGenRef.current;
-      try {
-        const files = await recovery.list(playId, scriptId);
-        const offers = await reviewRecoveryFiles(files, {
-          fileModifiedMs: await modifiedMsOf(item.path),
-          sameContent: (text) => sameScriptText(text, fileText, canonicalFountain),
-          keep: (text) => versions.snapshot(playId, scriptId, "recovery", text),
-          remove: (owner) => recovery.remove(playId, scriptId, owner),
-        });
-        if (activeScriptIdRef.current !== scriptId || gen !== workspaceGenRef.current || check !== recoveryCheckRef.current) return;
-        const queue = offers.map((offer) => ({ ...offer, playId, scriptId, title: titleOf(item) }));
-        recoveryQueueRef.current = queue;
-        setRecoveryOffer(queue.shift() ?? null);
-      } catch {
-        /* Every old owner stays intact; new typing has its own recovery file. */
-      }
-    },
-    [],
-  );
+  const checkRecovery = useCallback(async (playId: string, item: BinderItem, fileText: string) => {
+    if (!item.path) return;
+    const scriptId = item.id;
+    const check = ++recoveryCheckRef.current;
+    const gen = workspaceGenRef.current;
+    try {
+      const files = await recovery.list(playId, scriptId);
+      const offers = await reviewRecoveryFiles(files, {
+        fileModifiedMs: await modifiedMsOf(item.path),
+        sameContent: (text) => sameScriptText(text, fileText, canonicalFountain),
+        keep: (text) => versions.snapshot(playId, scriptId, "recovery", text),
+        remove: (owner) => recovery.remove(playId, scriptId, owner),
+      });
+      if (
+        activeScriptIdRef.current !== scriptId ||
+        gen !== workspaceGenRef.current ||
+        check !== recoveryCheckRef.current
+      )
+        return;
+      const queue = offers.map((offer) => ({ ...offer, playId, scriptId, title: titleOf(item) }));
+      recoveryQueueRef.current = queue;
+      setRecoveryOffer(queue.shift() ?? null);
+    } catch {
+      /* Every old owner stays intact; new typing has its own recovery file. */
+    }
+  }, []);
 
   /*
    * An open is a read, then a swap. Only the LATEST open may swap: one whose
@@ -1609,7 +1679,9 @@ export function useWorkspace(): Workspace {
     void playStore.remove(note.playId, KEPT_AT_QUIT).catch(() => {});
   }, []);
   /** So an open can hand a missed outside change to the one judge of it, declared below. */
-  const handleExternalChangeRef = useRef<(e: { relPath: string; hash: string | null }) => void>(() => {});
+  const handleExternalChangeRef = useRef<(e: { relPath: string; hash: string | null }) => void>(
+    () => {},
+  );
 
   const openScript = useCallback(
     async (item: BinderItem) => {
@@ -1721,7 +1793,15 @@ export function useWorkspace(): Workspace {
       // it awaits: everything above belongs to the swap.
       if (docRef.current) await refreshCards(docRef.current);
     },
-    [applyLoaded, refreshCards, settleOpenScript, captureUnsaved, checkRecovery, forgetRefused, sayQuitNote],
+    [
+      applyLoaded,
+      refreshCards,
+      settleOpenScript,
+      captureUnsaved,
+      checkRecovery,
+      forgetRefused,
+      sayQuitNote,
+    ],
   );
 
   const selectItem = useCallback(
@@ -1855,102 +1935,124 @@ export function useWorkspace(): Workspace {
   // saved, not in Versions, not in a recovery copy. The
   // script switch and the quit already refuse in that state; leaving used to
   // clear the buffers and say so afterwards, when the words were gone.
-  const teardownWorkspace = useCallback(async (requireSaved = false): Promise<boolean> => {
-    // A script still reading belongs to the workspace that is going: it must
-    // not swap itself in afterwards, pointed at a vault that has moved on — and
-    // no new open may start while this settles.
-    closingRef.current = true;
-    workspaceGenRef.current += 1;
-    openSeqRef.current += 1;
-    openPendingRef.current = false;
-    // Leaving cannot be refused the way a script switch is, so words that could
-    // be kept nowhere else are in the recovery snapshot now, and the message
-    // says so. Open sheets and the outline scratchpad come first: what they
-    // hold lands, or is kept in Versions — leaving used to drop both.
-    let transition: WorkspaceSettlement;
-    try {
-      transition = await settleWorkspaceDocuments({
-        materials: materials.settle,
-        outline: { hasUnsaved: outline.hasUnsaved, settle: outline.keepOutlineInLine, path: outlineNotePathOrHome },
-        script: settleOpenScript,
-      });
-    } finally {
+  const teardownWorkspace = useCallback(
+    async (requireSaved = false): Promise<boolean> => {
+      // A script still reading belongs to the workspace that is going: it must
+      // not swap itself in afterwards, pointed at a vault that has moved on — and
+      // no new open may start while this settles.
+      closingRef.current = true;
       workspaceGenRef.current += 1;
-      closingRef.current = false;
-    }
-    const { script: settled, lostSheets, unsavedKeys, held } = transition;
-    if (held.length) {
-      setError(
-        `What was typed couldn't be saved or kept anywhere, so the play stays open: ${held.map((t) => `“${t}”`).join(", ")} still ${held.length === 1 ? "holds" : "hold"} it. Copy anything you need, then try again.`,
-      );
-      return false;
-    }
-    // A portable copy must contain the latest words, not just an older file with
-    // newer words preserved in app data (docs/app/keeping-work/storage-and-file-format.md#STOR-171).
-    if (requireSaved && (gateRef.current || sessionRef.current?.dirty || materials.unsafe() || outline.unsafe())) return false;
-    await bufferRecoveryRef.current?.captureNow();
-    await bufferRecoveryRef.current?.detach();
-    recoveryRef.current?.detach();
-    recoveryQueueRef.current = [];
-    setRecoveryOffer(null);
-    documentEpochRef.current += 1;
-    setPlaySettled(false);
-    sessionRef.current = null;
-    scriptPathRef.current = null;
-    setScriptPathState(null);
-    activeScriptIdRef.current = null;
-    setOpenScriptKey(null);
-    playRef.current = null;
-    playPathRef.current = null;
-    playIdRef.current = null;
-    playDirRef.current = null;
-    changesRef.current = null;
-    frontMatterRef.current = {};
-    docRef.current = null;
-    materials.reset();
-    outline.reset();
-    setCastHidden([]);
-    for (const t of [reconcileTimerRef, appearancesTimerRef]) {
-      if (t.current) clearTimeout(t.current);
-      t.current = null;
-    }
-    setLedger([]);
-    setMissingItems([]);
-    setNewlyFiled(new Set());
-    setFormatId(null);
-    setLayoutMeta({});
-    setFrontMatterState({});
-    loadDocIntoEditor({ type: "doc", content: [] });
-    setBinder([]);
-    setCards([]);
-    setActiveId(null);
-    setScriptTitle("");
-    setPlayTitle("");
-    setViewState("editor");
-    setGate(false);
-    setStatus("idle");
-    // Sheets whose saves the disk refused, and whose words went into Versions
-    // just now rather than being lost: their toast said "in this window".
-    const keptAway = [...refusedRef.current]
-      .filter(([key]) => unsavedKeys.has(key))
-      .map(([, refused]) => refused)
-      .filter(({ subject }) => !lostSheets.includes(subject.kind === "outline" ? "Outline notes" : subject.name));
-    forgetRefused(() => true);
-    if (!settled.safe) {
-      setError(
-        `“${settled.title}” couldn't be kept in Versions. If Proscenium could write a recovery copy, it offers the words when the script next opens.`,
-      );
-    } else if (settled.message) setError(settled.message);
-    else if (keptAway.length) {
-      const cause = saveProblem(keptAway[0].refusal, keptAway[0].subject);
-      setError({
-        title: `What was typed in ${keptAway.map(({ subject }) => `“${subject.name}”`).join(", ")} is kept in Versions, because it couldn't be saved.`,
-        detail: cause.title,
-        code: cause.code,
-      });
-    }
-    return true;
-  }, [settleOpenScript, loadDocIntoEditor, materials.settle, outline.hasUnsaved, outline.keepOutlineInLine, outlineNotePathOrHome, forgetRefused]);
+      openSeqRef.current += 1;
+      openPendingRef.current = false;
+      // Leaving cannot be refused the way a script switch is, so words that could
+      // be kept nowhere else are in the recovery snapshot now, and the message
+      // says so. Open sheets and the outline scratchpad come first: what they
+      // hold lands, or is kept in Versions — leaving used to drop both.
+      let transition: WorkspaceSettlement;
+      try {
+        transition = await settleWorkspaceDocuments({
+          materials: materials.settle,
+          outline: {
+            hasUnsaved: outline.hasUnsaved,
+            settle: outline.keepOutlineInLine,
+            path: outlineNotePathOrHome,
+          },
+          script: settleOpenScript,
+        });
+      } finally {
+        workspaceGenRef.current += 1;
+        closingRef.current = false;
+      }
+      const { script: settled, lostSheets, unsavedKeys, held } = transition;
+      if (held.length) {
+        setError(
+          `What was typed couldn't be saved or kept anywhere, so the play stays open: ${held.map((t) => `“${t}”`).join(", ")} still ${held.length === 1 ? "holds" : "hold"} it. Copy anything you need, then try again.`,
+        );
+        return false;
+      }
+      // A portable copy must contain the latest words, not just an older file with
+      // newer words preserved in app data (docs/app/keeping-work/storage-and-file-format.md#STOR-171).
+      if (
+        requireSaved &&
+        (gateRef.current || sessionRef.current?.dirty || materials.unsafe() || outline.unsafe())
+      )
+        return false;
+      await bufferRecoveryRef.current?.captureNow();
+      await bufferRecoveryRef.current?.detach();
+      recoveryRef.current?.detach();
+      recoveryQueueRef.current = [];
+      setRecoveryOffer(null);
+      documentEpochRef.current += 1;
+      setPlaySettled(false);
+      sessionRef.current = null;
+      scriptPathRef.current = null;
+      setScriptPathState(null);
+      activeScriptIdRef.current = null;
+      setOpenScriptKey(null);
+      playRef.current = null;
+      playPathRef.current = null;
+      playIdRef.current = null;
+      playDirRef.current = null;
+      changesRef.current = null;
+      frontMatterRef.current = {};
+      docRef.current = null;
+      materials.reset();
+      outline.reset();
+      setCastHidden([]);
+      for (const t of [reconcileTimerRef, appearancesTimerRef]) {
+        if (t.current) clearTimeout(t.current);
+        t.current = null;
+      }
+      setLedger([]);
+      setMissingItems([]);
+      setNewlyFiled(new Set());
+      setFormatId(null);
+      setLayoutMeta({});
+      setFrontMatterState({});
+      loadDocIntoEditor({ type: "doc", content: [] });
+      setBinder([]);
+      setCards([]);
+      setActiveId(null);
+      setScriptTitle("");
+      setPlayTitle("");
+      setViewState("editor");
+      setGate(false);
+      setStatus("idle");
+      // Sheets whose saves the disk refused, and whose words went into Versions
+      // just now rather than being lost: their toast said "in this window".
+      const keptAway = [...refusedRef.current]
+        .filter(([key]) => unsavedKeys.has(key))
+        .map(([, refused]) => refused)
+        .filter(
+          ({ subject }) =>
+            !lostSheets.includes(subject.kind === "outline" ? "Outline notes" : subject.name),
+        );
+      forgetRefused(() => true);
+      if (!settled.safe) {
+        setError(
+          `“${settled.title}” couldn't be kept in Versions. If Proscenium could write a recovery copy, it offers the words when the script next opens.`,
+        );
+      } else if (settled.message) setError(settled.message);
+      else if (keptAway.length) {
+        const cause = saveProblem(keptAway[0].refusal, keptAway[0].subject);
+        setError({
+          title: `What was typed in ${keptAway.map(({ subject }) => `“${subject.name}”`).join(", ")} is kept in Versions, because it couldn't be saved.`,
+          detail: cause.title,
+          code: cause.code,
+        });
+      }
+      return true;
+    },
+    [
+      settleOpenScript,
+      loadDocIntoEditor,
+      materials.settle,
+      outline.hasUnsaved,
+      outline.keepOutlineInLine,
+      outlineNotePathOrHome,
+      forgetRefused,
+    ],
+  );
 
   // --- quitting (docs/app/keeping-work/storage-and-file-format.md#STOR-D13, src/app/quit.ts) ---
   /**
@@ -1981,12 +2083,17 @@ export function useWorkspace(): Workspace {
             return;
           }
           lost.push((refused?.subject ?? subject).name);
-          if (!problem && refused) problem = saveProblem(refused.refusal, refused.subject, "quitting");
+          if (!problem && refused)
+            problem = saveProblem(refused.refusal, refused.subject, "quitting");
         };
 
         const documents = await settleQuitDocuments({
           materials: materials.settle,
-          outline: { hasUnsaved: outline.hasUnsaved, settle: outline.keepOutlineInLine, path: outlineNotePathOrHome },
+          outline: {
+            hasUnsaved: outline.hasUnsaved,
+            settle: outline.keepOutlineInLine,
+            path: outlineNotePathOrHome,
+          },
         });
         for (const document of documents) {
           const subject: SaveSubject = document.path
@@ -2027,7 +2134,17 @@ export function useWorkspace(): Workspace {
           },
         };
       }),
-    [line, materials.settle, outline.hasUnsaved, outline.keepOutlineInLine, outlineNotePathOrHome, saveSubject, landOpenScript, captureUnsaved, snapshotBuffer],
+    [
+      line,
+      materials.settle,
+      outline.hasUnsaved,
+      outline.keepOutlineInLine,
+      outlineNotePathOrHome,
+      saveSubject,
+      landOpenScript,
+      captureUnsaved,
+      snapshotBuffer,
+    ],
   );
 
   // --- read the already-open play ---
@@ -2037,7 +2154,12 @@ export function useWorkspace(): Workspace {
    * below is relative to the play.
    */
   const loadPlay = useCallback(
-    async (dir: string, file: string, loaded: Loaded<PlayFile>, focusScript: string | null = null) => {
+    async (
+      dir: string,
+      file: string,
+      loaded: Loaded<PlayFile>,
+      focusScript: string | null = null,
+    ) => {
       const play = loaded.data;
       const opts = play.settings?.autosave ?? DEFAULT_AUTOSAVE;
       autosaveRef.current = new AutosaveScheduler(opts, () => flushRef.current());
@@ -2136,8 +2258,14 @@ export function useWorkspace(): Workspace {
       // (the App Sandbox, before a grant) must not become the folder the next
       // launch reopens — nor cost the one it replaced its bookmark.
       const found = await discoverPlays();
-      if(practiceRef.current && opened.root !== practiceRootRef.current && !returningFromPractice.current) {
-        practiceRef.current = false; setPracticing(false); practiceReturnRef.current = null;
+      if (
+        practiceRef.current &&
+        opened.root !== practiceRootRef.current &&
+        !returningFromPractice.current
+      ) {
+        practiceRef.current = false;
+        setPracticing(false);
+        practiceReturnRef.current = null;
       }
       // Remember this folder so the next launch reopens it (best-effort).
       // Native retains any durable-access problem for its retry/reauthorise UI.
@@ -2197,15 +2325,24 @@ export function useWorkspace(): Workspace {
           // Keep the original bytes protected and visible; the Plays folder
           // remains the active scope while this raw-file sheet is open.
           await openAny(base);
-          setRawPlay({ play: { ...play, file }, text: "raw" in loaded ? loaded.raw : null,
-            message: loaded.status === "malformed" ? loaded.message
-              : loaded.status === "absent" ? "This play's details are no longer in its folder."
-                : "This play's details could not be read. Try again when the folder is available." });
+          setRawPlay({
+            play: { ...play, file },
+            text: "raw" in loaded ? loaded.raw : null,
+            message:
+              loaded.status === "malformed"
+                ? loaded.message
+                : loaded.status === "absent"
+                  ? "This play's details are no longer in its folder."
+                  : "This play's details could not be read. Try again when the folder is available.",
+          });
           return;
         }
         setRawPlay(null);
         if (opened.moves?.length) {
-          if (loaded.status !== "valid") throw new Error("This play needs a newer Proscenium to finish its file move. Its move record has been kept.");
+          if (loaded.status !== "valid")
+            throw new Error(
+              "This play needs a newer Proscenium to finish its file move. Its move record has been kept.",
+            );
           const recovered = await recoverBinderMoves(file, loaded, opened.moves);
           loaded = { ...loaded, ...recovered };
         }
@@ -2220,8 +2357,10 @@ export function useWorkspace(): Workspace {
         }
         if (practiceRef.current && base === practiceRootRef.current) {
           // Legacy practice can also be opened from its normal Plays picker.
-          practiceSourceRef.current = !practiceSessionRef.current || play.dir === "Practice Play"
-            ? {session: practiceSessionRef.current, dir: play.dir} : null;
+          practiceSourceRef.current =
+            !practiceSessionRef.current || play.dir === "Practice Play"
+              ? { session: practiceSessionRef.current, dir: play.dir }
+              : null;
         }
         await loadPlay(play.dir, file, loaded, focusScript);
       } catch (e) {
@@ -2309,12 +2448,18 @@ export function useWorkspace(): Workspace {
         }
         await enterPlay(created);
         if (playDirRef.current !== dir) {
-          setError(`“${dir}” was created in your Plays folder but could not be opened. Open it from the Plays screen; importing again would create another copy.`);
+          setError(
+            `“${dir}” was created in your Plays folder but could not be opened. Open it from the Plays screen; importing again would create another copy.`,
+          );
           // Creation succeeded. Do not leave a retryable import after publication.
         }
         return true;
       } catch (e) {
-        setError(published ? `“${published}” was created but could not be opened. Open it from your Plays folder rather than importing it again. ${String(e)}` : String(e));
+        setError(
+          published
+            ? `“${published}” was created but could not be opened. Open it from your Plays folder rather than importing it again. ${String(e)}`
+            : String(e),
+        );
         return published !== null;
       }
     },
@@ -2563,7 +2708,10 @@ export function useWorkspace(): Workspace {
       if (loadingRef.current) return; // the load's own selection, not the writer's
       const path = scriptPathRef.current;
       if (!path) return;
-      const key = practiceRef.current && vaultRootRef.current === practiceRootRef.current && playIdRef.current ? `practice:${playIdRef.current}/${path}` : path;
+      const key =
+        practiceRef.current && vaultRootRef.current === practiceRootRef.current && playIdRef.current
+          ? `practice:${playIdRef.current}/${path}`
+          : path;
       caretPendingRef.current = { path: key, pos: editor.state.selection.from };
       if (caretTimerRef.current !== null) return;
       caretTimerRef.current = window.setTimeout(() => {
@@ -2697,7 +2845,9 @@ export function useWorkspace(): Workspace {
         // download that has not finished. Only gone is safe to write over: the
         // folder listing counts a file whose bytes are still in iCloud.
         if (await isListed(path)) {
-          setError("The other version can't be read here, so it was left in place. Your words are still in this window.");
+          setError(
+            "The other version can't be read here, so it was left in place. Your words are still in this window.",
+          );
           return;
         }
       }
@@ -2787,9 +2937,7 @@ export function useWorkspace(): Workspace {
         // heading and synopsis come from the doc, not the file.
         const doc = docRef.current;
         if (doc && activeScriptIdRef.current === scriptId) {
-          setCards(
-            reconcileCards({ doc, prior: scriptDataFor(committed.data, scriptId) }).cards,
-          );
+          setCards(reconcileCards({ doc, prior: scriptDataFor(committed.data, scriptId) }).cards);
         }
       } else setError("This play changed on disk — reopen it to see the change.");
     } catch (e) {
@@ -2866,7 +3014,8 @@ export function useWorkspace(): Workspace {
         }
         session.onSaved(out, carried);
         if (out.status === "ok") {
-          if (!session.dirty && sid && playId) void recoveryRef.current?.saved({ playId, scriptId: sid });
+          if (!session.dirty && sid && playId)
+            void recoveryRef.current?.saved({ playId, scriptId: sid });
           // It carried the buffer's words, so a refused autosave has landed too.
           if (writeFailedRef.current === session) writeFailedRef.current = null;
           saveLanded(`script:${sid ?? path}`);
@@ -2896,7 +3045,9 @@ export function useWorkspace(): Workspace {
           const rebased = page ? redo(page) : null;
           if (!rebased) {
             // The page keeps the typing; saving it undoes the change on disk.
-            setError("The scenes changed while that change was being saved, so it wasn't made. Make it again.");
+            setError(
+              "The scenes changed while that change was being saved, so it wasn't made. Make it again.",
+            );
             autosaveRef.current?.schedule();
             return null;
           }
@@ -2917,7 +3068,9 @@ export function useWorkspace(): Workspace {
           pinned = null;
         }
         if (!pinned) {
-          setError("What was typed while the script was being replaced couldn't be kept in Versions, so it stays on the page.");
+          setError(
+            "What was typed while the script was being replaced couldn't be kept in Versions, so it stays on the page.",
+          );
           autosaveRef.current?.schedule();
           return null;
         }
@@ -2946,7 +3099,8 @@ export function useWorkspace(): Workspace {
       const scriptPath = scriptPathRef.current;
       let scriptMoved = false;
       try {
-        const redo = (page: Doc) => (sameSceneOutline(doc, page) ? moveSceneInDoc(page, from, to) : null);
+        const redo = (page: Doc) =>
+          sameSceneOutline(doc, page) ? moveSceneInDoc(page, from, to) : null;
         if ((await writeScriptDoc(newDoc, redo)) === null) return;
         scriptMoved = true;
         // App-driven move: carry cards + refresh anchors directly, so the next
@@ -2970,7 +3124,8 @@ export function useWorkspace(): Workspace {
           playRef.current = { data: committed.data, hash: committed.hash };
         }
         // Words typed while the move was out are on the page, not yet on disk.
-        if (activeScriptIdRef.current === scriptId) setStatus(sessionRef.current?.dirty ? "dirty" : "saved");
+        if (activeScriptIdRef.current === scriptId)
+          setStatus(sessionRef.current?.dirty ? "dirty" : "saved");
       } catch (e) {
         // Refused before the script moved: nothing changed, in the writer's words.
         setError(scriptMoved ? String(e) : changeRefused(e, "script", scriptPath));
@@ -3124,7 +3279,14 @@ export function useWorkspace(): Workspace {
       } else setError(res.message ?? "binder operation failed");
       return res;
     },
-    [loadDocIntoEditor, flushAllMaterials, landOpenScript, settleOpenScript, unsavedTextsOf, materials.applyBinder],
+    [
+      loadDocIntoEditor,
+      flushAllMaterials,
+      landOpenScript,
+      settleOpenScript,
+      unsavedTextsOf,
+      materials.applyBinder,
+    ],
   );
 
   /**
@@ -3179,7 +3341,12 @@ export function useWorkspace(): Workspace {
       const before = playRef.current.data.binder;
       const planned = await reconcileBinder(before);
       setMissingItems(planned.missing);
-      if (planned.added.length === 0 && planned.removed.length === 0 && planned.updated.length === 0) return;
+      if (
+        planned.added.length === 0 &&
+        planned.removed.length === 0 &&
+        planned.updated.length === 0
+      )
+        return;
 
       let filed: string[] = [];
       const res = await runBinderOp(async (ctx) => {
@@ -3318,7 +3485,9 @@ export function useWorkspace(): Workspace {
             );
             setPreserved((p) => [...p, pinned]);
           } catch {
-            setError("The version there now couldn't be kept in Versions, so nothing was replaced.");
+            setError(
+              "The version there now couldn't be kept in Versions, so nothing was replaced.",
+            );
             return false;
           }
           const out = await vault.write(target, theirs, current.hash);
@@ -3379,61 +3548,75 @@ export function useWorkspace(): Workspace {
       if (!entry || !changes) return Promise.resolve(false);
       // Navigation waits for this operation, and material saves cannot race its
       // pin-and-write interval. Both the store and the selected entry are ours.
-      return line(() => materialWrites(async () => {
-        if (gen !== workspaceGenRef.current) return false;
-        const owner = findByPath(playRef.current?.data.binder ?? [], entry.path);
-        if (!owner) return false;
-        const before = await changes.readBefore(entryId);
-        if (before === null) return false;
-        const session = owner.id === activeScriptIdRef.current ? sessionRef.current : null;
-        const stillReviewed = () => gen === workspaceGenRef.current &&
-          (session ? sessionRef.current === session && !session.dirty : unsavedTextsOf(owner.id).length === 0) &&
-          (owner.id !== outline.record()?.id || !outline.hasUnsaved());
-        try {
-          const result = await revertReviewedFile({
-            afterHash: entry.afterHash, before,
-            read: () => vault.read(owner.path),
-            pin: async (content) => {
-              const pinned = await versions.snapshot(changes.playId, owner.id, "pre-keep", content,
-                owner.type === "script" ? "fountain" : "md");
-              setPreserved((p) => [...p, pinned]);
-            },
-            stillReviewed,
-            write: async (content, expected) => {
-              if (session) {
-                if (session.expectedForWrite !== expected) return false;
-                return applyScriptTextRef.current(content);
-              }
-              const out = await vault.write(owner.path, content, expected);
-              if (out.status !== "ok") return false;
-              adoptMaterialWrite(owner.path, content, out.hash);
-              return true;
-            },
-          });
-          if (result !== "saved") {
-            setError(result === "unpreserved"
-              ? "The version there now couldn't be kept in Versions, so nothing was replaced."
-              : "That file changed since this entry was recorded. Review its latest words before putting it back.");
+      return line(() =>
+        materialWrites(async () => {
+          if (gen !== workspaceGenRef.current) return false;
+          const owner = findByPath(playRef.current?.data.binder ?? [], entry.path);
+          if (!owner) return false;
+          const before = await changes.readBefore(entryId);
+          if (before === null) return false;
+          const session = owner.id === activeScriptIdRef.current ? sessionRef.current : null;
+          const stillReviewed = () =>
+            gen === workspaceGenRef.current &&
+            (session
+              ? sessionRef.current === session && !session.dirty
+              : unsavedTextsOf(owner.id).length === 0) &&
+            (owner.id !== outline.record()?.id || !outline.hasUnsaved());
+          try {
+            const result = await revertReviewedFile({
+              afterHash: entry.afterHash,
+              before,
+              read: () => vault.read(owner.path),
+              pin: async (content) => {
+                const pinned = await versions.snapshot(
+                  changes.playId,
+                  owner.id,
+                  "pre-keep",
+                  content,
+                  owner.type === "script" ? "fountain" : "md",
+                );
+                setPreserved((p) => [...p, pinned]);
+              },
+              stillReviewed,
+              write: async (content, expected) => {
+                if (session) {
+                  if (session.expectedForWrite !== expected) return false;
+                  return applyScriptTextRef.current(content);
+                }
+                const out = await vault.write(owner.path, content, expected);
+                if (out.status !== "ok") return false;
+                adoptMaterialWrite(owner.path, content, out.hash);
+                return true;
+              },
+            });
+            if (result !== "saved") {
+              setError(
+                result === "unpreserved"
+                  ? "The version there now couldn't be kept in Versions, so nothing was replaced."
+                  : "That file changed since this entry was recorded. Review its latest words before putting it back.",
+              );
+              return false;
+            }
+          } catch (e) {
+            setError(changeRefused(e, "document", entry.path));
             return false;
           }
-        } catch (e) {
-          setError(changeRefused(e, "document", entry.path));
-          return false;
-        }
-        await changes.writeBaseline(entry.path, before);
-        await changes.setStatus(entryId, "reverted");
-        if (gen === workspaceGenRef.current) {
-          setLedger((prev) => prev.map((e) => (e.id === entryId ? { ...e, status: "reverted" } : e)));
-        }
-        return true;
-      }));
+          await changes.writeBaseline(entry.path, before);
+          await changes.setStatus(entryId, "reverted");
+          if (gen === workspaceGenRef.current) {
+            setLedger((prev) =>
+              prev.map((e) => (e.id === entryId ? { ...e, status: "reverted" } : e)),
+            );
+          }
+          return true;
+        }),
+      );
     },
     [line, materialWrites, unsavedTextsOf, adoptMaterialWrite, changeRefused],
   );
 
   const renameTo = useCallback(
-    (id: string, title: string) =>
-      void runBinderOp((c) => renameItem(c, id, title), { id }),
+    (id: string, title: string) => void runBinderOp((c) => renameItem(c, id, title), { id }),
     [runBinderOp],
   );
   const moveTo = useCallback(
@@ -3493,12 +3676,23 @@ export function useWorkspace(): Workspace {
     [runBinderOp, selectItem],
   );
   const addImport = useCallback(
-    async (kind: "script" | "document", title: string, content: string, keep: KeptFile, parentId: string | null = null): Promise<boolean> => {
+    async (
+      kind: "script" | "document",
+      title: string,
+      content: string,
+      keep: KeptFile,
+      parentId: string | null = null,
+    ): Promise<boolean> => {
       try {
-        const res = await runBinderOp((c) => importIntoPlay(c, kind, title, content, keep, parentId));
+        const res = await runBinderOp((c) =>
+          importIntoPlay(c, kind, title, content, keep, parentId),
+        );
         // A refusal is already on the error line (binderOpNow); an op dropped,
         // because the play is read-only or another opened meanwhile, is not.
-        if (!res) setError("binder operation failed: the play is read-only or was closed, so nothing was added.");
+        if (!res)
+          setError(
+            "binder operation failed: the play is read-only or was closed, so nothing was added.",
+          );
         if (!res?.ok || !res.createdId) return false;
         const item = findById(res.play.binder, res.createdId);
         if (item) selectItem(item);
@@ -3517,14 +3711,11 @@ export function useWorkspace(): Workspace {
    * has none (browser dev, mobile) — the binder hides the affordance off
    * `capabilities.canReveal` rather than testing the platform.
    */
-  const revealItem = useCallback(
-    (id: string) => {
-      const item = findById(playRef.current?.data.binder ?? [], id);
-      if (!item?.path) return;
-      void vault.reveal(item.path).catch((e) => setError(String(e)));
-    },
-    [],
-  );
+  const revealItem = useCallback((id: string) => {
+    const item = findById(playRef.current?.data.binder ?? [], id);
+    if (!item?.path) return;
+    void vault.reveal(item.path).catch((e) => setError(String(e)));
+  }, []);
 
   /** Copy a file beside itself, then open the copy — you duplicated it to work on it. */
   const duplicate = useCallback(
@@ -3617,8 +3808,15 @@ export function useWorkspace(): Workspace {
                       return;
                     }
                   }
-                  await binderOpNow(async (c) => restoreBinderItem(c, removedItem,
-                    removedLocation.parentId, removedLocation.index, scriptsBefore));
+                  await binderOpNow(async (c) =>
+                    restoreBinderItem(
+                      c,
+                      removedItem,
+                      removedLocation.parentId,
+                      removedLocation.index,
+                      scriptsBefore,
+                    ),
+                  );
                 })
             : null,
         };
@@ -3628,9 +3826,13 @@ export function useWorkspace(): Workspace {
   );
   const consumeCreated = useCallback(() => setJustCreated(null), []);
 
-  const versionsOf = useCallback((id: string): VersionsTarget | null =>
-    id === "outline" || id === outline.record()?.id ? outline.versionsOf(id) : materials.versionsOf(id),
-  [outline.record, outline.versionsOf, materials.versionsOf]);
+  const versionsOf = useCallback(
+    (id: string): VersionsTarget | null =>
+      id === "outline" || id === outline.record()?.id
+        ? outline.versionsOf(id)
+        : materials.versionsOf(id),
+    [outline.record, outline.versionsOf, materials.versionsOf],
+  );
 
   // --- script format, page view, export (docs/app/formatting/formats-and-layout.md#SCHEMA-D100) ---
   const [, refreshLanguage] = useState(0);
@@ -3640,22 +3842,32 @@ export function useWorkspace(): Workspace {
     const playPath = playPathRef.current;
     const generation = workspaceGenRef.current;
     const scriptId = activeScriptIdRef.current;
-    const sameScript = () => generation === workspaceGenRef.current &&
-      scriptId === activeScriptIdRef.current && forScript === `${playIdRef.current}:${scriptId}`;
+    const sameScript = () =>
+      generation === workspaceGenRef.current &&
+      scriptId === activeScriptIdRef.current &&
+      forScript === `${playIdRef.current}:${scriptId}`;
     if (!language || !base || !playPath || !sameScript()) return false;
-    if (language === canonicalLanguage(base.data.settings.language ?? DEFAULT_PLAY_LANGUAGE)) return true;
+    if (language === canonicalLanguage(base.data.settings.language ?? DEFAULT_PLAY_LANGUAGE))
+      return true;
     if (readOnlyRef.current) return false;
     try {
-      const committed = await commitPlay(playPath, base, (prior) => {
-        const from = prior ?? base.data;
-        return { ...from, settings: { ...from.settings, language } };
-      }, new Date().toISOString());
+      const committed = await commitPlay(
+        playPath,
+        base,
+        (prior) => {
+          const from = prior ?? base.data;
+          return { ...from, settings: { ...from.settings, language } };
+        },
+        new Date().toISOString(),
+      );
       if (!sameScript()) return false;
       if (committed.status !== "ok") return false;
       playRef.current = { data: committed.data, hash: committed.hash };
       refreshLanguage((revision) => revision + 1);
       return true;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }, []);
 
   const setFormat = useCallback(async (id: string) => {
@@ -3716,10 +3928,13 @@ export function useWorkspace(): Workspace {
     [scriptTitle],
   );
 
-  const patchFrontMatter = useCallback((patch: Partial<FrontMatter>, forScript: string | null) =>
-    saveFrontMatter({ ...frontMatterRef.current, ...patch }, forScript), [saveFrontMatter]);
+  const patchFrontMatter = useCallback(
+    (patch: Partial<FrontMatter>, forScript: string | null) =>
+      saveFrontMatter({ ...frontMatterRef.current, ...patch }, forScript),
+    [saveFrontMatter],
+  );
 
-  // --- cast & characters (Phase 2) ---
+  // --- cast & characters ---
   // The printed cast list (name + short description) is canonical in the
   // fountain title page; save it through the same dirty→autosave path.
   const saveCharacters = useCallback(
@@ -3736,10 +3951,7 @@ export function useWorkspace(): Workspace {
   const saveCharactersRef = useRef(saveCharacters);
   saveCharactersRef.current = saveCharacters;
   // Where each character speaks (derived from the open doc + scene cards).
-  const castAppearances = useCallback(
-    () => computeAppearances(docRef.current, cards),
-    [cards],
-  );
+  const castAppearances = useCallback(() => computeAppearances(docRef.current, cards), [cards]);
   // How big each part is, for tiering the Cast surface. Recomputed with the
   // cards (i.e. after every successful save), never stored.
   const castWeights = useMemo(
@@ -3774,40 +3986,37 @@ export function useWorkspace(): Workspace {
    * wins — the same guarded pattern as a card edit, so an outside write landing
    * mid-flight merges rather than colliding.
    */
-  const patchCastHidden = useCallback(
-    async (change: (hidden: string[]) => string[]) => {
-      const base = playRef.current;
-      const playPath = playPathRef.current;
-      const scriptId = activeScriptIdRef.current;
-      const playId = playIdRef.current;
-      if (!base || !playPath || !scriptId) return;
-      try {
-        const committed = await commitPlay(
-          playPath,
-          base,
-          (prior) => {
-            const from = prior ?? base.data;
-            const data = scriptDataFor(from, scriptId);
-            return withScriptData(from, scriptId, {
-              ...data,
-              castHidden: change(data.castHidden ?? []),
-            });
-          },
-          new Date().toISOString(),
-        );
-        if (playIdRef.current !== playId) return;
-        if (committed.status === "ok") {
-          playRef.current = { data: committed.data, hash: committed.hash };
-          if (activeScriptIdRef.current === scriptId) {
-            setCastHidden(scriptDataFor(committed.data, scriptId).castHidden ?? []);
-          }
-        } else setError("This play changed on disk — reopen it to see the change.");
-      } catch (e) {
-        setError(String(e));
-      }
-    },
-    [],
-  );
+  const patchCastHidden = useCallback(async (change: (hidden: string[]) => string[]) => {
+    const base = playRef.current;
+    const playPath = playPathRef.current;
+    const scriptId = activeScriptIdRef.current;
+    const playId = playIdRef.current;
+    if (!base || !playPath || !scriptId) return;
+    try {
+      const committed = await commitPlay(
+        playPath,
+        base,
+        (prior) => {
+          const from = prior ?? base.data;
+          const data = scriptDataFor(from, scriptId);
+          return withScriptData(from, scriptId, {
+            ...data,
+            castHidden: change(data.castHidden ?? []),
+          });
+        },
+        new Date().toISOString(),
+      );
+      if (playIdRef.current !== playId) return;
+      if (committed.status === "ok") {
+        playRef.current = { data: committed.data, hash: committed.hash };
+        if (activeScriptIdRef.current === scriptId) {
+          setCastHidden(scriptDataFor(committed.data, scriptId).castHidden ?? []);
+        }
+      } else setError("This play changed on disk — reopen it to see the change.");
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
 
   /**
    * Take a speaker off the printed cast page for good. Canonical in the play file
@@ -3819,9 +4028,7 @@ export function useWorkspace(): Workspace {
     (name: string) => {
       const key = name.trim().toUpperCase();
       if (!key) return;
-      void patchCastHidden((hidden) =>
-        hidden.includes(key) ? hidden : [...hidden, key].sort(),
-      );
+      void patchCastHidden((hidden) => (hidden.includes(key) ? hidden : [...hidden, key].sort()));
     },
     [patchCastHidden],
   );
@@ -3891,7 +4098,9 @@ export function useWorkspace(): Workspace {
         // — or nothing is replaced.
         const kept = await snapshotBuffer("pre-apply");
         if (kept === null) {
-          setError("What the script holds now couldn't be kept in Versions, so nothing was replaced.");
+          setError(
+            "What the script holds now couldn't be kept in Versions, so nothing was replaced.",
+          );
           return false;
         }
         // Meant for the script that was open when it was asked for.
@@ -3928,7 +4137,12 @@ export function useWorkspace(): Workspace {
    */
   const recoverOffer = useCallback(async (): Promise<boolean> => {
     const offer = recoveryOfferRef.current;
-    if (!offer || activeScriptIdRef.current !== offer.scriptId || playIdRef.current !== offer.playId) return false;
+    if (
+      !offer ||
+      activeScriptIdRef.current !== offer.scriptId ||
+      playIdRef.current !== offer.playId
+    )
+      return false;
     const ok = await applyScriptText(offer.words);
     if (!ok) return false;
     const playId = playIdRef.current;
@@ -4015,7 +4229,11 @@ export function useWorkspace(): Workspace {
       const doc = docRef.current;
       if (!doc || !scriptPathRef.current) return null;
       const source = sidesFor ? sidesDoc(doc, sidesFor) : doc;
-      return paginateDoc(source, resolvedFormat.spec, anonymous ? anonymousMeta(layoutMeta, scriptTitle) : layoutMeta);
+      return paginateDoc(
+        source,
+        resolvedFormat.spec,
+        anonymous ? anonymousMeta(layoutMeta, scriptTitle) : layoutMeta,
+      );
     },
     [resolvedFormat, layoutMeta, scriptTitle],
   );
@@ -4072,7 +4290,10 @@ export function useWorkspace(): Workspace {
         if (type !== "pdf") {
           // Lazy-loaded like the PDF path, so none of it is in the editor's startup.
           const { exportScriptDocument } = await import("../wordproc");
-          const saved = await exportScriptDocument(type, { ...args, suggestedName: `${name}.${type}` });
+          const saved = await exportScriptDocument(type, {
+            ...args,
+            suggestedName: `${name}.${type}`,
+          });
           // No report event: counting these would add one to the closed list
           // (docs/app/formatting/formats-and-layout.md#FMT-D109).
           if (saved) setNotice(`Exported ${saved}`);
@@ -4125,16 +4346,22 @@ export function useWorkspace(): Workspace {
       const session = sessionRef.current;
       const changes = changesRef.current;
       const gen = workspaceGenRef.current;
-      const knownPaths = [playPathRef.current, scriptPathRef.current, outline.record()?.path,
+      const knownPaths = [
+        playPathRef.current,
+        scriptPathRef.current,
+        outline.record()?.path,
         ...materials.paths(),
-        ...flatten(playRef.current?.data.binder ?? []).map((item) => item.path)]
-        .filter((path): path is string => typeof path === "string");
+        ...flatten(playRef.current?.data.binder ?? []).map((item) => item.path),
+      ].filter((path): path is string => typeof path === "string");
       const eventPath = matchingPath(e.relPath, new Set(knownPaths)) ?? e.relPath;
       // The bytes may be unchanged during an external case/NFC rename. Still
       // reconcile so every open buffer follows the disk's actual spelling.
       if (e.relPath !== eventPath && affectsBinder(e.relPath)) {
         if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
-        reconcileTimerRef.current = setTimeout(() => void reconcileNowRef.current(), RECONCILE_DEBOUNCE_MS);
+        reconcileTimerRef.current = setTimeout(
+          () => void reconcileNowRef.current(),
+          RECONCILE_DEBOUNCE_MS,
+        );
       }
 
       /**
@@ -4180,7 +4407,9 @@ export function useWorkspace(): Workspace {
           if (fresh.status !== "valid" && fresh.status !== "unsupported") {
             readOnlyRef.current = true;
             setReadOnly(true);
-            setError("This play's details changed and could not be read. Reopen the play to review the original file.");
+            setError(
+              "This play's details changed and could not be read. Reopen the play to review the original file.",
+            );
             return;
           }
           if (fresh.hash === playRef.current?.hash) return; // our own echo
@@ -4244,7 +4473,10 @@ export function useWorkspace(): Workspace {
           void recoveryRef.current?.writeNow();
         }
         if (reconcileTimerRef.current) clearTimeout(reconcileTimerRef.current);
-        reconcileTimerRef.current = setTimeout(() => void reconcileNowRef.current(), RECONCILE_DEBOUNCE_MS);
+        reconcileTimerRef.current = setTimeout(
+          () => void reconcileNowRef.current(),
+          RECONCILE_DEBOUNCE_MS,
+        );
         return;
       }
       const decision = session.onExternalChange(e.hash);
@@ -4270,14 +4502,17 @@ export function useWorkspace(): Workspace {
         .catch((e: unknown) => {
           // Changes made outside may go unseen, so the writer is told. Said once; the
           // hash check on every save still stands.
-          if (!dead) setError(`Proscenium couldn't watch the folder for changes made outside: ${String(e)}`);
+          if (!dead)
+            setError(`Proscenium couldn't watch the folder for changes made outside: ${String(e)}`);
         });
     };
     track(onExternalChange(handleExternalChange));
-    track(onConflictCopy((e) => {
-      if (e.root && e.root !== activeRootRef.current) return;
-      setConflictCopies((c) => (c.includes(e.relPath) ? c : [...c, e.relPath]));
-    }));
+    track(
+      onConflictCopy((e) => {
+        if (e.root && e.root !== activeRootRef.current) return;
+        setConflictCopies((c) => (c.includes(e.relPath) ? c : [...c, e.relPath]));
+      }),
+    );
     return () => {
       dead = true;
       for (const off of offs) off();
@@ -4289,9 +4524,13 @@ export function useWorkspace(): Workspace {
    * Changes baseline, whichever part of the app made it (own-writes.ts). The
    * store is the play the write was sent to, which is the folder it landed in.
    */
-  useEffect(() => onOwnWrite(({ playId, rel, content }) => {
-    if (isReviewable(rel)) void openChanges(playId).writeBaseline(rel, content);
-  }), []);
+  useEffect(
+    () =>
+      onOwnWrite(({ playId, rel, content }) => {
+        if (isReviewable(rel)) void openChanges(playId).writeBaseline(rel, content);
+      }),
+    [],
+  );
 
   /**
    * Revalidate every displayed file on foreground and watcher recovery. A
@@ -4303,17 +4542,27 @@ export function useWorkspace(): Workspace {
     let running = false;
     let again = false;
     const rescan = async () => {
-      if (running) { again = true; return; }
+      if (running) {
+        again = true;
+        return;
+      }
       running = true;
       try {
         do {
           again = false;
           const generation = workspaceGenRef.current;
-          const paths = [scriptPathRef.current, playPathRef.current, outline.record()?.path,
-            ...materials.paths()]
-            .filter((path): path is string => !!path);
-          await revalidateFiles(paths, vault.read, handleExternalChange,
-            () => !cancelled && workspaceGenRef.current === generation);
+          const paths = [
+            scriptPathRef.current,
+            playPathRef.current,
+            outline.record()?.path,
+            ...materials.paths(),
+          ].filter((path): path is string => !!path);
+          await revalidateFiles(
+            paths,
+            vault.read,
+            handleExternalChange,
+            () => !cancelled && workspaceGenRef.current === generation,
+          );
           if (!cancelled && workspaceGenRef.current === generation) void reconcileNowRef.current();
         } while (again && !cancelled);
       } finally {
@@ -4326,11 +4575,14 @@ export function useWorkspace(): Workspace {
     document.addEventListener("visibilitychange", onForeground);
     window.addEventListener("focus", onForeground);
     let off: (() => void) | undefined;
-    void watcherHealth.onState((health) => {
-      if (health.root === activeRootRef.current) void rescan();
-    }).then((stop) => {
-      if (cancelled) stop(); else off = stop;
-    });
+    void watcherHealth
+      .onState((health) => {
+        if (health.root === activeRootRef.current) void rescan();
+      })
+      .then((stop) => {
+        if (cancelled) stop();
+        else off = stop;
+      });
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onForeground);
@@ -4349,7 +4601,9 @@ export function useWorkspace(): Workspace {
   useEffect(() => {
     const path = scriptPath;
     const changes = changesRef.current;
-    const pending = ledger.filter((e) => e.status === "pending" && e.revertable && path !== null && samePath(e.path, path));
+    const pending = ledger.filter(
+      (e) => e.status === "pending" && e.revertable && path !== null && samePath(e.path, path),
+    );
     if (!path || !changes || pending.length === 0) {
       setChangedScenes((prev) => (prev.size === 0 ? prev : new Set()));
       return;
@@ -4459,59 +4713,112 @@ export function useWorkspace(): Workspace {
     beaconRef.current = unsafe;
     await settings.setBufferState(unsafe);
   };
-  syncBeaconRef.current = () => { void confirmSaveState(false).catch(() => {}); };
+  syncBeaconRef.current = () => {
+    void confirmSaveState(false).catch(() => {});
+  };
   useEffect(() => syncBeaconRef.current(), [status, gate, materialGates, outlineGate]);
 
   /** These transitions join the existing queue; a failed settlement never opens another root. */
   const openPractice = async (session?: string, create = false) => {
-    const practiceRoot = session ? await tutorials.session(session, create) : await tutorials.root();
-    const before = {root: practiceRootRef.current, session: practiceSessionRef.current, source: practiceSourceRef.current, practicing: practiceRef.current, returning: practiceReturnRef.current};
-    if (!practiceRef.current) practiceReturnRef.current = {base: vaultRootRef.current, dir: playDirRef.current, script: scriptPathRef.current};
-    practiceRootRef.current = practiceRoot; practiceSessionRef.current = session;
-    practiceRef.current = true; setPracticing(true);
+    const practiceRoot = session
+      ? await tutorials.session(session, create)
+      : await tutorials.root();
+    const before = {
+      root: practiceRootRef.current,
+      session: practiceSessionRef.current,
+      source: practiceSourceRef.current,
+      practicing: practiceRef.current,
+      returning: practiceReturnRef.current,
+    };
+    if (!practiceRef.current)
+      practiceReturnRef.current = {
+        base: vaultRootRef.current,
+        dir: playDirRef.current,
+        script: scriptPathRef.current,
+      };
+    practiceRootRef.current = practiceRoot;
+    practiceSessionRef.current = session;
+    practiceRef.current = true;
+    setPracticing(true);
     const rollback = () => {
-      practiceRootRef.current = before.root; practiceSessionRef.current = before.session; practiceSourceRef.current = before.source;
-      practiceRef.current = before.practicing; setPracticing(before.practicing); practiceReturnRef.current = before.returning;
+      practiceRootRef.current = before.root;
+      practiceSessionRef.current = before.session;
+      practiceSourceRef.current = before.source;
+      practiceRef.current = before.practicing;
+      setPracticing(before.practicing);
+      practiceReturnRef.current = before.returning;
     };
     try {
-      if (!(await openAny(practiceRoot))) {rollback(); return false;}
-      if (vaultRootRef.current !== practiceRoot) throw new Error("The practice folder could not be opened.");
+      if (!(await openAny(practiceRoot))) {
+        rollback();
+        return false;
+      }
+      if (vaultRootRef.current !== practiceRoot)
+        throw new Error("The practice folder could not be opened.");
       practiceSourceRef.current = null;
       return true;
-    } catch(e) {if (vaultRootRef.current !== practiceRoot) rollback(); throw e;}
+    } catch (e) {
+      if (vaultRootRef.current !== practiceRoot) rollback();
+      throw e;
+    }
   };
-  const startPractice = async (_title: string, script: string, resumeDir?: string, resumedSession?: string) => {
+  const startPractice = async (
+    _title: string,
+    script: string,
+    resumeDir?: string,
+    resumedSession?: string,
+  ) => {
     const session = resumeDir ? resumedSession : ulid();
     if (!(await openPractice(session, !resumeDir))) return null;
     const dir = resumeDir ?? "Practice Play";
-    if (!resumeDir) await scaffoldPlayAt(dir, dir, new Date().toISOString(), script, "stage-us-modern", null);
-    const found = await discoverPlays(); setPlays(found);
-    const play = found.find(p => p.dir === dir);
-    if (!play) throw new Error("This practice could not be opened. Earlier files have not been changed; check Saved Practice.");
+    if (!resumeDir)
+      await scaffoldPlayAt(dir, dir, new Date().toISOString(), script, "stage-us-modern", null);
+    const found = await discoverPlays();
+    setPlays(found);
+    const play = found.find((p) => p.dir === dir);
+    if (!play)
+      throw new Error(
+        "This practice could not be opened. Earlier files have not been changed; check Saved Practice.",
+      );
     await enterPlay(play);
     if (playIdRef.current !== play.id) return null;
-    practiceSourceRef.current = {session, dir};
-    return {id: play.id, dir: play.dir, session};
+    practiceSourceRef.current = { session, dir };
+    return { id: play.id, dir: play.dir, session };
   };
   const keepPractice = async (title: string) => {
     const source = practiceSourceRef.current;
     const base = practiceReturnRef.current?.base;
     const manifest = playPathRef.current;
-    if (!practiceRef.current || !source || !base || !manifest || readOnlyRef.current) throw new Error("Open a practice and choose a Plays folder before keeping a copy.");
-    if (!(await teardownWorkspace(true))) throw new Error("Save or resolve the pending edits before keeping a copy. Your practice stays here.");
-    let copy: {dir: string; base: string} | null = null;
+    if (!practiceRef.current || !source || !base || !manifest || readOnlyRef.current)
+      throw new Error("Open a practice and choose a Plays folder before keeping a copy.");
+    if (!(await teardownWorkspace(true)))
+      throw new Error(
+        "Save or resolve the pending edits before keeping a copy. Your practice stays here.",
+      );
+    let copy: { dir: string; base: string } | null = null;
     let failure: unknown;
     try {
       const captured = await copyPractice.capture(manifest);
       await vault.open(base);
-      copy = {dir: await copyPractice.install(source, title, captured), base};
-    } catch(e) {failure = e;}
+      copy = { dir: await copyPractice.install(source, title, captured), base };
+    } catch (e) {
+      failure = e;
+    }
     // The original stays the active practice. Opening the verified copy is a
     // separate choice; failed or partial copies never consume the original.
     try {
       const opened = await startPractice("Practice Play", "", source.dir, source.session);
-      if (!opened) throw new Error("The original practice could not be reopened. It remains in Saved Practice.");
-    } catch(e) {throw new Error([failure, copy ? "The copy is in your Plays folder." : null, String(e)].filter(Boolean).join(" "));}
+      if (!opened)
+        throw new Error(
+          "The original practice could not be reopened. It remains in Saved Practice.",
+        );
+    } catch (e) {
+      throw new Error(
+        [failure, copy ? "The copy is in your Plays folder." : null, String(e)]
+          .filter(Boolean)
+          .join(" "),
+      );
+    }
     if (failure) throw failure;
     if (!copy) throw new Error("The copy was not completed. The original practice is kept.");
     return copy;
@@ -4524,14 +4831,19 @@ export function useWorkspace(): Workspace {
       try {
         if (!(await openAny(prior.base))) return false;
         if (prior.dir) {
-          const play = (await discoverPlays()).find(p => p.dir === prior.dir);
+          const play = (await discoverPlays()).find((p) => p.dir === prior.dir);
           if (play) await enterPlay(play, prior.script);
           else setNotice("Your previous play is no longer available. Choose a play from the list.");
         }
-      } finally {returningFromPractice.current = false;}
+      } finally {
+        returningFromPractice.current = false;
+      }
     } else {
       if (!(await teardownWorkspace())) return false;
-      setRoot(null); setVaultRoot(null); vaultRootRef.current = null; setPlays([]);
+      setRoot(null);
+      setVaultRoot(null);
+      vaultRootRef.current = null;
+      setPlays([]);
     }
     practiceRef.current = false;
     setPracticing(false);
@@ -4541,15 +4853,20 @@ export function useWorkspace(): Workspace {
 
   return {
     practicing,
-    startPractice: (title, script, dir, session) => line(() => startPractice(title, script, dir, session)),
-    keepPractice: title => line(() => keepPractice(title)),
+    startPractice: (title, script, dir, session) =>
+      line(() => startPractice(title, script, dir, session)),
+    keepPractice: (title) => line(() => keepPractice(title)),
     canKeepPractice: practicing && !!practiceSourceRef.current && !!practiceReturnRef.current?.base,
-    openPracticeCopy: copy => line(async () => {
-      if (!(await stopPractice())) return false;
-      return openPlayByDir(copy.dir, null, copy.base);
-    }),
+    openPracticeCopy: (copy) =>
+      line(async () => {
+        if (!(await stopPractice())) return false;
+        return openPlayByDir(copy.dir, null, copy.base);
+      }),
     stopPractice: () => line(stopPractice),
-    isPractice: id => practiceRef.current && playIdRef.current === id && vaultRootRef.current === practiceRootRef.current,
+    isPractice: (id) =>
+      practiceRef.current &&
+      playIdRef.current === id &&
+      vaultRootRef.current === practiceRootRef.current,
     browsePractice: () => line(() => openPractice()),
     mode,
     vaultRoot,
@@ -4561,7 +4878,8 @@ export function useWorkspace(): Workspace {
     backToVault: () => void line(() => backToVault()),
     createPlay: (title, script, keep) => void line(() => createPlay(title, script, keep)),
     createPlayFrom: (title, script, keep) => line(() => createPlay(title, script, keep)),
-    openPlayByDir: (dirName, script, inFolder) => line(() => openPlayByDir(dirName, script, inFolder)),
+    openPlayByDir: (dirName, script, inFolder) =>
+      line(() => openPlayByDir(dirName, script, inFolder)),
     adoptPlaysFolder: (path) => line(() => adoptPlaysFolder(path)),
     playsFolderHint,
     // The folder the question on screen is about, from this render: the ref
@@ -4600,7 +4918,12 @@ export function useWorkspace(): Workspace {
       setRawPlay(null);
       void line(() => enterPlay(play));
     },
-    revealRawPlay: () => { if (rawPlay) void vault.reveal(rawPlay.play.dir + "/" + rawPlay.play.file).catch((e) => setError(String(e))); },
+    revealRawPlay: () => {
+      if (rawPlay)
+        void vault
+          .reveal(rawPlay.play.dir + "/" + rawPlay.play.file)
+          .catch((e) => setError(String(e)));
+    },
     conflictCopies,
     loadOther,
     keepOther,

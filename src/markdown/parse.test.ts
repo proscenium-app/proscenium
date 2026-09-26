@@ -267,7 +267,7 @@ describe("line breaks inside a paragraph", () => {
   });
 });
 
-describe("round-trip sanity on realistic assistant prose", () => {
+describe("round-trip sanity on realistic prose", () => {
   const reply = [
     "Here's what I changed:",
     "",
@@ -283,12 +283,7 @@ describe("round-trip sanity on realistic assistant prose", () => {
   ].join("\n");
 
   test("produces the blocks you'd expect, in order", () => {
-    expect(parseBlocks(reply).map((b) => b.kind)).toEqual([
-      "paragraph",
-      "list",
-      "code",
-      "quote",
-    ]);
+    expect(parseBlocks(reply).map((b) => b.kind)).toEqual(["paragraph", "list", "code", "quote"]);
   });
 
   test("the fountain block keeps its exact text", () => {

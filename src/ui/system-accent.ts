@@ -139,7 +139,9 @@ function at(L: number, C: number, h: number): Rgb {
     hi = lo;
   }
   // Quantised to what the hex will say, so every contrast is checked on the colour that ships.
-  return oklchToLinear(lightness, hi, h).map((c) => byte(toGamma(Math.min(1, Math.max(0, c)))) / 255) as Rgb;
+  return oklchToLinear(lightness, hi, h).map(
+    (c) => byte(toGamma(Math.min(1, Math.max(0, c)))) / 255,
+  ) as Rgb;
 }
 
 /** From lightness L, step in `direction` until `ok` holds; black or white, which always do, at the end. */
@@ -151,7 +153,8 @@ function walk(L: number, C: number, h: number, direction: 1 | -1, ok: (rgb: Rgb)
   return at(direction > 0 ? 1 : 0, C, h);
 }
 
-const worst = (rgb: Rgb, surfaces: readonly string[]) => Math.min(...surfaces.map((s) => contrast(rgb, s)));
+const worst = (rgb: Rgb, surfaces: readonly string[]) =>
+  Math.min(...surfaces.map((s) => contrast(rgb, s)));
 
 /** A slightly deeper fill for hover and press, darker where the words on it still read. */
 function deeper(fill: Rgb, C: number, h: number, on: string): Rgb {
@@ -185,7 +188,13 @@ export function deriveSystemAccent(hex: string): SystemAccent | null {
   };
 
   // At night the fill lifts, and carries near-black like every accent's.
-  const night = walk(Math.max(L, NIGHT_LIGHTNESS), C, h, 1, (rgb) => contrast(rgb, NIGHT_INK) >= ACCENT_FLOOR);
+  const night = walk(
+    Math.max(L, NIGHT_LIGHTNESS),
+    C,
+    h,
+    1,
+    (rgb) => contrast(rgb, NIGHT_INK) >= ACCENT_FLOOR,
+  );
   const [nightL] = toOklch(night);
   const dark: AccentTokens = {
     accent: toHex(night),
@@ -216,9 +225,22 @@ export function systemAccentProperties(accent: SystemAccent): [string, string][]
   return [...scheme("", accent.light), ...scheme("night-", accent.dark)];
 }
 
-const BLANK: AccentTokens = { accent: "", accentDeep: "", accentSoft: "", accentSofter: "", accentRing: "", accentText: "", onAccent: "" };
+const BLANK: AccentTokens = {
+  accent: "",
+  accentDeep: "",
+  accentSoft: "",
+  accentSofter: "",
+  accentRing: "",
+  accentText: "",
+  onAccent: "",
+};
 /** Every property applySystemAccent may set, to take them all off again. */
-const PROPERTY_NAMES = systemAccentProperties({ swatch: "", warm: false, light: BLANK, dark: BLANK }).map(([name]) => name);
+const PROPERTY_NAMES = systemAccentProperties({
+  swatch: "",
+  warm: false,
+  light: BLANK,
+  dark: BLANK,
+}).map(([name]) => name);
 
 /** Where the last colour the Mac answered is kept, so the first frame is already right. */
 const REMEMBERED = "proscenium:system-accent";

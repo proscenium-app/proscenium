@@ -32,8 +32,14 @@ describe("splitCueExtension — how the file holds a cue", () => {
   it("takes the last parenthetical as the extension", () => {
     expect(splitCueExtension("MARA (V.O.)")).toEqual({ name: "MARA", extension: "(V.O.)" });
     expect(splitCueExtension("MARA(V.O.)")).toEqual({ name: "MARA", extension: "(V.O.)" });
-    expect(splitCueExtension("MARA (V.O.) (CONT'D)")).toEqual({ name: "MARA (V.O.)", extension: "(CONT'D)" });
-    expect(splitCueExtension("HANS (on the radio)")).toEqual({ name: "HANS", extension: "(on the radio)" });
+    expect(splitCueExtension("MARA (V.O.) (CONT'D)")).toEqual({
+      name: "MARA (V.O.)",
+      extension: "(CONT'D)",
+    });
+    expect(splitCueExtension("HANS (on the radio)")).toEqual({
+      name: "HANS",
+      extension: "(on the radio)",
+    });
     expect(splitCueExtension("MARA")).toEqual({ name: "MARA", extension: null });
   });
 

@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Scene rows under a script (docs/app/organizing/workspace-model.md#WORK-5) — derived, display-only ------------- */
 .binder__row--scene {
   font-size: var(--t-small);
@@ -27,4 +26,3 @@
   color: inherit;
   opacity: 0.75;
 }
-

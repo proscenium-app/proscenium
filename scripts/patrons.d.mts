@@ -13,7 +13,10 @@ export declare const ROLL_URL: string;
 export declare const LEVELS: readonly ["benefactors", "patrons", "friends"];
 export declare const EMPTY_ROLL: Readonly<Roll>;
 export declare function parseRoll(value: unknown): Roll;
-export declare function fetchRoll(options?: { fetcher?: typeof fetch; timeoutMs?: number }): Promise<Roll>;
+export declare function fetchRoll(options?: {
+  fetcher?: typeof fetch;
+  timeoutMs?: number;
+}): Promise<Roll>;
 export declare function bakedRoll(env?: Record<string, string | undefined>): Roll;
 export declare function listed(names: readonly string[]): string;
 export declare function underwritten(roll: Roll): string | null;

@@ -6,7 +6,7 @@
  *
  * Everything here reads the tokens in styles.css and holds no colour of its
  * own. `bun run check:design` fails the build on a chrome font-size, radius or
- * gap outside the scales — the audit counted thirty type sizes and eight menu
+ * gap outside the scales — an audit counted thirty type sizes and eight menu
  * chromes before there was a gate.
  */
 export * from "./Icons";

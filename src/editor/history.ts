@@ -35,10 +35,7 @@ export interface PlayHistoryOptions {
   newGroupDelay: number;
 }
 
-export const PlayHistory = Extension.create<
-  PlayHistoryOptions,
-  { plugin: Plugin | null }
->({
+export const PlayHistory = Extension.create<PlayHistoryOptions, { plugin: Plugin | null }>({
   name: "playHistory",
 
   addOptions() {

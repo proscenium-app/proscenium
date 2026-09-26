@@ -5,7 +5,9 @@ import { expect, test } from "bun:test";
 
 test("docs/app/keeping-work/storage-and-file-format.md#STOR-5: canonical files expose recoverable Trash, never a permanent-delete command", async () => {
   const native = await Bun.file(new URL("../../src-tauri/src/lib.rs", import.meta.url)).text();
-  const backend = await Bun.file(new URL("../../src-tauri/src/vault/mod.rs", import.meta.url)).text();
+  const backend = await Bun.file(
+    new URL("../../src-tauri/src/vault/mod.rs", import.meta.url),
+  ).text();
   const bridge = await Bun.file(new URL("./ipc.ts", import.meta.url)).text();
   expect(/\bvault_remove\b/.test(native)).toBe(false);
   expect(/\bvault_remove\b/.test(bridge)).toBe(false);

@@ -63,7 +63,8 @@ const T = {
 const FOOTNOTE = 2;
 const MAX_DEPTH = 16;
 
-const ENTRY = /^(?:([^/]+)\/)?(Index\/.+\.iwa|Index\.zip|\.iwpv2?|index\.xml(?:\.gz)?|[^/]+\.pages)$/;
+const ENTRY =
+  /^(?:([^/]+)\/)?(Index\/.+\.iwa|Index\.zip|\.iwpv2?|index\.xml(?:\.gz)?|[^/]+\.pages)$/;
 
 /** zipParts, with fflate's own failures turned into sentences. An encrypted
  * member shows up as a compression method no ZIP defines. */
@@ -86,9 +87,13 @@ export function pagesArchives(bytes: Uint8Array, nested = false): Uint8Array[] {
     const [, root = "", rest] = ENTRY.exec(name)!;
     roots.set(root, [...(roots.get(root) ?? []), rest]);
   }
-  const indexed = [...roots.keys()].filter((r) => roots.get(r)!.some((rest) => rest.startsWith("Index")));
+  const indexed = [...roots.keys()].filter((r) =>
+    roots.get(r)!.some((rest) => rest.startsWith("Index")),
+  );
   if (indexed.length > 1 && !indexed.includes(""))
-    throw new Error("This archive holds more than one document. Choose one Pages document at a time.");
+    throw new Error(
+      "This archive holds more than one document. Choose one Pages document at a time.",
+    );
   const root = indexed.includes("") || !indexed.length ? "" : indexed[0];
   const rest = roots.get(root) ?? [];
   const at = (r: string) => parts[root ? `${root}/${r}` : r];
@@ -190,7 +195,9 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
     const key = `${para}:${char}`;
     let marks = markCache.get(key);
     if (!marks) {
-      marks = MARKS.filter(([, no]) => styleMarks(char, no) ?? styleMarks(para, no) ?? false).map(([m]) => m);
+      marks = MARKS.filter(([, no]) => styleMarks(char, no) ?? styleMarks(para, no) ?? false).map(
+        ([m]) => m,
+      );
       markCache.set(key, marks);
     }
     return marks;
@@ -213,7 +220,9 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
     // An entry without a style keeps the previous one in force.
     for (let i = 1; i < styles.length; i++) styles[i].id ??= styles[i - 1].id;
     const chars = runs(storage, 8);
-    const anchors = new Map(runs(storage, 9).flatMap((r) => (r.id === undefined ? [] : [[r.at, r.id] as const])));
+    const anchors = new Map(
+      runs(storage, 9).flatMap((r) => (r.id === undefined ? [] : [[r.at, r.id] as const])),
+    );
     const result: Paragraph[] = [];
     let s = -1;
     let c = -1;
@@ -247,7 +256,14 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
       }
       const code = i < source.length ? source.charCodeAt(i) : -1;
       // Paragraph, section, page and column breaks all end a paragraph.
-      if (code === -1 || code === 0x0a || code === 0x2029 || code === 0x04 || code === 0x05 || code === 0x0c) {
+      if (
+        code === -1 ||
+        code === 0x0a ||
+        code === 0x2029 ||
+        code === 0x04 ||
+        code === 0x05 ||
+        code === 0x0c
+      ) {
         flush();
         result.push({ content, style: styleName(paraStyle) ?? "Unstyled" });
         for (const a of anchored) result.push(...drawable(a, depth + 1));
@@ -277,7 +293,9 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
    * without one points at a stand-in that holds no text. */
   const labelled = (base: Message | undefined, own: Paragraph[], depth: number): Paragraph[] => {
     const label = (no: number, hidden: number) =>
-      num(base, hidden) ? [] : storageParagraphs(shapeStorage(sub(obj(ref(base, no), T.caption), 1)), depth + 1);
+      num(base, hidden)
+        ? []
+        : storageParagraphs(shapeStorage(sub(obj(ref(base, no), T.caption), 1)), depth + 1);
     return [...label(10, 12), ...own, ...label(11, 13)];
   };
 
@@ -291,7 +309,11 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
       case T.shape:
         return labelled(sub(sub(o, 1), 1), storageParagraphs(shapeStorage(o), depth + 1), depth);
       case T.group:
-        return labelled(sub(o, 1), refs(o, 2).flatMap((child) => drawable(child, depth + 1)), depth);
+        return labelled(
+          sub(o, 1),
+          refs(o, 2).flatMap((child) => drawable(child, depth + 1)),
+          depth,
+        );
       case T.tableInfo:
         notices.add("Tables are read cell by cell, in row order. Check any side-by-side dialogue.");
         return labelled(sub(o, 1), table(ref(o, 2), depth + 1), depth);
@@ -319,7 +341,9 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
       );
     };
     const strings = new Map(entries(ref(store, 4)).map((e) => [num(e, 1), text(e.get(3)?.[0])]));
-    const rich = new Map(entries(ref(store, 17)).map((e) => [num(e, 1), ref(obj(ref(e, 9), T.richText), 1)]));
+    const rich = new Map(
+      entries(ref(store, 17)).map((e) => [num(e, 1), ref(obj(ref(e, 9), T.richText), 1)]),
+    );
     const cells: Paragraph[] = [];
     const tiles = (sub(store, 3)?.get(1) ?? [])
       .flatMap((v) => (v instanceof Uint8Array ? [message(v)] : []))
@@ -332,7 +356,8 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
       for (const row of rows) {
         // Current files keep a second copy of each row in fields 6 and 7, with
         // offsets in fours when field 8 says so; older ones have only 3 and 4.
-        const current = row.get(6)?.[0] instanceof Uint8Array && row.get(7)?.[0] instanceof Uint8Array;
+        const current =
+          row.get(6)?.[0] instanceof Uint8Array && row.get(7)?.[0] instanceof Uint8Array;
         const buffer = row.get(current ? 6 : 3)?.[0];
         const offsets = row.get(current ? 7 : 4)?.[0];
         if (!(buffer instanceof Uint8Array) || !(offsets instanceof Uint8Array)) continue;
@@ -360,8 +385,14 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
   const placed = refs(obj(ref(doc, 20)), 1).flatMap((id) => (id === bodyId ? [] : drawable(id, 1)));
   if (placed.some((p) => p.content.length)) {
     if (paragraphs.some((p) => p.content.length)) {
-      paragraphs.push({ content: plain("Text boxes from the original document"), style: "Text Boxes", kind: "action" });
-      notices.add("Text boxes and tables placed on the page are included at the end of the script. Move them where they belong.");
+      paragraphs.push({
+        content: plain("Text boxes from the original document"),
+        style: "Text Boxes",
+        kind: "action",
+      });
+      notices.add(
+        "Text boxes and tables placed on the page are included at the end of the script. Move them where they belong.",
+      );
     }
     paragraphs.push(...placed);
   }
@@ -379,12 +410,23 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
     });
   const notes = [
     ...runs(body, 16).flatMap((r) => noteStorages(r.id)),
-    ...[...objects].filter(([, o]) => o.type === T.storage || o.type === T.storageToo).map(([id]) => id)
+    ...[...objects]
+      .filter(([, o]) => o.type === T.storage || o.type === T.storageToo)
+      .map(([id]) => id)
       .filter((id) => num(obj(id), 1) === FOOTNOTE),
   ].flatMap((id) => storageParagraphs(id, 1).map((p) => ({ ...p, kind: "action" as const })));
   if (notes.some((p) => p.content.length)) {
-    paragraphs.push({ content: plain("Footnotes from the original document"), style: "Footnotes", kind: "action" }, ...notes);
-    notices.add("Footnotes are included at the end of the script. Their original marks stay in the Pages file.");
+    paragraphs.push(
+      {
+        content: plain("Footnotes from the original document"),
+        style: "Footnotes",
+        kind: "action",
+      },
+      ...notes,
+    );
+    notices.add(
+      "Footnotes are included at the end of the script. Their original marks stay in the Pages file.",
+    );
   }
   if (unreadCells)
     notices.add(
@@ -393,15 +435,14 @@ export function readPages(name: string, bytes: Uint8Array): ImportDocument {
   if ([...objects.values()].some((o) => o.type === T.comment))
     notices.add("Comments stay in the Pages file.");
   return { name, format: "Pages", paragraphs, frontMatter: {}, notices: [...notices] };
-
 }
 
 /** Where a cell's text lives: a key into the table's strings or its rich text.
  * Two layouts, told apart by the first byte; the flags say which values follow. */
-function cellValue(view: DataView, at: number):
-  | { kind: "text" | "rich"; key: number }
-  | { kind: "unread" }
-  | null {
+function cellValue(
+  view: DataView,
+  at: number,
+): { kind: "text" | "rich"; key: number } | { kind: "unread" } | null {
   if (at < 0 || at + 12 > view.byteLength) return null;
   const version = view.getUint8(at);
   const type = view.getUint8(at + 1);
@@ -413,7 +454,13 @@ function cellValue(view: DataView, at: number):
     const flags = view.getUint32(at + 8, true);
     let o = at + 12;
     // A decimal, a double, a date, then the keys of the text and styled text.
-    for (const [flag, width] of [[0x1, 16], [0x2, 8], [0x4, 8], [0x8, 4], [0x10, 4]] as const) {
+    for (const [flag, width] of [
+      [0x1, 16],
+      [0x2, 8],
+      [0x4, 8],
+      [0x8, 4],
+      [0x10, 4],
+    ] as const) {
       if (!(flags & flag)) continue;
       if (o + width > view.byteLength) return null;
       if (flag === 0x8) key = view.getUint32(o, true);
@@ -426,8 +473,17 @@ function cellValue(view: DataView, at: number):
     // Cell style, paragraph style, two conditions, format, formula, comment,
     // text, number, date, styled text: each value present, in this order.
     for (const [flag, width] of [
-      [0x2, 4], [0x80, 4], [0x800, 4], [0x400, 4], [0x4, 4], [0x8, 4],
-      [0x1000, 4], [0x10, 4], [0x20, 8], [0x40, 8], [0x200, 4],
+      [0x2, 4],
+      [0x80, 4],
+      [0x800, 4],
+      [0x400, 4],
+      [0x4, 4],
+      [0x8, 4],
+      [0x1000, 4],
+      [0x10, 4],
+      [0x20, 8],
+      [0x40, 8],
+      [0x200, 4],
     ] as const) {
       if (!(flags & flag)) continue;
       if (o + width > view.byteLength) return null;

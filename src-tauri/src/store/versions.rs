@@ -60,7 +60,9 @@ pub fn is_pinned(reason: &str) -> bool {
 fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
-        && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 fn valid_reason(reason: &str) -> bool {
@@ -79,7 +81,7 @@ fn valid_reason(reason: &str) -> bool {
 ///
 ///  - local (current): `20260805T163040.387-0500` — ISO 8601 basic, `T` at
 ///    index 8, an explicit offset, so the instant survives DST and travel.
-///  - UTC (pre-2026-08-05): `20260805-213040-387` — `-` at index 8, implicitly
+///  - UTC (before the 1.0 storage layout): `20260805-213040-387` — `-` at index 8, implicitly
 ///    Zulu. Versions taken before this changed still read correctly, and the
 ///    1.0 migration moves them across without renaming them.
 ///
@@ -104,7 +106,9 @@ fn ts_from_name(name: &str) -> Option<String> {
     let stamp = name.get(0..UTC_STAMP_LEN)?;
     let b = stamp.as_bytes();
     let digits = |r: std::ops::Range<usize>| {
-        stamp.get(r).filter(|s| s.bytes().all(|c| c.is_ascii_digit()))
+        stamp
+            .get(r)
+            .filter(|s| s.bytes().all(|c| c.is_ascii_digit()))
     };
     if b.get(8) != Some(&b'-') || b.get(15) != Some(&b'-') {
         return None;
@@ -210,7 +214,9 @@ impl PlayStore {
         // recovery check's — both found the same name free, and the second
         // replaced the first while both callers were told their copy was kept.
         static NAMING: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _naming = NAMING.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let _naming = NAMING
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         // Local time with an explicit offset (see `ts_from_name`): the name a
         // writer reads matches the clock they took it by.
         let stamp = chrono::Local::now()
@@ -241,9 +247,18 @@ impl PlayStore {
             let (Some(ts), Some(reason)) = (ts_from_name(&name), reason_from_name(&name)) else {
                 continue;
             };
-            let size = self.read(&format!("{dir}/{name}")).map(|b| b.len() as u64).unwrap_or(0);
+            let size = self
+                .read(&format!("{dir}/{name}"))
+                .map(|b| b.len() as u64)
+                .unwrap_or(0);
             let pinned = is_pinned(&reason);
-            entries.push(VersionEntry { name, ts, reason, size, pinned });
+            entries.push(VersionEntry {
+                name,
+                ts,
+                reason,
+                size,
+                pinned,
+            });
         }
         // Newest first, ordered by the INSTANT each name encodes rather than by
         // the name itself: local stamps and the older UTC ones share a folder,

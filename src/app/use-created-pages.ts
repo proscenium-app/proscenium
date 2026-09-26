@@ -47,7 +47,8 @@ export function useCreatedPages(
   const scriptId = useMemo(
     () =>
       scriptPath
-        ? (tree.flatten(binder).find((it) => it.type === "script" && it.path === scriptPath)?.id ?? null)
+        ? (tree.flatten(binder).find((it) => it.type === "script" && it.path === scriptPath)?.id ??
+          null)
         : null,
     [binder, scriptPath],
   );

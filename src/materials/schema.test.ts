@@ -17,7 +17,8 @@ import {
 describe("material templates", () => {
   it("gives a character sheet its sections, blank, as the prompt to fill", () => {
     const out = renderTemplate({
-      type: "character", template: "prompts",
+      type: "character",
+      template: "prompts",
       id: "01ABC",
       title: "CHARLIE",
       created: "2026-08-06T00:00:00.000Z",
@@ -35,7 +36,13 @@ describe("material templates", () => {
   });
 
   it("marks the managed section in the file itself", () => {
-    const out = renderTemplate({ type: "character", template: "prompts", id: "1", title: "X", created: "t" });
+    const out = renderTemplate({
+      type: "character",
+      template: "prompts",
+      id: "1",
+      title: "X",
+      created: "t",
+    });
     expect(out).toContain("## Appearances");
     expect(out).toContain(MANAGED_MARK);
   });
@@ -154,7 +161,11 @@ describe("managed sections", () => {
 
   it("handles a managed section that is last in the file", () => {
     const tail = "# X\n\n## Appearances\n" + MANAGED_MARK + "\n- old\n";
-    const out = writeManagedSection(tail, "Appearances", renderAppearances([{ ordinal: 0, label: "new" }]));
+    const out = writeManagedSection(
+      tail,
+      "Appearances",
+      renderAppearances([{ ordinal: 0, label: "new" }]),
+    );
     expect(out).toContain("- new");
     expect(out).not.toContain("- old");
   });

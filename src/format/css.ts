@@ -34,8 +34,7 @@ function fontRules(el: ElementFormat): string[] {
   const rules: string[] = [];
   if (el.fontStyle === "italic" || el.fontStyle === "bold-italic")
     rules.push("font-style: italic;");
-  if (el.fontStyle === "bold" || el.fontStyle === "bold-italic")
-    rules.push("font-weight: 700;");
+  if (el.fontStyle === "bold" || el.fontStyle === "bold-italic") rules.push("font-weight: 700;");
   return rules;
 }
 
@@ -122,8 +121,10 @@ export function formatToCss(spec: FormatSpec): string {
     const rules: string[] = [];
     if (col.leftIn > 0) rules.push(`margin-left: ${n(inchesToCh(spec, col.leftIn))}ch;`);
     rules.push(`max-width: ${n(inchesToCh(spec, col.widthIn))}ch;`);
-    if (el.spacingBefore > 0) rules.push(`margin-top: calc(${n(el.spacingBefore)} * var(--fmt-line));`);
-    if (el.spacingAfter > 0) rules.push(`margin-bottom: calc(${n(el.spacingAfter)} * var(--fmt-line));`);
+    if (el.spacingBefore > 0)
+      rules.push(`margin-top: calc(${n(el.spacingBefore)} * var(--fmt-line));`);
+    if (el.spacingAfter > 0)
+      rules.push(`margin-bottom: calc(${n(el.spacingAfter)} * var(--fmt-line));`);
     if (el.align !== "left") rules.push(`text-align: ${el.align};`);
     if (el.textTransform !== "none") rules.push(`text-transform: ${el.textTransform};`);
     rules.push(...fontRules(el));
@@ -132,15 +133,22 @@ export function formatToCss(spec: FormatSpec): string {
     out.push(`${sel} {`, ...rules.map((r) => `  ${r}`), `}`);
     if (el.standaloneIndentFromMargin !== null) {
       const standalone = elementColumnIn(spec, key, true);
-      out.push(`${sel}:not(.pm-beside-body) { margin-left: ${n(inchesToCh(spec, standalone.leftIn))}ch; max-width: ${n(inchesToCh(spec, standalone.widthIn))}ch; }`);
+      out.push(
+        `${sel}:not(.pm-beside-body) { margin-left: ${n(inchesToCh(spec, standalone.leftIn))}ch; max-width: ${n(inchesToCh(spec, standalone.widthIn))}ch; }`,
+      );
     }
     if (el.parenWrap) {
       out.push(`${sel}::before { content: "("; }`, `${sel}::after { content: ")"; }`);
       out.push(...emptyParenWrap(sel, el.align));
     }
-    if (el.suffix) out.push(`${sel}::after { content: ${JSON.stringify((el.parenWrap ? ")" : "") + el.suffix)}; }`);
+    if (el.suffix)
+      out.push(
+        `${sel}::after { content: ${JSON.stringify((el.parenWrap ? ")" : "") + el.suffix)}; }`,
+      );
     if (el.besideNext) {
-      out.push(`${sel}.pm-beside { float: left; width: ${n(inchesToCh(spec, col.widthIn))}ch; margin-top: 0; margin-bottom: 0; }`);
+      out.push(
+        `${sel}.pm-beside { float: left; width: ${n(inchesToCh(spec, col.widthIn))}ch; margin-top: 0; margin-bottom: 0; }`,
+      );
     }
     if (el.tightStack) {
       out.push(`.play-page .pl-${key} + .pl-${key} { margin-top: 0; }`);
@@ -151,7 +159,8 @@ export function formatToCss(spec: FormatSpec): string {
     // them back out to the text block's own edges.
     const rightGapIn = textBlockWidthIn(spec) - col.leftIn - col.widthIn;
     if (col.leftIn > 1e-9 || rightGapIn > 1e-9) {
-      const outward = (inches: number) => (inches > 1e-9 ? `-${n(inchesToCh(spec, inches))}ch` : "0");
+      const outward = (inches: number) =>
+        inches > 1e-9 ? `-${n(inchesToCh(spec, inches))}ch` : "0";
       out.push(
         `${sel} .pgchrome__header, ${sel} .pgchrome__footer {`,
         `  left: ${outward(col.leftIn)};`,
@@ -179,12 +188,16 @@ export function formatToCss(spec: FormatSpec): string {
   out.push(`.play-page .pm-beside-gap { clear: both; }`);
   out.push(`.play-page .pm-beside-body { margin-top: 0; }`);
   out.push(`.play-page .pm-before-beside { margin-bottom: 0; }`);
-  out.push(`.play-page .pm-run-in { float: left; margin-top: 0; margin-bottom: 0; margin-right: 1ch; }`);
+  out.push(
+    `.play-page .pm-run-in { float: left; margin-top: 0; margin-bottom: 0; margin-right: 1ch; }`,
+  );
   out.push(`.play-page .pm-run-in-body { margin-top: 0; }`);
   // Continued cues already contain the engine's final print text, including
   // the marker's own case. Do not transform or punctuate them a second time.
   out.push(`.play-page .pgchrome__contd { text-transform: none; }`);
-  out.push(`.play-page .pgchrome__contd::before, .play-page .pgchrome__contd::after { content: none; }`);
+  out.push(
+    `.play-page .pgchrome__contd::before, .play-page .pgchrome__contd::after { content: none; }`,
+  );
 
   return out.join("\n");
 }

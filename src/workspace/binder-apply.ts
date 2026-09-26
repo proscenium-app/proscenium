@@ -25,13 +25,7 @@
 import { samePath as sameFileOnDisk } from "../storage/path-key";
 import { vault } from "../storage";
 import { defaultDirFor, normalizeType, renderTemplate } from "../materials";
-import {
-  findItem,
-  flatten,
-  insert,
-  isAncestor,
-  reorder,
-} from "./binder";
+import { findItem, flatten, insert, isAncestor, reorder } from "./binder";
 import {
   commitPlay,
   readPlayFile,
@@ -44,7 +38,13 @@ import {
 import { fileName, titleFromFileName } from "./filename";
 import type { KeptFile } from "../storage/import-bytes";
 import { ulid } from "./ulid";
-import { BINDER_CHANGED, reconcileDelta, removeKnown, requireParent, restoreSubtree } from "./binder-rebase";
+import {
+  BINDER_CHANGED,
+  reconcileDelta,
+  removeKnown,
+  requireParent,
+  restoreSubtree,
+} from "./binder-rebase";
 import { applyRelocation, type BinderRelocation } from "./binder-relocation";
 
 // --- path helpers ---
@@ -81,15 +81,19 @@ export type ApplyResult =
  * Commit a reconciliation plan as individual identity edits against the fresh
  * binder. This never treats a cached tree as the replacement for a newer one.
  */
-export async function commitBinder(
-  ctx: BinderContext,
-  binder: BinderItem[],
-): Promise<ApplyResult> {
-  return commit(ctx, (play) => withBinder(play, reconcileDelta(ctx.play.binder, binder, play.binder)));
+export async function commitBinder(ctx: BinderContext, binder: BinderItem[]): Promise<ApplyResult> {
+  return commit(ctx, (play) =>
+    withBinder(play, reconcileDelta(ctx.play.binder, binder, play.binder)),
+  );
 }
 
-export function restoreBinderItem(ctx: BinderContext, item: BinderItem, parentId: string | null,
-  index: number, records: Record<string, ScriptData>): Promise<ApplyResult> {
+export function restoreBinderItem(
+  ctx: BinderContext,
+  item: BinderItem,
+  parentId: string | null,
+  index: number,
+  records: Record<string, ScriptData>,
+): Promise<ApplyResult> {
   return commit(ctx, (play) => restoreSubtree(play, item, parentId, index, records));
 }
 
@@ -106,7 +110,11 @@ async function commit(
     );
     if (out.status === "ok") return { ok: true, play: out.data, hash: out.hash };
     if (out.status === "read-only") {
-      return { ok: false, reason: "error", message: "This play was saved by a newer Proscenium, so it opens read-only." };
+      return {
+        ok: false,
+        reason: "error",
+        message: "This play was saved by a newer Proscenium, so it opens read-only.",
+      };
     }
     return { ok: false, reason: "collision" };
   } catch (e) {
@@ -139,11 +147,18 @@ async function freshPath(binderPath: string, selfPath?: string): Promise<string>
   return candidate;
 }
 
-function addAt(ctx: BinderContext, parentId: string | null, item: BinderItem, atIndex: number): Promise<ApplyResult> {
+function addAt(
+  ctx: BinderContext,
+  parentId: string | null,
+  item: BinderItem,
+  atIndex: number,
+): Promise<ApplyResult> {
   const parentPath = parentId ? findItem(ctx.play.binder, parentId)?.item.path : undefined;
   return commit(ctx, (play) => {
     requireParent(play.binder, parentId, parentPath);
-    if (flatten(play.binder).some((row) => row.id === item.id || sameFileOnDisk(row.path, item.path))) {
+    if (
+      flatten(play.binder).some((row) => row.id === item.id || sameFileOnDisk(row.path, item.path))
+    ) {
       throw new Error(BINDER_CHANGED);
     }
     return withBinder(play, insert(play.binder, parentId, item, atIndex));
@@ -156,17 +171,34 @@ async function commitRelocation(ctx: BinderContext, op: BinderRelocation): Promi
   if (op.from === op.to || (!exists && item?.type === "folder")) {
     return commit(ctx, (play) => applyRelocation(play, op));
   }
-  if (!exists) return { ok: false, reason: "error", message: "This file is no longer at its original name. Reopen the play before moving it." };
-  const blocked = (error: unknown): ApplyResult => ({ ok: false, reason: "error", blocked: true,
-    message: `The file move needs to finish before writing can continue. Reopen the play. ${String(error)}` });
+  if (!exists)
+    return {
+      ok: false,
+      reason: "error",
+      message: "This file is no longer at its original name. Reopen the play before moving it.",
+    };
+  const blocked = (error: unknown): ApplyResult => ({
+    ok: false,
+    reason: "error",
+    blocked: true,
+    message: `The file move needs to finish before writing can continue. Reopen the play. ${String(error)}`,
+  });
   let started;
-  try { started = await vault.beginMove(op.from, op.to, ctx.playPath, JSON.stringify(op)); }
-  catch (error) { return blocked(error); }
-  if (started.status === "refused") return { ok: false, reason: "error", message: started.message, blocked: started.blocked };
+  try {
+    started = await vault.beginMove(op.from, op.to, ctx.playPath, JSON.stringify(op));
+  } catch (error) {
+    return blocked(error);
+  }
+  if (started.status === "refused")
+    return { ok: false, reason: "error", message: started.message, blocked: started.blocked };
   const result = await commit(ctx, (play) => applyRelocation(play, op));
   if (result.ok) {
-    try { await vault.finishMove(started.intent.id); return result; }
-    catch (error) { return blocked(error); }
+    try {
+      await vault.finishMove(started.intent.id);
+      return result;
+    } catch (error) {
+      return blocked(error);
+    }
   }
   // A refusal may have happened after the metadata rename. Roll back only
   // when the original location is still what the actual manifest names.
@@ -177,20 +209,19 @@ async function commitRelocation(ctx: BinderContext, op: BinderRelocation): Promi
   try {
     await vault.rollbackMove(started.intent.id);
     const after = await readPlayFile(ctx.playPath);
-    if (after.status !== "valid" || after.hash !== fresh.hash) return blocked("The play's details changed during recovery.");
+    if (after.status !== "valid" || after.hash !== fresh.hash)
+      return blocked("The play's details changed during recovery.");
     await vault.finishMove(started.intent.id);
     return result;
-  } catch (error) { return blocked(error); }
+  } catch (error) {
+    return blocked(error);
+  }
 }
 
 // --- operations ---
 
 /** Reorder within the current parent. No file moves — rewrite the play file. */
-export function reorderItem(
-  ctx: BinderContext,
-  id: string,
-  toIndex: number,
-): Promise<ApplyResult> {
+export function reorderItem(ctx: BinderContext, id: string, toIndex: number): Promise<ApplyResult> {
   return commit(ctx, (play) => {
     if (!findItem(play.binder, id)) throw new Error(BINDER_CHANGED);
     return withBinder(play, reorder(play.binder, id, toIndex));
@@ -229,12 +260,17 @@ export async function moveItem(
   }
   const item = loc.item;
   requireParent(ctx.play.binder, newParentId);
-  const parentDir = newParentId
-    ? (findItem(ctx.play.binder, newParentId)?.item.path ?? "")
-    : "";
+  const parentDir = newParentId ? (findItem(ctx.play.binder, newParentId)?.item.path ?? "") : "";
   const target = await freshPath(joinp(parentDir, basename(item.path)), item.path);
-  return commitRelocation(ctx, { version: 1, itemId: id, from: item.path, to: target,
-    parentId: newParentId, parentPath: parentDir, index: Number.isFinite(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER });
+  return commitRelocation(ctx, {
+    version: 1,
+    itemId: id,
+    from: item.path,
+    to: target,
+    parentId: newParentId,
+    parentPath: parentDir,
+    index: Number.isFinite(atIndex) ? atIndex : Number.MAX_SAFE_INTEGER,
+  });
 }
 
 /**
@@ -254,9 +290,7 @@ export async function newFolder(
   title: string,
   atIndex = Infinity,
 ): Promise<ApplyResult> {
-  const parentDir = parentId
-    ? (findItem(ctx.play.binder, parentId)?.item.path ?? "")
-    : "";
+  const parentDir = parentId ? (findItem(ctx.play.binder, parentId)?.item.path ?? "") : "";
   const path = await freshPath(joinp(parentDir, fileName(title)));
   const id = ulid();
   const item: BinderItem = { id, type: "folder", path, children: [] };
@@ -286,9 +320,7 @@ export async function newScript(
   title: string,
   atIndex = Infinity,
 ): Promise<ApplyResult> {
-  const parentDir = parentId
-    ? (findItem(ctx.play.binder, parentId)?.item.path ?? "")
-    : "";
+  const parentDir = parentId ? (findItem(ctx.play.binder, parentId)?.item.path ?? "") : "";
   const id = ulid();
   const path = await freshPath(joinp(parentDir, fileName(title) + ".fountain"));
   // Created, not written: a file that arrived at that name since `freshPath`
@@ -379,7 +411,9 @@ export async function importIntoPlay(
 
   const parentPath = parentId ? findItem(ctx.play.binder, parentId)?.item.path : undefined;
   const dir = parentPath ?? (kind === "document" ? defaultDirFor("document") : "");
-  const path = await freshPath(joinp(dir, fileName(title) + (kind === "script" ? ".fountain" : ".md")));
+  const path = await freshPath(
+    joinp(dir, fileName(title) + (kind === "script" ? ".fountain" : ".md")),
+  );
   await vault.create(path, content);
 
   const id = ulid();
@@ -388,9 +422,19 @@ export async function importIntoPlay(
     let parent = parentId;
     if (parentId) requireParent(binder, parentId, parentPath);
     else if (kind === "document") ({ binder, id: parent } = withFolder(binder, dir));
-    binder = insert(binder, parent, { id, type: kind, path }, parent === parentId ? atIndex : Infinity);
+    binder = insert(
+      binder,
+      parent,
+      { id, type: kind, path },
+      parent === parentId ? atIndex : Infinity,
+    );
     const originals = withFolder(binder, "Originals");
-    binder = insert(originals.binder, originals.id, { id: ulid(), type: "reference", path: keptPath }, Infinity);
+    binder = insert(
+      originals.binder,
+      originals.id,
+      { id: ulid(), type: "reference", path: keptPath },
+      Infinity,
+    );
     return withBinder(play, binder);
   });
   return res.ok ? { ...res, createdId: id, keptPath } : res;
@@ -405,10 +449,7 @@ export async function importIntoPlay(
  * byte-level API has no recursive copy behind it. Better to not offer it than
  * to offer half of it.
  */
-export async function duplicateItem(
-  ctx: BinderContext,
-  id: string,
-): Promise<ApplyResult> {
+export async function duplicateItem(ctx: BinderContext, id: string): Promise<ApplyResult> {
   const loc = findItem(ctx.play.binder, id);
   if (!loc) return { ok: false, reason: "error", message: "item not found" };
   const item = loc.item;
@@ -440,10 +481,7 @@ export async function duplicateItem(
  * unlink). The caller must close/flush any open editor session for this path
  * first. A folder with no directory has nothing to trash — its row goes.
  */
-export async function deleteItem(
-  ctx: BinderContext,
-  id: string,
-): Promise<ApplyResult> {
+export async function deleteItem(ctx: BinderContext, id: string): Promise<ApplyResult> {
   const loc = findItem(ctx.play.binder, id);
   if (!loc) return { ok: false, reason: "error", message: "item not found" };
   const item = loc.item;
@@ -459,7 +497,9 @@ export async function deleteItem(
   return commit(ctx, (play) => {
     const binder = removeKnown(play.binder, item);
     // Only this operation's explicit removals authorise pruning canonical notes.
-    const scripts = Object.fromEntries(Object.entries(play.scripts).filter(([key]) => !deletedIds.has(key)));
+    const scripts = Object.fromEntries(
+      Object.entries(play.scripts).filter(([key]) => !deletedIds.has(key)),
+    );
     return { ...play, binder, scripts };
   });
 }

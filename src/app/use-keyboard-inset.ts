@@ -29,14 +29,8 @@ export function useKeyboardInset(): void {
     const apply = () => {
       // Height the keyboard (or anything else) took off the bottom: layout
       // height minus the visual viewport's bottom edge.
-      const inset = Math.max(
-        0,
-        window.innerHeight - vv.height - vv.offsetTop,
-      );
-      document.documentElement.style.setProperty(
-        "--kb-inset",
-        `${Math.round(inset)}px`,
-      );
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--kb-inset", `${Math.round(inset)}px`);
     };
     apply();
     vv.addEventListener("resize", apply);

@@ -49,7 +49,16 @@ describe("headingNumber (docs/app/formatting/formats-and-layout.md#FMT-141)", ()
 
 describe("toRoman", () => {
   it("writes the numerals a play needs", () => {
-    expect([1, 2, 3, 4, 5, 9, 14, 40].map(toRoman)).toEqual(["I", "II", "III", "IV", "V", "IX", "XIV", "XL"]);
+    expect([1, 2, 3, 4, 5, 9, 14, 40].map(toRoman)).toEqual([
+      "I",
+      "II",
+      "III",
+      "IV",
+      "V",
+      "IX",
+      "XIV",
+      "XL",
+    ]);
   });
 });
 
@@ -65,7 +74,9 @@ describe("fillSlot (docs/app/formatting/formats-and-layout.md#FMT-142)", () => {
 
   it("prints act, scene and page", () => {
     expect(fillSlot(roman, slotValues({ pageNumber: 67, at: at(2, 3) }))).toBe("II-3-67");
-    expect(fillSlot("{actNumber}-{sceneNumber}-{page}", slotValues({ pageNumber: 67, at: at(2, 3) }))).toBe("2-3-67");
+    expect(
+      fillSlot("{actNumber}-{sceneNumber}-{page}", slotValues({ pageNumber: 67, at: at(2, 3) })),
+    ).toBe("2-3-67");
   });
 
   it("drops the act from a one-act, and the scene from a play with none", () => {
@@ -75,16 +86,29 @@ describe("fillSlot (docs/app/formatting/formats-and-layout.md#FMT-142)", () => {
   });
 
   it("drops a trailing number's separator too", () => {
-    expect(fillSlot("{page} / {sceneNumber}", slotValues({ pageNumber: 4, at: at(null, null) }))).toBe("4");
+    expect(
+      fillSlot("{page} / {sceneNumber}", slotValues({ pageNumber: 4, at: at(null, null) })),
+    ).toBe("4");
   });
 
   it("leaves text that is not a separator alone", () => {
-    expect(fillSlot("Scene {sceneNumber}", slotValues({ pageNumber: 4, at: at(1, null) }))).toBe("Scene ");
-    expect(fillSlot("{title} — {author}", slotValues({ pageNumber: 4, at: at(1, 1), title: "Tideline" }))).toBe("Tideline — ");
+    expect(fillSlot("Scene {sceneNumber}", slotValues({ pageNumber: 4, at: at(1, null) }))).toBe(
+      "Scene ",
+    );
+    expect(
+      fillSlot(
+        "{title} — {author}",
+        slotValues({ pageNumber: 4, at: at(1, 1), title: "Tideline" }),
+      ),
+    ).toBe("Tideline — ");
   });
 
   it("prints the draft date on one line", () => {
-    expect(fillSlot("{draftDate}", slotValues({ pageNumber: 1, at: at(null, null), draftDate: "Draft 3\nSeptember 23, 2026" })))
-      .toBe("Draft 3 September 23, 2026");
+    expect(
+      fillSlot(
+        "{draftDate}",
+        slotValues({ pageNumber: 1, at: at(null, null), draftDate: "Draft 3\nSeptember 23, 2026" }),
+      ),
+    ).toBe("Draft 3 September 23, 2026");
   });
 });

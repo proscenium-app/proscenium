@@ -39,7 +39,7 @@
  * dark audit sees exactly the page the light one saw. A whole second pass in
  * dark cost as long as the first; running only the auditing checks in it
  * changed the page under them, because the checks stand on each other's state
- * (31 of them then failed on 2026-09-26).
+ * (31 of them then failed).
  *
  * **It also asserts that things can be REACHED** (docs/app/preferences-and-help/accessibility.md#A11Y-19). Every surface
  * it opens is scanned with axe-core against WCAG 2.2 A and AA, and a critical
@@ -84,16 +84,23 @@ import { holdHostBench } from "./host-bench.mjs";
 
 const STARTED = Date.now();
 const DIST = new URL("../dist/", import.meta.url).pathname;
-const argValue = (name) => (process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null);
+const argValue = (name) =>
+  process.argv.includes(name) ? process.argv[process.argv.indexOf(name) + 1] : null;
 /** "failures": a PNG of each failing check; "all": of every check too. */
-const SHOTS = process.argv.includes("--shots=all") ? "all" : process.argv.includes("--shots") ? "failures" : null;
+const SHOTS = process.argv.includes("--shots=all")
+  ? "all"
+  : process.argv.includes("--shots")
+    ? "failures"
+    : null;
 const UPDATE_ARIA = process.argv.includes("--update-aria");
 const ONE_ENGINE = argValue("--engine");
 /** The features a narrowed pass keeps (smoke-checks.mjs `selected`); none, every check. */
 const ONLY = (argValue("--only") ?? "").split(/[,\s]+/).filter(Boolean);
 const TIMING = argValue("--timing");
 if (ONLY.length && UPDATE_ARIA) {
-  console.error("smoke: --update-aria writes every surface's snapshot, so it runs every check; drop --only");
+  console.error(
+    "smoke: --update-aria writes every surface's snapshot, so it runs every check; drop --only",
+  );
   process.exit(2);
 }
 const ENGINES = { chromium, webkit };
@@ -102,7 +109,9 @@ if (ONE_ENGINE && !ENGINES[ONE_ENGINE]) {
   process.exit(2);
 }
 if (ONE_ENGINE && process.argv.includes("--update-aria")) {
-  console.error("smoke: --update-aria writes the shared snapshots from Chromium and WebKit's own where it differs, so it runs both engines");
+  console.error(
+    "smoke: --update-aria writes the shared snapshots from Chromium and WebKit's own where it differs, so it runs both engines",
+  );
   process.exit(2);
 }
 /** Chromium first: its reading is the shared file, WebKit's the exception. */
@@ -119,7 +128,8 @@ const AXE_PATH = "/__smoke__/axe.min.js";
 
 /** The app's own policy, as the webview receives it (tauri.conf.json `app.security.csp`). */
 const CSP = Object.entries(
-  JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8")).app.security.csp,
+  JSON.parse(readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8")).app
+    .security.csp,
 )
   .map(([directive, sources]) => `${directive} ${sources}`)
   .join("; ");
@@ -222,16 +232,21 @@ async function inScheme(P, page, scheme, fn) {
   const settle = async (want) => {
     await page.emulateMedia({ colorScheme: want });
     await page.waitForFunction(
-      (w) => document.documentElement.dataset.appearance !== "system" || document.documentElement.dataset.theme === w,
+      (w) =>
+        document.documentElement.dataset.appearance !== "system" ||
+        document.documentElement.dataset.theme === w,
       want,
       { timeout: 5000 },
     );
     // Two frames, so the new colours are drawn before anything reads them;
     // never longer than a quarter second, should a frame not come.
-    await page.evaluate(() => new Promise((r) => {
-      requestAnimationFrame(() => requestAnimationFrame(r));
-      setTimeout(r, 250);
-    }));
+    await page.evaluate(
+      () =>
+        new Promise((r) => {
+          requestAnimationFrame(() => requestAnimationFrame(r));
+          setTimeout(r, 250);
+        }),
+    );
   };
   await settle(scheme);
   Object.assign(P, { scheme, names: P.darkNames });
@@ -261,7 +276,15 @@ async function holdSnapshot(P, page, surface) {
   // A toast is on screen for as long as its timer says, and its words were
   // already said through the announcer: it is timing, not the surface.
   const take = async () => {
-    await page.evaluate(() => document.querySelectorAll(".toast").forEach((t) => t.setAttribute("data-smoke-hidden", t.getAttribute("aria-hidden") ?? "") || t.setAttribute("aria-hidden", "true")));
+    await page.evaluate(() =>
+      document
+        .querySelectorAll(".toast")
+        .forEach(
+          (t) =>
+            t.setAttribute("data-smoke-hidden", t.getAttribute("aria-hidden") ?? "") ||
+            t.setAttribute("aria-hidden", "true"),
+        ),
+    );
     try {
       return forSurface(await page.locator("body").ariaSnapshot());
     } finally {
@@ -321,7 +344,10 @@ async function holdText(P, surface, actual, retake) {
   const expected = read(file);
   // Still settling (an announcement, a hover, a pane finishing its render):
   // read again until it matches or the settle time is up.
-  for (const until = Date.now() + SETTLE_MS; expected !== null && expected !== actual && retake && Date.now() < until; ) {
+  for (
+    const until = Date.now() + SETTLE_MS;
+    expected !== null && expected !== actual && retake && Date.now() < until;
+  ) {
     await new Promise((r) => setTimeout(r, 250));
     actual = await retake();
   }
@@ -346,7 +372,10 @@ function driverFor(P) {
         recordAudit(await page.evaluate(runAxe, AUDIT_TAGS), label, P.audits);
         await holdSnapshot(P, page, surface);
         if (SHOTS && surface.startsWith("Send Feedback")) {
-          await page.screenshot({ animations: "disabled", path: shotPath(`${P.engine}-${P.scheme}`, surface) });
+          await page.screenshot({
+            animations: "disabled",
+            path: shotPath(`${P.engine}-${P.scheme}`, surface),
+          });
         }
       };
       await look(surface);
@@ -374,7 +403,9 @@ async function runEngine(engine) {
   const P = newPass(engine);
   const CHECKS = smokeChecks(driverFor(P)).filter((c) => selected(c, ONLY));
   if (ONLY.length && engine === ENGINE_ORDER[0]) {
-    console.log(`  --only ${ONLY.join(", ")}: ${CHECKS.length} of ${ALL_CHECKS} checks${CHECKS.length === ALL_CHECKS ? " (no other feature's checks are detachable yet)" : ""}`);
+    console.log(
+      `  --only ${ONLY.join(", ")}: ${CHECKS.length} of ${ALL_CHECKS} checks${CHECKS.length === ALL_CHECKS ? " (no other feature's checks are detachable yet)" : ""}`,
+    );
   }
   const findings = P.audits.findings;
   const scheme = P.scheme;
@@ -449,7 +480,8 @@ async function runEngine(engine) {
     let failed = false;
     try {
       await check.run(page);
-      if (findings.length) throw new Error(`accessibility:\n        ${findings.join("\n        ")}`);
+      if (findings.length)
+        throw new Error(`accessibility:\n        ${findings.join("\n        ")}`);
       console.log(`  ok    ${engine} · ${check.name} (${Date.now() - started} ms)`);
     } catch (e) {
       failures++;
@@ -458,10 +490,19 @@ async function runEngine(engine) {
       // first; every other failure is one line.
       const text = String(e);
       const shown = text.startsWith("Error: accessibility") ? text : text.split("\n")[0];
-      console.log(`  FAIL  ${engine} · ${check.name} (${Date.now() - started} ms)\n        ${shown}`);
+      console.log(
+        `  FAIL  ${engine} · ${check.name} (${Date.now() - started} ms)\n        ${shown}`,
+      );
     }
-    passTiming.checks.push({ name: check.name, ms: Date.now() - started, ok: !failed, waitMs: waiting.ms, waits: waiting.count });
-    if (SHOTS === "all" || (SHOTS && failed)) await page.screenshot({ path: shotPath(`${engine}-${P.scheme}`, check.name) });
+    passTiming.checks.push({
+      name: check.name,
+      ms: Date.now() - started,
+      ok: !failed,
+      waitMs: waiting.ms,
+      waits: waiting.count,
+    });
+    if (SHOTS === "all" || (SHOTS && failed))
+      await page.screenshot({ path: shotPath(`${engine}-${P.scheme}`, check.name) });
   }
   passTiming.ms = Date.now() - passTiming.startedAt;
 
@@ -471,7 +512,9 @@ async function runEngine(engine) {
   }
   if (external.length) {
     failures++;
-    console.log(`  FAIL  ${engine} · the page reached outside the app\n        ${[...new Set(external)].slice(0, 5).join("\n        ")}`);
+    console.log(
+      `  FAIL  ${engine} · the page reached outside the app\n        ${[...new Set(external)].slice(0, 5).join("\n        ")}`,
+    );
   } else {
     console.log(`  ok    ${engine} · no request left the app`);
   }
@@ -512,13 +555,20 @@ if (!ONE_ENGINE && !ONLY.length && existsSync(ARIA)) {
   const stale = readdirSync(ARIA).filter((f) => f.endsWith(".yml") && !heldFiles.has(f));
   if (stale.length && UPDATE_ARIA) {
     for (const f of stale) rmSync(join(ARIA, f));
-    console.log(`  removed ${stale.length} snapshot${stale.length === 1 ? "" : "s"} no surface uses: ${stale.join(", ")}`);
+    console.log(
+      `  removed ${stale.length} snapshot${stale.length === 1 ? "" : "s"} no surface uses: ${stale.join(", ")}`,
+    );
   } else if (stale.length) {
     failures++;
-    console.log(`  FAIL  scripts/aria/ holds snapshots no surface uses (--update-aria removes them)\n        ${stale.join("\n        ")}`);
+    console.log(
+      `  FAIL  scripts/aria/ holds snapshots no surface uses (--update-aria removes them)\n        ${stale.join("\n        ")}`,
+    );
   }
 }
-if (UPDATE_ARIA) console.log(`  wrote ${writtenNow.size} ARIA snapshot${writtenNow.size === 1 ? "" : "s"} to scripts/aria/`);
+if (UPDATE_ARIA)
+  console.log(
+    `  wrote ${writtenNow.size} ARIA snapshot${writtenNow.size === 1 ? "" : "s"} to scripts/aria/`,
+  );
 
 if (advisories.size) {
   console.log("\n  advice (best practice, not failing):");
@@ -533,7 +583,9 @@ if (TIMING) {
 }
 const waited = (p) => Math.round(p.checks.reduce((n, c) => n + c.waitMs, 0) / 1000);
 timing.wallMs = Date.now() - STARTED;
-console.log(`\n  time: ${Math.round(timing.wallMs / 1000)} s — ${timing.passes.map((p) => `${p.engine} ${Math.round(p.ms / 1000)} s (${waited(p)} s of it waiting for selectors)`).join(" · ")}`);
+console.log(
+  `\n  time: ${Math.round(timing.wallMs / 1000)} s — ${timing.passes.map((p) => `${p.engine} ${Math.round(p.ms / 1000)} s (${waited(p)} s of it waiting for selectors)`).join(" · ")}`,
+);
 
 if (failures) {
   console.log(`\nsmoke: ${failures} failure${failures === 1 ? "" : "s"}`);

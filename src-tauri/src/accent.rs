@@ -21,8 +21,13 @@ pub fn system_accent() -> Option<String> {
     {
         use objc2_app_kit::{NSColor, NSColorSpace};
         // A dynamic colour in no fixed space: sRGB is what the page computes in.
-        let srgb = NSColor::controlAccentColor().colorUsingColorSpace(&NSColorSpace::sRGBColorSpace())?;
-        Some(hex(srgb.redComponent(), srgb.greenComponent(), srgb.blueComponent()))
+        let srgb =
+            NSColor::controlAccentColor().colorUsingColorSpace(&NSColorSpace::sRGBColorSpace())?;
+        Some(hex(
+            srgb.redComponent(),
+            srgb.greenComponent(),
+            srgb.blueComponent(),
+        ))
     }
     #[cfg(not(target_os = "macos"))]
     None
@@ -51,6 +56,10 @@ mod tests {
     #[test]
     fn the_mac_answers_a_colour() {
         let answer = super::system_accent().expect("AppKit resolves the accent colour");
-        assert!(answer.len() == 7 && answer.starts_with('#') && answer[1..].chars().all(|c| c.is_ascii_hexdigit()));
+        assert!(
+            answer.len() == 7
+                && answer.starts_with('#')
+                && answer[1..].chars().all(|c| c.is_ascii_hexdigit())
+        );
     }
 }

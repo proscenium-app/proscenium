@@ -64,9 +64,15 @@ export async function copyDiagnostics(formats: string[], toast: Toast): Promise<
     toast({
       kind: "ok",
       title: "Diagnostics copied",
-      detail: "They include no play, file or folder names. Read them before you paste them anywhere.",
+      detail:
+        "They include no play, file or folder names. Read them before you paste them anywhere.",
     });
   } catch (e) {
-    toast({ kind: "error", title: "The diagnostics could not be copied.", detail: String(e), code: "E-OTHER" });
+    toast({
+      kind: "error",
+      title: "The diagnostics could not be copied.",
+      detail: String(e),
+      code: "E-OTHER",
+    });
   }
 }

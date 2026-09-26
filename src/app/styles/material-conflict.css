@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* An external change landed while this material had unsaved edits. Both
    versions survive; the writer picks (docs/app/keeping-work/storage-and-file-format.md#STOR-104, docs/app/keeping-work/storage-and-file-format.md#STOR-109). At most the pane's width
    (100cqw) rather than the editor's, which can be a page wider than the pane:
@@ -37,4 +36,3 @@
   border-color: var(--warn-border);
   color: var(--warn-text);
 }
-

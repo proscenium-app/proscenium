@@ -19,5 +19,5 @@ export async function revertReviewedFile(args: {
     return "unpreserved";
   }
   if (!args.stillReviewed()) return "changed";
-  return await args.write(args.before, current.hash) ? "saved" : "refused";
+  return (await args.write(args.before, current.hash)) ? "saved" : "refused";
 }

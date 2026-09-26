@@ -31,9 +31,7 @@ import {
 const FONT_FAMILY = /^[A-Za-z0-9 ,'"._-]+$/;
 const COURIER_FALLBACKS = new Set(["courier prime", "courier new", "courier", "monospace"]);
 
-export type FormatValidation =
-  | { ok: true; spec: FormatSpec }
-  | { ok: false; errors: string[] };
+export type FormatValidation = { ok: true; spec: FormatSpec } | { ok: false; errors: string[] };
 
 export const DEFAULT_FRONT_MATTER = frontMatterDefaults as FrontMatterSpec;
 
@@ -43,14 +41,43 @@ function checkFrontMatter(c: Check, raw: unknown): FrontMatterSpec {
   const obj = c.record("frontMatter", raw);
   if (!obj) return result;
   c.noUnknownKeys("frontMatter", obj, Object.keys(result));
-  for (const key of ["inlineGapRows", "titleTopFraction", "titleGapRows", "titleContactGapRows", "sectionTopRows", "headingGapRows", "castGapRows", "fieldGapRows", "contactBottomRows"] as const) {
+  for (const key of [
+    "inlineGapRows",
+    "titleTopFraction",
+    "titleGapRows",
+    "titleContactGapRows",
+    "sectionTopRows",
+    "headingGapRows",
+    "castGapRows",
+    "fieldGapRows",
+    "contactBottomRows",
+  ] as const) {
     if (key in obj) result[key] = c.number(`frontMatter.${key}`, obj[key], result[key], { min: 0 });
   }
-  if (result.titleTopFraction > 1) c.fail("frontMatter.titleTopFraction", "must be between 0 and 1");
-  if ("placement" in obj) result.placement = c.oneOf("frontMatter.placement", obj.placement, ["separate-pages", "inline"], result.placement);
-  if ("contactAlign" in obj) result.contactAlign = c.oneOf("frontMatter.contactAlign", obj.contactAlign, ["left", "center", "right"], result.contactAlign);
+  if (result.titleTopFraction > 1)
+    c.fail("frontMatter.titleTopFraction", "must be between 0 and 1");
+  if ("placement" in obj)
+    result.placement = c.oneOf(
+      "frontMatter.placement",
+      obj.placement,
+      ["separate-pages", "inline"],
+      result.placement,
+    );
+  if ("contactAlign" in obj)
+    result.contactAlign = c.oneOf(
+      "frontMatter.contactAlign",
+      obj.contactAlign,
+      ["left", "center", "right"],
+      result.contactAlign,
+    );
   for (const key of ["titleFontStyle", "headingFontStyle", "bodyFontStyle"] as const) {
-    if (key in obj) result[key] = c.oneOf(`frontMatter.${key}`, obj[key], ["regular", "italic", "bold", "bold-italic"], result[key]);
+    if (key in obj)
+      result[key] = c.oneOf(
+        `frontMatter.${key}`,
+        obj[key],
+        ["regular", "italic", "bold", "bold-italic"],
+        result[key],
+      );
   }
   return result;
 }
@@ -169,7 +196,12 @@ function checkElement(c: Check, path: string, raw: unknown, base: ElementFormat)
   c.noUnknownKeys(path, obj, Object.keys(DEFAULT_ELEMENT));
   const el = { ...base };
   if ("indentFromMargin" in obj)
-    el.indentFromMargin = c.number(`${path}.indentFromMargin`, obj.indentFromMargin, base.indentFromMargin, { min: 0 });
+    el.indentFromMargin = c.number(
+      `${path}.indentFromMargin`,
+      obj.indentFromMargin,
+      base.indentFromMargin,
+      { min: 0 },
+    );
   if ("maxWidth" in obj) {
     el.maxWidth =
       obj.maxWidth === "full"
@@ -179,7 +211,12 @@ function checkElement(c: Check, path: string, raw: unknown, base: ElementFormat)
   if ("align" in obj)
     el.align = c.oneOf(`${path}.align`, obj.align, ["left", "center", "right"], base.align);
   if ("textTransform" in obj)
-    el.textTransform = c.oneOf(`${path}.textTransform`, obj.textTransform, ["none", "uppercase"], base.textTransform);
+    el.textTransform = c.oneOf(
+      `${path}.textTransform`,
+      obj.textTransform,
+      ["none", "uppercase"],
+      base.textTransform,
+    );
   if ("fontStyle" in obj)
     el.fontStyle = c.oneOf(
       `${path}.fontStyle`,
@@ -188,23 +225,39 @@ function checkElement(c: Check, path: string, raw: unknown, base: ElementFormat)
       base.fontStyle,
     );
   if ("letterSpacing" in obj)
-    el.letterSpacing = c.number(`${path}.letterSpacing`, obj.letterSpacing, base.letterSpacing, { min: 0 });
+    el.letterSpacing = c.number(`${path}.letterSpacing`, obj.letterSpacing, base.letterSpacing, {
+      min: 0,
+    });
   if ("spacingBefore" in obj)
-    el.spacingBefore = c.number(`${path}.spacingBefore`, obj.spacingBefore, base.spacingBefore, { min: 0 });
+    el.spacingBefore = c.number(`${path}.spacingBefore`, obj.spacingBefore, base.spacingBefore, {
+      min: 0,
+    });
   if ("spacingAfter" in obj)
-    el.spacingAfter = c.number(`${path}.spacingAfter`, obj.spacingAfter, base.spacingAfter, { min: 0 });
+    el.spacingAfter = c.number(`${path}.spacingAfter`, obj.spacingAfter, base.spacingAfter, {
+      min: 0,
+    });
   if ("keepWithNext" in obj)
     el.keepWithNext = c.boolean(`${path}.keepWithNext`, obj.keepWithNext, base.keepWithNext);
-  if ("parenWrap" in obj) el.parenWrap = c.boolean(`${path}.parenWrap`, obj.parenWrap, base.parenWrap);
-  if ("besideNext" in obj) el.besideNext = c.boolean(`${path}.besideNext`, obj.besideNext, base.besideNext);
-  if ("runInNext" in obj) el.runInNext = c.boolean(`${path}.runInNext`, obj.runInNext, base.runInNext);
-  if ("standaloneIndentFromMargin" in obj) el.standaloneIndentFromMargin = obj.standaloneIndentFromMargin === null ? null
-    : c.number(`${path}.standaloneIndentFromMargin`, obj.standaloneIndentFromMargin, 0, { min: 0 });
+  if ("parenWrap" in obj)
+    el.parenWrap = c.boolean(`${path}.parenWrap`, obj.parenWrap, base.parenWrap);
+  if ("besideNext" in obj)
+    el.besideNext = c.boolean(`${path}.besideNext`, obj.besideNext, base.besideNext);
+  if ("runInNext" in obj)
+    el.runInNext = c.boolean(`${path}.runInNext`, obj.runInNext, base.runInNext);
+  if ("standaloneIndentFromMargin" in obj)
+    el.standaloneIndentFromMargin =
+      obj.standaloneIndentFromMargin === null
+        ? null
+        : c.number(`${path}.standaloneIndentFromMargin`, obj.standaloneIndentFromMargin, 0, {
+            min: 0,
+          });
   if ("suffix" in obj) {
     el.suffix = c.string(`${path}.suffix`, obj.suffix, base.suffix);
-    if (!/^[ :.,;!?-]{0,8}$/.test(el.suffix)) c.fail(`${path}.suffix`, "use up to eight spaces or punctuation characters");
+    if (!/^[ :.,;!?-]{0,8}$/.test(el.suffix))
+      c.fail(`${path}.suffix`, "use up to eight spaces or punctuation characters");
   }
-  if ("underline" in obj) el.underline = c.boolean(`${path}.underline`, obj.underline, base.underline);
+  if ("underline" in obj)
+    el.underline = c.boolean(`${path}.underline`, obj.underline, base.underline);
   if ("startsNewPage" in obj)
     el.startsNewPage = c.boolean(`${path}.startsNewPage`, obj.startsNewPage, base.startsNewPage);
   if ("tightStack" in obj)
@@ -255,7 +308,11 @@ function checkPagination(c: Check, raw: unknown): PaginationRules {
   c.noUnknownKeys("pagination", obj, Object.keys(DEFAULT_PAGINATION));
   const out = { ...DEFAULT_PAGINATION };
   if ("continuedMarker" in obj)
-    out.continuedMarker = c.string("pagination.continuedMarker", obj.continuedMarker, out.continuedMarker);
+    out.continuedMarker = c.string(
+      "pagination.continuedMarker",
+      obj.continuedMarker,
+      out.continuedMarker,
+    );
   if ("repeatCharacterOnSplit" in obj)
     out.repeatCharacterOnSplit = c.boolean(
       "pagination.repeatCharacterOnSplit",
@@ -267,7 +324,8 @@ function checkPagination(c: Check, raw: unknown): PaginationRules {
     "minDialogueLinesAfterBreak",
     "minActionLinesEitherSide",
   ] as const) {
-    if (key in obj) out[key] = c.number(`pagination.${key}`, obj[key], out[key], { min: 1, integer: true });
+    if (key in obj)
+      out[key] = c.number(`pagination.${key}`, obj[key], out[key], { min: 1, integer: true });
   }
   return out;
 }
@@ -309,12 +367,20 @@ export function validateFormatSpec(raw: unknown): FormatValidation {
   const name = c.string("name", obj.name, id);
 
   // page
-  let page: FormatSpec["page"] = { size: "letter", margins: { left: 1.5, top: 1, right: 1, bottom: 1 } };
+  let page: FormatSpec["page"] = {
+    size: "letter",
+    margins: { left: 1.5, top: 1, right: 1, bottom: 1 },
+  };
   {
     const p = c.record("page", obj.page);
     if (p) {
       c.noUnknownKeys("page", p, ["size", "margins"]);
-      const size = c.oneOf("page.size", p.size, Object.keys(PAGE_SIZES) as ("letter" | "a4")[], "letter");
+      const size = c.oneOf(
+        "page.size",
+        p.size,
+        Object.keys(PAGE_SIZES) as ("letter" | "a4")[],
+        "letter",
+      );
       const m = c.record("page.margins", p.margins);
       const margins = { ...page.margins };
       if (m) {
@@ -333,7 +399,11 @@ export function validateFormatSpec(raw: unknown): FormatValidation {
   }
 
   // type
-  let type: FormatSpec["type"] = { family: "Courier Prime, Courier New, Courier, monospace", size: 12, lineHeight: 1 };
+  let type: FormatSpec["type"] = {
+    family: "Courier Prime, Courier New, Courier, monospace",
+    size: 12,
+    lineHeight: 1,
+  };
   {
     const t = c.record("type", obj.type);
     if (t) {
@@ -347,11 +417,25 @@ export function validateFormatSpec(raw: unknown): FormatValidation {
       // as more than a value: the family goes into a stylesheet verbatim, and
       // a `;` in it once closed the rule and opened another.
       if (!FONT_FAMILY.test(type.family)) {
-        c.fail("type.family", "a font family is names separated by commas — letters, digits, spaces, quotes, hyphens and dots only");
+        c.fail(
+          "type.family",
+          "a font family is names separated by commas — letters, digits, spaces, quotes, hyphens and dots only",
+        );
       } else {
-        const families = type.family.split(",").map((part) => part.trim().replace(/^(['"])(.*)\1$/, "$2").toLowerCase());
-        if (families[0] !== "courier prime" || families.some((name) => !COURIER_FALLBACKS.has(name))) {
-          c.fail("type.family", "start with Courier Prime, the embedded script face; supported fallbacks are Courier New, Courier and monospace");
+        const families = type.family.split(",").map((part) =>
+          part
+            .trim()
+            .replace(/^(['"])(.*)\1$/, "$2")
+            .toLowerCase(),
+        );
+        if (
+          families[0] !== "courier prime" ||
+          families.some((name) => !COURIER_FALLBACKS.has(name))
+        ) {
+          c.fail(
+            "type.family",
+            "start with Courier Prime, the embedded script face; supported fallbacks are Courier New, Courier and monospace",
+          );
         }
       }
     }
@@ -367,10 +451,13 @@ export function validateFormatSpec(raw: unknown): FormatValidation {
     if (els) {
       c.noUnknownKeys("elements", els, FORMAT_ELEMENT_KEYS);
       for (const key of REQUIRED_FORMAT_ELEMENTS) {
-        if (!(key in els)) c.fail(`elements.${key}`, "missing (every printed element needs an entry)");
+        if (!(key in els))
+          c.fail(`elements.${key}`, "missing (every printed element needs an entry)");
       }
       for (const key of FORMAT_ELEMENT_KEYS) {
-        const preset = (OPTIONAL_FORMAT_ELEMENT_PRESETS as Partial<Record<BlockType, Partial<ElementFormat>>>)[key];
+        const preset = (
+          OPTIONAL_FORMAT_ELEMENT_PRESETS as Partial<Record<BlockType, Partial<ElementFormat>>>
+        )[key];
         const base: ElementFormat = { ...DEFAULT_ELEMENT, ...preset };
         elements[key] = key in els ? checkElement(c, `elements.${key}`, els[key], base) : base;
       }

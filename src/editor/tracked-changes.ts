@@ -45,9 +45,7 @@ function build(doc: PMNode, marks: TrackedMarks): DecorationSet {
   let block = 0;
   doc.forEach((node, offset) => {
     if (marks.added.has(block)) {
-      decos.push(
-        Decoration.node(offset, offset + node.nodeSize, { class: "tracked-added" }),
-      );
+      decos.push(Decoration.node(offset, offset + node.nodeSize, { class: "tracked-added" }));
     }
     const removed = marks.removedBefore.get(block);
     if (removed?.length) {
@@ -59,7 +57,9 @@ function build(doc: PMNode, marks: TrackedMarks): DecorationSet {
   // so it hangs off the last position rather than being dropped.
   const tail = marks.removedBefore.get(block);
   if (tail?.length) {
-    decos.push(Decoration.widget(Math.max(0, doc.content.size), () => removedWidget(tail), { side: 1 }));
+    decos.push(
+      Decoration.widget(Math.max(0, doc.content.size), () => removedWidget(tail), { side: 1 }),
+    );
   }
   return DecorationSet.create(doc, decos);
 }

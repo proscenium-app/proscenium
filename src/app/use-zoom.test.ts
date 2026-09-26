@@ -48,7 +48,9 @@ describe("fit levels", () => {
 
   it("keeps a gutter above a sheet with nothing over it", () => {
     const level = fitLevel("fit-page", { width: 2000, height: 800, above: 0, below: 0 }, LETTER);
-    expect(level).toBe(fitLevel("fit-page", { width: 2000, height: 800, above: 28, below: 0 }, LETTER));
+    expect(level).toBe(
+      fitLevel("fit-page", { width: 2000, height: 800, above: 28, below: 0 }, LETTER),
+    );
   });
 
   it("lets the width decide in a pane narrower than the page is tall", () => {
@@ -57,7 +59,11 @@ describe("fit levels", () => {
   });
 
   it("stays inside the zoom range", () => {
-    expect(fitLevel("fit-page", { width: 80, height: 120, above: 106, below: 0 }, LETTER)).toBe(ZOOM_MIN);
-    expect(fitLevel("fit-width", { width: 9000, height: 9000, above: 0, below: 0 }, LETTER)).toBe(ZOOM_MAX);
+    expect(fitLevel("fit-page", { width: 80, height: 120, above: 106, below: 0 }, LETTER)).toBe(
+      ZOOM_MIN,
+    );
+    expect(fitLevel("fit-width", { width: 9000, height: 9000, above: 0, below: 0 }, LETTER)).toBe(
+      ZOOM_MAX,
+    );
   });
 });

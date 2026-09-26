@@ -25,16 +25,16 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 pub mod icloud;
-pub mod read_limit;
 mod identity;
 pub(crate) mod path_key;
-use path_key::{path_key, comparison_path};
+pub mod read_limit;
+use path_key::{comparison_path, path_key};
 pub(crate) mod atomic_file;
 mod move_journal;
 mod write_journal;
+use identity::FileIdentity;
 pub use move_journal::PendingMove;
 pub use write_journal::SavedCopy;
-use identity::FileIdentity;
 pub mod sync_names;
 pub use sync_names::{is_sync_artifact, is_temp_sibling};
 
@@ -85,7 +85,10 @@ pub struct SelfWrites {
     sequence: AtomicU64,
 }
 
-pub struct WriteToken { path: PathBuf, generation: u64 }
+pub struct WriteToken {
+    path: PathBuf,
+    generation: u64,
+}
 
 // Generous: macOS FSEvents can deliver coalesced events many seconds late
 // under continuous typing churn. Generations, not historical hashes, decide
@@ -100,11 +103,22 @@ const SELF_WRITE_TTL: Duration = Duration::from_secs(30);
 #[cfg_attr(mobile, allow(dead_code))]
 impl SelfWrites {
     pub fn record(&self, path: &Path, hash: &str) -> WriteToken {
-        let mut q = self.inner.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut q = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let generation = self.sequence.fetch_add(1, Ordering::Relaxed);
-        q.push_back((comparison_path(path), hash.to_string(), Instant::now(), generation));
+        q.push_back((
+            comparison_path(path),
+            hash.to_string(),
+            Instant::now(),
+            generation,
+        ));
         Self::evict(&mut q);
-        WriteToken { path: comparison_path(path), generation }
+        WriteToken {
+            path: comparison_path(path),
+            generation,
+        }
     }
 
     /// A newer installation retires every older generation at this path.
@@ -122,7 +136,10 @@ impl SelfWrites {
     /// True if `(path, hash)` matches a recent self-write (consuming it).
     #[cfg(test)]
     pub fn is_self_write(&self, path: &Path, hash: &str) -> bool {
-        let mut q = self.inner.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut q = self
+            .inner
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         Self::evict(&mut q);
         Self::consume(&mut q, path, hash)
     }
@@ -140,10 +157,7 @@ impl SelfWrites {
 
     fn consume(q: &mut VecDeque<(PathBuf, String, Instant, u64)>, path: &Path, hash: &str) -> bool {
         let path = comparison_path(path);
-        if let Some(idx) = q
-            .iter()
-            .rposition(|(p, h, _, _)| p == &path && h == hash)
-        {
+        if let Some(idx) = q.iter().rposition(|(p, h, _, _)| p == &path && h == hash) {
             let generation = q[idx].3;
             q.retain(|(p, _, _, g)| p != &path || *g > generation);
             return true;
@@ -187,13 +201,21 @@ pub trait Vault: Send + Sync {
     /// Guarded write (docs/app/keeping-work/storage-and-file-format.md#STOR-D9). `expected` is the hash the caller believes
     /// is on disk; if the real file differs, nothing is written and the caller
     /// pins a version holding these bytes.
-    fn write(&self, rel: &str, bytes: &[u8], expected: Option<&str>)
-        -> std::io::Result<WriteOutcome>;
+    fn write(
+        &self,
+        rel: &str,
+        bytes: &[u8],
+        expected: Option<&str>,
+    ) -> std::io::Result<WriteOutcome>;
     /// Guarded write for the play file, which has several legitimate writers:
     /// a mismatch yields `Stale` carrying disk truth, so the caller rebuilds
     /// its change on the new base and retries once.
-    fn write_rebasable(&self, rel: &str, bytes: &[u8], expected: Option<&str>)
-        -> std::io::Result<WriteOutcome>;
+    fn write_rebasable(
+        &self,
+        rel: &str,
+        bytes: &[u8],
+        expected: Option<&str>,
+    ) -> std::io::Result<WriteOutcome>;
 }
 
 /// Local-filesystem backend (macOS first; iOS reuses it under a security-scoped
@@ -308,7 +330,10 @@ pub(crate) fn write_atomic_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::
 
     // `create_new`: O_EXCL, so an existing file or link at the temp name fails
     // here rather than being opened for writing.
-    let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(tmp)?;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(tmp)?;
     let written = (|| {
         f.write_all(bytes)?;
         f.flush()?;
@@ -422,7 +447,9 @@ pub(crate) fn resolve_under(root: &Path, rel: &str, what: &str) -> std::io::Resu
                 if std::fs::symlink_metadata(&out).is_ok_and(|m| m.file_type().is_symlink()) {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::PermissionDenied,
-                        format!("path goes through a symbolic link, which the {what} does not follow"),
+                        format!(
+                            "path goes through a symbolic link, which the {what} does not follow"
+                        ),
                     ));
                 }
             }
@@ -462,15 +489,26 @@ impl LocalFsVault {
         #[cfg(test)]
         let test_journal = tempfile::tempdir()?;
         #[cfg(test)]
-        let journal = Some(move_journal::MoveJournal::new(test_journal.path().join(root_identity.key())));
+        let journal = Some(move_journal::MoveJournal::new(
+            test_journal.path().join(root_identity.key()),
+        ));
         #[cfg(not(test))]
         let journal = None;
         #[cfg(test)]
-        let writes = Some(write_journal::WriteJournal::new(test_journal.path().join(root_identity.key())));
+        let writes = Some(write_journal::WriteJournal::new(
+            test_journal.path().join(root_identity.key()),
+        ));
         #[cfg(not(test))]
         let writes = None;
-        Ok(Self { root, root_identity, self_writes, trash_dir, journal, writes,
-            #[cfg(test)] _test_journal: Some(test_journal),
+        Ok(Self {
+            root,
+            root_identity,
+            self_writes,
+            trash_dir,
+            journal,
+            writes,
+            #[cfg(test)]
+            _test_journal: Some(test_journal),
         })
     }
 
@@ -482,58 +520,101 @@ impl LocalFsVault {
     }
 
     fn require_root(&self) -> std::io::Result<()> {
-        if !self.root.is_dir() || FileIdentity::read(&self.root).ok().as_ref() != Some(&self.root_identity) {
-            return Err(refusal(refused::FOLDER_GONE, std::io::ErrorKind::NotFound.into()));
+        if !self.root.is_dir()
+            || FileIdentity::read(&self.root).ok().as_ref() != Some(&self.root_identity)
+        {
+            return Err(refusal(
+                refused::FOLDER_GONE,
+                std::io::ErrorKind::NotFound.into(),
+            ));
         }
         Ok(())
     }
 
-    pub fn identity(&self) -> String { self.root_identity.key() }
+    pub fn identity(&self) -> String {
+        self.root_identity.key()
+    }
 
     pub fn with_journal(mut self, app_data: &Path) -> Self {
-        self.journal = Some(move_journal::MoveJournal::new(app_data.join("transactions").join(self.identity())));
-        self.writes = Some(write_journal::WriteJournal::new(app_data.join("transactions").join(self.identity())));
+        self.journal = Some(move_journal::MoveJournal::new(
+            app_data.join("transactions").join(self.identity()),
+        ));
+        self.writes = Some(write_journal::WriteJournal::new(
+            app_data.join("transactions").join(self.identity()),
+        ));
         self
     }
 
     fn journal(&self) -> std::io::Result<&move_journal::MoveJournal> {
-        self.journal.as_ref().ok_or_else(|| std::io::Error::other("The file-operation journal is unavailable."))
+        self.journal
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("The file-operation journal is unavailable."))
     }
 
     pub fn recover_moves(&self) -> std::io::Result<Vec<PendingMove>> {
         self.require_root()?;
         let moves = self.journal()?.recover(&self.root)?;
-        self.writes()?.recover(&self.root, |rel| self.journal()?.write_guard(rel))?;
+        self.writes()?
+            .recover(&self.root, |rel| self.journal()?.write_guard(rel))?;
         Ok(moves)
     }
 
     fn writes(&self) -> std::io::Result<&write_journal::WriteJournal> {
-        self.writes.as_ref().ok_or_else(|| std::io::Error::other("The save journal is unavailable."))
+        self.writes
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("The save journal is unavailable."))
     }
 
-    pub fn saved_copies(&self) -> std::io::Result<Vec<SavedCopy>> { self.writes()?.saved_copies() }
+    pub fn saved_copies(&self) -> std::io::Result<Vec<SavedCopy>> {
+        self.writes()?.saved_copies()
+    }
 
-    pub fn read_saved_copy(&self, id: &str) -> std::io::Result<Vec<u8>> { self.writes()?.read_copy(id) }
+    pub fn read_saved_copy(&self, id: &str) -> std::io::Result<Vec<u8>> {
+        self.writes()?.read_copy(id)
+    }
 
-    pub fn begin_move(&self, from: &str, to: &str, manifest: String, payload: String) -> std::io::Result<PendingMove> {
+    pub fn begin_move(
+        &self,
+        from: &str,
+        to: &str,
+        manifest: String,
+        payload: String,
+    ) -> std::io::Result<PendingMove> {
         self.relocate(from, to, Some(manifest), Some(payload))?
             .ok_or_else(|| std::io::Error::other("The move has no metadata intent."))
     }
 
-    pub fn has_pending_moves(&self) -> bool { self.journal.as_ref().is_some_and(|journal| journal.has_pending()) }
+    pub fn has_pending_moves(&self) -> bool {
+        self.journal
+            .as_ref()
+            .is_some_and(|journal| journal.has_pending())
+    }
 
-    fn relocate(&self, from: &str, to: &str, manifest: Option<String>, payload: Option<String>) -> std::io::Result<Option<PendingMove>> {
+    fn relocate(
+        &self,
+        from: &str,
+        to: &str,
+        manifest: Option<String>,
+        payload: Option<String>,
+    ) -> std::io::Result<Option<PendingMove>> {
         let src = self.resolve(from)?;
         let dst = self.resolve(to)?;
         icloud::require_available(&src)?;
         let journal = self.journal()?;
         let token = if src.is_file() {
-            std::fs::read(&src).ok().map(|bytes| self.self_writes.record(&dst, &sha256_hex(&bytes)))
-        } else { None };
+            std::fs::read(&src)
+                .ok()
+                .map(|bytes| self.self_writes.record(&dst, &sha256_hex(&bytes)))
+        } else {
+            None
+        };
         let result = journal.begin(&self.root, from, to, manifest, payload);
         if let Some(token) = token {
-            if result.is_ok() { self.self_writes.committed(&token); }
-            else { self.self_writes.revoke(&token); }
+            if result.is_ok() {
+                self.self_writes.committed(&token);
+            } else {
+                self.self_writes.revoke(&token);
+            }
         }
         result
     }
@@ -625,7 +706,6 @@ impl LocalFsVault {
         }
         Ok(())
     }
-
 }
 
 impl Vault for LocalFsVault {
@@ -702,7 +782,9 @@ impl Vault for LocalFsVault {
     }
 
     fn exists(&self, rel: &str) -> bool {
-        self.resolve(rel).map(|p| p.exists() || icloud::unavailable(&p)).unwrap_or(false)
+        self.resolve(rel)
+            .map(|p| p.exists() || icloud::unavailable(&p))
+            .unwrap_or(false)
     }
 
     fn trash(&self, rel: &str) -> std::io::Result<()> {
@@ -713,7 +795,9 @@ impl Vault for LocalFsVault {
     }
 
     fn rename(&self, from: &str, to: &str) -> std::io::Result<()> {
-        if from == to { return Ok(()); }
+        if from == to {
+            return Ok(());
+        }
         self.relocate(from, to, None, None).map(|_| ())
     }
 
@@ -797,11 +881,20 @@ impl LocalFsVault {
                 }
             }
             Some(current)
-        } else { None };
+        } else {
+            None
+        };
 
         if baseline.is_none() && expected.is_some_and(|hash| !hash.is_empty()) {
-            return Ok(if rebase { WriteOutcome::Stale { hash: String::new() } }
-                else { WriteOutcome::Collision { hash: String::new() } });
+            return Ok(if rebase {
+                WriteOutcome::Stale {
+                    hash: String::new(),
+                }
+            } else {
+                WriteOutcome::Collision {
+                    hash: String::new(),
+                }
+            });
         }
 
         // Register the suppression token BEFORE the rename makes the bytes
@@ -814,7 +907,7 @@ impl LocalFsVault {
         // this one, so neither can hide a later external rollback.
         let token = self.self_writes.record(&target, &new_hash);
         match self.writes()?.replace(&self.root, rel, bytes, baseline) {
-            Ok(true) => {},
+            Ok(true) => {}
             Ok(false) => {
                 self.self_writes.revoke(&token);
                 let hash = match self.read(rel) {
@@ -822,12 +915,16 @@ impl LocalFsVault {
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
                     Err(error) => return Err(error),
                 };
-                return Ok(if rebase { WriteOutcome::Stale { hash } } else { WriteOutcome::Collision { hash } });
-            },
+                return Ok(if rebase {
+                    WriteOutcome::Stale { hash }
+                } else {
+                    WriteOutcome::Collision { hash }
+                });
+            }
             Err(error) => {
                 self.self_writes.revoke(&token);
                 return Err(self.explain(&target, error));
-            },
+            }
         }
         self.self_writes.committed(&token);
         Ok(WriteOutcome::Ok { hash: new_hash })

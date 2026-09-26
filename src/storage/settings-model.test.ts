@@ -34,7 +34,9 @@ import {
 const rust = readFileSync(new URL("../../src-tauri/src/settings.rs", import.meta.url), "utf8");
 const ipcSource = readFileSync(new URL("./ipc.ts", import.meta.url), "utf8");
 
-function memoryStorage(seed: Record<string, string> = {}): KeyValueStorage & { data: Map<string, string> } {
+function memoryStorage(
+  seed: Record<string, string> = {},
+): KeyValueStorage & { data: Map<string, string> } {
   const data = new Map(Object.entries(seed));
   return {
     data,
@@ -77,13 +79,23 @@ describe("the model agrees with settings.rs", () => {
       appearance: "system",
       formatOrder: [],
       sceneStatuses: [...DEFAULT_SCENE_STATUSES],
-      interfaceTextSize: 100,      runningTimeStrip: true,
+      interfaceTextSize: 100,
+      runningTimeStrip: true,
       spellcheck: true,
       learnedWords: [],
       // The list VaultScreen.tsx held before docs/app/preferences-and-help/settings.md#SET-7, and Progress shown.
-      playStatuses: ["idea", "outlining", "drafting", "revising", "workshop", "submitted", "produced", "shelved"],
+      playStatuses: [
+        "idea",
+        "outlining",
+        "drafting",
+        "revising",
+        "workshop",
+        "submitted",
+        "produced",
+        "shelved",
+      ],
       showProgress: true,
-      // Where the writer left off (2026-09-16), not the Plays screen.
+      // Where the writer left off, not the Plays screen.
       openAtLaunch: "lastPlay",
       lastPlay: null,
       checkForUpdates: true,
@@ -177,23 +189,35 @@ describe("alpha's key", () => {
     for (const bad of ["", key.slice(1), `${key}=`, key.replace(/k/g, "+"), 7, null]) {
       expect(validatePatch({ updateTrackKey: bad } as unknown as SettingsPatch)).not.toBeNull();
     }
-    expect(readSettings({ updateTrack: "alpha", updateTrackKey: "short" }).hasUpdateTrackKey).toBe(false);
-    // settings.rs reads the same key, in the same shape.
+    expect(readSettings({ updateTrack: "alpha", updateTrackKey: "short" }).hasUpdateTrackKey).toBe(
+      false,
+    );
+    // settings.rs reads the same key, in the same shape; rustfmt may wrap the
+    // expression, so whitespace is not part of the comparison.
+    const dense = (text: string) => text.replace(/\s+/g, "");
     expect(rust).toContain('const UPDATE_TRACK_KEY: &str = "updateTrackKey"');
-    expect(rust).toContain("key.len() == 43 && key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')");
+    expect(dense(rust)).toContain(
+      dense(
+        "key.len() == 43 && key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')",
+      ),
+    );
   });
 });
 
 describe("the status list", () => {
   it("reads what it can use: order kept, blanks and repeats dropped, an emptied list empty", () => {
-    const s = readSettings({ playStatuses: ["drafting", "", 7, " padded ", "Drafting", "in rehearsal", "idea"] });
+    const s = readSettings({
+      playStatuses: ["drafting", "", 7, " padded ", "Drafting", "in rehearsal", "idea"],
+    });
     expect(s.playStatuses).toEqual(["drafting", "in rehearsal", "idea"]);
     expect(readSettings({ playStatuses: [] }).playStatuses).toEqual([]);
     expect(readSettings({}).playStatuses).toEqual([...DEFAULT_PLAY_STATUSES]);
   });
 
   it("is patched whole, and refused whole when any of it is wrong", () => {
-    expect(validatePatch({ playStatuses: ["in rehearsal", "idea"], showProgress: false })).toBeNull();
+    expect(
+      validatePatch({ playStatuses: ["in rehearsal", "idea"], showProgress: false }),
+    ).toBeNull();
     expect(validatePatch({ playStatuses: [] })).toBeNull();
     const bad = [
       ["idea", "Idea"],
@@ -284,7 +308,10 @@ describe("applying a patch", () => {
   });
 
   it("removes an emptied dictionary's key", () => {
-    const next = applyPatchToObject({ learnedWords: ["Mara"] }, { learnedWords: { remove: ["mara"] } });
+    const next = applyPatchToObject(
+      { learnedWords: ["Mara"] },
+      { learnedWords: { remove: ["mara"] } },
+    );
     expect("learnedWords" in next).toBe(false);
   });
 
@@ -306,7 +333,11 @@ describe("the first-frame mirror", () => {
       [LEGACY_KEYS.runningTimeStrip]: "0",
       [LEGACY_KEYS.spellcheck]: "0",
     });
-    expect(readMirror(legacy)).toMatchObject({ accent: "velvet", runningTimeStrip: false, spellcheck: false });
+    expect(readMirror(legacy)).toMatchObject({
+      accent: "velvet",
+      runningTimeStrip: false,
+      spellcheck: false,
+    });
     writeMirror(legacy, { ...DEFAULT_SETTINGS, accent: "iris" });
     expect(readMirror(legacy).accent).toBe("iris");
     legacy.setItem(SETTINGS_MIRROR_KEY, "{ torn");
@@ -316,11 +347,18 @@ describe("the first-frame mirror", () => {
   it("carries over only what settings.json never got", () => {
     const off = memoryStorage({ [LEGACY_KEYS.spellcheck]: "0", [LEGACY_KEYS.accent]: "iris" });
     // Spell check's toggle lived only in localStorage: it must reach the file.
-    expect(legacyMigration(off, { ...DEFAULT_SETTINGS })).toEqual({ spellcheck: false, accent: "iris" });
+    expect(legacyMigration(off, { ...DEFAULT_SETTINGS })).toEqual({
+      spellcheck: false,
+      accent: "iris",
+    });
     // An explicit choice in settings.json wins over a mirror.
-    expect(legacyMigration(off, { ...DEFAULT_SETTINGS, accent: "velvet", spellcheck: false })).toBeNull();
+    expect(
+      legacyMigration(off, { ...DEFAULT_SETTINGS, accent: "velvet", spellcheck: false }),
+    ).toBeNull();
     // A legacy value that IS the default carries nothing.
-    expect(legacyMigration(memoryStorage({ [LEGACY_KEYS.spellcheck]: "1" }), { ...DEFAULT_SETTINGS })).toBeNull();
+    expect(
+      legacyMigration(memoryStorage({ [LEGACY_KEYS.spellcheck]: "1" }), { ...DEFAULT_SETTINGS }),
+    ).toBeNull();
     expect(legacyMigration(null, { ...DEFAULT_SETTINGS })).toBeNull();
     clearLegacyKeys(off);
     expect(off.data.size).toBe(0);
@@ -331,7 +369,10 @@ describe("the default format for new plays", () => {
   it("is set by id, cleared by null, and refused when it is not an id", () => {
     const set = applyPatch({ ...DEFAULT_SETTINGS }, { defaultFormat: "my-house" });
     expect(set.defaultFormat).toBe("my-house");
-    const cleared = applyPatchToObject({ defaultFormat: "my-house", accent: "iris" }, { defaultFormat: null });
+    const cleared = applyPatchToObject(
+      { defaultFormat: "my-house", accent: "iris" },
+      { defaultFormat: null },
+    );
     expect(cleared).toEqual({ accent: "iris" });
     expect(validatePatch({ defaultFormat: null })).toBeNull();
     expect(validatePatch({ defaultFormat: "My House" })).not.toBeNull();
@@ -343,8 +384,12 @@ describe("the default format for new plays", () => {
 describe("the reports switch", () => {
   it("is on until switched off, and takes only true or false", () => {
     expect(readSettings({}).shareAnalytics).toBe(true);
-    expect(applyPatch({ ...DEFAULT_SETTINGS }, { shareAnalytics: false }).shareAnalytics).toBe(false);
-    expect(applyPatch({ ...DEFAULT_SETTINGS }, { privacyNoticeSeen: true }).privacyNoticeSeen).toBe(true);
+    expect(applyPatch({ ...DEFAULT_SETTINGS }, { shareAnalytics: false }).shareAnalytics).toBe(
+      false,
+    );
+    expect(applyPatch({ ...DEFAULT_SETTINGS }, { privacyNoticeSeen: true }).privacyNoticeSeen).toBe(
+      true,
+    );
     expect(validatePatch({ shareAnalytics: false, privacyNoticeSeen: true })).toBeNull();
     expect(validatePatch({ shareAnalytics: "no" } as unknown as SettingsPatch)).not.toBeNull();
     expect(readSettings({ shareAnalytics: "off" }).shareAnalytics).toBe(true);
@@ -354,7 +399,9 @@ describe("the reports switch", () => {
 it("docs/app/preferences-and-help/accessibility.md#A11Y-2: interface text size persists through 200 percent and rejects unusable scales", () => {
   for (const size of [100, 125, 150, 175, 200]) {
     expect(validatePatch({ interfaceTextSize: size })).toBeNull();
-    expect(readSettings(applyPatchToObject({}, { interfaceTextSize: size })).interfaceTextSize).toBe(size);
+    expect(
+      readSettings(applyPatchToObject({}, { interfaceTextSize: size })).interfaceTextSize,
+    ).toBe(size);
   }
   for (const size of [0, 99, 201, 150.5, NaN, Infinity]) {
     expect(validatePatch({ interfaceTextSize: size })).not.toBeNull();
@@ -363,12 +410,16 @@ it("docs/app/preferences-and-help/accessibility.md#A11Y-2: interface text size p
 });
 
 it("persists appearance, ordered formats and the writer's scene statuses", () => {
-  const patch: SettingsPatch = { appearance: "dark", formatOrder: ["stage-us-modern", "dg-modern"],
-    sceneStatuses: ["sketch", "needs a read", "ready"] };
+  const patch: SettingsPatch = {
+    appearance: "dark",
+    formatOrder: ["stage-us-modern", "dg-modern"],
+    sceneStatuses: ["sketch", "needs a read", "ready"],
+  };
   expect(validatePatch(patch)).toBeNull();
   expect(readSettings(applyPatchToObject({}, patch))).toMatchObject(patch);
-  expect(readSettings({ appearance: "unknown", formatOrder: ["bad/id", "dg-modern", "dg-modern"] }))
-    .toMatchObject({ appearance: "system", formatOrder: ["dg-modern"] });
+  expect(
+    readSettings({ appearance: "unknown", formatOrder: ["bad/id", "dg-modern", "dg-modern"] }),
+  ).toMatchObject({ appearance: "system", formatOrder: ["dg-modern"] });
   expect(validatePatch({ sceneStatuses: ["draft", "DRAFT"] })).not.toBeNull();
   expect(validatePatch({ formatOrder: ["dg-modern", "dg-modern"] })).not.toBeNull();
 });

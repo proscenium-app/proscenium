@@ -10,7 +10,10 @@ const hashOf = (s: string) =>
   "sha256:" +
   s.length +
   "-" +
-  (s.split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0)).toString(16);
+  s
+    .split("")
+    .reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0)
+    .toString(16);
 const mtimes = new Map<string, number>();
 /** Folders whose listing fails, as one the App Sandbox has not granted does. */
 const unlistable = new Set<string>();
@@ -97,15 +100,25 @@ const NOW = "2026-07-20T18:00:00.000Z";
 
 it("imports keep the exact source before publishing the play file", async () => {
   const binary = String.fromCharCode(0, 255, 128, 13, 10);
-  const { dir } = await scaffoldPlayInVault("Imported", NOW, "# ACT ONE\n", undefined, null, { name: "Draft.docx", base64: btoa(binary) });
+  const { dir } = await scaffoldPlayInVault("Imported", NOW, "# ACT ONE\n", undefined, null, {
+    name: "Draft.docx",
+    base64: btoa(binary),
+  });
   expect(store.get(`${dir}/Originals/Draft.docx`)).toBe(binary);
   const order = [...store.keys()];
-  expect(order.indexOf(`${dir}/Originals/Draft.docx`)).toBeLessThan(order.indexOf(`${dir}/${dir}.proscenium`));
+  expect(order.indexOf(`${dir}/Originals/Draft.docx`)).toBeLessThan(
+    order.indexOf(`${dir}/${dir}.proscenium`),
+  );
 });
 
 it("a failed source copy does not publish a partial play or overwrite the source", async () => {
   store.set("Incomplete/Originals/Draft.docx", "already there");
-  await expect(scaffoldPlayAt("Incomplete", "Incomplete", NOW, "# ACT ONE\n", undefined, null, { name: "Draft.docx", base64: btoa("new") })).rejects.toThrow("already there");
+  await expect(
+    scaffoldPlayAt("Incomplete", "Incomplete", NOW, "# ACT ONE\n", undefined, null, {
+      name: "Draft.docx",
+      base64: btoa("new"),
+    }),
+  ).rejects.toThrow("already there");
   expect(store.get("Incomplete/Originals/Draft.docx")).toBe("already there");
   expect(store.has("Incomplete/Incomplete.proscenium")).toBe(false);
 });
@@ -181,7 +194,9 @@ describe("discovery (docs/app/keeping-work/storage-and-file-format.md#STOR-D2, d
     seedPlay("Second Act");
     mtimes.set("Second Act/Second Act.fountain", Date.parse("2026-07-24T23:00:00Z"));
     const plays = await discoverPlays();
-    expect(plays.find((p) => p.dir === "Second Act")?.scriptModified).toBe("2026-07-24T23:00:00.000Z");
+    expect(plays.find((p) => p.dir === "Second Act")?.scriptModified).toBe(
+      "2026-07-24T23:00:00.000Z",
+    );
     expect(plays.find((p) => p.dir === "Harbour Lights")?.scriptModified).toBeUndefined();
   });
 
@@ -193,7 +208,10 @@ describe("discovery (docs/app/keeping-work/storage-and-file-format.md#STOR-D2, d
     const plays = await discoverPlays();
     expect(plays.map((p) => p.dir).sort()).toEqual(["Broken", "Good", "Wrong"]);
     expect(plays.find((p) => p.dir === "Broken")?.problem).toBe("malformed");
-    expect((await readPlayFile("Broken/Broken.proscenium"))).toMatchObject({ status: "malformed", raw: "{ not json" });
+    expect(await readPlayFile("Broken/Broken.proscenium")).toMatchObject({
+      status: "malformed",
+      raw: "{ not json",
+    });
   });
 
   it("docs/app/keeping-work/storage-and-file-format.md#STOR-57: tells missing, unreadable, malformed and unsupported files apart", async () => {
@@ -204,17 +222,29 @@ describe("discovery (docs/app/keeping-work/storage-and-file-format.md#STOR-D2, d
     expect((await discoverPlays())[0].problem).toBe("unreadable");
     seedPlay("Future", { extra: { schemaVersion: 99 } });
     expect((await readPlayFile("Future/Future.proscenium")).status).toBe("unsupported");
-    expect(await updatePlayMeta("Future", "Future.proscenium", { logline: "overwrite" }, NOW)).toBe(false);
+    expect(await updatePlayMeta("Future", "Future.proscenium", { logline: "overwrite" }, NOW)).toBe(
+      false,
+    );
   });
 
   it("docs/app/keeping-work/storage-and-file-format.md#STOR-57: validates nested records without dropping the original bytes", async () => {
-    for (const extra of [{ binder: [null] }, { scripts: { S1: { scenes: [null], orphans: [] } } },
-      { scripts: [] }, { settings: null }, { binder: [{ id: "S1", type: "folder", path: "Notes", children: [null] }] }]) {
+    for (const extra of [
+      { binder: [null] },
+      { scripts: { S1: { scenes: [null], orphans: [] } } },
+      { scripts: [] },
+      { settings: null },
+      { binder: [{ id: "S1", type: "folder", path: "Notes", children: [null] }] },
+    ]) {
       seedPlay("Broken", { extra });
       const raw = store.get("Broken/Broken.proscenium")!;
-      expect(await readPlayFile("Broken/Broken.proscenium")).toMatchObject({ status: "malformed", raw });
+      expect(await readPlayFile("Broken/Broken.proscenium")).toMatchObject({
+        status: "malformed",
+        raw,
+      });
       expect((await discoverPlays())[0].dir).toBe("Broken");
-      expect(await updatePlayMeta("Broken", "Broken.proscenium", { logline: "overwrite" }, NOW)).toBe(false);
+      expect(
+        await updatePlayMeta("Broken", "Broken.proscenium", { logline: "overwrite" }, NOW),
+      ).toBe(false);
       expect(store.get("Broken/Broken.proscenium")).toBe(raw);
     }
   });
@@ -351,9 +381,7 @@ describe("updatePlayMeta", () => {
 
   it("refuses a file that is not a play file", async () => {
     store.set("notplay/notplay.proscenium", JSON.stringify({ kind: "something-else" }));
-    expect(await updatePlayMeta("notplay", "notplay.proscenium", { status: "x" }, NOW)).toBe(
-      false,
-    );
+    expect(await updatePlayMeta("notplay", "notplay.proscenium", { status: "x" }, NOW)).toBe(false);
   });
 
   it("returns false when the play file is missing", async () => {
@@ -365,7 +393,7 @@ describe("the MODIFIED column means when the play was written", () => {
   /**
    * The rule, and why each half of it is load-bearing:
    * the script FILE's own mtime wins, and the play file's `modified` is a
-   * fallback only. Both failures were measured on the live vault — a play
+   * fallback only. Both failures were measured on a real vault — a play
    * whose script was written four days after the row said, and two whose rows
    * were up to ten days NEWER than any writing because a manifest edit moved
    * the stamp.
@@ -424,7 +452,13 @@ describe("a new play (docs/app/keeping-work/storage-and-file-format.md#STOR-D3)"
   });
 
   it("starts as the first status in the writer's list, or none when the list is empty (docs/app/preferences-and-help/settings.md#SET-7)", async () => {
-    const listed = await scaffoldPlayInVault("Listed", NOW, "Title: Listed\n", undefined, "in rehearsal");
+    const listed = await scaffoldPlayInVault(
+      "Listed",
+      NOW,
+      "Title: Listed\n",
+      undefined,
+      "in rehearsal",
+    );
     const bare = await scaffoldPlayInVault("Bare", NOW, "Title: Bare\n", undefined, null);
     const plain = await scaffoldPlayInVault("Shipped List", NOW, "Title: Shipped List\n");
     const plays = await discoverPlays();

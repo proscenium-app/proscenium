@@ -70,8 +70,8 @@ export function OpenFileSheet({
     >
       <div className="openfile">
         <p className="openfile__lede">
-          This script isn't part of a play. Proscenium can make a new play in your Plays folder
-          with a copy of it. The original stays where it is.
+          This script isn't part of a play. Proscenium can make a new play in your Plays folder with
+          a copy of it. The original stays where it is.
         </p>
       </div>
     </Sheet>

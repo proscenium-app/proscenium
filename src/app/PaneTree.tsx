@@ -195,7 +195,11 @@ function SplitView({
               role="separator"
               tabIndex={0}
               aria-orientation={split.dir === "row" ? "vertical" : "horizontal"}
-              aria-label={split.dir === "row" ? "Resize the panes side to side" : "Resize the panes top to bottom"}
+              aria-label={
+                split.dir === "row"
+                  ? "Resize the panes side to side"
+                  : "Resize the panes top to bottom"
+              }
               {...dividerValue(split.sizes, i)}
               title="Drag to resize"
               onPointerDown={(e) => startDrag(i, e)}
@@ -260,84 +264,84 @@ function LeafView({ leaf, tree }: { leaf: Leaf; tree: PaneTreeProps }) {
       onMouseDownCapture={() => tree.onFocusLeaf(leaf.id)}
     >
       {leaf.tabs.length > 1 && (
-      <div className="pane__tabs">
-        {/* A list of two buttons per tab, not a `tablist`. The strip was a
+        <div className="pane__tabs">
+          {/* A list of two buttons per tab, not a `tablist`. The strip was a
             tablist of tabs that each held their own close button — a control
             inside a control, which VoiceOver flattens into one unnamed thing,
             and a tablist that also held the "+" button, which it may not.
             Siblings keep both reachable by Tab, by VoiceOver and by Voice
             Control ("click Close Board"), and ⌫ on a tab closes it too. */}
-        <ul className="pane__tablist" aria-label="Open in this pane">
-        {leaf.tabs.map((surface, i) => (
-          <li
-            key={surfaceKey(surface)}
-            className={`pane__tab${i === leaf.active ? " is-on" : ""}`}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData(TAB_MIME, JSON.stringify({ leafId: leaf.id, index: i }));
-            }}
-            onClick={() => tree.onActivateTab(leaf.id, i)}
-            title={tree.labelFor(surface)}
-          >
+          <ul className="pane__tablist" aria-label="Open in this pane">
+            {leaf.tabs.map((surface, i) => (
+              <li
+                key={surfaceKey(surface)}
+                className={`pane__tab${i === leaf.active ? " is-on" : ""}`}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData(TAB_MIME, JSON.stringify({ leafId: leaf.id, index: i }));
+                }}
+                onClick={() => tree.onActivateTab(leaf.id, i)}
+                title={tree.labelFor(surface)}
+              >
+                <button
+                  type="button"
+                  className="pane__tabbtn"
+                  aria-current={i === leaf.active ? "true" : undefined}
+                  aria-keyshortcuts="Delete"
+                  onKeyDown={(e) => {
+                    if (e.key === "Delete" || e.key === "Backspace") {
+                      e.preventDefault();
+                      tree.onCloseTab(leaf.id, i);
+                    }
+                  }}
+                >
+                  <span className="pane__tablabel">{tree.labelFor(surface)}</span>
+                </button>
+                <button
+                  type="button"
+                  className="pane__tabclose"
+                  aria-label={`Close ${tree.labelFor(surface)}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    tree.onCloseTab(leaf.id, i);
+                  }}
+                >
+                  <CloseIcon size={9} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <span className="pane__tabspacer" />
+          <span className="pane__addwrap">
             <button
-              type="button"
-              className="pane__tabbtn"
-              aria-current={i === leaf.active ? "true" : undefined}
-              aria-keyshortcuts="Delete"
-              onKeyDown={(e) => {
-                if (e.key === "Delete" || e.key === "Backspace") {
-                  e.preventDefault();
-                  tree.onCloseTab(leaf.id, i);
-                }
-              }}
+              ref={addRef}
+              className="pane__add"
+              title="Show another surface in this pane"
+              aria-label="Add a surface to this pane"
+              aria-haspopup="menu"
+              aria-expanded={addMenu.open}
+              onClick={() => addMenu.openFrom(addRef.current, "end")}
             >
-              <span className="pane__tablabel">{tree.labelFor(surface)}</span>
+              <PlusIcon size={11} />
             </button>
-            <button
-              type="button"
-              className="pane__tabclose"
-              aria-label={`Close ${tree.labelFor(surface)}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                tree.onCloseTab(leaf.id, i);
-              }}
-            >
-              <CloseIcon size={9} />
-            </button>
-          </li>
-        ))}
-        </ul>
-        <span className="pane__tabspacer" />
-        <span className="pane__addwrap">
-          <button
-            ref={addRef}
-            className="pane__add"
-            title="Show another surface in this pane"
-            aria-label="Add a surface to this pane"
-            aria-haspopup="menu"
-            aria-expanded={addMenu.open}
-            onClick={() => addMenu.openFrom(addRef.current, "end")}
-          >
-            <PlusIcon size={11} />
-          </button>
-          {addMenu.anchor && options.length > 0 && (
-            <Menu
-              anchor={addMenu.anchor}
-              onClose={addMenu.close}
-              width={190}
-              label="Show in this pane"
-              entries={[
-                { kind: "section", label: "Show in this pane" },
-                ...options.map((o) => ({
-                  label: o.label,
-                  onSelect: () => tree.onAddSurface(leaf.id, o.surface),
-                })),
-              ]}
-            />
-          )}
-        </span>
-      </div>
+            {addMenu.anchor && options.length > 0 && (
+              <Menu
+                anchor={addMenu.anchor}
+                onClose={addMenu.close}
+                width={190}
+                label="Show in this pane"
+                entries={[
+                  { kind: "section", label: "Show in this pane" },
+                  ...options.map((o) => ({
+                    label: o.label,
+                    onSelect: () => tree.onAddSurface(leaf.id, o.surface),
+                  })),
+                ]}
+              />
+            )}
+          </span>
+        </div>
       )}
 
       <div

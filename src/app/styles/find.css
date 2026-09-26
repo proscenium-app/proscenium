@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Find bar (docs/engineering/design-system.md#UI-D106) ------------------------------------------- */
 /* A DOCKED strip, not a floating pill and not a dialog: the writer keeps
    seeing the page, and a bar that hovers over the sheet is a second thing on
@@ -22,7 +21,7 @@
   border-bottom: 0.5px solid var(--rule);
   font-family: var(--font-ui);
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .findbar {
     background: #2a2622;
   }
@@ -159,4 +158,3 @@
   font-size: var(--t-mini);
   color: var(--warn-body);
 }
-

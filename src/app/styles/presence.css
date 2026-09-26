@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Presence grid (workspace/presence.ts) ---------------------------------- */
 /* The presence grid is its own card, like the cast list above it. */
 .presence {
@@ -122,4 +121,3 @@
   color: var(--ink);
   font-weight: 650;
 }
-

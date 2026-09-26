@@ -52,7 +52,7 @@ fn every_existing_preference_survives_the_upgrade() {
     assert!(!s.running_time_strip);
     assert_eq!(s.learned_words, vec!["Jonah", "Mara", "Vronsky"]);
     // Preferences the old file never had come back as their defaults — launch
-    // included, which goes back where the writer left off (2026-09-16).
+    // included, which goes back where the writer left off.
     assert!(s.spellcheck);
     assert_eq!(s.open_at_launch, OpenAtLaunch::LastPlay);
     assert_eq!(s.last_play, None);
@@ -68,12 +68,18 @@ fn a_missing_file_is_every_default() {
             accent: "gilt".into(),
             appearance: "system".into(),
             format_order: vec![],
-            scene_statuses: DEFAULT_SCENE_STATUSES.iter().map(|s| s.to_string()).collect(),
+            scene_statuses: DEFAULT_SCENE_STATUSES
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             interface_text_size: 100,
             running_time_strip: true,
             spellcheck: true,
             learned_words: vec![],
-            play_statuses: DEFAULT_PLAY_STATUSES.iter().map(|s| s.to_string()).collect(),
+            play_statuses: DEFAULT_PLAY_STATUSES
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
             show_progress: true,
             open_at_launch: OpenAtLaunch::LastPlay,
             last_play: None,
@@ -95,7 +101,11 @@ fn an_update_leaves_the_vault_its_bookmark_and_unknown_keys_alone() {
     before["telemetry"] = json!({ "enabled": false, "noticeSeen": true });
     write_json(&path, before.clone());
 
-    let s = update_at(&path, patch(json!({ "accent": "velvet", "spellcheck": false }))).unwrap();
+    let s = update_at(
+        &path,
+        patch(json!({ "accent": "velvet", "spellcheck": false })),
+    )
+    .unwrap();
     assert_eq!(s.accent, "velvet");
     assert!(!s.spellcheck);
 
@@ -116,7 +126,10 @@ fn an_invalid_patch_writes_nothing_at_all() {
     let bytes = fs::read(&path).unwrap();
 
     // A good field beside a bad one: all or nothing, so neither lands.
-    let err = update_at(&path, patch(json!({ "spellcheck": false, "accent": "chartreuse" })));
+    let err = update_at(
+        &path,
+        patch(json!({ "spellcheck": false, "accent": "chartreuse" })),
+    );
     assert!(err.unwrap_err().contains("chartreuse"));
     let err = update_at(&path, patch(json!({ "lastPlay": "  " })));
     assert!(err.is_err());
@@ -167,11 +180,21 @@ fn the_dictionary_changes_by_word_never_by_list() {
         patch(json!({ "learnedWords": { "add": ["  Ophelia ", "vronsky", "anouilh"] } })),
     )
     .unwrap();
-    assert_eq!(s.learned_words, vec!["anouilh", "Jonah", "Mara", "Ophelia", "Vronsky"]);
+    assert_eq!(
+        s.learned_words,
+        vec!["anouilh", "Jonah", "Mara", "Ophelia", "Vronsky"]
+    );
 
     // Forgotten whatever the case.
-    let s = update_at(&path, patch(json!({ "learnedWords": { "remove": ["MARA"] } }))).unwrap();
-    assert_eq!(s.learned_words, vec!["anouilh", "Jonah", "Ophelia", "Vronsky"]);
+    let s = update_at(
+        &path,
+        patch(json!({ "learnedWords": { "remove": ["MARA"] } })),
+    )
+    .unwrap();
+    assert_eq!(
+        s.learned_words,
+        vec!["anouilh", "Jonah", "Ophelia", "Vronsky"]
+    );
 
     // A word in both lists is forgotten.
     let s = update_at(
@@ -182,8 +205,16 @@ fn the_dictionary_changes_by_word_never_by_list() {
     assert!(!s.learned_words.iter().any(|w| w == "Hedda"));
 
     // Case-insensitive beyond ASCII too, as the checker's comparison is.
-    let s = update_at(&path, patch(json!({ "learnedWords": { "add": ["Éponine"] } }))).unwrap();
-    let s2 = update_at(&path, patch(json!({ "learnedWords": { "add": ["éponine"] } }))).unwrap();
+    let s = update_at(
+        &path,
+        patch(json!({ "learnedWords": { "add": ["Éponine"] } })),
+    )
+    .unwrap();
+    let s2 = update_at(
+        &path,
+        patch(json!({ "learnedWords": { "add": ["éponine"] } })),
+    )
+    .unwrap();
     assert_eq!(s.learned_words, s2.learned_words);
 
     // An emptied dictionary leaves no key behind.
@@ -224,14 +255,23 @@ fn another_folder_never_inherits_the_last_ones_grant() {
     remember_vault_at(&path, "/Users/writer/Dropbox/Plays".into(), None).unwrap();
     let after = read_json(&path);
     assert_eq!(after["lastVault"], json!("/Users/writer/Dropbox/Plays"));
-    assert!(after.get("lastVaultBookmark").is_none(), "the old folder's grant came along");
+    assert!(
+        after.get("lastVaultBookmark").is_none(),
+        "the old folder's grant came along"
+    );
     assert_eq!(after["accent"], json!("iris"));
 }
 
 #[test]
 fn a_new_bookmark_always_wins_and_a_spelling_is_not_a_folder() {
     let by_text = |a: &str, b: &str| a == b;
-    let kept = bookmark_to_keep(Some("/a"), Some("old".into()), "/b", Some("new".into()), by_text);
+    let kept = bookmark_to_keep(
+        Some("/a"),
+        Some("old".into()),
+        "/b",
+        Some("new".into()),
+        by_text,
+    );
     assert_eq!(kept.as_deref(), Some("new"));
 
     #[cfg(unix)]
@@ -242,8 +282,14 @@ fn a_new_bookmark_always_wins_and_a_spelling_is_not_a_folder() {
         let link = tmp.path().join("Plays link");
         std::os::unix::fs::symlink(&real, &link).unwrap();
         // The vault root arrives canonicalized; the picker's spelling may not be.
-        assert!(same_folder(&link.to_string_lossy(), &real.to_string_lossy()));
-        assert!(!same_folder(&real.to_string_lossy(), &tmp.path().to_string_lossy()));
+        assert!(same_folder(
+            &link.to_string_lossy(),
+            &real.to_string_lossy()
+        ));
+        assert!(!same_folder(
+            &real.to_string_lossy(),
+            &tmp.path().to_string_lossy()
+        ));
     }
 }
 
@@ -266,7 +312,10 @@ fn a_folder_inside_the_plays_folder_takes_a_bookmark_of_its_own() {
     );
     let mint = |path: &str| Some(format!("GRANT {path}"));
 
-    assert_eq!(bookmark_below(Some(&writing), &plays, mint), Some(format!("GRANT {plays}")));
+    assert_eq!(
+        bookmark_below(Some(&writing), &plays, mint),
+        Some(format!("GRANT {plays}"))
+    );
     // The same folder, one beside it (a shared prefix is not a folder), the
     // folder around it, or nothing stored: no new grant.
     assert_eq!(bookmark_below(Some(&writing), &writing, mint), None);
@@ -274,7 +323,10 @@ fn a_folder_inside_the_plays_folder_takes_a_bookmark_of_its_own() {
     assert_eq!(bookmark_below(Some(&plays), &writing, mint), None);
     assert_eq!(bookmark_below(None, &plays, mint), None);
     // A folder that is not there is inside nothing.
-    assert_eq!(bookmark_below(Some(&writing), &format!("{writing}/Gone"), mint), None);
+    assert_eq!(
+        bookmark_below(Some(&writing), &format!("{writing}/Gone"), mint),
+        None
+    );
     // A grant that cannot be made changes nothing.
     assert_eq!(bookmark_below(Some(&writing), &plays, |_| None), None);
 
@@ -298,9 +350,15 @@ fn without_a_bookmark_of_its_own_a_folder_inside_keeps_the_grant_around_it() {
     let writing = tmp.path().join("Writing");
     let plays = writing.join("Plays");
     std::fs::create_dir_all(&plays).unwrap();
-    let (writing, plays) = (writing.to_string_lossy().to_string(), plays.to_string_lossy().to_string());
+    let (writing, plays) = (
+        writing.to_string_lossy().to_string(),
+        plays.to_string_lossy().to_string(),
+    );
     let (_dir, path) = temp_settings();
-    write_json(&path, json!({ "lastVault": writing, "lastVaultBookmark": "GRANT FOR WRITING" }));
+    write_json(
+        &path,
+        json!({ "lastVault": writing, "lastVaultBookmark": "GRANT FOR WRITING" }),
+    );
 
     remember_vault_at(&path, plays.clone(), None).unwrap();
     let after = read_json(&path);
@@ -313,7 +371,10 @@ fn without_a_bookmark_of_its_own_a_folder_inside_keeps_the_grant_around_it() {
     // outside it, gone, or not remembered.
     assert_eq!(reopen_path(writing.clone(), Some(writing.clone())), writing);
     assert_eq!(reopen_path(plays.clone(), Some(writing.clone())), plays);
-    assert_eq!(reopen_path(writing.clone(), Some(format!("{writing}/Gone"))), writing);
+    assert_eq!(
+        reopen_path(writing.clone(), Some(format!("{writing}/Gone"))),
+        writing
+    );
     assert_eq!(reopen_path(writing.clone(), None), writing);
 
     // Leaving for a folder beside it still drops the grant.
@@ -357,15 +418,21 @@ fn an_unreadable_file_is_set_aside_not_written_over() {
     let s = update_at(&path, patch(json!({ "accent": "iris" }))).unwrap();
     assert_eq!(s.accent, "iris");
     let aside = dir.path().join("settings.json.unreadable");
-    assert_eq!(fs::read(&aside).unwrap(), b"{ \"lastVault\": \"/Users/writer/Pl");
+    assert_eq!(
+        fs::read(&aside).unwrap(),
+        b"{ \"lastVault\": \"/Users/writer/Pl"
+    );
     assert_eq!(read_json(&path)["accent"], json!("iris"));
 }
 
 #[test]
 fn a_write_leaves_only_the_file_behind() {
     let (dir, path) = temp_settings();
-    update_at(&path, patch(json!({ "openAtLaunch": "lastPlay", "lastPlay": "01J8ZQ4M7X3K9V2B6N5P0R1S2T" })))
-        .unwrap();
+    update_at(
+        &path,
+        patch(json!({ "openAtLaunch": "lastPlay", "lastPlay": "01J8ZQ4M7X3K9V2B6N5P0R1S2T" })),
+    )
+    .unwrap();
     let names: Vec<String> = fs::read_dir(dir.path())
         .unwrap()
         .flatten()
@@ -392,8 +459,11 @@ fn concurrent_writers_lose_nothing() {
                     remember_vault_at(&path, "/Users/writer/Plays".into(), Some("GRANT".into()))
                         .unwrap();
                 } else {
-                    update_at(&path, patch(json!({ "learnedWords": { "add": [format!("word{i}")] } })))
-                        .unwrap();
+                    update_at(
+                        &path,
+                        patch(json!({ "learnedWords": { "add": [format!("word{i}")] } })),
+                    )
+                    .unwrap();
                 }
             })
         })
@@ -403,7 +473,10 @@ fn concurrent_writers_lose_nothing() {
     }
     let s = from_object(&read_object(&path));
     for i in (0..24).filter(|i| *i != 11) {
-        assert!(s.learned_words.contains(&format!("word{i}")), "lost word{i}");
+        assert!(
+            s.learned_words.contains(&format!("word{i}")),
+            "lost word{i}"
+        );
     }
     assert_eq!(read_json(&path)["lastVaultBookmark"], json!("GRANT"));
 }
@@ -446,7 +519,11 @@ fn the_last_play_is_set_and_cleared_by_patch() {
     let (_dir, path) = temp_settings();
     write_json(&path, legacy_file());
 
-    let s = update_at(&path, patch(json!({ "lastPlay": "01KYFQCPT4C7J7D6VPZPJMSSJ5" }))).unwrap();
+    let s = update_at(
+        &path,
+        patch(json!({ "lastPlay": "01KYFQCPT4C7J7D6VPZPJMSSJ5" })),
+    )
+    .unwrap();
     assert_eq!(s.last_play.as_deref(), Some("01KYFQCPT4C7J7D6VPZPJMSSJ5"));
 
     // Absent leaves it; null — the writer went back to the Plays screen —
@@ -503,7 +580,10 @@ fn an_intel_mac_follows_stable_whatever_is_stored() {
     if INTEL {
         let (_dir, path) = temp_settings();
         write_json(&path, json!({ "updateTrack": "beta" }));
-        assert_eq!(from_object(&read_object(&path)).update_track, UpdateTrack::Stable);
+        assert_eq!(
+            from_object(&read_object(&path)).update_track,
+            UpdateTrack::Stable
+        );
         assert_eq!(read_json(&path)["updateTrack"], json!("beta"));
         assert!(update_at(&path, patch(json!({ "updateTrack": "alpha" }))).is_err());
     }
@@ -512,11 +592,18 @@ fn an_intel_mac_follows_stable_whatever_is_stored() {
 #[test]
 fn the_update_track_is_stable_until_chosen() {
     let (_dir, path) = temp_settings();
-    assert_eq!(from_object(&read_object(&path)).update_track, UpdateTrack::Stable);
+    assert_eq!(
+        from_object(&read_object(&path)).update_track,
+        UpdateTrack::Stable
+    );
 
     // An Intel build is held to stable (the test above); these are Apple silicon's tracks.
     if !INTEL {
-        for (word, track) in [("alpha", UpdateTrack::Alpha), ("beta", UpdateTrack::Beta), ("stable", UpdateTrack::Stable)] {
+        for (word, track) in [
+            ("alpha", UpdateTrack::Alpha),
+            ("beta", UpdateTrack::Beta),
+            ("stable", UpdateTrack::Stable),
+        ] {
             let s = update_at(&path, patch(json!({ "updateTrack": word }))).unwrap();
             assert_eq!(s.update_track, track);
             assert_eq!(read_json(&path)["updateTrack"], json!(word));
@@ -529,7 +616,10 @@ fn the_update_track_is_stable_until_chosen() {
 
     // A hand-mangled value falls back to stable, like every preference.
     write_json(&path, json!({ "updateTrack": "nightly" }));
-    assert_eq!(from_object(&read_object(&path)).update_track, UpdateTrack::Stable);
+    assert_eq!(
+        from_object(&read_object(&path)).update_track,
+        UpdateTrack::Stable
+    );
 }
 
 #[test]
@@ -547,12 +637,23 @@ fn alphas_key_is_written_by_patch_and_never_read_back() {
     assert!(answered.contains("\"hasUpdateTrackKey\":true"));
     assert!(!answered.contains(&key));
     // Another preference leaves it where it is.
-    assert!(update_at(&path, patch(json!({ "updateTrack": "alpha" }))).unwrap().has_update_track_key);
+    assert!(
+        update_at(&path, patch(json!({ "updateTrack": "alpha" })))
+            .unwrap()
+            .has_update_track_key
+    );
     assert_eq!(read_json(&path)["updateTrackKey"], json!(key));
 
     // Only a key's shape reaches the file, and a refused patch writes nothing.
     let bytes = fs::read(&path).unwrap();
-    for bad in [json!(""), json!(&key[1..]), json!(format!("{key}=")), json!(key.replace('k', "+")), json!(7), json!(null)] {
+    for bad in [
+        json!(""),
+        json!(&key[1..]),
+        json!(format!("{key}=")),
+        json!(key.replace('k', "+")),
+        json!(7),
+        json!(null),
+    ] {
         let refused = serde_json::from_value::<SettingsPatch>(json!({ "updateTrackKey": bad }))
             .map_err(|e| e.to_string())
             .and_then(|p| update_at(&path, p).map(|s| s.has_update_track_key));
@@ -561,19 +662,32 @@ fn alphas_key_is_written_by_patch_and_never_read_back() {
     assert_eq!(fs::read(&path).unwrap(), bytes);
 
     // A hand-mangled key is no key.
-    write_json(&path, json!({ "updateTrack": "alpha", "updateTrackKey": "short" }));
+    write_json(
+        &path,
+        json!({ "updateTrack": "alpha", "updateTrackKey": "short" }),
+    );
     let s = from_object(&read_object(&path));
-    assert_eq!((s.update_track, s.has_update_track_key), (UpdateTrack::Alpha, false));
+    assert_eq!(
+        (s.update_track, s.has_update_track_key),
+        (UpdateTrack::Alpha, false)
+    );
 }
 
 #[test]
 fn the_reports_switch_is_on_until_switched_off() {
     let (_dir, path) = temp_settings();
     let s = from_object(&read_object(&path));
-    assert!(s.share_analytics, "on by default (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3)");
+    assert!(
+        s.share_analytics,
+        "on by default (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3)"
+    );
     assert!(!s.privacy_notice_seen);
 
-    let s = update_at(&path, patch(json!({ "shareAnalytics": false, "privacyNoticeSeen": true }))).unwrap();
+    let s = update_at(
+        &path,
+        patch(json!({ "shareAnalytics": false, "privacyNoticeSeen": true })),
+    )
+    .unwrap();
     assert!(!s.share_analytics);
     assert!(s.privacy_notice_seen);
     let stored = read_json(&path);
@@ -589,7 +703,7 @@ fn the_reports_switch_is_on_until_switched_off() {
 }
 
 #[test]
-fn a6_05_interface_text_size_is_bounded_and_persisted() {
+fn interface_text_size_is_bounded_and_persisted() {
     let (_dir, path) = temp_settings();
     for size in [100, 125, 150, 175, 200] {
         let saved = update_at(&path, patch(json!({ "interfaceTextSize": size }))).unwrap();
@@ -614,7 +728,11 @@ fn the_status_list_is_patched_whole_and_read_softly() {
 
     // A reordered, renamed list goes in whole and comes back as given.
     let list = json!(["in rehearsal", "idea", "drafting"]);
-    let s = update_at(&path, patch(json!({ "playStatuses": list, "showProgress": false }))).unwrap();
+    let s = update_at(
+        &path,
+        patch(json!({ "playStatuses": list, "showProgress": false })),
+    )
+    .unwrap();
     assert_eq!(s.play_statuses, vec!["in rehearsal", "idea", "drafting"]);
     assert!(!s.show_progress);
     assert_eq!(read_json(&path)["playStatuses"], list);
@@ -635,14 +753,20 @@ fn the_status_list_is_patched_whole_and_read_softly() {
         json!(["tab\there"]),
         json!(too_many),
     ] {
-        assert!(update_at(&path, patch(json!({ "playStatuses": bad }))).is_err(), "accepted {bad}");
+        assert!(
+            update_at(&path, patch(json!({ "playStatuses": bad }))).is_err(),
+            "accepted {bad}"
+        );
     }
     // Not a list at all never becomes a patch.
     assert!(serde_json::from_value::<SettingsPatch>(json!({ "playStatuses": "idea" })).is_err());
     assert_eq!(fs::read(&path).unwrap(), bytes);
 
     // Mangled by hand: what is usable survives, in order, once each.
-    write_json(&path, json!({ "playStatuses": ["drafting", "", 7, " padded ", "Drafting", "idea"], "showProgress": "no" }));
+    write_json(
+        &path,
+        json!({ "playStatuses": ["drafting", "", 7, " padded ", "Drafting", "idea"], "showProgress": "no" }),
+    );
     let s = from_object(&read_object(&path));
     assert_eq!(s.play_statuses, vec!["drafting", "idea"]);
     assert!(s.show_progress);
@@ -652,15 +776,23 @@ fn the_status_list_is_patched_whole_and_read_softly() {
 fn appearance_format_order_and_scene_statuses_persist_without_changing_other_settings() {
     let (_dir, path) = temp_settings();
     write_json(&path, legacy_file());
-    let changed = update_at(&path, patch(json!({
-        "appearance": "dark", "formatOrder": ["stage-us-modern", "dg-modern"],
-        "sceneStatuses": ["sketch", "ready for reading"]
-    }))).unwrap();
+    let changed = update_at(
+        &path,
+        patch(json!({
+            "appearance": "dark", "formatOrder": ["stage-us-modern", "dg-modern"],
+            "sceneStatuses": ["sketch", "ready for reading"]
+        })),
+    )
+    .unwrap();
     assert_eq!(changed.appearance, "dark");
     assert_eq!(changed.format_order, vec!["stage-us-modern", "dg-modern"]);
     assert_eq!(changed.scene_statuses, vec!["sketch", "ready for reading"]);
     assert_eq!(from_object(&read_object(&path)), changed);
-    for invalid in [json!({ "appearance": "sepia" }), json!({ "formatOrder": ["dg-modern", "dg-modern"] }), json!({ "sceneStatuses": ["draft", "DRAFT"] })] {
+    for invalid in [
+        json!({ "appearance": "sepia" }),
+        json!({ "formatOrder": ["dg-modern", "dg-modern"] }),
+        json!({ "sceneStatuses": ["draft", "DRAFT"] }),
+    ] {
         assert!(update_at(&path, patch(invalid)).is_err());
         assert_eq!(from_object(&read_object(&path)), changed);
     }

@@ -89,7 +89,10 @@ export function StatusBar({
       <span className="statusbar__spacer" />
       <WatcherStatus root={root} />
       {label && (
-        <span className={`savestatus${status === "conflict" || status === "unsaved" ? " savestatus--conflict" : ""}`} data-tutorial="save-status">
+        <span
+          className={`savestatus${status === "conflict" || status === "unsaved" ? " savestatus--conflict" : ""}`}
+          data-tutorial="save-status"
+        >
           {status === "saved" && savedTime ? `Saved · ${savedTime}` : label}
         </span>
       )}

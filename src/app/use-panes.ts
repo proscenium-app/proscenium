@@ -145,10 +145,7 @@ export function usePanes(root: string | null) {
     [apply],
   );
 
-  const focus = useCallback(
-    (surface: Surface) => apply((t) => focusSurface(t, surface)),
-    [apply],
-  );
+  const focus = useCallback((surface: Surface) => apply((t) => focusSurface(t, surface)), [apply]);
 
   const activate = useCallback(
     (leafId: string, index: number) => apply((t) => activateTab(t, leafId, index)),

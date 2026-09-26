@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /*
  * Courier Prime — the bundled script face (open-questions Q12). OFL 1.1,
  * © 2015 The Courier Prime Project Authors (quoteunquoteapps); license text
@@ -45,7 +44,7 @@
  * Apple's structure, Proscenium's palette (docs/engineering/design-system.md#UI-D100). Every
  * measurable decision below is a token; the rest of this file may only read
  * them. `bun run check:design` fails the build on a chrome font-size, radius
- * or spacing step outside these scales — the audit counted thirty type sizes
+ * or spacing step outside these scales — an audit counted thirty type sizes
  * and twenty-eight spacings before it, and without a gate they come back.
  *
  * Layers: L0 desk (flat) · L1 sheet · L2 card · L3 rail · L4 toolbar/status
@@ -502,4 +501,3 @@
     }
   }
 }
-

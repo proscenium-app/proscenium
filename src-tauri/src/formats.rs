@@ -221,7 +221,11 @@ mod tests {
 
     #[test]
     fn a_file_name_is_one_visible_json_name() {
-        for good in ["my-format.json", "Théâtre National.json", "uk_international.v2.json"] {
+        for good in [
+            "my-format.json",
+            "Théâtre National.json",
+            "uk_international.v2.json",
+        ] {
             assert!(valid_file_name(good), "refused {good}");
         }
         for bad in [
@@ -243,7 +247,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let formats = dir.path().join("formats");
         save_at(&formats, "mine.json", "{\"id\":\"mine\"}\n").unwrap();
-        save_at(&formats, "mine.json", "{\"id\":\"mine\",\"name\":\"Mine\"}\n").unwrap();
+        save_at(
+            &formats,
+            "mine.json",
+            "{\"id\":\"mine\",\"name\":\"Mine\"}\n",
+        )
+        .unwrap();
         assert_eq!(
             fs::read_to_string(formats.join("mine.json")).unwrap(),
             "{\"id\":\"mine\",\"name\":\"Mine\"}\n"

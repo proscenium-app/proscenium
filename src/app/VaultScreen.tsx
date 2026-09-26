@@ -21,14 +21,7 @@ import type { PlayPages, PlaysFolderHint, VaultPlay } from "../workspace";
 import type { KeptFile } from "./useWorkspace";
 import { SAMPLE_PLAY, SAMPLE_PLAY_TITLE } from "../workspace/sample-play";
 import { useAnnouncedStatus } from "../ui/use-announced-status";
-import {
-  announce,
-  Button,
-  PopupButton,
-  PullDownButton,
-  SearchIcon,
-  type PopupOption,
-} from "../ui";
+import { announce, Button, PopupButton, PullDownButton, SearchIcon, type PopupOption } from "../ui";
 import { useSettings } from "./settings";
 import { usePlayPages } from "./use-play-pages";
 
@@ -54,6 +47,8 @@ export interface VaultScreenProps {
   /** Edit a play's status / logline in place (writes project.json). */
   onUpdate: (dir: string, patch: { status?: string; logline?: string }) => void;
   onImport: (files?: File[]) => void;
+  /** Counts File › New Play… (⌘N) from the shell: each new count names a blank play, as the New Play button does. */
+  newPlayAsk?: number;
 }
 
 /**
@@ -218,6 +213,7 @@ export function VaultScreen({
   onUpdate,
   onImport,
   tutorialInvitation,
+  newPlayAsk = 0,
 }: VaultScreenProps) {
   const { playStatuses, showProgress } = useSettings();
   // Nothing is counted while Progress is off.
@@ -271,19 +267,22 @@ export function VaultScreen({
     const q = query.trim().toLowerCase();
     if (!q) return plays;
     return plays.filter(
-      (p) =>
-        p.title.toLowerCase().includes(q) || (p.logline ?? "").toLowerCase().includes(q),
+      (p) => p.title.toLowerCase().includes(q) || (p.logline ?? "").toLowerCase().includes(q),
     );
   }, [plays, query]);
-  useAnnouncedStatus(searched
-    ? shown.length === 0 ? "No plays match your search."
-      : `${shown.length} ${shown.length === 1 ? "play" : "plays"}${query.trim() ? " match your search" : " in this folder"}.`
-    : null);
+  useAnnouncedStatus(
+    searched
+      ? shown.length === 0
+        ? "No plays match your search."
+        : `${shown.length} ${shown.length === 1 ? "play" : "plays"}${query.trim() ? " match your search" : " in this folder"}.`
+      : null,
+  );
 
   /** The control New Play started from, so Escape can go back to it rather than lose the keyboard's place. */
   const namingFrom = useRef<HTMLElement | null>(null);
   const startNaming = (mode: "blank") => {
-    namingFrom.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    namingFrom.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setNaming(mode);
   };
   const cancelName = () => {
@@ -292,6 +291,17 @@ export function VaultScreen({
     namingFrom.current?.focus();
     namingFrom.current = null;
   };
+  /* File › New Play… and ⌘N reach this screen as a count from the shell: the
+     menu bar takes the accelerator before the window sees it, and the shell
+     answers the item. Each new count names a blank play exactly as the New
+     Play button does. The button's menu said "Blank Play ⌘N" while ⌘N did
+     nothing here. */
+  const asked = useRef(newPlayAsk);
+  useEffect(() => {
+    if (newPlayAsk === asked.current) return;
+    asked.current = newPlayAsk;
+    startNaming("blank");
+  }, [newPlayAsk]);
   const submitName = () => {
     const t = title.trim();
     const mode = naming;
@@ -334,7 +344,10 @@ export function VaultScreen({
             value={query}
             placeholder="Search plays"
             aria-label="Search plays"
-            onChange={(e) => { setSearched(true); setQuery(e.target.value); }}
+            onChange={(e) => {
+              setSearched(true);
+              setQuery(e.target.value);
+            }}
           />
         </label>
         <PullDownButton
@@ -427,23 +440,23 @@ export function VaultScreen({
           {naming && (
             <div className="playrow playrow--naming" role="row">
               <span className="playrow__namingcell" role="cell">
-              <input
-                className="playrow__input"
-                placeholder="Title of the play…"
-                aria-label="Title of the new play"
-                aria-describedby="playrow-naming-hint"
-                value={title}
-                autoFocus
-                onChange={(e) => setTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submitName();
-                  if (e.key === "Escape") cancelName();
-                }}
-                onBlur={submitName}
-              />
-              <span className="playrow__hint" id="playrow-naming-hint">
-                Return to create · Esc to cancel
-              </span>
+                <input
+                  className="playrow__input"
+                  placeholder="Title of the play…"
+                  aria-label="Title of the new play"
+                  aria-describedby="playrow-naming-hint"
+                  value={title}
+                  autoFocus
+                  onChange={(e) => setTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") submitName();
+                    if (e.key === "Escape") cancelName();
+                  }}
+                  onBlur={submitName}
+                />
+                <span className="playrow__hint" id="playrow-naming-hint">
+                  Return to create · Esc to cancel
+                </span>
               </span>
             </div>
           )}

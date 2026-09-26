@@ -43,10 +43,13 @@ function inline(content: InlineNode[]): Node[] {
     const marks = (n.marks ?? []).flatMap((m) =>
       m.type === "strong" ? [{ type: "bold" }] : m.type === "em" ? [{ type: "italic" }] : [],
     );
-    n.text.replace(/\t/g, " ").split("\n").forEach((line, i) => {
-      if (i) out.push({ type: "hardBreak" });
-      if (line) out.push({ type: "text", text: line, ...(marks.length ? { marks } : {}) });
-    });
+    n.text
+      .replace(/\t/g, " ")
+      .split("\n")
+      .forEach((line, i) => {
+        if (i) out.push({ type: "hardBreak" });
+        if (line) out.push({ type: "text", text: line, ...(marks.length ? { marks } : {}) });
+      });
   }
   return out;
 }
@@ -58,7 +61,9 @@ export function documentMarkdown(doc: ImportDocument): string {
     .map((p) => {
       const content = inline(p.content);
       const level = headingLevel(p);
-      return level ? { type: "heading", attrs: { level }, content } : { type: "paragraph", content };
+      return level
+        ? { type: "heading", attrs: { level }, content }
+        : { type: "paragraph", content };
     })
     .filter((b) => b.content?.length);
   const markdown = toMarkdown({ type: "doc", content: blocks });
@@ -68,13 +73,16 @@ export function documentMarkdown(doc: ImportDocument): string {
 
 /** Whether the import has underlined text a document cannot keep. */
 export const hasUnderline = (doc: ImportDocument) =>
-  doc.paragraphs.some((p) => p.content.some((n) => n.type === "text" && n.marks?.some((m) => m.type === "underline")));
+  doc.paragraphs.some((p) =>
+    p.content.some((n) => n.type === "text" && n.marks?.some((m) => m.type === "underline")),
+  );
 
 /** Whether a reading is a script rather than prose: the source named its
  * elements, or cues and dialogue carry it (docs/app/importing/document-import.md#IMPT-97). */
 export function looksLikeScript(doc: ImportDocument, lines: ReviewLine[]): boolean {
   if (doc.fountain !== undefined || doc.format === "Final Draft") return true;
-  if (lines.some((l) => !l.review && ["character", "dialogue", "sceneHeading"].includes(l.kind))) return true;
+  if (lines.some((l) => !l.review && ["character", "dialogue", "sceneHeading"].includes(l.kind)))
+    return true;
   // Read from the text: a cue said three times and dialogue in a quarter of
   // the paragraphs. Notes with a capitalised name or two stay a document.
   const cues = lines.filter((l) => l.kind === "character").length;

@@ -30,7 +30,7 @@ export interface ExportRequest {
  * app's render path, since nothing pays for pagination until the writer asks
  * to export or print.
  *
- * The Part select (whole script vs one character's sides, backlog P5) lives at
+ * The Part select (whole script vs one character's sides) lives at
  * this level because changing it changes the PAGINATION, not a filter over it:
  * the panel is remounted (`key`) so its page selection starts fresh — a range
  * chosen against the script means nothing against the sides.
@@ -82,7 +82,10 @@ export function ExportDialog(props: {
   const [savingLanguage, setSavingLanguage] = useState<ExportAction | null>(null);
   const [languageError, setLanguageError] = useState<string | null>(null);
   const languageSavePending = useRef(false);
-  const layout = useMemo(() => layoutForExport(sidesFor, anonymous), [layoutForExport, sidesFor, anonymous]);
+  const layout = useMemo(
+    () => layoutForExport(sidesFor, anonymous),
+    [layoutForExport, sidesFor, anonymous],
+  );
   // Anyone with lines can have sides, heaviest part first.
   const characters = useMemo(
     () =>
@@ -95,7 +98,10 @@ export function ExportDialog(props: {
   const fallbackTitle = ws.layoutMeta.title || ws.scriptTitle;
   const frontPages = useMemo(
     () =>
-      paginateFrontMatter(anonymous ? anonymousFrontMatter(ws.frontMatter, fallbackTitle) : ws.frontMatter, ws.format),
+      paginateFrontMatter(
+        anonymous ? anonymousFrontMatter(ws.frontMatter, fallbackTitle) : ws.frontMatter,
+        ws.format,
+      ),
     [ws.frontMatter, ws.format, anonymous, fallbackTitle],
   );
   const identity = useMemo(() => identityOf(ws.frontMatter), [ws.frontMatter]);
@@ -133,7 +139,13 @@ export function ExportDialog(props: {
             );
             return;
           }
-          ws.exportScript({ ...opts, sidesFor, anonymous, type: fileType, to: action === "print" ? "print" : "file" });
+          ws.exportScript({
+            ...opts,
+            sidesFor,
+            anonymous,
+            type: fileType,
+            to: action === "print" ? "print" : "file",
+          });
           props.onClose();
         } finally {
           languageSavePending.current = false;

@@ -68,7 +68,10 @@ function reportBootFailure(what: string, detail: string) {
  */
 window.addEventListener("error", (e) => {
   if (e.error instanceof Error) {
-    const signal = pageErrorSignal(e.error, e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "");
+    const signal = pageErrorSignal(
+      e.error,
+      e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "",
+    );
     telemetry.pageError(signal.name, signal.frames);
   }
   reportBootFailure(String(e.message), e.error?.stack ?? `${e.filename}:${e.lineno}`);

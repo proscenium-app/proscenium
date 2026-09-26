@@ -61,7 +61,10 @@ export function StatusList({
     );
     const button = row?.querySelector<HTMLButtonElement>(`[data-part="${refocus.part}"]`);
     // A Move button that reached the end of the list is disabled: its name then.
-    (button && !button.disabled ? button : row?.querySelector<HTMLElement>('[data-part="name"]'))?.focus();
+    (button && !button.disabled
+      ? button
+      : row?.querySelector<HTMLElement>('[data-part="name"]')
+    )?.focus();
   }, [refocus, statuses]);
 
   /** The list with row `index` renamed to `draft`, or null (and why, shown) when it cannot be. */

@@ -66,14 +66,7 @@ export interface BinderItem {
   [k: string]: unknown; // preserve-unknown passthrough
 }
 
-export type CardColor =
-  | "cream"
-  | "oxide"
-  | "ink"
-  | "sea"
-  | "moss"
-  | "amber"
-  | "ash";
+export type CardColor = "cream" | "oxide" | "ink" | "sea" | "moss" | "amber" | "ash";
 
 export type CardStatus = string;
 
@@ -176,10 +169,7 @@ export function isPlayFileName(name: string): boolean {
  * least makes it deterministic; the others are surfaced under Changes as other
  * versions of the play file, never merged and never removed.
  */
-export function choosePlayFile(
-  folderName: string,
-  names: string[],
-): string | null {
+export function choosePlayFile(folderName: string, names: string[]): string | null {
   const candidates = names.filter(isPlayFileName).sort();
   if (candidates.length === 0) return null;
   const wanted = playFileName(folderName);
@@ -199,56 +189,112 @@ export type PlayRead =
   | { status: "malformed"; raw: string; hash: string; message: string }
   | { status: "absent" | "unreadable"; message: string };
 
-const object = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
-const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === "string");
+const object = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
+const strings = (v: unknown): v is string[] =>
+  Array.isArray(v) && v.every((s) => typeof s === "string");
 const id = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9_-]{1,64}$/.test(v);
 
 /** Validate known shapes without normalising away malformed data or unknown keys. */
 export function validPlayShape(value: unknown): value is PlayFile {
-  if (!object(value) || value.kind !== PLAY_KIND || !id(value.id) ||
-      !Number.isInteger(value.schemaVersion) || Number(value.schemaVersion) < 1 ||
-      typeof value.created !== "string" || typeof value.modified !== "string" ||
-      !object(value.generator) || typeof value.generator.app !== "string" || typeof value.generator.version !== "string" ||
-      !object(value.settings) || !object(value.scripts)) return false;
-  for (const key of ["status", "logline"]) if (value[key] !== undefined && typeof value[key] !== "string") return false;
+  if (
+    !object(value) ||
+    value.kind !== PLAY_KIND ||
+    !id(value.id) ||
+    !Number.isInteger(value.schemaVersion) ||
+    Number(value.schemaVersion) < 1 ||
+    typeof value.created !== "string" ||
+    typeof value.modified !== "string" ||
+    !object(value.generator) ||
+    typeof value.generator.app !== "string" ||
+    typeof value.generator.version !== "string" ||
+    !object(value.settings) ||
+    !object(value.scripts)
+  )
+    return false;
+  for (const key of ["status", "logline"])
+    if (value[key] !== undefined && typeof value[key] !== "string") return false;
   const settings = value.settings;
   if (settings.format !== undefined && typeof settings.format !== "string") return false;
-  if (settings.language !== undefined &&
-      (typeof settings.language !== "string" || !canonicalLanguage(settings.language))) return false;
-  if (settings.sceneAnchors !== undefined && !["manifest", "embedded"].includes(String(settings.sceneAnchors))) return false;
+  if (
+    settings.language !== undefined &&
+    (typeof settings.language !== "string" || !canonicalLanguage(settings.language))
+  )
+    return false;
+  if (
+    settings.sceneAnchors !== undefined &&
+    !["manifest", "embedded"].includes(String(settings.sceneAnchors))
+  )
+    return false;
   if (settings.autosave !== undefined) {
     if (!object(settings.autosave)) return false;
     for (const key of ["debounceMs", "maxWaitMs"]) {
-      if (typeof settings.autosave[key] !== "number" || !Number.isFinite(settings.autosave[key]) || settings.autosave[key] < 0) return false;
+      if (
+        typeof settings.autosave[key] !== "number" ||
+        !Number.isFinite(settings.autosave[key]) ||
+        settings.autosave[key] < 0
+      )
+        return false;
     }
   }
   const ids = new Set<string>();
-  const binder = (items: unknown, depth = 0): boolean => Array.isArray(items) && depth < 128 && items.every((item) => {
-    if (!object(item) || !id(item.id) || ids.has(item.id) || typeof item.path !== "string" || !item.path ||
-        item.path.startsWith("/") || item.path.split("/").some((part) => part === "..") ||
-        !["script", "folder", "character", "document", "outline", "reference"].includes(String(item.type))) return false;
-    ids.add(item.id);
-    return item.children === undefined || (item.type === "folder" && binder(item.children, depth + 1));
-  });
+  const binder = (items: unknown, depth = 0): boolean =>
+    Array.isArray(items) &&
+    depth < 128 &&
+    items.every((item) => {
+      if (
+        !object(item) ||
+        !id(item.id) ||
+        ids.has(item.id) ||
+        typeof item.path !== "string" ||
+        !item.path ||
+        item.path.startsWith("/") ||
+        item.path.split("/").some((part) => part === "..") ||
+        !["script", "folder", "character", "document", "outline", "reference"].includes(
+          String(item.type),
+        )
+      )
+        return false;
+      ids.add(item.id);
+      return (
+        item.children === undefined || (item.type === "folder" && binder(item.children, depth + 1))
+      );
+    });
   if (!binder(value.binder)) return false;
   const scene = (s: unknown): boolean => {
     if (!object(s) || !id(s.id) || !object(s.anchor) || !object(s.card)) return false;
-    const a = s.anchor, c = s.card;
-    return Number.isInteger(a.ordinal) && Number(a.ordinal) >= 0 && typeof a.headingHash === "string" &&
+    const a = s.anchor,
+      c = s.card;
+    return (
+      Number.isInteger(a.ordinal) &&
+      Number(a.ordinal) >= 0 &&
+      typeof a.headingHash === "string" &&
       (a.embeddedId === null || typeof a.embeddedId === "string") &&
       ["cream", "oxide", "ink", "sea", "moss", "amber", "ash"].includes(String(c.color)) &&
-      typeof c.status === "string" && c.status.length <= 40 && !/\p{Cc}/u.test(c.status) &&
-      typeof c.label === "string" && typeof c.boardNote === "string";
+      typeof c.status === "string" &&
+      c.status.length <= 40 &&
+      !/\p{Cc}/u.test(c.status) &&
+      typeof c.label === "string" &&
+      typeof c.boardNote === "string"
+    );
   };
-  return Object.entries(value.scripts).every(([key, script]) => id(key) && object(script) &&
-    Array.isArray(script.scenes) && script.scenes.every(scene) && Array.isArray(script.orphans) && script.orphans.every(scene) &&
-    (script.castHidden === undefined || strings(script.castHidden)));
+  return Object.entries(value.scripts).every(
+    ([key, script]) =>
+      id(key) &&
+      object(script) &&
+      Array.isArray(script.scenes) &&
+      script.scenes.every(scene) &&
+      Array.isArray(script.orphans) &&
+      script.orphans.every(scene) &&
+      (script.castHidden === undefined || strings(script.castHidden)),
+  );
 }
 
 export function decodePlayFile(raw: string, hash: string): PlayRead {
   try {
     const data: unknown = parseJson(raw);
-    if (!validPlayShape(data)) return { status: "malformed", raw, hash, message: "This play's details need repair." };
+    if (!validPlayShape(data))
+      return { status: "malformed", raw, hash, message: "This play's details need repair." };
     return { status: isReadOnly(data.schemaVersion) ? "unsupported" : "valid", data, hash, raw };
   } catch {
     return { status: "malformed", raw, hash, message: "This play's details need repair." };
@@ -262,7 +308,10 @@ export async function readPlayFile(rel: string): Promise<PlayRead> {
     return decodePlayFile(content, hash);
   } catch (e) {
     const message = String(e);
-    return { status: /ENOENT|no such file|os error 2\b/i.test(message) ? "absent" : "unreadable", message };
+    return {
+      status: /ENOENT|no such file|os error 2\b/i.test(message) ? "absent" : "unreadable",
+      message,
+    };
   }
 }
 
@@ -290,10 +339,7 @@ export function sameIgnoringModified(a: PlayFile, b: PlayFile): boolean {
     void modified;
     return rest;
   };
-  return (
-    stringifyCanonical(strip(a), PLAY_TMPL) ===
-    stringifyCanonical(strip(b), PLAY_TMPL)
-  );
+  return stringifyCanonical(strip(a), PLAY_TMPL) === stringifyCanonical(strip(b), PLAY_TMPL);
 }
 
 export type PlayCommit =
@@ -315,8 +361,7 @@ export type PlayCommit =
  * is our cached hash, not the disk. The pre-1.0 code re-asserted that stale
  * hash on every autosave tick, so every tick collided and preserved our bytes
  * to a fresh sibling — 48 `*-conflict-*.json` files in one sitting, with the
- * canonical index frozen at the other writer's version (2026-07-26,
- * conflict-repro.log).
+ * canonical index frozen at the other writer's version.
  *
  * So: on mismatch, re-read disk, rebuild the intended change on top of what is
  * really there, write once more. `build` must therefore be replayable against
@@ -370,11 +415,7 @@ export function scriptDataFor(play: PlayFile | null, binderId: string): ScriptDa
 }
 
 /** A copy of `play` with one script's data replaced. */
-export function withScriptData(
-  play: PlayFile,
-  binderId: string,
-  data: ScriptData,
-): PlayFile {
+export function withScriptData(play: PlayFile, binderId: string, data: ScriptData): PlayFile {
   return { ...play, scripts: { ...play.scripts, [binderId]: data } };
 }
 

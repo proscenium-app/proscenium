@@ -12,8 +12,11 @@ export function useCommentFocus(editor: Editor | null, root: RefObject<HTMLEleme
   const [request, setRequest] = useState<{ id: string | null; action: string } | null>(null);
   useLayoutEffect(() => {
     if (!request || !editor || editor.isDestroyed) return;
-    const row = request.id ? root.current?.querySelector<HTMLElement>(`[data-comment-id="${request.id}"]`) : null;
-    const target = row?.querySelector<HTMLElement>('[aria-label="Edit comment"]') ??
+    const row = request.id
+      ? root.current?.querySelector<HTMLElement>(`[data-comment-id="${request.id}"]`)
+      : null;
+    const target =
+      row?.querySelector<HTMLElement>('[aria-label="Edit comment"]') ??
       root.current?.querySelector<HTMLElement>("[data-comment-fallback]");
     if (target) target.focus({ preventScroll: true });
     else editor.commands.focus();

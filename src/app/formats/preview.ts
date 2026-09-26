@@ -69,7 +69,8 @@ export function movedLines(
       const key = lineKey(line, page.pageNumber);
       const a = was.get(key);
       const b = now.get(key)!;
-      const moved = !a || a.page !== b.page || Math.abs(a.x - b.x) > 1e-6 || Math.abs(a.y - b.y) > 1e-6;
+      const moved =
+        !a || a.page !== b.page || Math.abs(a.x - b.x) > 1e-6 || Math.abs(a.y - b.y) > 1e-6;
       if (!moved) continue;
       lines.add(key);
       if (!elements.includes(line.type)) elements.push(line.type);
@@ -109,7 +110,10 @@ export function describePage(page: LayoutPage, total: number, spec: FormatSpec):
     const el = spec.elements[type];
     if (el.align === "center") parts.push(`${label(type)} centered`);
     else if (el.align === "right") parts.push(`${label(type)} right-aligned`);
-    else parts.push(`${label(type)} at ${inches(spec.page.margins.left + line.xIn)} from the left edge`);
+    else
+      parts.push(
+        `${label(type)} at ${inches(spec.page.margins.left + line.xIn)} from the left edge`,
+      );
   }
   if (page.breakBefore?.contd) parts.push(`Continues ${page.breakBefore.contd}`);
   if (page.footer) parts.push(`Footer ${slotsInWords(page.footer)}`);

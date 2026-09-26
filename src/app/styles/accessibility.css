@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Enlarged interface text reflows chrome; page geometry still comes from its format. */
 :root[data-large-text="true"] .toolbar {
   height: auto;

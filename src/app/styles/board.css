@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Corkboard (docs/app/organizing/workspace-model.md#WORK-D2) ------------------------------------------------------ */
 .board {
   padding: 20px var(--s-7);
@@ -52,13 +51,27 @@
   opacity: 0.4;
   box-shadow: 0 14px 34px rgba(31, 41, 51, 0.28);
 }
-.card--cream { --card-hue: var(--hue-cream); }
-.card--oxide { --card-hue: var(--oxide); }
-.card--ink { --card-hue: var(--ink); }
-.card--sea { --card-hue: var(--sea); }
-.card--moss { --card-hue: var(--moss); }
-.card--amber { --card-hue: var(--amber); }
-.card--ash { --card-hue: var(--ash); }
+.card--cream {
+  --card-hue: var(--hue-cream);
+}
+.card--oxide {
+  --card-hue: var(--oxide);
+}
+.card--ink {
+  --card-hue: var(--ink);
+}
+.card--sea {
+  --card-hue: var(--sea);
+}
+.card--moss {
+  --card-hue: var(--moss);
+}
+.card--amber {
+  --card-hue: var(--amber);
+}
+.card--ash {
+  --card-hue: var(--ash);
+}
 /* "New Scene" — a card-shaped hole where the next card will be. Dashed rather
    than filled, because it is not a scene yet; it takes the card's own radius
    and min-height so the grid rhythm is unbroken. */
@@ -75,7 +88,10 @@
   border: 1px dashed var(--rule-strong);
   border-radius: var(--r-control);
   cursor: pointer;
-  transition: background var(--motion), color var(--motion), border-color var(--motion);
+  transition:
+    background var(--motion),
+    color var(--motion),
+    border-color var(--motion);
 }
 .card--new:hover {
   background: var(--accent-softer);
@@ -130,7 +146,7 @@
   background: transparent;
   color: var(--ink-2);
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .card__synopsis {
     color: var(--ink-2);
   }
@@ -205,7 +221,9 @@
 /* A DOUBLE ring: a ring drawn straight on the swatch is invisible on the hue
    it is ringing, and cream needs an outline of its own to exist at all. */
 .swatch.is-on {
-  box-shadow: 0 0 0 2px var(--rail), 0 0 0 3.5px var(--accent);
+  box-shadow:
+    0 0 0 2px var(--rail),
+    0 0 0 3.5px var(--accent);
 }
 /* Focus is an outline OUTSIDE the chosen-ring, so the swatch a keyboard is on
    and the swatch that is chosen can be told apart when they differ. */
@@ -217,12 +235,24 @@
   background: var(--cream);
   border: 0.5px solid rgba(31, 41, 51, 0.25);
 }
-.swatch--oxide { background: var(--oxide); }
-.swatch--ink { background: var(--ink); }
-.swatch--sea { background: var(--sea); }
-.swatch--moss { background: var(--moss); }
-.swatch--amber { background: var(--amber); }
-.swatch--ash { background: var(--ash); }
+.swatch--oxide {
+  background: var(--oxide);
+}
+.swatch--ink {
+  background: var(--ink);
+}
+.swatch--sea {
+  background: var(--sea);
+}
+.swatch--moss {
+  background: var(--moss);
+}
+.swatch--amber {
+  background: var(--amber);
+}
+.swatch--ash {
+  background: var(--ash);
+}
 .card__label,
 .outliner__synopsis,
 .outliner__label {
@@ -289,14 +319,50 @@
   color: var(--ink);
 }
 
-
 /* The same text field for scene summaries and notes. */
-.outliner__synopsis, .outliner__note { font: inherit; font-size: var(--t-small); line-height: 1.45; width: 100%; min-width: 9rem; min-height: 54px; padding: var(--s-3); border: 1px solid var(--rule); border-radius: var(--r-control); color: var(--ink); background: var(--field); resize: vertical; }
-.card__drag { cursor: grab; display: inline-flex; color: var(--ink-2); }
-.card__details { color: var(--ink-2); font-size: var(--t-small); }
-.card__details summary { cursor: pointer; margin-bottom: var(--s-3); }
-.card__details .card__note { width: 100%; font-size: var(--t-small); }
-.card__details .card__label { width: 100%; text-align: left; margin-top: var(--s-3); }
-.card__head { flex-wrap: wrap; }
-.card__heading { flex: 1; }
-.card__pages { flex-basis: 100%; }
+.outliner__synopsis,
+.outliner__note {
+  font: inherit;
+  font-size: var(--t-small);
+  line-height: 1.45;
+  width: 100%;
+  min-width: 9rem;
+  min-height: 54px;
+  padding: var(--s-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-control);
+  color: var(--ink);
+  background: var(--field);
+  resize: vertical;
+}
+.card__drag {
+  cursor: grab;
+  display: inline-flex;
+  color: var(--ink-2);
+}
+.card__details {
+  color: var(--ink-2);
+  font-size: var(--t-small);
+}
+.card__details summary {
+  cursor: pointer;
+  margin-bottom: var(--s-3);
+}
+.card__details .card__note {
+  width: 100%;
+  font-size: var(--t-small);
+}
+.card__details .card__label {
+  width: 100%;
+  text-align: left;
+  margin-top: var(--s-3);
+}
+.card__head {
+  flex-wrap: wrap;
+}
+.card__heading {
+  flex: 1;
+}
+.card__pages {
+  flex-basis: 100%;
+}

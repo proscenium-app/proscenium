@@ -18,7 +18,9 @@ mock.module("@tauri-apps/api/event", () => ({
       unlistens++;
       if (failures > 0) {
         failures--;
-        throw new TypeError("undefined is not an object (evaluating 'listeners[eventId].handlerId')");
+        throw new TypeError(
+          "undefined is not an object (evaluating 'listeners[eventId].handlerId')",
+        );
       }
       emit = null;
     };

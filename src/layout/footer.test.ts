@@ -43,7 +43,10 @@ const PLAY: Doc = {
 describe("footer", () => {
   it("resolves its slots and tokens from the page's own state", () => {
     const s = spec((raw) => {
-      raw.footer = { content: { left: "{title}", center: "{page}", right: "{act}" }, position: 0.5 };
+      raw.footer = {
+        content: { left: "{title}", center: "{page}", right: "{act}" },
+        position: 0.5,
+      };
     });
     const { pages } = paginateDoc(PLAY, s, { title: "Tideline" });
     expect(pages.length).toBeGreaterThan(2);
@@ -62,11 +65,16 @@ describe("footer", () => {
 
   it("moves no line: pages are identical with and without one", () => {
     const withFooter = spec((raw) => {
-      raw.footer = { content: { left: "{title}", center: "— {page} —", right: "{scene}" }, position: 0.3 };
+      raw.footer = {
+        content: { left: "{title}", center: "— {page} —", right: "{scene}" },
+        position: 0.3,
+      };
     });
     const strip = (pages: ReturnType<typeof paginateDoc>["pages"]) =>
       pages.map((p) => ({ lines: p.lines, usedRows: p.usedRows, fillRows: p.fillRows }));
-    expect(strip(paginateDoc(PLAY, withFooter).pages)).toEqual(strip(paginateDoc(PLAY, spec()).pages));
+    expect(strip(paginateDoc(PLAY, withFooter).pages)).toEqual(
+      strip(paginateDoc(PLAY, spec()).pages),
+    );
   });
 
   it("reaches the stylesheet: its position, and chrome pulled back out of indented blocks", () => {

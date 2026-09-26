@@ -122,9 +122,7 @@ export function reconcile(
   const byPath = new Map<string, BinderItem>();
   const clone = (items: BinderItem[]): BinderItem[] =>
     items.map((it) => {
-      const copy: BinderItem = it.children
-        ? { ...it, children: clone(it.children) }
-        : { ...it };
+      const copy: BinderItem = it.children ? { ...it, children: clone(it.children) } : { ...it };
       if (copy.path) byPath.set(copy.path, copy);
       return copy;
     });
@@ -133,7 +131,8 @@ export function reconcile(
   for (const node of disk) {
     const key = pathKey(node.path);
     const paths = diskKeys.get(key) ?? new Set<string>();
-    paths.add(node.path); diskKeys.set(key, paths);
+    paths.add(node.path);
+    diskKeys.set(key, paths);
   }
   // Bucket by the shared key, retaining exact spellings in a collision bucket.
   const buckets = new Map<string, string[]>();
@@ -162,7 +161,10 @@ export function reconcile(
   }
   const detach = (items: BinderItem[], id: string): void => {
     const at = items.findIndex((item) => item.id === id);
-    if (at >= 0) { items.splice(at, 1); return; }
+    if (at >= 0) {
+      items.splice(at, 1);
+      return;
+    }
     for (const item of items) if (item.children) detach(item.children, id);
   };
   const adoptSpelling = (item: BinderItem, path: string) => {
@@ -171,7 +173,8 @@ export function reconcile(
     const old = buckets.get(pathKey(item.path));
     if (old) old.splice(old.indexOf(item.path), 1);
     item.path = path;
-    byPath.set(path, item); index(path);
+    byPath.set(path, item);
+    index(path);
     updated.push(item.id);
   };
 
@@ -196,7 +199,11 @@ export function reconcile(
   const dirs = disk.filter((d) => d.isDir).sort((a, b) => a.path.localeCompare(b.path));
   for (const d of dirs) {
     const existing = lookup(d.path);
-    if (existing) { adoptSpelling(existing, d.path); presentIds.add(existing.id); continue; }
+    if (existing) {
+      adoptSpelling(existing, d.path);
+      presentIds.add(existing.id);
+      continue;
+    }
     const item: BinderItem = {
       id: mintId(),
       type: "folder",
@@ -204,7 +211,8 @@ export function reconcile(
       children: [],
     };
     byPath.set(d.path, item);
-    byId.set(item.id, item); index(d.path);
+    byId.set(item.id, item);
+    index(d.path);
     appendAt(dirOf(d.path), item);
     added.push(item.id);
     presentIds.add(item.id);
@@ -213,7 +221,11 @@ export function reconcile(
   const files = disk.filter((d) => !d.isDir).sort((a, b) => a.path.localeCompare(b.path));
   for (const f of files) {
     const existing = lookup(f.path);
-    if (existing) { adoptSpelling(existing, f.path); presentIds.add(existing.id); continue; }
+    if (existing) {
+      adoptSpelling(existing, f.path);
+      presentIds.add(existing.id);
+      continue;
+    }
     const type = typeOf(f.path);
     const declared = identityOf(f.path);
     const unique = declared !== undefined && claims.get(declared)?.length === 1;
@@ -229,7 +241,8 @@ export function reconcile(
     const id = typed && unique && !prior ? declared! : mintId();
     const item: BinderItem = { id, type, path: f.path };
     byPath.set(f.path, item);
-    byId.set(item.id, item); index(f.path);
+    byId.set(item.id, item);
+    index(f.path);
     appendAt(dirOf(f.path), item);
     added.push(item.id);
     presentIds.add(item.id);
@@ -268,7 +281,11 @@ export function reconcile(
 
 /** Every path the binder currently names (leaves and folders). */
 export function binderPaths(binder: BinderItem[]): Set<string> {
-  return new Set(flatten(binder).map((i) => i.path).filter(Boolean));
+  return new Set(
+    flatten(binder)
+      .map((i) => i.path)
+      .filter(Boolean),
+  );
 }
 
 export interface DiskWalk {
@@ -314,9 +331,7 @@ export async function walkPlay(): Promise<DiskWalk> {
  * The whole reconciliation, with the I/O around it: walk the folder, read each
  * new Markdown file's front matter so its own `type:` can win, then file.
  */
-export async function reconcileBinder(
-  binder: BinderItem[],
-): Promise<Reconciliation> {
+export async function reconcileBinder(binder: BinderItem[]): Promise<Reconciliation> {
   const { nodes: disk, complete } = await walkPlay();
   const known = new Set([...binderPaths(binder)].map(pathKey));
   const knownIds = new Set(flatten(binder).map((item) => item.id));
@@ -331,7 +346,8 @@ export async function reconcileBinder(
       try {
         content = (await vault.read(node.path)).content;
         const fields = splitFrontMatter(content).fields;
-        if (fields.type && fields.id && (isUlid(fields.id) || knownIds.has(fields.id))) ids.set(node.path, fields.id);
+        if (fields.type && fields.id && (isUlid(fields.id) || knownIds.has(fields.id)))
+          ids.set(node.path, fields.id);
       } catch {
         content = null; // unreadable (evicted, binary): type it by name
       }
@@ -339,5 +355,12 @@ export async function reconcileBinder(
     types.set(node.path, inferType(node.path, content));
   }
 
-  return reconcile(binder, disk, (p) => types.get(p) ?? inferType(p, null), ulid, complete, (p) => ids.get(p));
+  return reconcile(
+    binder,
+    disk,
+    (p) => types.get(p) ?? inferType(p, null),
+    ulid,
+    complete,
+    (p) => ids.get(p),
+  );
 }

@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { parse, serialize, textContent } from "../fountain";
-import type {
-  BlockNode,
-  BlockType,
-  FrontMatter,
-  InlineNode,
-} from "../fountain/model";
+import type { BlockNode, BlockType, FrontMatter, InlineNode } from "../fountain/model";
 import { assertDocumentText } from "../storage/read-limit";
 
 export const ELEMENTS: { value: BlockType; label: string }[] = [
@@ -52,8 +47,7 @@ export interface Corrections {
   styles: Record<string, BlockType>;
 }
 export const EMPTY_CORRECTIONS: Corrections = { lines: {}, styles: {} };
-export const plain = (text: string): InlineNode[] =>
-  text ? [{ type: "text", text }] : [];
+export const plain = (text: string): InlineNode[] => (text ? [{ type: "text", text }] : []);
 export const paragraphText = (p: Paragraph) => textContent(p.content);
 /** A package-form `.pages` arrives as `Name.pages.zip`; its title is `Name`. */
 export const documentTitle = (doc: ImportDocument) =>
@@ -91,9 +85,7 @@ export function styleKind(style: string): BlockType | undefined {
     scenesummary: "synopsis",
     omittedtext: "boneyard",
   };
-  return Object.prototype.hasOwnProperty.call(aliases, key)
-    ? aliases[key]
-    : undefined;
+  return Object.prototype.hasOwnProperty.call(aliases, key) ? aliases[key] : undefined;
 }
 
 /** Explicit source semantics win; guesses are always labelled. No text is discarded. */
@@ -114,35 +106,25 @@ export function reviewLines(
     let kind = chosen ?? p.kind ?? styleKind(p.style);
     let reason = chosen
       ? "Your choice"
-      : (p.uncertainty ??
-        (p.kind ? "From the script" : `Source style: ${p.style}`));
+      : (p.uncertainty ?? (p.kind ? "From the script" : `Source style: ${p.style}`));
     let review = !chosen && !!p.uncertainty;
     if (!kind) {
       kind = "action";
       reason = "Kept as a stage direction";
       review = true;
       if (reading === "detect") {
-        if (/^ACT\s+(?:[IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE)\b/i.test(text))
-          kind = "act";
-        else if (
-          /^SCENE\s+(?:[IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE)\b/i.test(text)
-        )
+        if (/^ACT\s+(?:[IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE)\b/i.test(text)) kind = "act";
+        else if (/^SCENE\s+(?:[IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE)\b/i.test(text))
           kind = "scene";
-        else if (/^(?:INT\.?|EXT\.?|INT\.?\/EXT\.?)\s/i.test(text))
-          kind = "sceneHeading";
-        else if (/^(?:CUT TO:|FADE OUT\.|BLACKOUT\.)$/.test(text))
-          kind = "transition";
+        else if (/^(?:INT\.?|EXT\.?|INT\.?\/EXT\.?)\s/i.test(text)) kind = "sceneHeading";
+        else if (/^(?:CUT TO:|FADE OUT\.|BLACKOUT\.)$/.test(text)) kind = "transition";
         else if (
-          /^(?:LIGHTS (?:UP|DOWN|OUT)|CURTAIN|END OF (?:ACT|PLAY)|THE END)[.!]?$/i.test(
-            text,
-          )
+          /^(?:LIGHTS (?:UP|DOWN|OUT)|CURTAIN|END OF (?:ACT|PLAY)|THE END)[.!]?$/i.test(text)
         )
           kind = "action";
         else if (
           /^\([\s\S]+\)$/.test(text) &&
-          (previous === "character" ||
-            previous === "dialogue" ||
-            previous === "parenthetical")
+          (previous === "character" || previous === "dialogue" || previous === "parenthetical")
         )
           kind = "parenthetical";
         else if (
@@ -155,9 +137,7 @@ export function reviewLines(
         )
           kind = "character";
         else if (
-          (previous === "character" ||
-            previous === "parenthetical" ||
-            previous === "dialogue") &&
+          (previous === "character" || previous === "parenthetical" || previous === "dialogue") &&
           !/^\s*[[(]/.test(text)
         )
           kind = "dialogue";
@@ -187,9 +167,7 @@ export function makeScript(
   const content: BlockNode[] = lines.map((p, index) => {
     if (
       (p.kind === "dialogue" || p.kind === "parenthetical") &&
-      !["character", "dialogue", "parenthetical"].includes(
-        lines[index - 1]?.kind ?? "",
-      )
+      !["character", "dialogue", "parenthetical"].includes(lines[index - 1]?.kind ?? "")
     ) {
       throw new Error(
         `Paragraph ${index + 1} is ${p.kind === "dialogue" ? "Dialogue" : "a Parenthetical"} without a character cue. Set its speaker’s paragraph to Character, or use Stage Direction for this paragraph.`,

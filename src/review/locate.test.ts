@@ -60,7 +60,19 @@ describe("touchedScenes", () => {
   });
 
   it("falls back to forced scene headings when the script has no ## sections", () => {
-    const flat = ["Title: X", "", ".A kitchen", "", "MARA", "One.", "", ".A hallway", "", "JONAH", "Two."].join("\n");
+    const flat = [
+      "Title: X",
+      "",
+      ".A kitchen",
+      "",
+      "MARA",
+      "One.",
+      "",
+      ".A hallway",
+      "",
+      "JONAH",
+      "Two.",
+    ].join("\n");
     const after = flat.replace("Two.", "Two, later.");
     expect([...touchedScenes(flat, after)]).toEqual([1]);
   });

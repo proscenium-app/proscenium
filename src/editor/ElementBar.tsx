@@ -22,15 +22,21 @@
  * no business — a cue is a name, not a place for bold — rather than presenting a
  * button that silently does nothing.
  *
- * That also finishes what the usability pass asked for: "the element bar is the
- * most prominent thing on screen … for a mechanism the design premise says you
- * should almost never need". Nothing is lost — the popup still names every
+ * That also answers what a usability pass found: the element bar was the most
+ * prominent thing on screen, for a mechanism the design premise says a writer
+ * should almost never need. Nothing is lost — the popup still names every
  * element and still shows each one's chord.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { FormattingIcon } from "../ui/FormattingIcon";
-import { canEmphasize, canSoftBreak, insertLineBreak, insertPageBreak, toggleEmphasis } from "./breaks";
+import {
+  canEmphasize,
+  canSoftBreak,
+  insertLineBreak,
+  insertPageBreak,
+  toggleEmphasis,
+} from "./breaks";
 import {
   CommentAddIcon,
   CommentIcon,
@@ -102,7 +108,8 @@ const FITS = [
 /** Does anything in the bar end past its content edge? Its items never
     shrink, so a bar too narrow for them overflows rather than squeezing. */
 function overflows(bar: HTMLElement): boolean {
-  const edge = bar.getBoundingClientRect().right - (parseFloat(getComputedStyle(bar).paddingRight) || 0);
+  const edge =
+    bar.getBoundingClientRect().right - (parseFloat(getComputedStyle(bar).paddingRight) || 0);
   for (const item of bar.children) {
     if (item.getBoundingClientRect().right > edge + 0.5) return true;
   }
@@ -243,7 +250,11 @@ export function ElementBar({
   // writer looks for and concludes the app can't do, and the breaks are the
   // gestures nothing on screen ever named.
   const emphasisGroup = (
-    <div className="elementbar__group elementbar__fold--marks" key="emphasis" data-tutorial="emphasis">
+    <div
+      className="elementbar__group elementbar__fold--marks"
+      key="emphasis"
+      data-tutorial="emphasis"
+    >
       {MARKS.map((m) => (
         <button
           key={m.name}
@@ -267,7 +278,9 @@ export function ElementBar({
           data-tutorial={m.name === "strong" ? "bold" : undefined}
           aria-keyshortcuts={`Meta+${m.label.toLowerCase()}`}
         >
-          <FormattingIcon name={m.name === "strong" ? "bold" : m.name === "em" ? "italic" : "underline"} />
+          <FormattingIcon
+            name={m.name === "strong" ? "bold" : m.name === "em" ? "italic" : "underline"}
+          />
           <kbd className="elementbar__badge">{m.hint}</kbd>
         </button>
       ))}
@@ -341,14 +354,23 @@ export function ElementBar({
     if (folded("breaks")) {
       sep();
       out.push(
-        { label: "Line Break", shortcut: "⇧⏎", disabled: !can.lineBreak, onSelect: () => insertLineBreak(editor) },
+        {
+          label: "Line Break",
+          shortcut: "⇧⏎",
+          disabled: !can.lineBreak,
+          onSelect: () => insertLineBreak(editor),
+        },
         { label: "Page Break", shortcut: "⌘⏎", onSelect: () => insertPageBreak(editor) },
       );
     }
     if (folded("comments")) {
       sep();
       out.push(
-        { label: "Comment", shortcut: "⌘⌥M", onSelect: () => editor.chain().focus().addComment().run() },
+        {
+          label: "Comment",
+          shortcut: "⌘⌥M",
+          onSelect: () => editor.chain().focus().addComment().run(),
+        },
         {
           label: commentCount > 0 ? `Comments (${commentCount})` : "Comments",
           shortcut: "⌘⇧C",
@@ -364,15 +386,17 @@ export function ElementBar({
   return (
     <div ref={barRef} className={`elementbar${revealing ? " is-revealing" : ""}`}>
       <div className="elementbar__groups">
-        <span className="elementbar__line" data-tutorial="line-type"><PopupButton
-          label="What this line is"
-          menuId="line-type"
-          className="elementbar__what"
-          options={elementOptions}
-          value={type}
-          onChange={(v) => setElement(v, ALL.find((e) => e.type === v)?.attrs)}
-          menuWidth={190}
-        /></span>
+        <span className="elementbar__line" data-tutorial="line-type">
+          <PopupButton
+            label="What this line is"
+            menuId="line-type"
+            className="elementbar__what"
+            options={elementOptions}
+            value={type}
+            onChange={(v) => setElement(v, ALL.find((e) => e.type === v)?.attrs)}
+            menuWidth={190}
+          />
+        </span>
         <span className="elementbar__hint">Tab cycles · ; menu</span>
         <span className="elementbar__divider elementbar__fold--marks" />
         {emphasisGroup}
@@ -390,7 +414,9 @@ export function ElementBar({
         onClick={() => editor.commands.addComment()}
         title="Comment on the selection — a [[ ]] note after it · ⌘⌥M"
       >
-        <span className="elementbar__onlyicon"><CommentAddIcon size={12} /></span>
+        <span className="elementbar__onlyicon">
+          <CommentAddIcon size={12} />
+        </span>
         <span className="elementbar__btnlabel">+ Comment</span>
         <kbd className="elementbar__badge">⌘⌥M</kbd>
       </button>
@@ -408,7 +434,9 @@ export function ElementBar({
           Comments{commentCount > 0 ? ` (${commentCount})` : ""}
         </span>
         {commentCount > 0 && (
-          <span className="elementbar__count" aria-hidden="true">{commentCount}</span>
+          <span className="elementbar__count" aria-hidden="true">
+            {commentCount}
+          </span>
         )}
         <kbd className="elementbar__badge">⌘⇧C</kbd>
       </button>
@@ -439,7 +467,13 @@ export function ElementBar({
         </button>
       </span>
       {more.anchor && (
-        <Menu anchor={more.anchor} entries={moreEntries()} onClose={more.close} width={200} label="More" />
+        <Menu
+          anchor={more.anchor}
+          entries={moreEntries()}
+          onClose={more.close}
+          width={200}
+          label="More"
+        />
       )}
       <span className="elementbar__spacer" />
       {pages.total > 0 && (

@@ -14,7 +14,14 @@
 import { useEffect, useState } from "react";
 import type { UiFacts } from "./coach";
 
-export const NO_UI: UiFacts = {menu: [], elementMenu: false, sheet: null, focus: null, focusText: "", fields: {}};
+export const NO_UI: UiFacts = {
+  menu: [],
+  elementMenu: false,
+  sheet: null,
+  focus: null,
+  focusText: "",
+  fields: {},
+};
 /** Fields the coach reads before they are committed, by their `data-tutorial` id. */
 const FIELDS = ["tag-field", "opening-notes"];
 
@@ -32,37 +39,69 @@ function valueOf(el: HTMLElement): string {
 }
 
 export function readUi(): UiFacts {
-  const menu = [...document.querySelectorAll<HTMLElement>(".menu [data-menu-id]")].filter(shown).map(el => el.dataset.menuId!);
+  const menu = [...document.querySelectorAll<HTMLElement>(".menu [data-menu-id]")]
+    .filter(shown)
+    .map((el) => el.dataset.menuId!);
   const element = document.querySelector<HTMLElement>(".pl-elementmenu");
-  const elementMenu = !!element && element.style.display !== "none" && element.childElementCount > 0;
+  const elementMenu =
+    !!element && element.style.display !== "none" && element.childElementCount > 0;
   const scrims = document.querySelectorAll(".modal-scrim");
   const top = scrims[scrims.length - 1];
-  const sheet = !top ? null : top.querySelector('[data-tutorial="export-range"]') ? "export"
-    : top.querySelector('[data-tutorial="opening-notes"]') ? "opening-pages" : "other";
-  const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+  const sheet = !top
+    ? null
+    : top.querySelector('[data-tutorial="export-range"]')
+      ? "export"
+      : top.querySelector('[data-tutorial="opening-notes"]')
+        ? "opening-pages"
+        : "other";
+  const active =
+    document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+      ? document.activeElement
+      : null;
   const holder = active?.closest<HTMLElement>("[data-tutorial]") ?? null;
   const fields: Record<string, string> = {};
   for (const id of FIELDS) {
     const el = [...document.querySelectorAll(`[data-tutorial="${id}"]`)].find(shown);
     if (el) fields[id] = valueOf(el);
   }
-  return {menu, elementMenu, sheet, focus: holder?.dataset.tutorial ?? null, focusText: holder ? valueOf(active!) : "", fields};
+  return {
+    menu,
+    elementMenu,
+    sheet,
+    focus: holder?.dataset.tutorial ?? null,
+    focusText: holder ? valueOf(active!) : "",
+    fields,
+  };
 }
 
 const key = (u: UiFacts) => JSON.stringify(u);
 export function useUiFacts(watching: boolean): UiFacts {
   const [ui, setUi] = useState<UiFacts>(NO_UI);
   useEffect(() => {
-    if (!watching) {setUi(NO_UI); return;}
-    let last = "", frame = 0;
+    if (!watching) {
+      setUi(NO_UI);
+      return;
+    }
+    let last = "",
+      frame = 0;
     const look = () => {
-      const now = readUi(), k = key(now);
-      if (k !== last) {last = k; setUi(now);}
+      const now = readUi(),
+        k = key(now);
+      if (k !== last) {
+        last = k;
+        setUi(now);
+      }
     };
-    const loop = () => {look(); frame = requestAnimationFrame(loop);};
+    const loop = () => {
+      look();
+      frame = requestAnimationFrame(loop);
+    };
     loop();
     const timer = window.setInterval(look, 250);
-    return () => {cancelAnimationFrame(frame); clearInterval(timer);};
+    return () => {
+      cancelAnimationFrame(frame);
+      clearInterval(timer);
+    };
   }, [watching]);
   return ui;
 }

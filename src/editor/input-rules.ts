@@ -107,10 +107,12 @@ export const AutoDetect = Extension.create({
       // this cue becomes/stops being the RIGHT half of a side-by-side pair.
       new InputRule({
         find: /\s?\^$/,
-        handler: ({ state, range }) => { dualCueInput(state.tr, range); },
+        handler: ({ state, range }) => {
+          dualCueInput(state.tr, range);
+        },
       }),
 
-      // ---- Typed Fountain parity (audit 2026-08-12; docs/app/writing/comments.md#COMM-D6) ----
+      // ---- Typed Fountain parity (docs/app/writing/comments.md#COMM-D6) ----
 
       // Typed comments wrap ON CLOSE: `[[` stays literal while you type, and
       // the closing `]]` turns the whole `[[ … ]]` into a note node with the

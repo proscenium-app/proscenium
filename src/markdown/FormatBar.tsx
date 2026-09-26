@@ -169,39 +169,62 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
       >
         <FormattingIcon name="italic" />
       </Btn>
-      {!openingPage && <>
-      <Btn
-        on={editor.isActive("code")}
-        title="Inline code"
-        label="Inline code"
-        run={() => editor.chain().focus().toggleCode().run()}
-      >
-        <svg viewBox="0 0 16 16" {...I}>
-          <path d="M5.8 4.6 2.6 8l3.2 3.4M10.2 4.6 13.4 8l-3.2 3.4" />
-        </svg>
-      </Btn>
-      <Btn
-        on={editor.isActive("link")}
-        title="Link"
-        label="Link"
-        run={() => {
-          if (editor.isActive("link")) {
-            editor.chain().focus().unsetLink().run();
-            return;
+      {!openingPage && (
+        <>
+          <Btn
+            on={editor.isActive("code")}
+            title="Inline code"
+            label="Inline code"
+            run={() => editor.chain().focus().toggleCode().run()}
+          >
+            <svg viewBox="0 0 16 16" {...I}>
+              <path d="M5.8 4.6 2.6 8l3.2 3.4M10.2 4.6 13.4 8l-3.2 3.4" />
+            </svg>
+          </Btn>
+          <Btn
+            on={editor.isActive("link")}
+            title="Link"
+            label="Link"
+            run={() => {
+              if (editor.isActive("link")) {
+                editor.chain().focus().unsetLink().run();
+                return;
+              }
+              const href = prompt("Link to:", "https://")?.trim();
+              if (!href) return;
+              editor.chain().focus().setLink({ href }).run();
+            }}
+          >
+            <svg viewBox="0 0 16 16" {...I}>
+              <path d="M6.6 9.4a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.9.9" />
+              <path d="M9.4 6.6a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.9-.9" />
+            </svg>
+          </Btn>
+        </>
+      )}
+      {openingPage && (
+        <PopupButton
+          disabled={editor.isActive("bulletList") || editor.isActive("orderedList")}
+          label="Text alignment"
+          value={
+            editor.getAttributes(editor.isActive("heading") ? "heading" : "paragraph").textAlign ??
+            "left"
           }
-          const href = prompt("Link to:", "https://")?.trim();
-          if (!href) return;
-          editor.chain().focus().setLink({ href }).run();
-        }}
-      >
-        <svg viewBox="0 0 16 16" {...I}>
-          <path d="M6.6 9.4a2.6 2.6 0 0 0 3.7 0l2-2a2.6 2.6 0 0 0-3.7-3.7l-.9.9" />
-          <path d="M9.4 6.6a2.6 2.6 0 0 0-3.7 0l-2 2a2.6 2.6 0 0 0 3.7 3.7l.9-.9" />
-        </svg>
-      </Btn>
-
-      </>}
-      {openingPage && <PopupButton disabled={editor.isActive("bulletList") || editor.isActive("orderedList")} label="Text alignment" value={editor.getAttributes(editor.isActive("heading") ? "heading" : "paragraph").textAlign ?? "left"} options={[{ value: "left", label: "Align Left" }, { value: "center", label: "Center" }, { value: "right", label: "Align Right" }]} onChange={(value) => editor.chain().focus().updateAttributes("paragraph", { textAlign: value === "left" ? null : value }).updateAttributes("heading", { textAlign: value === "left" ? null : value }).run()} />}
+          options={[
+            { value: "left", label: "Align Left" },
+            { value: "center", label: "Center" },
+            { value: "right", label: "Align Right" },
+          ]}
+          onChange={(value) =>
+            editor
+              .chain()
+              .focus()
+              .updateAttributes("paragraph", { textAlign: value === "left" ? null : value })
+              .updateAttributes("heading", { textAlign: value === "left" ? null : value })
+              .run()
+          }
+        />
+      )}
       <span className="fmt__rule" />
 
       <Btn
@@ -242,33 +265,31 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
 
       <span className="fmt__rule" />
 
-      {!openingPage && <>
-      <Btn
-        title="Table"
-        label="Insert table"
-        run={() =>
-          editor
-            .chain()
-            .focus()
-            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-            .run()
-        }
-      >
-        <svg viewBox="0 0 16 16" {...I}>
-          <rect x="2.6" y="3.4" width="10.8" height="9.2" rx="1" />
-          <path d="M2.6 6.4h10.8M6.6 6.4v6.2M10 6.4v6.2" />
-        </svg>
-      </Btn>
-      <Btn
-        title="Divider"
-        label="Insert divider"
-        run={() => editor.chain().focus().setHorizontalRule().run()}
-      >
-        <svg viewBox="0 0 16 16" {...I}>
-          <path d="M2.6 8h10.8" />
-        </svg>
-      </Btn>
-      </>}
+      {!openingPage && (
+        <>
+          <Btn
+            title="Table"
+            label="Insert table"
+            run={() =>
+              editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+            }
+          >
+            <svg viewBox="0 0 16 16" {...I}>
+              <rect x="2.6" y="3.4" width="10.8" height="9.2" rx="1" />
+              <path d="M2.6 6.4h10.8M6.6 6.4v6.2M10 6.4v6.2" />
+            </svg>
+          </Btn>
+          <Btn
+            title="Divider"
+            label="Insert divider"
+            run={() => editor.chain().focus().setHorizontalRule().run()}
+          >
+            <svg viewBox="0 0 16 16" {...I}>
+              <path d="M2.6 8h10.8" />
+            </svg>
+          </Btn>
+        </>
+      )}
     </div>
   );
 }

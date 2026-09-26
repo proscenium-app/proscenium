@@ -40,7 +40,10 @@ export function recallScript(playId: string): string | null {
  * The script a play opens on: the one last in front while the binder still
  * holds it as a script, and otherwise the first.
  */
-export function scriptToOpen(binder: readonly BinderItem[], remembered: string | null): BinderItem | null {
+export function scriptToOpen(
+  binder: readonly BinderItem[],
+  remembered: string | null,
+): BinderItem | null {
   let first: BinderItem | null = null;
   let kept: BinderItem | null = null;
   const walk = (items: readonly BinderItem[]) => {

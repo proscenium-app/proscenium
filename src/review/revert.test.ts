@@ -8,9 +8,12 @@ function fixture(content = "REVIEWED AFTER") {
   let disk = content;
   const pins: string[] = [];
   const args = {
-    afterHash: "REVIEWED AFTER", before: "BEFORE",
+    afterHash: "REVIEWED AFTER",
+    before: "BEFORE",
     read: async () => ({ content: disk, hash: disk }),
-    pin: async (content: string) => { pins.push(content); },
+    pin: async (content: string) => {
+      pins.push(content);
+    },
     stillReviewed: () => true,
     write: async (content: string, expected: string) => {
       expect(pins).toContain(expected);
@@ -19,7 +22,14 @@ function fixture(content = "REVIEWED AFTER") {
       return true;
     },
   };
-  return { args, pins, disk: () => disk, external: (text: string) => { disk = text; } };
+  return {
+    args,
+    pins,
+    disk: () => disk,
+    external: (text: string) => {
+      disk = text;
+    },
+  };
 }
 
 test("docs/app/keeping-work/storage-and-file-format.md#STOR-119: the review's newer closed-file words survive an old Changes revert", async () => {
@@ -37,14 +47,21 @@ test("docs/app/keeping-work/storage-and-file-format.md#STOR-119: pin the exact d
 });
 
 test("docs/app/keeping-work/storage-and-file-format.md#STOR-119: a failed pre-image or another edit replaces nothing", async () => {
-  const f = fixture(); f.args.pin = async () => { throw new Error("disk full"); };
+  const f = fixture();
+  f.args.pin = async () => {
+    throw new Error("disk full");
+  };
   expect(await revertReviewedFile(f.args)).toBe("unpreserved");
   expect(f.disk()).toBe("REVIEWED AFTER");
   const g = fixture();
-  g.args.pin = async (content) => { g.pins.push(content); g.external("ANOTHER EXTERNAL EDIT"); };
+  g.args.pin = async (content) => {
+    g.pins.push(content);
+    g.external("ANOTHER EXTERNAL EDIT");
+  };
   expect(await revertReviewedFile(g.args)).toBe("refused");
   expect(g.disk()).toBe("ANOTHER EXTERNAL EDIT");
-  const h = fixture(); h.args.stillReviewed = () => false;
+  const h = fixture();
+  h.args.stillReviewed = () => false;
   expect(await revertReviewedFile(h.args)).toBe("changed");
   expect(h.disk()).toBe("REVIEWED AFTER");
 });

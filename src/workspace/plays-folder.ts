@@ -20,8 +20,8 @@
  *    chose one folder too high was refused the folder their plays were in.
  *
  * **Suggested, never refused:** a folder that holds no plays while some of its
- * own folders do (`playsFolderHint`). Re-choosing a Plays folder on 2026-09-13,
- * a writer picked the folder above it. The Plays screen said "No plays here
+ * own folders do (`playsFolderHint`). Re-choosing a Plays folder, a writer
+ * picked the folder above it. The Plays screen said "No plays here
  * yet", and the sample play they opened from there went into that folder. An
  * empty folder is still a fine new Plays folder, so the screen asks rather than
  * refuses.
@@ -64,7 +64,10 @@ function nameOf(path: string): string {
  * Plays folder open now, checked for nesting only when given, and only when it
  * holds plays.
  */
-export function playsFolderRefusal(facts: FolderFacts, open: OpenPlaysFolder | null): string | null {
+export function playsFolderRefusal(
+  facts: FolderFacts,
+  open: OpenPlaysFolder | null,
+): string | null {
   if (facts.isPlay) {
     return `“${nameOf(facts.path)}” is a play. Choose the folder that holds your plays.`;
   }
@@ -114,7 +117,10 @@ export function playsFolderHint(playsHere: number, below: FolderOfPlays[]): Play
   const names = folders.map((f) => `“${f.dir}”`);
   const others = holding.length - folders.length;
   if (others > 0) names.push(`${others} other ${others === 1 ? "folder" : "folders"}`);
-  return { folders, sentence: `Your plays look like they are in ${listOf(names)} inside this folder.` };
+  return {
+    folders,
+    sentence: `Your plays look like they are in ${listOf(names)} inside this folder.`,
+  };
 }
 
 /** “A” · “A” and “B” · “A”, “B”, and “C” — the app's own list punctuation. */

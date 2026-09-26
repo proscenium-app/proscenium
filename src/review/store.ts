@@ -87,8 +87,10 @@ export function openChanges(playId: string) {
    * seen for the first time and write over the baseline it could not read.
    */
   async function readBaseline(relPath: string): Promise<string | null> {
-    return await playStore.read(playId, baselinePath(relPath)) ??
-      await playStore.read(playId, BASELINE_DIR + "/" + encodeURIComponent(relPath));
+    return (
+      (await playStore.read(playId, baselinePath(relPath))) ??
+      (await playStore.read(playId, BASELINE_DIR + "/" + encodeURIComponent(relPath)))
+    );
   }
 
   /**
@@ -158,7 +160,9 @@ export function openChanges(playId: string) {
     const run = (ledgerTurns.get(playId) ?? Promise.resolve()).then(work, work);
     const settled = run.catch(() => undefined);
     ledgerTurns.set(playId, settled);
-    void settled.then(() => { if (ledgerTurns.get(playId) === settled) ledgerTurns.delete(playId); });
+    void settled.then(() => {
+      if (ledgerTurns.get(playId) === settled) ledgerTurns.delete(playId);
+    });
     return run;
   }
 
@@ -185,7 +189,16 @@ export function openChanges(playId: string) {
     });
   }
 
-  return { playId, readBaseline, writeBaseline, readBefore, writeBefore, readLedger, appendEntry, setStatus };
+  return {
+    playId,
+    readBaseline,
+    writeBaseline,
+    readBefore,
+    writeBefore,
+    readLedger,
+    appendEntry,
+    setStatus,
+  };
 }
 export type ChangesStore = ReturnType<typeof openChanges>;
 

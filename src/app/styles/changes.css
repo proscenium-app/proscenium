@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Changes surface ----------------------------------- */
 /* What arrived in this folder from outside the app: another device,
    another editor. The change has already landed — this is where it becomes
@@ -30,7 +29,7 @@
   font-size: var(--t-mini);
   font-weight: 600;
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .changes__group {
     color: var(--ink-2);
   }
@@ -93,8 +92,12 @@
   margin-left: auto;
   white-space: nowrap;
 }
-.change__add { color: var(--ok-text); }
-.change__del { color: var(--bad); }
+.change__add {
+  color: var(--ok-text);
+}
+.change__del {
+  color: var(--bad);
+}
 .change__nobase {
   color: var(--ash);
   font-style: italic;
@@ -123,14 +126,21 @@
   line-height: 1.5;
   white-space: pre-wrap;
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .change__diff {
     background: var(--cream);
   }
 }
-.diffline--add { color: var(--moss); }
-.diffline--del { color: var(--bad); }
-.diffline--skip { color: var(--ash); font-style: italic; }
+.diffline--add {
+  color: var(--moss);
+}
+.diffline--del {
+  color: var(--bad);
+}
+.diffline--skip {
+  color: var(--ash);
+  font-style: italic;
+}
 
 /* A scene something arrived in from outside the app. The
    Changes surface holds the diff; these say WHERE, so a change reads as
@@ -154,7 +164,6 @@
   box-shadow: inset 3px 0 0 var(--warn-border);
 }
 
-
 /* Inline tracked changes ---------------------------- */
 /* A view layer only: these marks are ProseMirror decorations derived from the
    ledger's diff. Nothing here is in the document, so turning the layer off
@@ -176,4 +185,3 @@
   text-decoration: line-through;
   white-space: pre-wrap;
 }
-

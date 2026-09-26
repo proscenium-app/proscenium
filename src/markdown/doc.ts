@@ -44,11 +44,18 @@ function blockToNode(block: Block): Node {
     case "managedMarker":
       return { type: "managedMarker", attrs: { source: block.text } };
     case "paragraph":
-      return { type: "paragraph", ...(block.align ? { attrs: { textAlign: block.align } } : {}), content: spansToNodes(block.spans) };
+      return {
+        type: "paragraph",
+        ...(block.align ? { attrs: { textAlign: block.align } } : {}),
+        content: spansToNodes(block.spans),
+      };
     case "heading":
       return {
         type: "heading",
-        attrs: { level: Math.min(block.level, 6), ...(block.align ? { textAlign: block.align } : {}) },
+        attrs: {
+          level: Math.min(block.level, 6),
+          ...(block.align ? { textAlign: block.align } : {}),
+        },
         content: spansToNodes(block.spans),
       };
     case "quote":
@@ -155,10 +162,7 @@ function collectSpans(spans: Span[], marks: MarkList): Node[] {
         break;
       case "link":
         out.push(
-          ...collectSpans(span.spans, [
-            ...marks,
-            { type: "link", attrs: { href: span.href } },
-          ]),
+          ...collectSpans(span.spans, [...marks, { type: "link", attrs: { href: span.href } }]),
         );
         break;
     }
@@ -175,7 +179,10 @@ function markProp(marks: Node["marks"]): { marks?: Node["marks"] } {
 export function toMarkdown(doc: Node): string {
   const out = (doc.content ?? []).map((n) => blockToText(n, "", true)).filter((s) => s !== null);
   // One trailing newline, the way every other writer leaves a text file.
-  const body = out.join("\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  const body = out
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
   return body ? `${body}\n` : "";
 }
 
@@ -185,7 +192,8 @@ export function toMarkdown(doc: Node): string {
  */
 function blockToText(node: Node, indent: string, lineStarts: boolean): string | null {
   const align = node.attrs?.textAlign;
-  const prefix = align === "center" || align === "right" ? `<!-- proscenium:align=${align} -->\n\n` : "";
+  const prefix =
+    align === "center" || align === "right" ? `<!-- proscenium:align=${align} -->\n\n` : "";
   switch (node.type) {
     case "managedMarker":
       return String(node.attrs?.source ?? "");
@@ -375,9 +383,7 @@ function inlineToText(nodes: Node[], lineStarts = false): string {
       }
     }
 
-    out += isCode
-      ? fenceCode(node.text ?? "")
-      : escapeText(node.text ?? "", out, lineStarts);
+    out += isCode ? fenceCode(node.text ?? "") : escapeText(node.text ?? "", out, lineStarts);
   }
 
   close(0);

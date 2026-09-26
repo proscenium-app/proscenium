@@ -18,7 +18,21 @@ function reconcile(src: string, prior: ScriptData | null, mint = mintFactory()) 
   return reconcileCards({ doc: parse(src).doc, prior }, mint);
 }
 
-const TWO_SCENES = ["# ACT ONE", "", "## SCENE 1", "", "= setup.", "", "Mara waits.", "", "## SCENE 2", "", "= turn.", "", "Jonah leaves."].join("\n");
+const TWO_SCENES = [
+  "# ACT ONE",
+  "",
+  "## SCENE 1",
+  "",
+  "= setup.",
+  "",
+  "Mara waits.",
+  "",
+  "## SCENE 2",
+  "",
+  "= turn.",
+  "",
+  "Jonah leaves.",
+].join("\n");
 
 describe("card↔scene reconciliation (docs/app/keeping-work/storage-and-file-format.md#STOR-D6)", () => {
   it("mints a card per scene in document order on first reconcile", () => {
@@ -68,7 +82,21 @@ describe("card↔scene reconciliation (docs/app/keeping-work/storage-and-file-fo
     const r1 = reconcile(TWO_SCENES, null);
     r1.data.scenes[1].card.color = "ink";
     r1.data.scenes[1].card.status = "revised";
-    const reordered = ["# ACT ONE", "", "## SCENE 2", "", "= turn.", "", "Jonah leaves.", "", "## SCENE 1", "", "= setup.", "", "Mara waits."].join("\n");
+    const reordered = [
+      "# ACT ONE",
+      "",
+      "## SCENE 2",
+      "",
+      "= turn.",
+      "",
+      "Jonah leaves.",
+      "",
+      "## SCENE 1",
+      "",
+      "= setup.",
+      "",
+      "Mara waits.",
+    ].join("\n");
     const r2 = reconcile(reordered, r1.data);
     // SCENE 2 is now first; it keeps its id + card
     const sceneTwo = r2.cards[0];
@@ -114,7 +142,19 @@ describe("card↔scene reconciliation (docs/app/keeping-work/storage-and-file-fo
   });
 
   it("distinguishes same-named scenes in different acts (act-qualified)", () => {
-    const dupes = ["# ACT ONE", "", "## SCENE 1", "", "Opening.", "", "# ACT TWO", "", "## SCENE 1", "", "Reprise."].join("\n");
+    const dupes = [
+      "# ACT ONE",
+      "",
+      "## SCENE 1",
+      "",
+      "Opening.",
+      "",
+      "# ACT TWO",
+      "",
+      "## SCENE 1",
+      "",
+      "Reprise.",
+    ].join("\n");
     const r1 = reconcile(dupes, null);
     expect(r1.cards[0].anchor.headingHash).not.toBe(r1.cards[1].anchor.headingHash);
     r1.data.scenes[0].card.label = "act1";

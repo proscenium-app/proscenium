@@ -184,7 +184,7 @@ describe("acceptance 4 — switching formats never mutates the document", () => 
   });
 });
 
-describe("acceptance 5 — dialogue wraps at the full 6.0\" block", () => {
+describe('acceptance 5 — dialogue wraps at the full 6.0" block', () => {
   it("uses 60 columns, not a screenplay-width column", () => {
     const { pages } = paginateDoc(doc(b("dialogue", prose(120))), DG);
     const lines = pages[0].lines;
@@ -279,11 +279,7 @@ describe("structure and chrome", () => {
       right: "{page}.",
     };
     const custom = spec(raw);
-    const d = doc(
-      b("act", "ACT ONE"),
-      b("scene", "SCENE 1"),
-      b("action", multiline(60)),
-    );
+    const d = doc(b("act", "ACT ONE"), b("scene", "SCENE 1"), b("action", multiline(60)));
     const { pages } = paginateDoc(d, custom, { title: "Tideline" });
     expect(pages).toHaveLength(2);
     expect(pages[1].header?.left).toBe("Tideline — ACT ONE");
@@ -333,7 +329,10 @@ describe("structure and chrome", () => {
     });
 
     it("drops the act from a one-act and the scene from a play without scenes", () => {
-      expect(rights(doc(b("scene", "SCENE 3"), b("action", multiline(60))))).toEqual(["3-1", "3-2"]);
+      expect(rights(doc(b("scene", "SCENE 3"), b("action", multiline(60))))).toEqual([
+        "3-1",
+        "3-2",
+      ]);
       expect(rights(doc(b("action", multiline(60))))).toEqual(["1", "2"]);
     });
 
@@ -353,8 +352,18 @@ describe("structure and chrome", () => {
 
   it("puts the act that opens a page in that page's header", () => {
     const raw = structuredClone(dgModernRaw) as Record<string, unknown>;
-    raw.header = { content: { left: "{act}", right: "{scene}" }, position: 0.85, suppressOnFirstPage: false };
-    const d = doc(b("act", "ACT ONE"), b("scene", "SCENE 4"), b("action", "Lights."), b("act", "ACT TWO"), b("action", "Before any scene."));
+    raw.header = {
+      content: { left: "{act}", right: "{scene}" },
+      position: 0.85,
+      suppressOnFirstPage: false,
+    };
+    const d = doc(
+      b("act", "ACT ONE"),
+      b("scene", "SCENE 4"),
+      b("action", "Lights."),
+      b("act", "ACT TWO"),
+      b("action", "Before any scene."),
+    );
     const { pages } = paginateDoc(d, spec(raw));
     expect(pages.map((p) => [p.header?.left, p.header?.right])).toEqual([
       ["ACT ONE", "SCENE 4"],
@@ -364,10 +373,7 @@ describe("structure and chrome", () => {
   });
 
   it("appends a character extension to the printed cue", () => {
-    const d = doc(
-      b("character", "Mara", { extension: "(O.S.)" }),
-      b("dialogue", "Jonah?"),
-    );
+    const d = doc(b("character", "Mara", { extension: "(O.S.)" }), b("dialogue", "Jonah?"));
     const { pages } = paginateDoc(d, DG);
     expect(pages[0].lines[0].text).toBe("MARA (O.S.)");
   });
@@ -377,7 +383,10 @@ describe("structure and chrome", () => {
     // reads the model, where it is the attribute. They must be the same pages.
     const lines = (d: Doc) => paginateDoc(d, DG).pages.map((p) => p.lines.map((l) => l.text));
     const asText = doc(b("character", "Mara (O.S.)"), b("dialogue", multiline(60, "speech")));
-    const asAttr = doc(b("character", "Mara", { extension: "(O.S.)" }), b("dialogue", multiline(60, "speech")));
+    const asAttr = doc(
+      b("character", "Mara", { extension: "(O.S.)" }),
+      b("dialogue", multiline(60, "speech")),
+    );
     const text = lines(asText);
     expect(text[0][0]).toBe("MARA (O.S.)");
     expect(text[1][0]).toBe("MARA (CONT'D)");

@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Empty state overlay --------------------------------------------------- */
 /*
  * The frame the picker and the empty screen live in. It has to CLAIM the row:
@@ -323,7 +322,7 @@
   font-weight: 600;
   color: var(--ink-2);
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .playrow--head {
     color: var(--ink-2);
   }
@@ -425,7 +424,7 @@
   gap: var(--s-5);
   background: #f8f2e4;
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .playrow--naming {
     background: var(--cream);
   }
@@ -474,4 +473,3 @@
   box-shadow: var(--sh-toast);
   pointer-events: none;
 }
-

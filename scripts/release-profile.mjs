@@ -21,7 +21,9 @@ function authorizes(allowed, claimed) {
   if (Array.isArray(allowed)) return allowed.some((value) => authorizes(value, claimed));
   if (typeof claimed === "string") {
     if (claimed.includes("*") || typeof allowed !== "string") return false;
-    return claimed === allowed || (allowed.endsWith("*") && claimed.startsWith(allowed.slice(0, -1)));
+    return (
+      claimed === allowed || (allowed.endsWith("*") && claimed.startsWith(allowed.slice(0, -1)))
+    );
   }
   return claimed !== undefined && isDeepStrictEqual(allowed, claimed);
 }
@@ -41,18 +43,32 @@ const UNRESTRICTED = new Set([
 ]);
 
 /** A valid profile need not authorise what the app signs (docs/engineering/release-engineering.md#REL-38): used both before building and on the actual signed app, including CI. */
-export function assertProfileAuthorizes({ profile, signed, identifier, team, certificate, now = Date.now() }) {
-  const fail = (message) => { throw new Error(`release profile: ${message}`); };
+export function assertProfileAuthorizes({
+  profile,
+  signed,
+  identifier,
+  team,
+  certificate,
+  now = Date.now(),
+}) {
+  const fail = (message) => {
+    throw new Error(`release profile: ${message}`);
+  };
   if (!/^[A-Z0-9]{10}$/.test(team ?? "")) fail("missing or invalid signing team");
-  if (profile.team !== team || profile.appId !== `${team}.${identifier}`) fail("application or team identifier does not match");
+  if (profile.team !== team || profile.appId !== `${team}.${identifier}`)
+    fail("application or team identifier does not match");
   if (!profile.allDevices) fail("not a Developer ID profile");
   const expires = Date.parse(profile.expires);
-  if (!Number.isFinite(expires) || expires <= now) fail("profile expiry is missing, invalid or past");
-  if (!certificate || !profile.certificates.includes(certificate)) fail("signing certificate is not authorised by the profile");
-  if (!signed || typeof signed !== "object" || Array.isArray(signed)) fail("signed entitlements are missing");
+  if (!Number.isFinite(expires) || expires <= now)
+    fail("profile expiry is missing, invalid or past");
+  if (!certificate || !profile.certificates.includes(certificate))
+    fail("signing certificate is not authorised by the profile");
+  if (!signed || typeof signed !== "object" || Array.isArray(signed))
+    fail("signed entitlements are missing");
   if ("com.apple.security.app-sandbox" in signed) fail("the Developer ID build is sandboxed");
   for (const [key, expected] of Object.entries(requiredEntitlements(identifier, team))) {
-    if (!isDeepStrictEqual(signed[key], expected)) fail(`signed ${key} does not match the download's required value`);
+    if (!isDeepStrictEqual(signed[key], expected))
+      fail(`signed ${key} does not match the download's required value`);
   }
   for (const [key, value] of Object.entries(signed)) {
     if (!UNRESTRICTED.has(key) && !authorizes(profile.entitlements?.[key], value)) {

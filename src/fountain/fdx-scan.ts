@@ -1,8 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-interface Paragraph { type: string; text: string }
-export interface FdxParagraphs { title: Paragraph[]; body: Paragraph[] }
+interface Paragraph {
+  type: string;
+  text: string;
+}
+export interface FdxParagraphs {
+  title: Paragraph[];
+  body: Paragraph[];
+}
 
 /** XML text only; never resolve entities or fetch a DTD. Invalid numeric
  * references stay literal, including values outside Unicode's scalar range. */
@@ -11,7 +17,9 @@ function decode(text: string): string {
   return text.replace(/&(#x[\da-fA-F]+|#\d+|lt|gt|quot|apos|amp);/g, (raw, key: string) => {
     if (!key.startsWith("#")) return named[key]!;
     const value = key[1] === "x" ? Number.parseInt(key.slice(2), 16) : Number(key.slice(1));
-    return value > 0 && value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff) ? String.fromCodePoint(value) : raw;
+    return value > 0 && value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff)
+      ? String.fromCodePoint(value)
+      : raw;
   });
 }
 
@@ -21,9 +29,20 @@ function decode(text: string): string {
 export function scanFdx(xml: string): FdxParagraphs | null {
   const result: FdxParagraphs = { title: [], body: [] };
   const stack: string[] = [];
-  let nodes = 0, i = 0, titleDepth = 0, contentDepth = 0, textDepth = 0;
-  let sawRoot = false, sawContent = false;
-  let paragraph: { type: string; plain: string[]; runs: string[]; hasRuns: boolean; title: boolean } | null = null;
+  let nodes = 0,
+    i = 0,
+    titleDepth = 0,
+    contentDepth = 0,
+    textDepth = 0;
+  let sawRoot = false,
+    sawContent = false;
+  let paragraph: {
+    type: string;
+    plain: string[];
+    runs: string[];
+    hasRuns: boolean;
+    title: boolean;
+  } | null = null;
   const append = (text: string, literal = false) => {
     if (!paragraph) return;
     const decoded = literal ? text : decode(text);
@@ -46,22 +65,28 @@ export function scanFdx(xml: string): FdxParagraphs | null {
       const next = xml.indexOf("<", i);
       const end = next < 0 ? xml.length : next;
       if (!stack.length && xml.slice(i, end).trim()) return null;
-      append(xml.slice(i, end)); i = end; continue;
+      append(xml.slice(i, end));
+      i = end;
+      continue;
     }
     if (xml.startsWith("<!--", i)) {
       const end = xml.indexOf("-->", i + 4);
       if (end < 0) return null;
-      i = end + 3; continue;
+      i = end + 3;
+      continue;
     }
     if (xml.startsWith("<![CDATA[", i)) {
       const end = xml.indexOf("]]>", i + 9);
       if (end < 0 || !stack.length) return null;
-      append(xml.slice(i + 9, end), true); i = end + 3; continue;
+      append(xml.slice(i + 9, end), true);
+      i = end + 3;
+      continue;
     }
     if (xml.startsWith("<?", i)) {
       const end = xml.indexOf("?>", i + 2);
       if (end < 0) return null;
-      i = end + 2; continue;
+      i = end + 2;
+      continue;
     }
     const closing = xml[i + 1] === "/";
     let cursor = i + (closing ? 2 : 1);
@@ -73,8 +98,9 @@ export function scanFdx(xml: string): FdxParagraphs | null {
     let quote = "";
     while (cursor < xml.length) {
       const ch = xml[cursor]!;
-      if (quote) { if (ch === quote) quote = ""; }
-      else if (ch === '"' || ch === "'") quote = ch;
+      if (quote) {
+        if (ch === quote) quote = "";
+      } else if (ch === '"' || ch === "'") quote = ch;
       else if (ch === ">") break;
       else if (ch === "<") return null;
       cursor++;
@@ -85,7 +111,8 @@ export function scanFdx(xml: string): FdxParagraphs | null {
     i = cursor + 1;
     if (closing) {
       if (attrs.trim() || stack.pop() !== name) return null;
-      close(name); continue;
+      close(name);
+      continue;
     }
     if (stack.length === 0) {
       if (name !== "FinalDraft" || sawRoot) return null;
@@ -93,13 +120,25 @@ export function scanFdx(xml: string): FdxParagraphs | null {
     }
     if (stack.length >= 128) return null;
     if (name === "TitlePage") titleDepth++;
-    if (name === "Content") { contentDepth++; if (!titleDepth) sawContent = true; }
+    if (name === "Content") {
+      contentDepth++;
+      if (!titleDepth) sawContent = true;
+    }
     if (name === "Paragraph" && contentDepth) {
       if (paragraph) return null;
       const type = /(?:^|\s)Type\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(attrs);
-      paragraph = { type: decode(type?.[1] ?? type?.[2] ?? "General"), plain: [], runs: [], hasRuns: false, title: titleDepth > 0 };
+      paragraph = {
+        type: decode(type?.[1] ?? type?.[2] ?? "General"),
+        plain: [],
+        runs: [],
+        hasRuns: false,
+        title: titleDepth > 0,
+      };
     }
-    if (name === "Text") { textDepth++; if (paragraph) paragraph.hasRuns = true; }
+    if (name === "Text") {
+      textDepth++;
+      if (paragraph) paragraph.hasRuns = true;
+    }
     if (selfClosing) close(name);
     else stack.push(name);
   }

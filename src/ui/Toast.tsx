@@ -141,7 +141,10 @@ export function ToastHost({
     const first = requestAnimationFrame(() => {
       second = requestAnimationFrame(() => top.onShown?.());
     });
-    return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
   }, [top]);
   const holding = held.hover || held.focus;
   // A toast that left on its own takes the way back with it: the next toast's

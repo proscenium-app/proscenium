@@ -20,7 +20,8 @@ use std::path::Path;
 pub fn unavailable(path: &Path) -> bool {
     if !path.exists() {
         return path.file_name().is_some_and(|name| {
-            path.with_file_name(format!(".{}.icloud", name.to_string_lossy())).exists()
+            path.with_file_name(format!(".{}.icloud", name.to_string_lossy()))
+                .exists()
         });
     }
     #[cfg(any(target_os = "macos", target_os = "ios"))]
@@ -36,8 +37,10 @@ pub fn unavailable(path: &Path) -> bool {
 
 pub fn require_available(path: &Path) -> std::io::Result<()> {
     if unavailable(path) {
-        return Err(std::io::Error::new(std::io::ErrorKind::WouldBlock,
-            "This file is in iCloud and has not finished downloading yet."));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "This file is in iCloud and has not finished downloading yet.",
+        ));
     }
     Ok(())
 }
@@ -68,7 +71,10 @@ mod tests {
             placeholder_target(".the-weight-of-water.index.json.icloud"),
             Some("the-weight-of-water.index.json")
         );
-        assert_eq!(placeholder_target(".project.json.icloud"), Some("project.json"));
+        assert_eq!(
+            placeholder_target(".project.json.icloud"),
+            Some("project.json")
+        );
     }
 
     #[test]

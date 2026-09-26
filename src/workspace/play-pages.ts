@@ -69,8 +69,14 @@ export function cachedPages(raw: string | null, key: PagesKey): number | null {
   if (!raw) return null;
   try {
     const c = JSON.parse(raw) as Partial<PagesKey> & { pages?: unknown };
-    const same = c.script === key.script && c.modified === key.modified && c.format === key.format && c.spec === key.spec;
-    return same && Number.isInteger(c.pages) && (c.pages as number) >= 0 ? (c.pages as number) : null;
+    const same =
+      c.script === key.script &&
+      c.modified === key.modified &&
+      c.format === key.format &&
+      c.spec === key.spec;
+    return same && Number.isInteger(c.pages) && (c.pages as number) >= 0
+      ? (c.pages as number)
+      : null;
   } catch {
     return null;
   }

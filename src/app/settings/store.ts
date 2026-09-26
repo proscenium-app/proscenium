@@ -65,10 +65,19 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
  * The status list keeps its identity the same way.
  */
 function settle(prev: Settings, next: Settings): Settings {
-  const words = sameList(prev.learnedWords, next.learnedWords) ? prev.learnedWords : next.learnedWords;
-  const statuses = sameList(prev.playStatuses, next.playStatuses) ? prev.playStatuses : next.playStatuses;
-  const merged = { ...next, learnedWords: words, playStatuses: statuses,
-    sceneStatuses: sameList(prev.sceneStatuses, next.sceneStatuses) ? prev.sceneStatuses : next.sceneStatuses,
+  const words = sameList(prev.learnedWords, next.learnedWords)
+    ? prev.learnedWords
+    : next.learnedWords;
+  const statuses = sameList(prev.playStatuses, next.playStatuses)
+    ? prev.playStatuses
+    : next.playStatuses;
+  const merged = {
+    ...next,
+    learnedWords: words,
+    playStatuses: statuses,
+    sceneStatuses: sameList(prev.sceneStatuses, next.sceneStatuses)
+      ? prev.sceneStatuses
+      : next.sceneStatuses,
     formatOrder: sameList(prev.formatOrder, next.formatOrder) ? prev.formatOrder : next.formatOrder,
   };
   const same = (Object.keys(merged) as (keyof Settings)[]).every((k) => merged[k] === prev[k]);
@@ -105,26 +114,30 @@ export function createSettingsStore(opts: {
   /** Persist a patch that is ALREADY in `state`. Resolves to whether it was stored. */
   const send = (patch: SettingsPatch): Promise<boolean> => {
     inFlight++;
-    const done = queue.then(() => opts.backend.update(patch)).then(
-      (stored) => {
-        inFlight--;
-        if (inFlight === 0) set(stored);
-        return true;
-      },
-      (e: unknown) => {
-        inFlight--;
-        opts.onError?.(`a settings change was not saved: ${e instanceof Error ? e.message : String(e)}`);
-        // What is on screen is no longer what is stored: go back to the truth,
-        // rather than show a preference that will not be there next launch.
-        if (inFlight === 0) {
-          void opts.backend.get().then(
-            (s) => inFlight === 0 && set(s),
-            () => {},
+    const done = queue
+      .then(() => opts.backend.update(patch))
+      .then(
+        (stored) => {
+          inFlight--;
+          if (inFlight === 0) set(stored);
+          return true;
+        },
+        (e: unknown) => {
+          inFlight--;
+          opts.onError?.(
+            `a settings change was not saved: ${e instanceof Error ? e.message : String(e)}`,
           );
-        }
-        return false;
-      },
-    );
+          // What is on screen is no longer what is stored: go back to the truth,
+          // rather than show a preference that will not be there next launch.
+          if (inFlight === 0) {
+            void opts.backend.get().then(
+              (s) => inFlight === 0 && set(s),
+              () => {},
+            );
+          }
+          return false;
+        },
+      );
     queue = done;
     return done;
   };
@@ -203,7 +216,11 @@ export function useSettings(): Settings {
 
 /** Whether settings.json has answered yet — for decisions a mirror must not make. */
 export function useSettingsLoaded(): boolean {
-  return useSyncExternalStore(settingsStore.subscribe, settingsStore.isLoaded, settingsStore.isLoaded);
+  return useSyncExternalStore(
+    settingsStore.subscribe,
+    settingsStore.isLoaded,
+    settingsStore.isLoaded,
+  );
 }
 
 /** Change settings from anywhere: a menu, a sheet, a plugin callback. */

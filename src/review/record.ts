@@ -51,12 +51,15 @@ export function countStats(before: string, after: string): { added: number; remo
  * cannot be read throws rather than reading as "never seen": taking the new
  * bytes as the baseline would overwrite the one thing a revert needs.
  */
-export async function recordExternalChange(store: ChangesStore, args: {
-  path: string;
-  after: string;
-  afterHash: string;
-  nowIso: string;
-}): Promise<LedgerEntry | null> {
+export async function recordExternalChange(
+  store: ChangesStore,
+  args: {
+    path: string;
+    after: string;
+    afterHash: string;
+    nowIso: string;
+  },
+): Promise<LedgerEntry | null> {
   const before = await store.readBaseline(args.path);
   if (before === args.after) return null;
   if (before === null) {
@@ -77,7 +80,7 @@ export async function recordExternalChange(store: ChangesStore, args: {
      *
      * There used to be an inbound note channel: anything writing into a play
      * folder could append a line saying what it changed, and the app showed the
-     * note beside the change. Its only writer was the chat, which is gone, and
+     * note beside the change. Its only writer was the chat panel, which is gone, and
      * the file it read lived in the `.proscenium/` directory a play no longer
      * has (docs/app/keeping-work/storage-and-file-format.md#STOR-D3). The field stays because an entry written before this is
      * still readable, and because "who changed it" is not a question Changes

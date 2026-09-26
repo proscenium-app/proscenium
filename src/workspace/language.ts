@@ -28,6 +28,9 @@ export function languageHelp(value: string): string {
 export function canonicalLanguage(value: string): string | null {
   const code = value.trim();
   if (!code || code.length > 100) return null;
-  try { return Intl.getCanonicalLocales(code)[0] ?? null; }
-  catch { return null; }
+  try {
+    return Intl.getCanonicalLocales(code)[0] ?? null;
+  } catch {
+    return null;
+  }
 }

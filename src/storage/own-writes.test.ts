@@ -17,7 +17,11 @@ describe("the app's own writes", () => {
     vaultOpenedAt("THE-WEIGHT-OF-WATER");
     sendingWrite("Characters/charlie.md", "## Appearances\n\n- SCENE 3\n")(true);
     expect(heard).toEqual([
-      { playId: "THE-WEIGHT-OF-WATER", rel: "Characters/charlie.md", content: "## Appearances\n\n- SCENE 3\n" },
+      {
+        playId: "THE-WEIGHT-OF-WATER",
+        rel: "Characters/charlie.md",
+        content: "## Appearances\n\n- SCENE 3\n",
+      },
     ]);
   });
 

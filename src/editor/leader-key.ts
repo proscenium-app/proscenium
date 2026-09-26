@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Home-row leader key (docs/app/writing/editor-ux.md#EDIT-D113, Q3 "tune by
- * feel"). On an empty block, ";" arms a one-shot leader; the next mnemonic
+ * Home-row leader key (docs/app/writing/editor-ux.md#EDIT-D113, tuned by
+ * feel). On an empty block, ";" arms a one-shot leader; the next mnemonic
  * letter sets the element directly — hands never leave the home row. Any other
  * key disarms and inserts the withheld ";" so a literal semicolon still types.
  * Escape disarms without typing anything.
@@ -75,7 +75,11 @@ function spokenKey(key: string): string {
 /** `pending` holds a withheld ";" (armed by typing the leader); an arm via
  * Tab (docs/app/writing/editor-ux.md#EDIT-58) has nothing to commit on fallthrough.
  * `suggested` is the element whose row the menu opens on (Enter's guess). */
-interface LeaderState { armed: boolean; pending: string | null; suggested: string | null }
+interface LeaderState {
+  armed: boolean;
+  pending: string | null;
+  suggested: string | null;
+}
 const leaderKey = new PluginKey<LeaderState>("leaderKey");
 
 /**
@@ -183,8 +187,12 @@ class LeaderMenuView {
     this.dom.replaceChildren(...rows, hint);
     placeAtCaret(this.dom, this.view);
     this.activation.link();
-    const suggestedKey = Object.keys(LEADER_ELEMENTS).find((key) => LEADER_ELEMENTS[key] === state?.suggested);
-    this.closeLayer = openCaretMenu(this.dom, this.view.dom,
+    const suggestedKey = Object.keys(LEADER_ELEMENTS).find(
+      (key) => LEADER_ELEMENTS[key] === state?.suggested,
+    );
+    this.closeLayer = openCaretMenu(
+      this.dom,
+      this.view.dom,
       () => this.view.dispatch(this.view.state.tr.setMeta(leaderKey, { armed: false })),
       (event) => {
         if (isModifierKey(event.key)) return;
@@ -197,7 +205,11 @@ class LeaderMenuView {
           event.preventDefault();
         }
       },
-      Math.max(0, LEADER_MENU.findIndex(({ key }) => key === suggestedKey)));
+      Math.max(
+        0,
+        LEADER_MENU.findIndex(({ key }) => key === suggestedKey),
+      ),
+    );
   }
 
   destroy() {
@@ -225,7 +237,11 @@ export const LeaderKey = Extension.create({
               | { armed: boolean; pending?: string | null; suggested?: string | null }
               | undefined;
             if (meta && typeof meta.armed === "boolean") {
-              return { armed: meta.armed, pending: meta.pending ?? null, suggested: meta.suggested ?? null };
+              return {
+                armed: meta.armed,
+                pending: meta.pending ?? null,
+                suggested: meta.suggested ?? null,
+              };
             }
             // Any real edit or cursor move cancels a pending leader.
             if (value.armed && (tr.docChanged || tr.selectionSet)) {
@@ -265,7 +281,10 @@ export const LeaderKey = Extension.create({
               return true;
             }
 
-            if (!hasMod(event) && Object.prototype.hasOwnProperty.call(LEADER_ELEMENTS, event.key)) {
+            if (
+              !hasMod(event) &&
+              Object.prototype.hasOwnProperty.call(LEADER_ELEMENTS, event.key)
+            ) {
               event.preventDefault();
               view.dispatch(view.state.tr.setMeta(leaderKey, { armed: false, pending: null }));
               runLeader(editor, event.key);

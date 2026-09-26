@@ -31,7 +31,12 @@ export function renderAppearances(scenes: SceneAppearance[]): string {
 function headingIndex(lines: string[], heading: string): number {
   const want = heading.trim().toLowerCase();
   return lines.findIndex(
-    (l) => /^##\s+/.test(l) && l.replace(/^##\s+/, "").trim().toLowerCase() === want,
+    (l) =>
+      /^##\s+/.test(l) &&
+      l
+        .replace(/^##\s+/, "")
+        .trim()
+        .toLowerCase() === want,
   );
 }
 
@@ -49,11 +54,7 @@ function nextHeading(lines: string[], from: number): number {
  * who deleted the section has said they don't want it, and re-adding it would
  * be the app arguing with them.
  */
-export function writeManagedSection(
-  content: string,
-  heading: string,
-  body: string,
-): string {
+export function writeManagedSection(content: string, heading: string, body: string): string {
   const lines = content.split("\n");
   const at = headingIndex(lines, heading);
   if (at === -1) return content;

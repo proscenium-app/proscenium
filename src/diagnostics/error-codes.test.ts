@@ -6,7 +6,10 @@ import { readFileSync } from "node:fs";
 import { playsFolderRefusal } from "../workspace/plays-folder";
 import { ERROR_CODES, workspaceErrorCode } from "./error-codes";
 
-const rust = readFileSync(new URL("../../src-tauri/src/telemetry/events.rs", import.meta.url), "utf8");
+const rust = readFileSync(
+  new URL("../../src-tauri/src/telemetry/events.rs", import.meta.url),
+  "utf8",
+);
 const workspace = readFileSync(new URL("../app/useWorkspace.ts", import.meta.url), "utf8");
 
 /** A template literal's text from just past its opening backtick, `${…}` as "X". */
@@ -96,16 +99,25 @@ describe("error codes", () => {
 
   it("read the sentences for what went wrong, not where", () => {
     const cases: [string, string][] = [
-      ["PDF export failed: Error: could not load embedded font /assets/CourierPrime.ttf: 404", "E-EXPORT-FONT"],
+      [
+        "PDF export failed: Error: could not load embedded font /assets/CourierPrime.ttf: 404",
+        "E-EXPORT-FONT",
+      ],
       ["PDF export failed: TypeError: x is undefined", "E-EXPORT-PDF"],
-      ["Printing failed: Error: could not load embedded font /assets/CourierPrime.ttf: 404", "E-EXPORT-FONT"],
+      [
+        "Printing failed: Error: could not load embedded font /assets/CourierPrime.ttf: 404",
+        "E-EXPORT-FONT",
+      ],
       ["Printing failed: another panel is already open on this window", "E-PRINT"],
       [".docx export failed: Error: No pages selected.", "E-OTHER"],
       [".odt export failed: TypeError: x is undefined", "E-OTHER"],
       ["“Hamlet” couldn't be saved to “Act One”, so it is kept in Versions.", "E-SAVE"],
       ["Your version couldn't be kept in Versions, so nothing was replaced.", "E-VERSIONS"],
       ["Couldn't save the change — the play changed on disk.", "E-CHANGED-ON-DISK"],
-      ["The scenes changed while that change was being saved, so it wasn't made. Make it again.", "E-ACTION-STALE"],
+      [
+        "The scenes changed while that change was being saved, so it wasn't made. Make it again.",
+        "E-ACTION-STALE",
+      ],
       ['"Hamlet" could not be opened.', "E-PLAY-OPEN"],
       ["“Hamlet” isn't in your Plays folder any more.", "E-PLAY-MISSING"],
       ["iCloud Drive isn't available. Choose a folder instead.", "E-ICLOUD"],
@@ -114,11 +126,18 @@ describe("error codes", () => {
       ["that folder was not chosen or opened in Proscenium", "E-FOLDER-OPEN"],
       ["something nobody has seen before", "E-WORKSPACE"],
     ];
-    for (const [sentence, code] of cases) expect([sentence, workspaceErrorCode(sentence)]).toEqual([sentence, code]);
+    for (const [sentence, code] of cases)
+      expect([sentence, workspaceErrorCode(sentence)]).toEqual([sentence, code]);
   });
 
   it("know a Plays folder the app refuses, in every way it refuses one", () => {
-    const facts = { path: "/p/Hamlet", isPlay: false, insidePlay: null, providers: [] as string[], listable: true };
+    const facts = {
+      path: "/p/Hamlet",
+      isPlay: false,
+      insidePlay: null,
+      providers: [] as string[],
+      listable: true,
+    };
     const refusals = [
       playsFolderRefusal({ ...facts, isPlay: true }, null),
       playsFolderRefusal({ ...facts, insidePlay: "/p/Hamlet" }, null),

@@ -1,14 +1,17 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Rendered Markdown (src/markdown/) --------------------------------------- */
 /* The rendered-Markdown scale. Prose here was raw text — every list an asterisk,
    every code block a wall of backticks — and its headings stay chrome, not
    documents. Materials are not rendered here: they are EDITED, by the page
    editor, whose styles are `.prose` above. */
-.md > *:first-child { margin-top: 0; }
-.md > *:last-child { margin-bottom: 0; }
+.md > *:first-child {
+  margin-top: 0;
+}
+.md > *:last-child {
+  margin-bottom: 0;
+}
 .md__p {
   margin: 0 0 0.55rem;
   line-height: 1.55;
@@ -19,9 +22,15 @@
   font-weight: 600;
   color: var(--ink);
 }
-.md__h--1 { font-size: var(--t-head); }
-.md__h--2 { font-size: var(--t-body); }
-.md__h--3 { font-size: var(--t-body); }
+.md__h--1 {
+  font-size: var(--t-head);
+}
+.md__h--2 {
+  font-size: var(--t-body);
+}
+.md__h--3 {
+  font-size: var(--t-body);
+}
 .md__h--4 {
   font-size: var(--t-body);
   color: var(--ash);
@@ -88,7 +97,9 @@
   color: var(--ash);
   cursor: pointer;
 }
-.md__copy:hover { color: var(--accent-text); }
+.md__copy:hover {
+  color: var(--accent-text);
+}
 .md__pre {
   margin: 0;
   padding: 0.5rem 0.6rem;
@@ -119,6 +130,3 @@
   background: color-mix(in srgb, var(--ink) 5%, transparent);
   font-weight: 600;
 }
-
-
-

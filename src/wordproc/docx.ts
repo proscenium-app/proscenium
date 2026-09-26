@@ -67,7 +67,9 @@ const EMBED: Record<Face, string> = {
 export function obfuscateFont(font: Uint8Array, key: string): Uint8Array {
   const hex = key.replace(/[{}-]/g, "");
   if (!/^[0-9A-Fa-f]{32}$/.test(hex)) throw new Error(`not a font key: ${key}`);
-  const bytes = Array.from({ length: 16 }, (_, i) => parseInt(hex.slice(i * 2, i * 2 + 2), 16)).reverse();
+  const bytes = Array.from({ length: 16 }, (_, i) =>
+    parseInt(hex.slice(i * 2, i * 2 + 2), 16),
+  ).reverse();
   const out = font.slice();
   for (let i = 0; i < 32 && i < out.length; i++) out[i] ^= bytes[i % 16];
   return out;
@@ -103,14 +105,20 @@ function styleXml(style: ParagraphStyle, doc: WpDocument, g: Geometry): string {
   if (style.pageBreakBefore) p.push("<w:pageBreakBefore/>");
   // Widow control keeps two lines each side; it is all the format can say
   // (docs/app/formatting/formats-and-layout.md#FMT-148).
-  p.push(style.orphans >= 2 || style.widows >= 2 ? "<w:widowControl/>" : '<w:widowControl w:val="0"/>');
+  p.push(
+    style.orphans >= 2 || style.widows >= 2 ? "<w:widowControl/>" : '<w:widowControl w:val="0"/>',
+  );
   if (style.furniture) {
-    p.push(`<w:tabs><w:tab w:val="center" w:pos="${Math.round(g.block / 2)}"/><w:tab w:val="right" w:pos="${g.block}"/></w:tabs>`);
+    p.push(
+      `<w:tabs><w:tab w:val="center" w:pos="${Math.round(g.block / 2)}"/><w:tab w:val="right" w:pos="${g.block}"/></w:tabs>`,
+    );
   }
   // A header or footer line is as tall as the type, so it reaches no further
   // into the page than the PDF's (docs/app/formatting/formats-and-layout.md#FMT-147).
   const line = style.furniture ? Math.round(size * TWIPS_PER_POINT) : g.pitch;
-  p.push(`<w:spacing w:before="${Math.round(style.spaceBeforeRows * g.pitch)}" w:after="0" w:line="${line}" w:lineRule="exact"/>`);
+  p.push(
+    `<w:spacing w:before="${Math.round(style.spaceBeforeRows * g.pitch)}" w:after="0" w:line="${line}" w:lineRule="exact"/>`,
+  );
   p.push(`<w:ind w:left="${tw(style.leftIn)}" w:right="${tw(style.rightIn)}"/>`);
   p.push(`<w:jc w:val="${JC[style.align]}"/>`);
   if (style.outlineLevel) p.push(`<w:outlineLvl w:val="${style.outlineLevel - 1}"/>`);
@@ -119,7 +127,8 @@ function styleXml(style: ParagraphStyle, doc: WpDocument, g: Geometry): string {
   r.push(style.bold ? "<w:b/><w:bCs/>" : "");
   r.push(style.italic ? "<w:i/><w:iCs/>" : "");
   if (style.caps) r.push("<w:caps/>");
-  if (style.trackingPt) r.push(`<w:spacing w:val="${Math.round(style.trackingPt * TWIPS_PER_POINT)}"/>`);
+  if (style.trackingPt)
+    r.push(`<w:spacing w:val="${Math.round(style.trackingPt * TWIPS_PER_POINT)}"/>`);
   if (style.underline) r.push('<w:u w:val="single"/>');
   const id = g.names.get(style.key)!;
   const builtIn = style.key === "header" || style.key === "footer" || style.key === "title";
@@ -176,7 +185,8 @@ function paragraphXml(p: WpParagraph, g: Geometry, sectPr = "", lessBefore = 0):
   // pPr in schema order: pStyle, keepNext, pageBreakBefore, spacing, ind, jc, sectPr.
   const props: string[] = [`<w:pStyle w:val="${g.names.get(p.style)}"/>`];
   if (p.inCell) props.push('<w:keepNext w:val="0"/>');
-  if (p.pageBreakBefore !== undefined) props.push(p.pageBreakBefore ? "<w:pageBreakBefore/>" : '<w:pageBreakBefore w:val="0"/>');
+  if (p.pageBreakBefore !== undefined)
+    props.push(p.pageBreakBefore ? "<w:pageBreakBefore/>" : '<w:pageBreakBefore w:val="0"/>');
   const before = p.spaceBeforeRows ?? g.styles.get(p.style)?.spaceBeforeRows ?? 0;
   if (p.spaceBeforeRows !== undefined || lessBefore) {
     props.push(`<w:spacing w:before="${Math.max(0, Math.round(before * g.pitch) - lessBefore)}"/>`);
@@ -212,7 +222,8 @@ function dualXml(d: WpDual, doc: WpDocument, g: Geometry): string {
   // A table takes no page break of its own; its first paragraph's breaks the
   // page before the row, which is where the pair belongs.
   const opener = d.left[0] ?? d.right[0];
-  const breakFirst = (p: WpParagraph) => (d.pageBreakBefore && p === opener ? { ...p, pageBreakBefore: true } : p);
+  const breakFirst = (p: WpParagraph) =>
+    d.pageBreakBefore && p === opener ? { ...p, pageBreakBefore: true } : p;
   const cell = (width: number, padRight: number, paragraphs: WpParagraph[]) =>
     // tcPr in schema order: tcW, tcMar.
     `<w:tc><w:tcPr><w:tcW w:w="${width}" w:type="dxa"/>` +
@@ -250,7 +261,13 @@ function slotsXml(f: Furniture | null): string {
     if (i > last) return;
     if (i > 0) out += "<w:r><w:tab/></w:r>";
     out += f[slot]
-      .map((text, j) => (j ? PAGE_FIELD : "") + (text ? runXml({ kind: "text", text, bold: false, italic: false, underline: false }) : ""))
+      .map(
+        (text, j) =>
+          (j ? PAGE_FIELD : "") +
+          (text
+            ? runXml({ kind: "text", text, bold: false, italic: false, underline: false })
+            : ""),
+      )
       .join("");
   });
   return out;
@@ -277,13 +294,22 @@ class Parts {
     const id = `rId${tag}${n}`;
     this.entries.push({ path: `word/${name}`, data: xml });
     this.rels.push({ id, type: `${REL}/${tag === "hdr" ? "header" : "footer"}`, target: name });
-    this.overrides.push({ part: `/word/${name}`, type: `${CT}.${tag === "hdr" ? "header" : "footer"}+xml` });
+    this.overrides.push({
+      part: `/word/${name}`,
+      type: `${CT}.${tag === "hdr" ? "header" : "footer"}+xml`,
+    });
     this.byXml.set(xml, id);
     return id;
   }
 }
 
-function sectPrXml(section: WpSection, doc: WpDocument, g: Geometry, parts: Parts, furnished: { header: boolean; footer: boolean }): string {
+function sectPrXml(
+  section: WpSection,
+  doc: WpDocument,
+  g: Geometry,
+  parts: Parts,
+  furnished: { header: boolean; footer: boolean },
+): string {
   const { spec } = doc;
   const m = spec.page.margins;
   const { widthIn, heightIn } = PAGE_SIZES[spec.page.size];
@@ -299,14 +325,21 @@ function sectPrXml(section: WpSection, doc: WpDocument, g: Geometry, parts: Part
     ] as const) {
       if (!on) continue;
       const element = tag === "hdr" ? "headerReference" : "footerReference";
-      refs.push(`<w:${element} w:type="default" r:id="${parts.furniture(tag, furniturePart(tag, f, g))}"/>`);
+      refs.push(
+        `<w:${element} w:type="default" r:id="${parts.furniture(tag, furniturePart(tag, f, g))}"/>`,
+      );
       if (titlePage) {
-        refs.push(`<w:${element} w:type="first" r:id="${parts.furniture(tag, furniturePart(tag, off ? null : f, g))}"/>`);
+        refs.push(
+          `<w:${element} w:type="first" r:id="${parts.furniture(tag, furniturePart(tag, off ? null : f, g))}"/>`,
+        );
       }
     }
   }
   // sectPr in schema order: references, type, pgSz, pgMar, pgNumType, titlePg.
-  const type = section.begins === "document" ? "" : `<w:type w:val="${section.begins === "page" ? "nextPage" : "continuous"}"/>`;
+  const type =
+    section.begins === "document"
+      ? ""
+      : `<w:type w:val="${section.begins === "page" ? "nextPage" : "continuous"}"/>`;
   const width = tw(widthIn);
   const height = tw(heightIn);
   // The header's text top and the footer's text bottom, from the paper edge
@@ -316,8 +349,14 @@ function sectPrXml(section: WpSection, doc: WpDocument, g: Geometry, parts: Part
   const margins =
     `<w:pgMar w:top="${tw(m.top)}" w:right="${tw(m.right)}" w:bottom="${tw(m.bottom)}" w:left="${tw(m.left)}" ` +
     `w:header="${tw(at.headerIn)}" w:footer="${tw(at.footerIn)}" w:gutter="0"/>`;
-  const numbering = section.firstPageNumber !== undefined ? `<w:pgNumType w:start="${section.firstPageNumber}"/>` : "";
-  const titlePg = section.bareFirstPage && (section.bareFirstPage.header || section.bareFirstPage.footer) ? "<w:titlePg/>" : "";
+  const numbering =
+    section.firstPageNumber !== undefined
+      ? `<w:pgNumType w:start="${section.firstPageNumber}"/>`
+      : "";
+  const titlePg =
+    section.bareFirstPage && (section.bareFirstPage.header || section.bareFirstPage.footer)
+      ? "<w:titlePg/>"
+      : "";
   return `<w:sectPr>${refs.join("")}${type}<w:pgSz w:w="${width}" w:h="${height}"/>${margins}${numbering}${titlePg}</w:sectPr>`;
 }
 
@@ -360,7 +399,9 @@ function bodyXml(doc: WpDocument, g: Geometry, parts: Parts): string {
 
 export function writeDocx(doc: WpDocument, fonts: FontFaces): Uint8Array {
   const { primary, fallback } = familyNames(doc.spec);
-  const names = new Map<StyleKey, string>(doc.styles.map((style) => [style.key, styleId(style.name)]));
+  const names = new Map<StyleKey, string>(
+    doc.styles.map((style) => [style.key, styleId(style.name)]),
+  );
   const g: Geometry = {
     pitch: Math.round(linePitchIn(doc.spec) * TWIPS_PER_INCH),
     block: tw(textBlockWidthIn(doc.spec)),
@@ -370,12 +411,18 @@ export function writeDocx(doc: WpDocument, fonts: FontFaces): Uint8Array {
   const parts = new Parts();
   const body = bodyXml(doc, g, parts);
 
-  const fontRels = FACES.map((face, i) => ({ id: `rIdFont${i + 1}`, face, target: `fonts/font${i + 1}.odttf` }));
+  const fontRels = FACES.map((face, i) => ({
+    id: `rIdFont${i + 1}`,
+    face,
+    target: `fonts/font${i + 1}.odttf`,
+  }));
   // CT_Font in schema order: altName, family, pitch, then the embeds.
   const fontTable =
     `${XML_DECLARATION}<w:fonts ${NS}>` +
     `<w:font w:name="${esc(primary)}"><w:altName w:val="${esc(fallback)}"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>` +
-    fontRels.map((rel) => `<w:${EMBED[rel.face]} r:id="${rel.id}" w:fontKey="${FONT_KEY[rel.face]}"/>`).join("") +
+    fontRels
+      .map((rel) => `<w:${EMBED[rel.face]} r:id="${rel.id}" w:fontKey="${FONT_KEY[rel.face]}"/>`)
+      .join("") +
     `</w:font><w:font w:name="${esc(fallback)}"><w:family w:val="modern"/><w:pitch w:val="fixed"/></w:font></w:fonts>`;
 
   const settings =
@@ -385,7 +432,9 @@ export function writeDocx(doc: WpDocument, fonts: FontFaces): Uint8Array {
 
   const relsXml = (rels: { id: string; type: string; target: string }[]) =>
     `${XML_DECLARATION}<Relationships xmlns="${PKG_REL}">` +
-    rels.map((rel) => `<Relationship Id="${rel.id}" Type="${rel.type}" Target="${rel.target}"/>`).join("") +
+    rels
+      .map((rel) => `<Relationship Id="${rel.id}" Type="${rel.type}" Target="${rel.target}"/>`)
+      .join("") +
     `</Relationships>`;
 
   const documentRels = [
@@ -414,7 +463,9 @@ export function writeDocx(doc: WpDocument, fonts: FontFaces): Uint8Array {
     `<Override PartName="/word/styles.xml" ContentType="${CT}.styles+xml"/>` +
     `<Override PartName="/word/settings.xml" ContentType="${CT}.settings+xml"/>` +
     `<Override PartName="/word/fontTable.xml" ContentType="${CT}.fontTable+xml"/>` +
-    parts.overrides.map((o) => `<Override PartName="${o.part}" ContentType="${o.type}"/>`).join("") +
+    parts.overrides
+      .map((o) => `<Override PartName="${o.part}" ContentType="${o.type}"/>`)
+      .join("") +
     `<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>` +
     `<Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>` +
     `</Types>`;
@@ -436,9 +487,14 @@ export function writeDocx(doc: WpDocument, fonts: FontFaces): Uint8Array {
     { path: "word/fontTable.xml", data: fontTable },
     {
       path: "word/_rels/fontTable.xml.rels",
-      data: relsXml(fontRels.map((rel) => ({ id: rel.id, type: `${REL}/font`, target: rel.target }))),
+      data: relsXml(
+        fontRels.map((rel) => ({ id: rel.id, type: `${REL}/font`, target: rel.target })),
+      ),
     },
-    ...fontRels.map((rel) => ({ path: `word/${rel.target}`, data: obfuscateFont(fonts[rel.face], FONT_KEY[rel.face]) })),
+    ...fontRels.map((rel) => ({
+      path: `word/${rel.target}`,
+      data: obfuscateFont(fonts[rel.face], FONT_KEY[rel.face]),
+    })),
     ...parts.entries,
     { path: "docProps/core.xml", data: core },
     { path: "docProps/app.xml", data: app },

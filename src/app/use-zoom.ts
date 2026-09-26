@@ -152,7 +152,12 @@ export function fitLevel(
 
 /** Where a box sits along its pane's content, whatever the pane is scrolled to. */
 function topInPane(el: Element, pane: HTMLElement): number {
-  return el.getBoundingClientRect().top - pane.getBoundingClientRect().top - pane.clientTop + pane.scrollTop;
+  return (
+    el.getBoundingClientRect().top -
+    pane.getBoundingClientRect().top -
+    pane.clientTop +
+    pane.scrollTop
+  );
 }
 
 /** A computed length in px, or 0 where there is none. */
@@ -251,23 +256,31 @@ export function useZoom(args: {
   const targetRef = useRef(args.target);
   targetRef.current = args.target;
   const [personalMode, setModeState] = useState<ZoomMode>(loadMode);
-  const [practiceMode, setPracticeMode] = useState<ZoomMode>({kind:"fit-width"});
+  const [practiceMode, setPracticeMode] = useState<ZoomMode>({ kind: "fit-width" });
   const mode = args.temporary ? practiceMode : personalMode;
-  useEffect(() => {if(!args.temporary) setPracticeMode({kind:"fit-width"});},[args.temporary]);
+  useEffect(() => {
+    if (!args.temporary) setPracticeMode({ kind: "fit-width" });
+  }, [args.temporary]);
   const [fit, setFit] = useState(1);
   const pxPerInRef = useRef(0);
   /** The observer on the pane the last solve used, which follows the page to its next one. */
   const watchRef = useRef<{ observer: ResizeObserver; pane: HTMLElement | null } | null>(null);
 
-  const setMode = useCallback((next: ZoomMode) => {
-    if(args.temporary) {setPracticeMode(next);return;}
-    setModeState(next);
-    try {
-      localStorage.setItem(ZOOM_KEY, JSON.stringify(next));
-    } catch {
-      /* chrome preference only */
-    }
-  }, [args.temporary]);
+  const setMode = useCallback(
+    (next: ZoomMode) => {
+      if (args.temporary) {
+        setPracticeMode(next);
+        return;
+      }
+      setModeState(next);
+      try {
+        localStorage.setItem(ZOOM_KEY, JSON.stringify(next));
+      } catch {
+        /* chrome preference only */
+      }
+    },
+    [args.temporary],
+  );
 
   const { widthIn, heightIn } = pageSizeIn(format);
 
@@ -341,9 +354,9 @@ export function useZoom(args: {
       // Stepping out of a fit continues from what the fit produced, so ⌘+ after
       // a fit nudges the page you are looking at rather than jumping to 110%.
       const from = mode.kind === "manual" ? mode.level : fit;
-      setMode({kind:"manual",level:clampZoom(from+delta)});
+      setMode({ kind: "manual", level: clampZoom(from + delta) });
     },
-    [fit,mode,setMode],
+    [fit, mode, setMode],
   );
 
   const reset = useCallback(() => setMode({ kind: "manual", level: 1 }), [setMode]);

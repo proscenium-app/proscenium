@@ -33,6 +33,8 @@ describe("the script a play opens on", () => {
   });
 
   test("is nothing in a play with no script", () => {
-    expect(scriptToOpen([{ id: "notes", type: "folder", path: "Notes", children: [] }], "first")).toBeNull();
+    expect(
+      scriptToOpen([{ id: "notes", type: "folder", path: "Notes", children: [] }], "first"),
+    ).toBeNull();
   });
 });

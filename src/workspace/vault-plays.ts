@@ -86,10 +86,10 @@ function firstScript(items: BinderItem[]): BinderItem | null {
  * `modified` deliberately does NOT move when the writer types (docs/app/keeping-work/storage-and-file-format.md#STOR-D5), so it is a
  * last-resort fallback for a play with no script, never the answer.
  *
- * Measured on the live vault 2026-08-06, before this existed: one play's
- * script was written Jul 24 and the row said Jul 20; another's manifest
- * was stamped Jul 26 while its script had not been touched since Jul 16. The
- * column was ten days wrong in both directions at once.
+ * Measured on a real vault before this existed: one play's script was
+ * written four days after the row said; another's manifest was stamped ten
+ * days after its script had last been touched. The column was ten days wrong
+ * in both directions at once.
  */
 async function scriptMtime(dir: string, scriptRel: string): Promise<string | null> {
   try {
@@ -97,7 +97,10 @@ async function scriptMtime(dir: string, scriptRel: string): Promise<string | nul
     const scriptDir = slash === -1 ? dir : `${dir}/${scriptRel.slice(0, slash)}`;
     const name = slash === -1 ? scriptRel : scriptRel.slice(slash + 1);
     const entries = (await vault.list(scriptDir)).filter((e) => !e.isDir);
-    const actual = matchingPath(name, entries.map((e) => e.name));
+    const actual = matchingPath(
+      name,
+      entries.map((e) => e.name),
+    );
     const entry = entries.find((e) => e.name === actual);
     return entry?.modifiedMs ? new Date(entry.modifiedMs).toISOString() : null;
   } catch {
@@ -301,7 +304,8 @@ export async function scaffoldPlayAt(
   // incomplete folder, never a discoverable play that claims to keep its source.
   if (original) {
     const ext = original.name.match(/\.[a-z0-9]+$/i)?.[0] ?? "";
-    const safeName = fileName(original.name.slice(0, original.name.length - ext.length || undefined)) + ext;
+    const safeName =
+      fileName(original.name.slice(0, original.name.length - ext.length || undefined)) + ext;
     const path = at(`Originals/${safeName}`);
     if (original.base64 !== undefined) await vault.createBinary(path, original.base64);
     else await vault.create(path, original.content);

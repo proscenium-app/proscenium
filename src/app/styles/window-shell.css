@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /*
  * ── Window chrome: toolbar, status bar (docs/engineering/design-system.md#UI-D101) ─────────────────────────────
  *
@@ -147,4 +146,3 @@
   background: var(--rule);
   flex: none;
 }
-

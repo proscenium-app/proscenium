@@ -144,21 +144,41 @@ pub fn text(facts: &Facts) -> String {
     let s = &facts.settings;
     let mut out = String::new();
     let mut line = |label: &str, value: String| out.push_str(&format!("{label:<14}{value}\n"));
-    line("Proscenium", format!("{} ({})", facts.version, facts.channel.as_str()));
-    line("Mac", format!("{}, {} ({})", facts.os, arch_name(facts.arch), facts.arch));
+    line(
+        "Proscenium",
+        format!("{} ({})", facts.version, facts.channel.as_str()),
+    );
+    line(
+        "Mac",
+        format!("{}, {} ({})", facts.os, arch_name(facts.arch), facts.arch),
+    );
     line("Accent", s.accent.clone());
     let formats: Vec<&str> = facts.formats_in_use.iter().map(|f| f.as_str()).collect();
-    line("Formats", if formats.is_empty() { "none open".into() } else { formats.join(", ") });
+    line(
+        "Formats",
+        if formats.is_empty() {
+            "none open".into()
+        } else {
+            formats.join(", ")
+        },
+    );
     line(
         "New plays in",
-        s.default_format.as_deref().map_or("the default format", |id| FormatRef::from_page(id).as_str()).into(),
+        s.default_format
+            .as_deref()
+            .map_or("the default format", |id| FormatRef::from_page(id).as_str())
+            .into(),
     );
     line(
         "Plays folder",
         match &facts.plays_folder {
             None => "not chosen yet".into(),
             Some(ids) if ids.is_empty() => "on this Mac only".into(),
-            Some(ids) => ids.iter().map(|id| provider_name(id)).collect::<Vec<_>>().join(" and "),
+            Some(ids) => ids
+                .iter()
+                .map(|id| provider_name(id))
+                .collect::<Vec<_>>()
+                .join(" and "),
         },
     );
     line(
@@ -190,7 +210,8 @@ pub fn text(facts: &Facts) -> String {
         } else if facts.can_send {
             "usage and crash reports on".into()
         } else {
-            "usage and crash reports on, but this build has reports disabled and sends nothing".into()
+            "usage and crash reports on, but this build has reports disabled and sends nothing"
+                .into()
         },
     );
 
@@ -199,7 +220,11 @@ pub fn text(facts: &Facts) -> String {
         out.push_str("  none\n");
     }
     for entry in &facts.errors {
-        let times = if entry.count > 1 { format!(" ×{}", entry.count) } else { String::new() };
+        let times = if entry.count > 1 {
+            format!(" ×{}", entry.count)
+        } else {
+            String::new()
+        };
         out.push_str(&format!("  {}  {}{times}\n", when(&entry.at), entry.code));
     }
 
@@ -276,8 +301,25 @@ mod tests {
             .to_string(),
         )
         .unwrap();
-        errors::append(&data.join(super::super::ERROR_LOG), ErrorCode::PlayOpen, chrono::Utc::now()).unwrap();
-        let record = crash::make_record(CrashKind::RustPanic, "RustPanic", vec![crash::Frame { function: Some("proscenium_lib::vault::save".into()), lineno: Some(120), colno: None }], "0.9.1", "15.6", "aarch64", chrono::Utc::now());
+        errors::append(
+            &data.join(super::super::ERROR_LOG),
+            ErrorCode::PlayOpen,
+            chrono::Utc::now(),
+        )
+        .unwrap();
+        let record = crash::make_record(
+            CrashKind::RustPanic,
+            "RustPanic",
+            vec![crash::Frame {
+                function: Some("proscenium_lib::vault::save".into()),
+                lineno: Some(120),
+                colno: None,
+            }],
+            "0.9.1",
+            "15.6",
+            "aarch64",
+            chrono::Utc::now(),
+        );
         crash::write(&data.join(super::super::CRASH_DIR), &record).unwrap();
 
         let formats = ["dg-modern".to_string(), "hamlet-house-style".to_string()];
@@ -307,7 +349,10 @@ mod tests {
             "E-PLAY-OPEN",
             "rust_panic  1 stack frames  in 0.9.1",
         ] {
-            assert!(text.contains(said), "diagnostics do not say {said:?}:\n{text}");
+            assert!(
+                text.contains(said),
+                "diagnostics do not say {said:?}:\n{text}"
+            );
         }
         let root = root.to_string_lossy().to_string();
         let temp = tmp.path().to_string_lossy().to_string();
@@ -329,7 +374,6 @@ mod tests {
         ] {
             assert!(!text.contains(leak), "diagnostics hold {leak:?}:\n{text}");
         }
-
     }
 
     #[test]
@@ -362,5 +406,4 @@ mod tests {
             assert!(text.contains(said), "{said:?}:\n{text}");
         }
     }
-
 }

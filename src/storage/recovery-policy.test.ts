@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "bun:test";
-import {
-  decideRecovery,
-  decodeSnapshot,
-  encodeSnapshot,
-  sameScriptText,
-} from "./recovery-policy";
+import { decideRecovery, decodeSnapshot, encodeSnapshot, sameScriptText } from "./recovery-policy";
 import { parse, serialize } from "../fountain";
 
 const canonical = (text: string) => serialize(parse(text));
@@ -32,9 +27,9 @@ describe("recovery: offer, ignore or delete", () => {
 
   it("does not speak for a snapshot the file has moved past", () => {
     // A flush landed after the snapshot, or another device wrote the script.
-    expect(
-      decideRecovery({ snapshotAtMs: at, fileModifiedMs: at + 1, sameContent: false }),
-    ).toBe("ignore");
+    expect(decideRecovery({ snapshotAtMs: at, fileModifiedMs: at + 1, sameContent: false })).toBe(
+      "ignore",
+    );
     // The same instant is not newer: an offer has to be earned.
     expect(decideRecovery({ snapshotAtMs: at, fileModifiedMs: at, sameContent: false })).toBe(
       "ignore",
@@ -76,14 +71,26 @@ describe("recovery: what counts as the same script", () => {
 
 describe("recovery: the snapshot envelope", () => {
   it("round-trips the words, the path and the capture time", () => {
-    const s = { path: "Scenes/Draft.fountain", savedAtMs: Date.parse("2026-09-12T16:30:05.250Z"), content: "She waits.\n" };
+    const s = {
+      path: "Scenes/Draft.fountain",
+      savedAtMs: Date.parse("2026-09-12T16:30:05.250Z"),
+      content: "She waits.\n",
+    };
     expect(decodeSnapshot(encodeSnapshot(s))).toEqual(s);
   });
 
   it("refuses bytes this app did not write", () => {
     expect(decodeSnapshot("")).toBeNull();
     expect(decodeSnapshot("She waits.")).toBeNull();
-    expect(decodeSnapshot(JSON.stringify({ kind: "something/else", content: "x", savedAt: "2026-09-12T00:00:00Z" }))).toBeNull();
-    expect(decodeSnapshot(JSON.stringify({ kind: "proscenium/recovery", content: "x", savedAt: "not a time" }))).toBeNull();
+    expect(
+      decodeSnapshot(
+        JSON.stringify({ kind: "something/else", content: "x", savedAt: "2026-09-12T00:00:00Z" }),
+      ),
+    ).toBeNull();
+    expect(
+      decodeSnapshot(
+        JSON.stringify({ kind: "proscenium/recovery", content: "x", savedAt: "not a time" }),
+      ),
+    ).toBeNull();
   });
 });

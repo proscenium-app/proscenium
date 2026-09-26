@@ -34,7 +34,16 @@
  */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+  copyFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { APP_MARK, type AppMarkPalette } from "../src/ui/app-mark.ts";
@@ -126,11 +135,16 @@ const document = {
 mkdirSync(join(DOC, "Assets"), { recursive: true });
 const svgChanged = writeIfChanged(join(ICONS, "Proscenium.svg"), appIcon(APP_MARK.light));
 writeIfChanged(join(DOC, "icon.json"), `${JSON.stringify(document, null, 2)}\n`);
-writeIfChanged(join(DOC, "Assets/arch.svg"), layer(`<path fill-rule="evenodd" d="${APP_MARK.arch}"/>`));
+writeIfChanged(
+  join(DOC, "Assets/arch.svg"),
+  layer(`<path fill-rule="evenodd" d="${APP_MARK.arch}"/>`),
+);
 writeIfChanged(join(DOC, "Assets/stage.svg"), layer(`<path d="${layers.stage}"/>`));
 writeIfChanged(
   join(DOC, "Assets/strip.svg"),
-  layer(`<rect x="${layers.strip.x}" y="${layers.strip.y}" width="${layers.strip.width}" height="${layers.strip.height}"/>`),
+  layer(
+    `<rect x="${layers.strip.x}" y="${layers.strip.y}" width="${layers.strip.width}" height="${layers.strip.height}"/>`,
+  ),
 );
 // Layers the document no longer names are not left behind for actool to find.
 for (const f of readdirSync(join(DOC, "Assets"))) {
@@ -173,12 +187,21 @@ function documentHash(): string {
 
 /** Xcode 26's actool, whether or not Xcode is the selected developer directory. */
 function findActool(): { path: string; env: NodeJS.ProcessEnv } | null {
-  const candidates: NodeJS.ProcessEnv[] = [process.env, { ...process.env, DEVELOPER_DIR: "/Applications/Xcode.app/Contents/Developer" }];
+  const candidates: NodeJS.ProcessEnv[] = [
+    process.env,
+    { ...process.env, DEVELOPER_DIR: "/Applications/Xcode.app/Contents/Developer" },
+  ];
   for (const env of candidates) {
     try {
-      const path = execFileSync("xcrun", ["--find", "actool"], { encoding: "utf8", env, stdio: ["ignore", "pipe", "ignore"] }).trim();
+      const path = execFileSync("xcrun", ["--find", "actool"], {
+        encoding: "utf8",
+        env,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
       const version = execFileSync(path, ["--version"], { encoding: "utf8", env });
-      const major = Number(version.match(/<key>short-bundle-version<\/key>\s*<string>(\d+)/)?.[1] ?? 0);
+      const major = Number(
+        version.match(/<key>short-bundle-version<\/key>\s*<string>(\d+)/)?.[1] ?? 0,
+      );
       if (major >= 26) return { path, env };
     } catch {
       /* not this developer directory */
@@ -208,29 +231,41 @@ if (recorded === want && existsSync(CAR) && !FORCE) {
       actool.path,
       [
         DOC,
-        "--compile", out,
-        "--output-format", "human-readable-text",
-        "--errors", "--warnings",
-        "--platform", "macosx",
-        "--target-device", "mac",
+        "--compile",
+        out,
+        "--output-format",
+        "human-readable-text",
+        "--errors",
+        "--warnings",
+        "--platform",
+        "macosx",
+        "--target-device",
+        "mac",
         // The floor, so the catalog carries flat bitmaps for Sonoma and Sequoia,
         // which cannot draw an Icon Composer icon themselves.
-        "--minimum-deployment-target", "14.0",
+        "--minimum-deployment-target",
+        "14.0",
         // Must match the document's name, or actool succeeds and writes nothing.
-        "--app-icon", "Proscenium",
+        "--app-icon",
+        "Proscenium",
         "--include-all-app-icons",
-        "--output-partial-info-plist", join(out, "partial.plist"),
+        "--output-partial-info-plist",
+        join(out, "partial.plist"),
       ],
       { stdio: ["ignore", "ignore", "inherit"], env: actool.env },
     );
     if (!existsSync(join(out, "Assets.car"))) throw new Error("actool wrote no Assets.car");
-    const info = execFileSync("assetutil", ["--info", join(out, "Assets.car")], { encoding: "utf8" });
+    const info = execFileSync("assetutil", ["--info", join(out, "Assets.car")], {
+      encoding: "utf8",
+    });
     for (const appearance of ["NSAppearanceNameDarkAqua", "ISAppearanceTintable"]) {
       if (!info.includes(appearance)) throw new Error(`Assets.car has no ${appearance} rendition`);
     }
     copyFileSync(join(out, "Assets.car"), CAR);
     writeFileSync(STAMP, `${want}  Proscenium.icon, compiled into Assets.car\n`);
-    console.log("icon: compiled Assets.car (light, dark, tinted; flat bitmaps for macOS 14 and 15)");
+    console.log(
+      "icon: compiled Assets.car (light, dark, tinted; flat bitmaps for macOS 14 and 15)",
+    );
   } finally {
     rmSync(out, { recursive: true, force: true });
   }

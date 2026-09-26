@@ -17,7 +17,14 @@ import {
   validateFormatSpec,
 } from "../../format";
 import { paginateDoc } from "../../layout";
-import { changedParts, checkDraft, draftFromSpec, draftToRaw, ELEMENT_LABELS, listInWords } from "./draft";
+import {
+  changedParts,
+  checkDraft,
+  draftFromSpec,
+  draftToRaw,
+  ELEMENT_LABELS,
+  listInWords,
+} from "./draft";
 import { describeMoves, describePage, lineKey, movedLines } from "./preview";
 import { formatSampler } from "./sampler";
 
@@ -38,7 +45,14 @@ describe("the designer's working copy", () => {
 
   it("accepts a value as it is being typed only once it is a number", () => {
     const draft = draftFromSpec(DG);
-    for (const [typed, ok] of [["2.", true], ["2.75", true], [".5", true], ["", false], ["two", false], ["2.5in", false]] as const) {
+    for (const [typed, ok] of [
+      ["2.", true],
+      ["2.75", true],
+      [".5", true],
+      ["", false],
+      ["two", false],
+      ["2.5in", false],
+    ] as const) {
       draft.elements.character.indentFromMargin = typed;
       const { spec, errors } = checkDraft(draft);
       expect(!!spec).toBe(ok);
@@ -73,7 +87,9 @@ describe("the designer's working copy", () => {
     const draft = draftFromSpec(DG);
     draft.id = "";
     expect(checkDraft(draft).spec?.id).toBe("");
-    expect((draftToRaw(draft).elements as Record<string, { maxWidth: unknown }>).dialogue.maxWidth).toBe("full");
+    expect(
+      (draftToRaw(draft).elements as Record<string, { maxWidth: unknown }>).dialogue.maxWidth,
+    ).toBe("full");
   });
 
   it("names what changed", () => {
@@ -101,7 +117,9 @@ describe("the format sampler", () => {
     const types = new Set(doc.content.map((b) => b.type));
     for (const key of REQUIRED_FORMAT_ELEMENTS) expect(types.has(key)).toBe(true);
     expect(doc.content.some((b) => b.type === "character" && b.attrs?.dual === true)).toBe(true);
-    expect(doc.content.some((b) => b.type === "character" && typeof b.attrs?.extension === "string")).toBe(true);
+    expect(
+      doc.content.some((b) => b.type === "character" && typeof b.attrs?.extension === "string"),
+    ).toBe(true);
     expect(meta.title).toBe("The Prompt Book");
     expect(meta.author).toBe("Proscenium");
   });
@@ -110,7 +128,9 @@ describe("the format sampler", () => {
     for (const spec of builtinFormats()) {
       const { pages } = paginateDoc(doc, spec, meta);
       expect(pages.length).toBeGreaterThan(2);
-      expect(pages.some((p) => p.breakBefore?.contd?.includes("NELL"))).toBe(spec.pagination.repeatCharacterOnSplit);
+      expect(pages.some((p) => p.breakBefore?.contd?.includes("NELL"))).toBe(
+        spec.pagination.repeatCharacterOnSplit,
+      );
     }
   });
 });
@@ -131,7 +151,9 @@ describe("the preview", () => {
     expect(moves.elements).toEqual(["transition"]);
     const dialogue = after.layout.pages[0].lines.find((l) => l.type === "dialogue")!;
     expect(moves.lines.has(lineKey(dialogue, 1))).toBe(false);
-    expect(describeMoves(moves, after.layout.pages.length, before.layout.pages.length)).toMatch(/^Transition moved\./);
+    expect(describeMoves(moves, after.layout.pages.length, before.layout.pages.length)).toMatch(
+      /^Transition moved\./,
+    );
   });
 
   it("counts a margin change as moving the page", () => {
@@ -154,6 +176,8 @@ describe("the preview", () => {
       expect(text).toContain("Character at 4 inches from the left edge");
     }
     const stage = paginateDoc(doc, STAGE, meta);
-    expect(describePage(stage.pages[0], stage.pages.length, STAGE)).toContain("Character at 4 inches from the left edge");
+    expect(describePage(stage.pages[0], stage.pages.length, STAGE)).toContain(
+      "Character at 4 inches from the left edge",
+    );
   });
 });

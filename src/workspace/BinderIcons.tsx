@@ -21,13 +21,7 @@
  * folders rendered identically and the only signal you had was a color change.
  */
 
-export type IconKind =
-  | "script"
-  | "folder"
-  | "character"
-  | "outline"
-  | "reference"
-  | "document";
+export type IconKind = "script" | "folder" | "character" | "outline" | "reference" | "document";
 
 const S = {
   fill: "none",

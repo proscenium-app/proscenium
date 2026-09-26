@@ -81,19 +81,39 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "⌘⌥I", what: "Show or hide the inspector", group: "Views and panels", owner: "app" },
   { keys: "⌘⇧C", what: "Comments", group: "Views and panels", owner: "app" },
   // StatusList binds the same keys in a status's name (Settings › General and Writing).
-  { keys: "⌃⌘↑ / ⌃⌘↓", what: "Move the binder item, or a status in Settings, up or down", group: "Views and panels", owner: "app" },
+  {
+    keys: "⌃⌘↑ / ⌃⌘↓",
+    what: "Move the binder item, or a status in Settings, up or down",
+    group: "Views and panels",
+    owner: "app",
+  },
   {
     keys: "⌃⌘← / ⌃⌘→",
     what: "Move the binder item out of its folder, or into the folder above",
     group: "Views and panels",
     owner: "app",
   },
-  { keys: "⇧F10", what: "Actions for the selected binder item", group: "Views and panels", owner: "app" },
+  {
+    keys: "⇧F10",
+    what: "Actions for the selected binder item",
+    group: "Views and panels",
+    owner: "app",
+  },
   // ⌘⇧K listed "The writing room" here after the room itself was removed
   // (docs/app/product.md#PROD-26): nothing binds it.
-  { keys: "⌃⌘F", what: "Focus, which shows only the page", group: "Views and panels", owner: "app" },
+  {
+    keys: "⌃⌘F",
+    what: "Focus, which shows only the page",
+    group: "Views and panels",
+    owner: "app",
+  },
 
-  { keys: "⌘S", what: "Save (Proscenium also saves as you write)", group: "The script", owner: "editor" },
+  {
+    keys: "⌘S",
+    what: "Save (Proscenium also saves as you write)",
+    group: "The script",
+    owner: "editor",
+  },
   { keys: "⌘⌥M", what: "Comment on the selection", group: "The script", owner: "editor" },
   {
     keys: "⌘;",

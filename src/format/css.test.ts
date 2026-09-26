@@ -65,7 +65,9 @@ describe("formatToCss (dg-modern)", () => {
   });
 
   it("keeps an empty parenthetical's parens on one line", () => {
-    expect(css).toContain(".play-page .pl-parenthetical > br.ProseMirror-trailingBreak:only-child { display: none; }");
+    expect(css).toContain(
+      ".play-page .pl-parenthetical > br.ProseMirror-trailingBreak:only-child { display: none; }",
+    );
   });
 
   /** dg-modern: left-aligned, where the caret sat in front of the "(". */
@@ -80,8 +82,12 @@ describe("formatToCss (dg-modern)", () => {
     const raw = structuredClone(dgModernRaw) as { elements: { lyric: Record<string, unknown> } };
     raw.elements.lyric.parenWrap = true;
     const wrapped = formatToCss(spec(raw));
-    expect(wrapped).toContain(".play-page .pl-lyric > br.ProseMirror-trailingBreak:only-child { display: none; }");
-    expect(wrapped).toContain(".play-page .pl-lyric:has(> br.ProseMirror-trailingBreak:only-child)");
+    expect(wrapped).toContain(
+      ".play-page .pl-lyric > br.ProseMirror-trailingBreak:only-child { display: none; }",
+    );
+    expect(wrapped).toContain(
+      ".play-page .pl-lyric:has(> br.ProseMirror-trailingBreak:only-child)",
+    );
     expect(css).not.toContain(".pl-lyric > br.ProseMirror-trailingBreak");
     expect(css).not.toContain(".pl-dialogue:has(");
   });
@@ -122,13 +128,17 @@ describe("formatToCss (stage-us-modern)", () => {
     custom.elements.parenthetical.align = "center";
     const css = formatToCss(custom);
     expect(block(css, ".play-page .pl-parenthetical")).toContain("text-align: center;");
-    expect(css).toContain(".play-page .pl-parenthetical > br.ProseMirror-trailingBreak:only-child { display: none; }");
+    expect(css).toContain(
+      ".play-page .pl-parenthetical > br.ProseMirror-trailingBreak:only-child { display: none; }",
+    );
     expect(css).not.toContain(".pl-parenthetical:has(> br.ProseMirror-trailingBreak:only-child) {");
   });
 });
 
 describe("formatToCss: the caret in an empty right-aligned parenthetical", () => {
-  const raw = structuredClone(dgModernRaw) as { elements: { parenthetical: Record<string, unknown> } };
+  const raw = structuredClone(dgModernRaw) as {
+    elements: { parenthetical: Record<string, unknown> };
+  };
   raw.elements.parenthetical.align = "right";
   const css = formatToCss(spec(raw));
 

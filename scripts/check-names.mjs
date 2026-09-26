@@ -3,7 +3,7 @@
 
 /**
  * check:names — no other writing app is named outside the import tool
- * (AGENTS.md, "Load-bearing rules"; the maintainer, 2026-09-17).
+ * (AGENTS.md, "Load-bearing rules").
  *
  * Proscenium says what a behaviour is on its own terms. A comment, a test name,
  * a doc or the README that explains one as another app's feature, or the whole
@@ -51,9 +51,12 @@ const MARKER = "names: import tool";
  * The accessibility trees of the import tool's own screens (scripts/aria/),
  * which read out the names that screen shows a writer.
  */
-const IMPORT_TOOL_TREES = /^scripts\/aria\/(?:native\/)?(?:document-import|fdx-import)[a-z0-9-]*(?:\.[a-z]+)*\.yml$/;
+const IMPORT_TOOL_TREES =
+  /^scripts\/aria\/(?:native\/)?(?:document-import|fdx-import)[a-z0-9-]*(?:\.[a-z]+)*\.yml$/;
 
-const exempt = (rel) => IMPORT_TOOL_TREES.test(rel) || EXEMPT.some((p) => (p.endsWith("/") ? rel.startsWith(p) : rel === p));
+const exempt = (rel) =>
+  IMPORT_TOOL_TREES.test(rel) ||
+  EXEMPT.some((p) => (p.endsWith("/") ? rel.startsWith(p) : rel === p));
 
 function listed(...args) {
   return execFileSync("git", ["ls-files", "-z", ...args], { cwd: ROOT, encoding: "utf8" })
@@ -85,7 +88,8 @@ function main() {
     }
     if (bytes.includes(0)) continue;
     scanned++;
-    for (const { line, name } of namesIn(bytes.toString("utf8"))) failures.push(`  ${rel}:${line}  ${name}`);
+    for (const { line, name } of namesIn(bytes.toString("utf8")))
+      failures.push(`  ${rel}:${line}  ${name}`);
   }
   if (failures.length) {
     console.error(

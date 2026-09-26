@@ -6,21 +6,21 @@ import { DocumentSession, decideExternalChange } from "./conflict-floor";
 
 describe("decideExternalChange (docs/app/keeping-work/storage-and-file-format.md#STOR-D104)", () => {
   it("ignores an echo of our own write", () => {
-    expect(
-      decideExternalChange({ lastKnownHash: "sha256:aa", dirty: false }, "sha256:aa"),
-    ).toEqual({ kind: "ignore", reason: "unchanged" });
+    expect(decideExternalChange({ lastKnownHash: "sha256:aa", dirty: false }, "sha256:aa")).toEqual(
+      { kind: "ignore", reason: "unchanged" },
+    );
   });
 
   it("reloads when the buffer is clean", () => {
-    expect(
-      decideExternalChange({ lastKnownHash: "sha256:aa", dirty: false }, "sha256:bb"),
-    ).toEqual({ kind: "reload" });
+    expect(decideExternalChange({ lastKnownHash: "sha256:aa", dirty: false }, "sha256:bb")).toEqual(
+      { kind: "reload" },
+    );
   });
 
   it("docs/app/keeping-work/storage-and-file-format.md#STOR-104: dirty-gates when there are unsaved edits", () => {
-    expect(
-      decideExternalChange({ lastKnownHash: "sha256:aa", dirty: true }, "sha256:bb"),
-    ).toEqual({ kind: "dirty-gate" });
+    expect(decideExternalChange({ lastKnownHash: "sha256:aa", dirty: true }, "sha256:bb")).toEqual({
+      kind: "dirty-gate",
+    });
   });
 });
 

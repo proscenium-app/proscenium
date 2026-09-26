@@ -83,15 +83,24 @@ impl Queue {
 }
 
 /// OS granularity is major/minor only; full local diagnostics stay local.
-pub fn os_version(full: &str) -> String { full.split('.').take(2).collect::<Vec<_>>().join(".") }
+pub fn os_version(full: &str) -> String {
+    full.split('.').take(2).collect::<Vec<_>>().join(".")
+}
 
 /// Batch dimensions once; events carry only their closed name and properties.
 pub fn body(batch: &[Pending], context: &Context) -> String {
-    let events: Vec<Value> = batch.iter().map(|pending| {
-        let props: Map<String, Value> = pending.event.props().into_iter()
-            .map(|(key, value)| (key.to_string(), Value::String(value))).collect();
-        json!({ "name": pending.event.name(), "props": props })
-    }).collect();
+    let events: Vec<Value> = batch
+        .iter()
+        .map(|pending| {
+            let props: Map<String, Value> = pending
+                .event
+                .props()
+                .into_iter()
+                .map(|(key, value)| (key.to_string(), Value::String(value)))
+                .collect();
+            json!({ "name": pending.event.name(), "props": props })
+        })
+        .collect();
     json!({ "version": context.app_version, "platform": "darwin", "arch": context.arch,
         "os": os_version(&context.os_version), "channel": context.channel.as_str(), "events": events }).to_string()
 }
@@ -115,12 +124,20 @@ pub struct Client {
 impl Client {
     pub fn of_this_build() -> Option<Self> {
         (option_env!("PROSCENIUM_REPORTS") == Some("1") && !cfg!(debug_assertions))
-            .then(Self::new).flatten()
+            .then(Self::new)
+            .flatten()
     }
 
     pub fn new() -> Option<Self> {
-        if !allowlist::may_contact(allowlist::REPORTS_EVENTS) || !allowlist::may_contact(allowlist::CRASH_ENVELOPE) { return None; }
-        Self::to(allowlist::REPORTS_EVENTS.to_string(), allowlist::CRASH_ENVELOPE.to_string())
+        if !allowlist::may_contact(allowlist::REPORTS_EVENTS)
+            || !allowlist::may_contact(allowlist::CRASH_ENVELOPE)
+        {
+            return None;
+        }
+        Self::to(
+            allowlist::REPORTS_EVENTS.to_string(),
+            allowlist::CRASH_ENVELOPE.to_string(),
+        )
     }
 
     /// Tests use loopback servers; production endpoints come only from the allowlist.
@@ -135,18 +152,40 @@ impl Client {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .ok()?;
-        Some(Client { endpoint, crash_endpoint, http })
+        Some(Client {
+            endpoint,
+            crash_endpoint,
+            http,
+        })
     }
 
     pub async fn send(&self, body: String, timeout: Duration) -> Outcome {
-        self.post(&self.endpoint, "application/json", body.into_bytes(), timeout).await
+        self.post(
+            &self.endpoint,
+            "application/json",
+            body.into_bytes(),
+            timeout,
+        )
+        .await
     }
 
     pub async fn send_crash(&self, body: Vec<u8>, timeout: Duration) -> Outcome {
-        self.post(&self.crash_endpoint, "application/x-sentry-envelope", body, timeout).await
+        self.post(
+            &self.crash_endpoint,
+            "application/x-sentry-envelope",
+            body,
+            timeout,
+        )
+        .await
     }
 
-    async fn post(&self, endpoint: &str, content_type: &str, body: Vec<u8>, timeout: Duration) -> Outcome {
+    async fn post(
+        &self,
+        endpoint: &str,
+        content_type: &str,
+        body: Vec<u8>,
+        timeout: Duration,
+    ) -> Outcome {
         let request = self
             .http
             .post(endpoint)
@@ -155,7 +194,9 @@ impl Client {
             .body(body);
         match request.send().await {
             Ok(response) if response.status().is_success() => Outcome::Sent,
-            Ok(response) if response.status().is_server_error() || response.status().as_u16() == 429 => {
+            Ok(response)
+                if response.status().is_server_error() || response.status().as_u16() == 429 =>
+            {
                 Outcome::Wait
             }
             Ok(_) => Outcome::Refused,
@@ -193,19 +234,39 @@ mod tests {
     #[test]
     #[ignore = "adds one app_launched to the production counts; see services/edge/README.md"]
     fn live_usage_counts_reach_the_service() {
-        let version = std::env::var("PROSCENIUM_REPORTS_LIVE").expect("an admitted release version");
-        let context = Context { app_version: version, os_name: "macOS", os_version: "26.6".into(), arch: "aarch64", channel: Channel::DeveloperId };
+        let version =
+            std::env::var("PROSCENIUM_REPORTS_LIVE").expect("an admitted release version");
+        let context = Context {
+            app_version: version,
+            os_name: "macOS",
+            os_version: "26.6".into(),
+            arch: "aarch64",
+            channel: Channel::DeveloperId,
+        };
         let client = Client::new().expect("the allowlisted client");
         let batch = [pending(Event::AppLaunched, Utc::now())];
-        assert_eq!(tauri::async_runtime::block_on(client.send(body(&batch, &context), Duration::from_secs(30))), Outcome::Sent);
+        assert_eq!(
+            tauri::async_runtime::block_on(
+                client.send(body(&batch, &context), Duration::from_secs(30))
+            ),
+            Outcome::Sent
+        );
     }
 
     #[test]
     fn the_batch_has_only_the_published_dimensions_and_closed_events() {
-        let batch = [pending(Event::PlayOpened { plays: PlaysBucket::of(4) }, Utc::now())];
+        let batch = [pending(
+            Event::PlayOpened {
+                plays: PlaysBucket::of(4),
+            },
+            Utc::now(),
+        )];
         let sent: Value = serde_json::from_str(&body(&batch, &context())).unwrap();
-        assert_eq!(sent, json!({"version":"1.0.0","platform":"darwin","arch":"aarch64","os":"15.6",
-            "channel":"developer-id","events":[{"name":"play_opened","props":{"plays":"2-5"}}]}));
+        assert_eq!(
+            sent,
+            json!({"version":"1.0.0","platform":"darwin","arch":"aarch64","os":"15.6",
+            "channel":"developer-id","events":[{"name":"play_opened","props":{"plays":"2-5"}}]})
+        );
     }
 
     #[test]
@@ -219,14 +280,26 @@ mod tests {
 
         // Batches of 25, oldest first.
         let mut queue = Queue::default();
-        queue.push(pending(Event::ErrorShown { code: ErrorCode::Save }, now - chrono::TimeDelta::days(8)));
-        queue.push(pending(Event::AppLaunched, now - chrono::TimeDelta::minutes(5)));
+        queue.push(pending(
+            Event::ErrorShown {
+                code: ErrorCode::Save,
+            },
+            now - chrono::TimeDelta::days(8),
+        ));
+        queue.push(pending(
+            Event::AppLaunched,
+            now - chrono::TimeDelta::minutes(5),
+        ));
         for _ in 0..30 {
             queue.push(pending(Event::FormatSaved, now));
         }
         let batch = queue.take_batch(now);
         assert_eq!(batch.len(), BATCH);
-        assert_eq!(batch[0].event.name(), "app_launched", "the eight-day-old event was dropped");
+        assert_eq!(
+            batch[0].event.name(),
+            "app_launched",
+            "the eight-day-old event was dropped"
+        );
         assert_eq!(queue.len(), 6);
 
         // A failed batch goes back in front, and the total stays within HELD.
@@ -263,7 +336,11 @@ mod tests {
             let mut body = vec![0; length];
             reader.read_exact(&mut body).unwrap();
             let mut stream = stream;
-            write!(stream, "HTTP/1.1 {status} X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+            write!(
+                stream,
+                "HTTP/1.1 {status} X\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            .unwrap();
             format!("{head}{}", String::from_utf8(body).unwrap())
         });
         (url, handle)
@@ -280,8 +357,17 @@ mod tests {
         assert_eq!(send_to(url, "[]"), Outcome::Sent);
         let request = answered.join().unwrap();
         let lower = request.to_ascii_lowercase();
-        assert!(request.starts_with("POST /v1/events HTTP/1.1\r\n"), "{request}");
-        for header in ["app-key:", "user-agent:", "cookie:", "referer:", "accept-language:"] {
+        assert!(
+            request.starts_with("POST /v1/events HTTP/1.1\r\n"),
+            "{request}"
+        );
+        for header in [
+            "app-key:",
+            "user-agent:",
+            "cookie:",
+            "referer:",
+            "accept-language:",
+        ] {
             assert!(!lower.contains(header), "sent {header}\n{request}");
         }
         assert!(request.ends_with("\r\n\r\n[]"));
@@ -298,8 +384,14 @@ mod tests {
         answered.join().unwrap();
 
         // Nobody listening: no network, as far as the client can tell.
-        let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
-        assert_eq!(send_to(format!("http://{closed}/v1/events"), "[]"), Outcome::Wait);
+        let closed = TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap();
+        assert_eq!(
+            send_to(format!("http://{closed}/v1/events"), "[]"),
+            Outcome::Wait
+        );
     }
 
     #[test]

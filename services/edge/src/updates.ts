@@ -21,7 +21,8 @@ export const UPDATES = "https://updates.proscenium.ink";
 /** A release: `X.Y.Z`. */
 export const VERSION = /^(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})$/;
 /** A track build's whole version, which names its track: `X.Y.Z-alpha.N`, `X.Y.Z-beta.N`. */
-export const TRACK_VERSION = /^(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})-(alpha|beta)\.(0|[1-9]\d{0,8})$/;
+export const TRACK_VERSION =
+  /^(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})-(alpha|beta)\.(0|[1-9]\d{0,8})$/;
 export type Track = "alpha" | "beta";
 /** The header an alpha copy's key travels in, beside `Proscenium-OS`, on alpha's requests and nothing else. */
 export const TRACK_KEY_HEADER = "Proscenium-Track-Key";
@@ -30,7 +31,10 @@ export const TRACK_KEY = /^[A-Za-z0-9_-]{43}$/;
 const PLATFORMS = ["darwin-aarch64", "darwin-x86_64"] as const;
 /** The builds a manifest may name: universal for every Mac, or Apple silicon's alone (a track's). */
 type Slice = "universal" | "aarch64";
-const SLICE_PLATFORMS: Record<Slice, readonly string[]> = { universal: PLATFORMS, aarch64: ["darwin-aarch64"] };
+const SLICE_PLATFORMS: Record<Slice, readonly string[]> = {
+  universal: PLATFORMS,
+  aarch64: ["darwin-aarch64"],
+};
 const MAX_MANIFEST = 128 * 1024;
 const MAX_TRACK_LIST = 256 * 1024;
 const MAX_DOWNLOAD = 512 * 1024 * 1024;
@@ -54,7 +58,10 @@ export interface Dependencies {
   now: () => Date;
   updatesOrigin: string;
 }
-interface Platform { signature: string; url: string }
+interface Platform {
+  signature: string;
+  url: string;
+}
 interface Manifest {
   version: string;
   notes?: string;
@@ -62,7 +69,11 @@ interface Manifest {
   platforms: Record<string, Platform>;
 }
 
-export function response(status: number, body: string | null = null, headers: HeadersInit = {}): Response {
+export function response(
+  status: number,
+  body: string | null = null,
+  headers: HeadersInit = {},
+): Response {
   const h = new Headers(headers);
   h.set("X-Content-Type-Options", "nosniff");
   h.set("Cache-Control", "no-store");
@@ -82,10 +93,18 @@ export function trackOf(version: string): Track | null {
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
-function archiveName(version: string, slice: Slice = "universal"): string { return `Proscenium_${version}_${slice}.app.tar.gz`; }
-function assetPath(version: string, file: string): string { return `/download/v${version}/${file}`; }
+function archiveName(version: string, slice: Slice = "universal"): string {
+  return `Proscenium_${version}_${slice}.app.tar.gz`;
+}
+function assetPath(version: string, file: string): string {
+  return `/download/v${version}/${file}`;
+}
 function sliceFiles(version: string, slice: Slice): string[] {
-  return [archiveName(version, slice), `${archiveName(version, slice)}.sig`, `Proscenium_${version}_${slice}.dmg`];
+  return [
+    archiveName(version, slice),
+    `${archiveName(version, slice)}.sig`,
+    `Proscenium_${version}_${slice}.dmg`,
+  ];
 }
 /** A release's own files: the universal build's three. */
 export function ownFile(version: string, file: string): boolean {
@@ -98,18 +117,37 @@ export function ownTrackFile(version: string, file: string): boolean {
 
 /** Validate upstream data too: a manifest cannot turn this Worker into an open proxy. */
 export function parseManifest(value: unknown): Manifest {
-  return parseManifestFor(value, (version) => VERSION.test(version), (version) => `${GITHUB}${assetPath(version, archiveName(version))}`, ["universal"]);
+  return parseManifestFor(
+    value,
+    (version) => VERSION.test(version),
+    (version) => `${GITHUB}${assetPath(version, archiveName(version))}`,
+    ["universal"],
+  );
 }
 /** A track's manifest: one of its own versions, each archive on its own download route. */
 export function parseTrackManifest(value: unknown, track: Track): Manifest {
-  return parseManifestFor(value, (version) => trackOf(version) === track,
-    (version, slice) => `${UPDATES}/v1/${track}${assetPath(version, archiveName(version, slice))}`, ["universal", "aarch64"]);
+  return parseManifestFor(
+    value,
+    (version) => trackOf(version) === track,
+    (version, slice) => `${UPDATES}/v1/${track}${assetPath(version, archiveName(version, slice))}`,
+    ["universal", "aarch64"],
+  );
 }
-function parseManifestFor(value: unknown, versionOk: (version: string) => boolean,
-  archiveUrl: (version: string, slice: Slice) => string, slices: Slice[]): Manifest {
-  if (!record(value) || typeof value.version !== "string" || !versionOk(value.version)
-    || !record(value.platforms)) throw new Error("Invalid manifest");
-  if (Object.keys(value).some(k => !["version", "notes", "pub_date", "platforms"].includes(k))) throw new Error("Unknown manifest field");
+function parseManifestFor(
+  value: unknown,
+  versionOk: (version: string) => boolean,
+  archiveUrl: (version: string, slice: Slice) => string,
+  slices: Slice[],
+): Manifest {
+  if (
+    !record(value) ||
+    typeof value.version !== "string" ||
+    !versionOk(value.version) ||
+    !record(value.platforms)
+  )
+    throw new Error("Invalid manifest");
+  if (Object.keys(value).some((k) => !["version", "notes", "pub_date", "platforms"].includes(k)))
+    throw new Error("Unknown manifest field");
   const version = value.version;
   const platforms: Record<string, Platform> = {};
   // Exactly one slice's platforms: every Mac's for a universal build, Apple silicon's alone for its own.
@@ -118,21 +156,44 @@ function parseManifestFor(value: unknown, versionOk: (version: string) => boolea
   if (!slice) throw new Error("Invalid platforms");
   for (const key of SLICE_PLATFORMS[slice]) {
     const p = value.platforms[key];
-    if (!record(p) || Object.keys(p).some(k => k !== "signature" && k !== "url")
-      || typeof p.signature !== "string" || !/^[A-Za-z0-9+/=]{40,2048}$/.test(p.signature)
-      || p.url !== archiveUrl(version, slice)) throw new Error("Invalid archive");
+    if (
+      !record(p) ||
+      Object.keys(p).some((k) => k !== "signature" && k !== "url") ||
+      typeof p.signature !== "string" ||
+      !/^[A-Za-z0-9+/=]{40,2048}$/.test(p.signature) ||
+      p.url !== archiveUrl(version, slice)
+    )
+      throw new Error("Invalid archive");
     platforms[key] = { signature: p.signature, url: p.url };
   }
-  if (value.notes !== undefined && (typeof value.notes !== "string" || value.notes.length > 60_000)) throw new Error("Invalid notes");
-  if (value.pub_date !== undefined && (typeof value.pub_date !== "string" || !/^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(value.pub_date) || !Number.isFinite(Date.parse(value.pub_date)))) throw new Error("Invalid date");
-  return { version, platforms, ...(typeof value.notes === "string" ? { notes: value.notes } : {}),
-    ...(typeof value.pub_date === "string" ? { pub_date: value.pub_date } : {}) };
+  if (value.notes !== undefined && (typeof value.notes !== "string" || value.notes.length > 60_000))
+    throw new Error("Invalid notes");
+  if (
+    value.pub_date !== undefined &&
+    (typeof value.pub_date !== "string" ||
+      !/^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(value.pub_date) ||
+      !Number.isFinite(Date.parse(value.pub_date)))
+  )
+    throw new Error("Invalid date");
+  return {
+    version,
+    platforms,
+    ...(typeof value.notes === "string" ? { notes: value.notes } : {}),
+    ...(typeof value.pub_date === "string" ? { pub_date: value.pub_date } : {}),
+  };
 }
 
 function upstreamAllowed(url: URL): boolean {
-  return url.protocol === "https:" && !url.username && !url.password && !url.port
-    && ((url.hostname === "github.com" && url.pathname.startsWith(`/${REPOSITORY}/releases/`))
-      || ["objects.githubusercontent.com", "release-assets.githubusercontent.com"].includes(url.hostname));
+  return (
+    url.protocol === "https:" &&
+    !url.username &&
+    !url.password &&
+    !url.port &&
+    ((url.hostname === "github.com" && url.pathname.startsWith(`/${REPOSITORY}/releases/`)) ||
+      ["objects.githubusercontent.com", "release-assets.githubusercontent.com"].includes(
+        url.hostname,
+      ))
+  );
 }
 /**
  * What every upstream request carries: the service's own name, and nothing of
@@ -141,19 +202,63 @@ function upstreamAllowed(url: URL): boolean {
  * production while passing everywhere else.
  */
 export const UPSTREAM_HEADERS = { "User-Agent": "proscenium-updates" } as const;
+/**
+ * A release's source failed: GitHub, or a track's objects in R2, could not be
+ * reached, refused, or answered something unusable. Only this answers 502, the
+ * documented "GitHub unavailable" that sends the updater to its fallback
+ * (docs/engineering/services-and-feedback.md#SERV-22). Any other throw is this
+ * Worker's own fault and answers 500: a monitor that compares the
+ * route with GitHub directly can then tell the two apart without reading a body
+ * (docs/engineering/services-and-feedback.md#SERV-266).
+ */
+class Unavailable extends Error {}
+/** A source's content that fails to read or parse is the source's failure. */
+function sourced<T>(read: () => T): T {
+  try {
+    return read();
+  } catch (cause) {
+    throw cause instanceof Unavailable ? cause : new Unavailable("Invalid source", { cause });
+  }
+}
+async function sourcedAsync<T>(read: () => Promise<T>): Promise<T> {
+  try {
+    return await read();
+  } catch (cause) {
+    throw cause instanceof Unavailable ? cause : new Unavailable("Invalid source", { cause });
+  }
+}
+/**
+ * Call a source. Making the call is this Worker's part: workerd refuses fetch
+ * called as another object's method with a synchronous "Illegal invocation",
+ * and a missing binding throws the same way, so a throw here stays ours (500).
+ * The call's promise rejecting (a lost connection, the timeout) is the source's.
+ */
+async function reach<T>(call: () => Promise<T>): Promise<T> {
+  const pending = call();
+  try {
+    return await pending;
+  } catch (cause) {
+    throw new Unavailable("Unreachable", { cause });
+  }
+}
 /** Fresh application headers on every hop. Cloudflare may add platform headers to fetch; this never supplies visitor metadata. */
 async function upstream(address: string, deps: Dependencies): Promise<Response> {
   let url = new URL(address);
   for (let hop = 0; hop < 5; hop++) {
-    if (!upstreamAllowed(url)) throw new Error("Invalid upstream");
-    const result = await deps.fetch(new Request(url, { redirect: "manual", headers: UPSTREAM_HEADERS, signal: AbortSignal.timeout(30_000) }));
+    if (!upstreamAllowed(url)) throw new Unavailable("Invalid upstream");
+    const request = new Request(url, {
+      redirect: "manual",
+      headers: UPSTREAM_HEADERS,
+      signal: AbortSignal.timeout(30_000),
+    });
+    const result = await reach(() => deps.fetch(request));
     if (![301, 302, 303, 307, 308].includes(result.status)) return result;
     const location = result.headers.get("Location");
     await result.body?.cancel();
-    if (!location) throw new Error("Invalid redirect");
-    url = new URL(location, url);
+    if (!location) throw new Unavailable("Invalid redirect");
+    url = sourced(() => new URL(location, url));
   }
-  throw new Error("Too many redirects");
+  throw new Unavailable("Too many redirects");
 }
 export async function boundedBytes(body: Response, limit: number): Promise<Uint8Array> {
   const length = body.headers.get("Content-Length");
@@ -173,10 +278,16 @@ export async function boundedBytes(body: Response, limit: number): Promise<Uint8
       if (size > limit) throw new Error("Body too large");
       chunks.push(chunk.value);
     }
-  } catch (error) { await reader.cancel(); throw error; }
+  } catch (error) {
+    await reader.cancel();
+    throw error;
+  }
   const bytes = new Uint8Array(size);
   let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
   return bytes;
 }
 async function manifest(deps: Dependencies, version?: string): Promise<Manifest> {
@@ -185,32 +296,62 @@ async function manifest(deps: Dependencies, version?: string): Promise<Manifest>
   const cached = await deps.cache.match(key);
   if (cached) return parseManifest(await cached.json());
   const result = await upstream(address, deps);
-  if (result.status !== 200) { await result.body?.cancel(); throw new Error("Upstream unavailable"); }
-  const data = parseManifest(JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(await boundedBytes(result, MAX_MANIFEST))));
-  if (version && data.version !== version) throw new Error("Version mismatch");
-  await deps.cache.put(key, new Response(JSON.stringify(data), { headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" } }));
+  if (result.status !== 200) {
+    await result.body?.cancel();
+    throw new Unavailable("Upstream unavailable");
+  }
+  const bytes = await sourcedAsync(() => boundedBytes(result, MAX_MANIFEST));
+  const data = sourced(() =>
+    parseManifest(
+      JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes)),
+    ),
+  );
+  if (version && data.version !== version) throw new Unavailable("Version mismatch");
+  await deps.cache.put(
+    key,
+    new Response(JSON.stringify(data), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "public, max-age=300" },
+    }),
+  );
   return data;
 }
 /** A track's object as text, read from R2 once a minute at most; null when the pipeline has written none. */
-async function trackText(env: Env, deps: Dependencies, key: string, limit: number): Promise<string | null> {
+async function trackText(
+  env: Env,
+  deps: Dependencies,
+  key: string,
+  limit: number,
+): Promise<string | null> {
   const cacheKey = new Request(`${deps.updatesOrigin}/tracks/${key}`);
   const cached = await deps.cache.match(cacheKey);
   if (cached) return cached.status === 204 ? null : cached.text();
-  const object = await env.TRACKS.get(key);
+  const object = await reach(() => env.TRACKS.get(key));
   let text: string | null = null;
   if (object) {
-    const bytes = await boundedBytes(new Response(object.body, { headers: { "Content-Length": String(object.size) } }), limit);
-    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
+    const bytes = await sourcedAsync(() =>
+      boundedBytes(
+        new Response(object.body, { headers: { "Content-Length": String(object.size) } }),
+        limit,
+      ),
+    );
+    text = sourced(() => new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes));
   }
-  await deps.cache.put(cacheKey, new Response(text, { status: text === null ? 204 : 200, headers: { "Cache-Control": "public, max-age=60" } }));
+  await deps.cache.put(
+    cacheKey,
+    new Response(text, {
+      status: text === null ? 204 : 200,
+      headers: { "Cache-Control": "public, max-age=60" },
+    }),
+  );
   return text;
 }
 /** Every version the track has published, oldest first. Nothing published yet is an empty list. */
 async function trackVersions(env: Env, deps: Dependencies, track: Track): Promise<string[]> {
   const text = await trackText(env, deps, `${track}/versions.json`, MAX_TRACK_LIST);
   if (text === null) return [];
-  const list: unknown = JSON.parse(text);
-  if (!Array.isArray(list) || !list.every((v) => typeof v === "string" && trackOf(v) === track)) throw new Error("Invalid track list");
+  const list: unknown = sourced(() => JSON.parse(text));
+  if (!Array.isArray(list) || !list.every((v) => typeof v === "string" && trackOf(v) === track))
+    throw new Unavailable("Invalid track list");
   return list;
 }
 /** A copy may ask from any track (docs/engineering/services-and-feedback.md#SERV-250): the release list, or the list of the track its version names. */
@@ -226,13 +367,19 @@ const OS = /^(1[4-9]|[2-9]\d)\.(0|[1-9]\d?)$/;
  * secret's. The key is compared as a digest, in time that does not depend on
  * where it differs, and never reaches a log, a D1 row or a response.
  */
-async function holdsAlphaKey(request: Request, env: Pick<Env, "ALPHA_KEY_SHA256">): Promise<boolean> {
+async function holdsAlphaKey(
+  request: Request,
+  env: Pick<Env, "ALPHA_KEY_SHA256">,
+): Promise<boolean> {
   const expected = env.ALPHA_KEY_SHA256 ?? "";
   const key = request.headers.get(TRACK_KEY_HEADER);
   if (!/^[0-9a-f]{64}$/.test(expected) || key === null || !TRACK_KEY.test(key)) return false;
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)));
+  const digest = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key)),
+  );
   let difference = 0;
-  for (let i = 0; i < digest.length; i++) difference |= digest[i] ^ parseInt(expected.slice(2 * i, 2 * i + 2), 16);
+  for (let i = 0; i < digest.length; i++)
+    difference |= digest[i] ^ parseInt(expected.slice(2 * i, 2 * i + 2), 16);
   return difference === 0;
 }
 /**
@@ -241,16 +388,30 @@ async function holdsAlphaKey(request: Request, env: Pick<Env, "ALPHA_KEY_SHA256"
  * key, is answered as if it were listed but not counted: a refusal there
  * would tell anyone which alphas exist.
  */
-async function admitted(env: Env, deps: Dependencies, version: string, keyed: boolean): Promise<{ answer: boolean; counted: boolean }> {
+async function admitted(
+  env: Env,
+  deps: Dependencies,
+  version: string,
+  keyed: boolean,
+): Promise<{ answer: boolean; counted: boolean }> {
   const listed = await plausible(env, deps, version);
   return { answer: listed || (!keyed && trackOf(version) === "alpha"), counted: listed };
 }
 
-async function count(env: Env, deps: Dependencies, event: string, platform: string, arch: string, version: string, os: string) {
+async function count(
+  env: Env,
+  deps: Dependencies,
+  event: string,
+  platform: string,
+  arch: string,
+  version: string,
+  os: string,
+) {
   await env.DB.prepare(`INSERT INTO update_counts (day, kind, platform, arch, version, os, count)
     VALUES (?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(day, kind, platform, arch, version, os) DO UPDATE SET count = count + 1`)
-    .bind(deps.now().toISOString().slice(0, 10), event, platform, arch, version, os).run();
+    .bind(deps.now().toISOString().slice(0, 10), event, platform, arch, version, os)
+    .run();
 }
 async function rate(request: Request, binding: RateLimit): Promise<boolean> {
   // A short-lived rate-limit bucket only; this key is never written to D1 or logged.
@@ -270,7 +431,8 @@ async function stableAnswer(env: Env, deps: Dependencies): Promise<Response> {
 /** Only documented GET routes answer. No echo of a request or exception in any response. */
 export async function updates(request: Request, env: Env, deps: Dependencies): Promise<Response> {
   const url = new URL(request.url);
-  if (url.origin !== deps.updatesOrigin || request.method !== "GET" || url.search) return response(404);
+  if (url.origin !== deps.updatesOrigin || request.method !== "GET" || url.search)
+    return response(404);
   // Before anything else answers, so no switch, limit or refusal says the track is there.
   const keyed = await holdsAlphaKey(request, env);
   if (url.pathname.startsWith("/v1/alpha/") && !keyed) return response(404);
@@ -283,8 +445,14 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
   try {
     if (trackCheck) {
       if (env.UPDATES_ENABLED !== "true") return response(503);
-      if (!await rate(request, env.UPDATE_LIMIT)) return response(429);
-      const [, track, platform, arch, version] = trackCheck as unknown as [string, Track, string, string, string];
+      if (!(await rate(request, env.UPDATE_LIMIT))) return response(429);
+      const [, track, platform, arch, version] = trackCheck as unknown as [
+        string,
+        Track,
+        string,
+        string,
+        string,
+      ];
       const os = request.headers.get("Proscenium-OS") ?? "";
       if (!OS.test(os)) return response(400);
       const admit = await admitted(env, deps, version, keyed);
@@ -295,26 +463,40 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
       const text = await trackText(env, deps, `${track}/latest.json`, MAX_MANIFEST);
       // Nothing published on the track yet: up to date.
       if (text === null) return response(204);
-      const data = parseTrackManifest(JSON.parse(text), track);
+      const data = sourced(() => parseTrackManifest(JSON.parse(text), track));
       if (!(await trackVersions(env, deps, track)).includes(data.version)) return response(502);
       return json(200, data);
     }
     if (trackDownload) {
       if (env.DOWNLOADS_ENABLED !== "true") return response(503);
-      if (!await rate(request, env.DOWNLOAD_LIMIT)) return response(429);
+      if (!(await rate(request, env.DOWNLOAD_LIMIT))) return response(429);
       const [, track, version, file] = trackDownload as unknown as [string, Track, string, string];
-      if (trackOf(version) !== track || !ownTrackFile(version, file) || !(await trackVersions(env, deps, track)).includes(version)) return response(404);
-      const object = await env.TRACKS.get(`${track}/${version}/${file}`);
+      if (
+        trackOf(version) !== track ||
+        !ownTrackFile(version, file) ||
+        !(await trackVersions(env, deps, track)).includes(version)
+      )
+        return response(404);
+      const object = await reach(() => env.TRACKS.get(`${track}/${version}/${file}`));
       if (!object) return response(404);
-      if (object.size > MAX_DOWNLOAD) { await object.body.cancel(); return response(502); }
+      if (object.size > MAX_DOWNLOAD) {
+        await object.body.cancel();
+        return response(502);
+      }
       await count(env, deps, "download", "", "", version, "");
-      return new Response(object.body, { status: 200, headers: {
-        "Content-Type": "application/octet-stream", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "Content-Length": String(object.size),
-      } });
+      return new Response(object.body, {
+        status: 200,
+        headers: {
+          "Content-Type": "application/octet-stream",
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+          "Content-Length": String(object.size),
+        },
+      });
     }
     if (check) {
       if (env.UPDATES_ENABLED !== "true") return response(503);
-      if (!await rate(request, env.UPDATE_LIMIT)) return response(429);
+      if (!(await rate(request, env.UPDATE_LIMIT))) return response(429);
       const [, platform, arch, version] = check;
       const os = request.headers.get("Proscenium-OS") ?? "";
       if (!OS.test(os)) return response(400);
@@ -324,28 +506,43 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
       return await stableAnswer(env, deps);
     }
     if (env.DOWNLOADS_ENABLED !== "true") return response(503);
-    if (!await rate(request, env.DOWNLOAD_LIMIT)) return response(429);
+    if (!(await rate(request, env.DOWNLOAD_LIMIT))) return response(429);
     const [, version, file] = download!;
     if (!released(env, version) || !ownFile(version, file)) return response(404);
     // Prove the release exists, and declares its canonical archive, before serving any file.
     await manifest(deps, version);
     const result = await upstream(`${GITHUB}${assetPath(version, file)}`, deps);
-    if (result.status !== 200 || !result.body) { await result.body?.cancel(); return response(502); }
+    if (result.status !== 200 || !result.body) {
+      await result.body?.cancel();
+      return response(502);
+    }
     const length = result.headers.get("Content-Length");
     if (length !== null && (!/^\d+$/.test(length) || Number(length) > MAX_DOWNLOAD)) {
-      await result.body.cancel(); return response(502);
+      await result.body.cancel();
+      return response(502);
     }
     let received = 0;
-    const stream = result.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-      transform(chunk, controller) {
-        received += chunk.byteLength;
-        if (received > MAX_DOWNLOAD) { controller.error(new Error("Download too large")); return; }
-        controller.enqueue(chunk);
-      },
-    }));
+    const stream = result.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          received += chunk.byteLength;
+          if (received > MAX_DOWNLOAD) {
+            controller.error(new Error("Download too large"));
+            return;
+          }
+          controller.enqueue(chunk);
+        },
+      }),
+    );
     await count(env, deps, "download", "", "", version, "");
-    const headers: Record<string, string> = { "Content-Type": "application/octet-stream", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
+    const headers: Record<string, string> = {
+      "Content-Type": "application/octet-stream",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    };
     if (length !== null) headers["Content-Length"] = length;
     return new Response(stream, { status: 200, headers });
-  } catch { return response(502); }
+  } catch (error) {
+    return response(error instanceof Unavailable ? 502 : 500);
+  }
 }

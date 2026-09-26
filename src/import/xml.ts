@@ -3,11 +3,7 @@
 
 import { DOMParser, type Element, type Node } from "@xmldom/xmldom";
 import { unzipSync } from "fflate";
-import {
-  assertDocumentSize,
-  assertDocumentText,
-  MAX_DOCUMENT_BYTES,
-} from "../storage/read-limit";
+import { assertDocumentSize, assertDocumentText, MAX_DOCUMENT_BYTES } from "../storage/read-limit";
 export type { Element, Node };
 
 export function xml(text: string): Element {
@@ -18,9 +14,7 @@ export function xml(text: string): Element {
     );
   const root = new DOMParser({
     onError: () => {
-      throw new Error(
-        "The document contains damaged XML. Export a fresh copy and try again.",
-      );
+      throw new Error("The document contains damaged XML. Export a fresh copy and try again.");
     },
   }).parseFromString(text, "application/xml").documentElement;
   if (!root) throw new Error("This document has no readable content.");
@@ -33,8 +27,7 @@ export function xml(text: string): Element {
       throw new Error(
         "This document is too complex to import. Try exporting it as RTF or Fountain.",
       );
-    for (let c = node.firstChild; c; c = c.nextSibling)
-      pending.push({ node: c, depth: depth + 1 });
+    for (let c = node.firstChild; c; c = c.nextSibling) pending.push({ node: c, depth: depth + 1 });
   }
   return root;
 }
@@ -55,8 +48,7 @@ export function descendants(node: Node, name: string): Element[] {
   walk(node);
   return result;
 }
-export const child = (node: Node, name: string) =>
-  children(node).find((c) => c.localName === name);
+export const child = (node: Node, name: string) => children(node).find((c) => c.localName === name);
 export function attr(node: Element | undefined, name: string): string {
   if (!node) return "";
   for (let i = 0; i < node.attributes.length; i++) {
@@ -80,14 +72,10 @@ export function zipParts(
   return unzipSync(bytes, {
     filter: (entry) => {
       if (++count > 4096 || entry.originalSize > MAX_DOCUMENT_BYTES)
-        throw new Error(
-          "This archive is too large or complex. Export a smaller document.",
-        );
+        throw new Error("This archive is too large or complex. Export a smaller document.");
       total += entry.originalSize;
       if (total > MAX_DOCUMENT_BYTES * 4)
-        throw new Error(
-          "This archive expands beyond the import limit. Export a smaller document.",
-        );
+        throw new Error("This archive expands beyond the import limit. Export a smaller document.");
       return wanted(entry.name);
     },
   });

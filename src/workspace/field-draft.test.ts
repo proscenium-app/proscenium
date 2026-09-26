@@ -12,7 +12,9 @@ describe("a field over a value the store owns", () => {
   });
 
   it("commits what was typed, and nothing that matches the store already", () => {
-    expect(draftToCommit(true, "Morning. They argue.", "Morning. They talk.")).toBe("Morning. They argue.");
+    expect(draftToCommit(true, "Morning. They argue.", "Morning. They talk.")).toBe(
+      "Morning. They argue.",
+    );
     expect(draftToCommit(true, "Morning. They talk.", "Morning. They talk.")).toBeNull();
   });
 });

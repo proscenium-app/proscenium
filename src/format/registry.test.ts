@@ -9,7 +9,15 @@ import { DEFAULT_FORMAT_ID, FormatRegistry } from "./registry";
 describe("FormatRegistry", () => {
   it("registers the published built-ins, dg-modern first (the default)", () => {
     const registry = FormatRegistry.withBuiltins();
-    expect(registry.list().map((f) => f.id)).toEqual(["dg-modern", "stage-us-modern", "stage-uk", "samuel-french", "dg-traditional", "dg-musical", "sketch-comedy"]);
+    expect(registry.list().map((f) => f.id)).toEqual([
+      "dg-modern",
+      "stage-us-modern",
+      "stage-uk",
+      "samuel-french",
+      "dg-traditional",
+      "dg-musical",
+      "sketch-comedy",
+    ]);
     expect(DEFAULT_FORMAT_ID).toBe("dg-modern");
     expect(registry.warnings).toEqual([]);
   });
@@ -46,7 +54,11 @@ describe("FormatRegistry", () => {
     expect(registry.list().map((f) => f.id)).toEqual([
       "dg-modern",
       "stage-us-modern",
-      "stage-uk", "samuel-french", "dg-traditional", "dg-musical", "sketch-comedy",
+      "stage-uk",
+      "samuel-french",
+      "dg-traditional",
+      "dg-musical",
+      "sketch-comedy",
       "my-format",
     ]);
   });

@@ -28,10 +28,7 @@ function visible(el: HTMLElement): boolean {
   // height, and inert chrome is not a stop either.
   const box = el.getBoundingClientRect();
   return (
-    box.width > 0 &&
-    box.height > 0 &&
-    !el.closest("[aria-hidden='true']") &&
-    !el.closest("[inert]")
+    box.width > 0 && box.height > 0 && !el.closest("[aria-hidden='true']") && !el.closest("[inert]")
   );
 }
 

@@ -52,8 +52,12 @@ const CIPHER = ["-aes-256-cbc", "-md", "sha512", "-pbkdf2", "-iter", "600000", "
 /** A line the maintainer types into a dialog that hides it; it reaches no other place. */
 function ask(prompt) {
   const script = `text returned of (display dialog ${JSON.stringify(prompt)} default answer "" with hidden answer with title "Proscenium key archive" buttons {"Cancel", "Continue"} default button "Continue")`;
-  const result = spawnSync("osascript", ["-e", script], { stdio: ["ignore", "pipe", "ignore"], encoding: "utf8" });
-  if (result.status !== 0) throw new Error("keys-archive: the dialog was cancelled — nothing was written");
+  const result = spawnSync("osascript", ["-e", script], {
+    stdio: ["ignore", "pipe", "ignore"],
+    encoding: "utf8",
+  });
+  if (result.status !== 0)
+    throw new Error("keys-archive: the dialog was cancelled — nothing was written");
   return result.stdout.replace(/\n$/, "");
 }
 
@@ -61,8 +65,11 @@ function passphrase() {
   const first = ask(
     "Paste the passphrase for the key archive.\n\nMake it in your password manager first, so it is kept somewhere other than this Mac.",
   );
-  if (first.length < 12) throw new Error("keys-archive: that passphrase is under 12 characters. Nothing was written.");
-  if (ask("Paste it once more, so a short paste cannot make an archive nobody can open.") !== first) {
+  if (first.length < 12)
+    throw new Error("keys-archive: that passphrase is under 12 characters. Nothing was written.");
+  if (
+    ask("Paste it once more, so a short paste cannot make an archive nobody can open.") !== first
+  ) {
     throw new Error("keys-archive: the two did not match. Nothing was written.");
   }
   return first;
@@ -75,12 +82,18 @@ function passphrase() {
  * worked on is named by `-in`, so the two never mix.
  */
 function crypt(mode, input, output, pass) {
-  const result = spawnSync("openssl", ["enc", mode, ...CIPHER, "-in", input, "-out", output, "-pass", "stdin"], {
-    input: `${pass}\n`,
-    stdio: ["pipe", "ignore", "pipe"],
-  });
+  const result = spawnSync(
+    "openssl",
+    ["enc", mode, ...CIPHER, "-in", input, "-out", output, "-pass", "stdin"],
+    {
+      input: `${pass}\n`,
+      stdio: ["pipe", "ignore", "pipe"],
+    },
+  );
   if (result.status !== 0) {
-    throw new Error(`keys-archive: openssl refused (${result.stderr?.toString().trim().split("\n")[0] ?? "no reason given"})`);
+    throw new Error(
+      `keys-archive: openssl refused (${result.stderr?.toString().trim().split("\n")[0] ?? "no reason given"})`,
+    );
   }
 }
 
@@ -131,19 +144,30 @@ function make() {
     ["the notarization Issuer ID", issuer],
     ["the notarization key", p8],
     ["the updater private key", updater],
-  ].filter(([, v]) => !v).map(([what]) => what);
-  if (missing.length) throw new Error(`keys-archive: this keychain has no ${missing.join(", no ")}`);
+  ]
+    .filter(([, v]) => !v)
+    .map(([what]) => what);
+  if (missing.length)
+    throw new Error(`keys-archive: this keychain has no ${missing.join(", no ")}`);
 
-  const pub = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8")).plugins?.updater?.pubkey ?? "";
+  const pub =
+    JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8")).plugins?.updater
+      ?.pubkey ?? "";
   const pass = passphrase();
 
   const dir = mkdtempSync(join(tmpdir(), "proscenium-archive-"));
-  const out = join(homedir(), "Desktop", `proscenium-keys-${new Date().toISOString().slice(0, 10)}.tar.enc`);
+  const out = join(
+    homedir(),
+    "Desktop",
+    `proscenium-keys-${new Date().toISOString().slice(0, 10)}.tar.enc`,
+  );
   try {
     const stage = join(dir, "proscenium-keys");
     mkdirSync(stage, { mode: 0o700 });
     writeFileSync(join(stage, `AuthKey_${keyId}.p8`), p8, { mode: 0o600 });
-    writeFileSync(join(stage, "notarization.txt"), `Key ID:    ${keyId}\nIssuer ID: ${issuer}\n`, { mode: 0o600 });
+    writeFileSync(join(stage, "notarization.txt"), `Key ID:    ${keyId}\nIssuer ID: ${issuer}\n`, {
+      mode: 0o600,
+    });
     writeFileSync(join(stage, "proscenium-updater.key"), updater, { mode: 0o600 });
     if (pub) writeFileSync(join(stage, "proscenium-updater.key.pub"), `${pub}\n`, { mode: 0o600 });
     writeFileSync(join(stage, "RESTORE.md"), RESTORE, { mode: 0o600 });
@@ -155,11 +179,21 @@ function make() {
     // An archive nobody has opened is a hope, not a backup.
     const back = join(dir, "roundtrip.tar");
     crypt("-d", out, back, pass);
-    const listed = execFileSync("tar", ["-tf", back], { encoding: "utf8" }).trim().split("\n").length;
-    const original = execFileSync("tar", ["-tf", tar], { encoding: "utf8" }).trim().split("\n").length;
-    if (listed !== original || createHash("sha256").update(readFileSync(back)).digest("hex") !== createHash("sha256").update(readFileSync(tar)).digest("hex")) {
+    const listed = execFileSync("tar", ["-tf", back], { encoding: "utf8" })
+      .trim()
+      .split("\n").length;
+    const original = execFileSync("tar", ["-tf", tar], { encoding: "utf8" })
+      .trim()
+      .split("\n").length;
+    if (
+      listed !== original ||
+      createHash("sha256").update(readFileSync(back)).digest("hex") !==
+        createHash("sha256").update(readFileSync(tar)).digest("hex")
+    ) {
       rmSync(out, { force: true });
-      throw new Error("keys-archive: the archive did not decrypt back to what went in. Nothing was kept.");
+      throw new Error(
+        "keys-archive: the archive did not decrypt back to what went in. Nothing was kept.",
+      );
     }
 
     const sha = createHash("sha256").update(readFileSync(out)).digest("hex");
@@ -179,7 +213,8 @@ function make() {
 }
 
 function verify(file) {
-  if (!file || !existsSync(file)) throw new Error("usage: node scripts/keys-archive.mjs --verify <archive>");
+  if (!file || !existsSync(file))
+    throw new Error("usage: node scripts/keys-archive.mjs --verify <archive>");
   const pass = ask("Paste the archive's passphrase, to check it still opens.");
   const dir = mkdtempSync(join(tmpdir(), "proscenium-verify-"));
   try {

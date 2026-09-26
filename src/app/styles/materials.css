@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Material (Markdown) editor -------------------------------------------- */
 /* A material is a page in the same folder as the script, so it gets the same
    furniture: lit paper on the desk, one sheet, the writer's own margins. It
@@ -121,8 +120,12 @@
   background: var(--sea-tint);
   color: var(--sea-text);
 }
-.material__kind--outline { background: var(--sea); }
-.material__kind--reference { background: var(--ash); }
+.material__kind--outline {
+  background: var(--sea);
+}
+.material__kind--reference {
+  background: var(--ash);
+}
 /* The header is chrome on the DESK, the darkest light surface, and the track
    darkens it further: the secondary label on it measured 3.98:1, on the tags
    and on the view control's unchosen half alike. Ink clears it in both
@@ -201,7 +204,8 @@
   border: 0.5px solid rgba(31, 41, 51, 0.17);
   border-radius: var(--r-paper);
   box-shadow: var(--sh-sheet);
-  padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom) var(--fmt-margin-left);
+  padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom)
+    var(--fmt-margin-left);
 }
 .material__page {
   line-height: 1.65;
@@ -288,15 +292,19 @@
 /* TipTap writes plain semantic HTML, so this is element-selector styling
    rather than the renderer's `.md__*` classes — same document scale, same
    measure as the Markdown renderer's `.md` below, one size up: that one is prose
-   the assistant is quoting at you, this one is the note itself. */
+   shown read-only from a file, this one is the note itself. */
 .prose {
   outline: none;
   font-size: var(--t-head);
   line-height: 1.65;
   color: var(--ink);
 }
-.prose > *:first-child { margin-top: 0; }
-.prose > *:last-child { margin-bottom: 0; }
+.prose > *:first-child {
+  margin-top: 0;
+}
+.prose > *:last-child {
+  margin-bottom: 0;
+}
 .prose p {
   margin: 0 0 1rem;
 }
@@ -316,8 +324,12 @@
   padding-bottom: 0.35rem;
   border-bottom: 0.5px solid var(--rule);
 }
-.prose h2 { font-size: var(--t-title); }
-.prose h3 { font-size: var(--t-head); }
+.prose h2 {
+  font-size: var(--t-title);
+}
+.prose h3 {
+  font-size: var(--t-head);
+}
 .prose h4 {
   font-size: var(--t-body);
   color: var(--ash);
@@ -402,9 +414,14 @@
   vertical-align: top;
   /* A cell is a mini-document; its paragraph must not add block spacing. */
 }
-.prose th { background: color-mix(in srgb, var(--ink) 5%, transparent); font-weight: 600; }
+.prose th {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  font-weight: 600;
+}
 .prose th > p,
-.prose td > p { margin: 0; }
+.prose td > p {
+  margin: 0;
+}
 /* The cell the caret is in, so tabbing through a table is followable. */
 .prose .selectedCell::after {
   content: "";
@@ -414,8 +431,9 @@
   pointer-events: none;
 }
 .prose th,
-.prose td { position: relative; }
+.prose td {
+  position: relative;
+}
 .prose ::selection {
   background: var(--accent-soft);
 }
-

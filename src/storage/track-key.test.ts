@@ -42,7 +42,12 @@ describe("alpha's key", () => {
   });
 
   it("goes into settings.json beside everything else, as the same file mode, with nothing left behind", () => {
-    const before = { lastVault: "/Users/writer/Plays", lastVaultBookmark: "Ym9va21hcms", updateTrack: "alpha", unknownToThisBuild: { a: 1 } };
+    const before = {
+      lastVault: "/Users/writer/Plays",
+      lastVaultBookmark: "Ym9va21hcms",
+      updateTrack: "alpha",
+      unknownToThisBuild: { a: 1 },
+    };
     const { dir, path } = settingsFile(JSON.stringify(before));
     expect(holdsKey(path)).toBe(false);
     const key = mintKey();
@@ -65,7 +70,11 @@ describe("alpha's key", () => {
     for (const contents of [`{"updateTrackKey":"${secret}"`, "[]", "null"]) {
       const { path } = settingsFile(contents);
       let message = "";
-      try { writeKey(path, mintKey()); } catch (error) { message = String(error); }
+      try {
+        writeKey(path, mintKey());
+      } catch (error) {
+        message = String(error);
+      }
       expect(message).toContain("Nothing was written");
       expect(message).not.toContain(secret);
       expect(readFileSync(path, "utf8")).toBe(contents);

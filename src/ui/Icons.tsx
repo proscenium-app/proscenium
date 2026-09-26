@@ -25,14 +25,7 @@ const S = {
 
 function Icon({ size = 16, children }: { size?: number; children: ReactNode }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 16 16"
-      aria-hidden="true"
-      focusable="false"
-      {...S}
-    >
+    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" focusable="false" {...S}>
       {children}
     </svg>
   );
@@ -337,7 +330,9 @@ const prefersDark = () => document.documentElement.dataset.theme === "dark";
  * under a pixel tall there.
  */
 export const AppMarkIcon = ({ size = 52 }: { size?: number }) => {
-  const c = useSyncExternalStore(subscribeScheme, prefersDark, () => false) ? APP_MARK.dark : APP_MARK.light;
+  const c = useSyncExternalStore(subscribeScheme, prefersDark, () => false)
+    ? APP_MARK.dark
+    : APP_MARK.light;
   const { tile, strip } = APP_MARK;
   return (
     <svg
@@ -347,7 +342,14 @@ export const AppMarkIcon = ({ size = 52 }: { size?: number }) => {
       aria-hidden="true"
       focusable="false"
     >
-      <rect x={tile.x} y={tile.y} width={tile.size} height={tile.size} rx={tile.radius} fill={c.tile} />
+      <rect
+        x={tile.x}
+        y={tile.y}
+        width={tile.size}
+        height={tile.size}
+        rx={tile.radius}
+        fill={c.tile}
+      />
       <path fillRule="evenodd" d={APP_MARK.arch} fill={c.arch} />
       <path d={APP_MARK.stage} fill={c.stage} />
       {size >= 32 && (

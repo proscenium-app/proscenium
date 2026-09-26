@@ -14,13 +14,15 @@ const PAIR_OR_UNWRITABLE =
 
 /** Escaped for element text and for a double-quoted attribute alike. */
 export function esc(value: string): string {
-  return value
-    // A matched surrogate pair is two characters and stays; anything else it matched goes.
-    .replace(PAIR_OR_UNWRITABLE, (found) => (found.length === 2 ? found : ""))
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  return (
+    value
+      // A matched surrogate pair is two characters and stays; anything else it matched goes.
+      .replace(PAIR_OR_UNWRITABLE, (found) => (found.length === 2 ? found : ""))
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+  );
 }
 
 export const XML_DECLARATION = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';

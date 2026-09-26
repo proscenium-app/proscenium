@@ -18,14 +18,25 @@ pub fn allowed(url: &Url) -> bool {
 /// serves alpha itself, and a key must not be carried to wherever a Location
 /// points.
 pub fn redirects_for(keyed: bool) -> Policy {
-    if keyed { Policy::none() } else { redirects() }
+    if keyed {
+        Policy::none()
+    } else {
+        redirects()
+    }
 }
 
 pub fn redirects() -> Policy {
     Policy::custom(|attempt| {
-        if attempt.previous().len() >= 5 || !crate::telemetry::allowlist::update_redirect_allowed(attempt.previous(), attempt.url()) {
+        if attempt.previous().len() >= 5
+            || !crate::telemetry::allowlist::update_redirect_allowed(
+                attempt.previous(),
+                attempt.url(),
+            )
+        {
             attempt.error("the update redirected outside its permitted hosts")
-        } else { attempt.follow() }
+        } else {
+            attempt.follow()
+        }
     })
 }
 
@@ -33,28 +44,56 @@ fn refused(message: &str) -> Error {
     std::io::Error::new(std::io::ErrorKind::InvalidData, message).into()
 }
 
-pub async fn archive(update: &Update, key: &str, progress: impl FnMut(usize, Option<u64>)) -> Result<Vec<u8>, Error> {
-    if !allowed(&update.download_url) { return Err(refused("the update archive address is not permitted")); }
+pub async fn archive(
+    update: &Update,
+    key: &str,
+    progress: impl FnMut(usize, Option<u64>),
+) -> Result<Vec<u8>, Error> {
+    if !allowed(&update.download_url) {
+        return Err(refused("the update archive address is not permitted"));
+    }
     let keyed = update.headers.contains_key(super::TRACK_KEY_HEADER);
-    let response = Client::builder().redirect(redirects_for(keyed)).timeout(super::DOWNLOAD_TIMEOUT).build()?
-        .get(update.download_url.clone()).headers(update.headers.clone()).send().await?.error_for_status()?;
+    let response = Client::builder()
+        .redirect(redirects_for(keyed))
+        .timeout(super::DOWNLOAD_TIMEOUT)
+        .build()?
+        .get(update.download_url.clone())
+        .headers(update.headers.clone())
+        .send()
+        .await?
+        .error_for_status()?;
     // A redirect a keyed request would not follow is not an archive.
-    if !response.status().is_success() { return Err(refused("the update archive did not answer")); }
+    if !response.status().is_success() {
+        return Err(refused("the update archive did not answer"));
+    }
     verified_body(response, &update.signature, key, progress).await
 }
 
-pub(super) async fn verified_body(response: Response, signature: &str, key: &str, progress: impl FnMut(usize, Option<u64>)) -> Result<Vec<u8>, Error> {
+pub(super) async fn verified_body(
+    response: Response,
+    signature: &str,
+    key: &str,
+    progress: impl FnMut(usize, Option<u64>),
+) -> Result<Vec<u8>, Error> {
     let bytes = body(response, MAX_ARCHIVE, progress).await?;
     verify(&bytes, signature, key)?;
     Ok(bytes)
 }
 
-async fn body(mut response: Response, maximum: usize, mut progress: impl FnMut(usize, Option<u64>)) -> Result<Vec<u8>, Error> {
+async fn body(
+    mut response: Response,
+    maximum: usize,
+    mut progress: impl FnMut(usize, Option<u64>),
+) -> Result<Vec<u8>, Error> {
     let total = response.content_length();
-    if total.is_some_and(|n| n > maximum as u64) { return Err(refused("the update archive exceeds its size limit")); }
+    if total.is_some_and(|n| n > maximum as u64) {
+        return Err(refused("the update archive exceeds its size limit"));
+    }
     let mut bytes = Vec::new();
     while let Some(chunk) = response.chunk().await? {
-        if chunk.len() > maximum.saturating_sub(bytes.len()) { return Err(refused("the update archive exceeds its size limit")); }
+        if chunk.len() > maximum.saturating_sub(bytes.len()) {
+            return Err(refused("the update archive exceeds its size limit"));
+        }
         progress(chunk.len(), total);
         bytes.extend_from_slice(&chunk);
     }
@@ -63,7 +102,8 @@ async fn body(mut response: Response, maximum: usize, mut progress: impl FnMut(u
 
 fn verify(bytes: &[u8], signature: &str, key: &str) -> Result<(), Error> {
     let decode = |value: &str| -> Result<String, Error> {
-        String::from_utf8(STANDARD.decode(value)?).map_err(|_| Error::SignatureUtf8("invalid signing data".into()))
+        String::from_utf8(STANDARD.decode(value)?)
+            .map_err(|_| Error::SignatureUtf8("invalid signing data".into()))
     };
     let key = minisign_verify::PublicKey::decode(&decode(key)?)?;
     let signature = minisign_verify::Signature::decode(&decode(signature)?)?;
@@ -77,7 +117,7 @@ mod tests {
     use std::io::{Read, Write};
 
     #[test]
-    fn a1_10_a4_08_transport_stops_at_the_limit_even_without_content_length() {
+    fn transport_stops_at_the_limit_even_without_content_length() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         for response in [
             "HTTP/1.1 200 OK\r\nContent-Length: 100000\r\nConnection: close\r\n\r\n",
@@ -101,7 +141,7 @@ mod tests {
     }
 
     #[test]
-    fn a1_10_a4_08_unapproved_redirect_never_reaches_its_socket() {
+    fn an_unapproved_redirect_never_reaches_its_socket() {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
@@ -112,11 +152,20 @@ mod tests {
             drop(stream);
             std::thread::sleep(std::time::Duration::from_millis(100));
             listener.set_nonblocking(true).unwrap();
-            assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+            assert_eq!(
+                listener.accept().unwrap_err().kind(),
+                std::io::ErrorKind::WouldBlock
+            );
         });
         tauri::async_runtime::block_on(async {
-            assert!(Client::builder().redirect(redirects()).build().unwrap()
-                .get(format!("http://{address}/")).send().await.is_err());
+            assert!(Client::builder()
+                .redirect(redirects())
+                .build()
+                .unwrap()
+                .get(format!("http://{address}/"))
+                .send()
+                .await
+                .is_err());
         });
         server.join().unwrap();
         assert!(verify(b"untrusted", "invalid", "invalid").is_err());
@@ -137,11 +186,21 @@ mod tests {
             drop(stream);
             std::thread::sleep(std::time::Duration::from_millis(100));
             listener.set_nonblocking(true).unwrap();
-            assert_eq!(listener.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+            assert_eq!(
+                listener.accept().unwrap_err().kind(),
+                std::io::ErrorKind::WouldBlock
+            );
         });
         tauri::async_runtime::block_on(async {
-            let response = Client::builder().redirect(redirects_for(true)).build().unwrap()
-                .get(format!("http://{address}/")).header(super::super::TRACK_KEY_HEADER, "k".repeat(43)).send().await.unwrap();
+            let response = Client::builder()
+                .redirect(redirects_for(true))
+                .build()
+                .unwrap()
+                .get(format!("http://{address}/"))
+                .header(super::super::TRACK_KEY_HEADER, "k".repeat(43))
+                .send()
+                .await
+                .unwrap();
             assert_eq!(response.status(), 302);
         });
         server.join().unwrap();

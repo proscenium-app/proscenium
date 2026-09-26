@@ -12,6 +12,19 @@ that version's section.
 
 ## [Unreleased]
 
+### Fixed
+
+- File › New Play… and ⌘N now name a new play, from the Plays screen or from
+  inside a play. The New Play button's menu said "Blank Play ⌘N" while ⌘N
+  made nothing.
+- The binder's row menu says F2 beside Rename, the key that renames a row;
+  Return opens it. The menu said Return.
+- The tutorial's last export step names the dialog's own buttons, Export PDF…
+  and Print…. It said "Save PDF".
+- The sheet for the title page, the characters page and the opening notes has
+  one name, Edit Opening Pages…, in the menu bar as in the script-name menu.
+  The menu bar said Edit Title Page….
+
 ## [1.0.0] - 2026-09-26
 
 ### Added

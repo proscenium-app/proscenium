@@ -4,10 +4,18 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { ERROR_CODES, workspaceErrorCode } from "../diagnostics/error-codes";
-import { saveProblem, saveRefusal, VaultWriteError, type SaveRefusal, type SaveSubject } from "./save-failure";
+import {
+  saveProblem,
+  saveRefusal,
+  VaultWriteError,
+  type SaveRefusal,
+  type SaveSubject,
+} from "./save-failure";
 
 it("docs/app/keeping-work/storage-and-file-format.md#STOR-84: an unfinished exchange asks for recovery instead of promising automatic retries", () => {
-  const refusal = saveRefusal(new VaultWriteError("unfinished-save: the displaced copy is still being kept"));
+  const refusal = saveRefusal(
+    new VaultWriteError("unfinished-save: the displaced copy is still being kept"),
+  );
   expect(refusal).toBe("unfinished-save");
   const problem = saveProblem(refusal, { kind: "script", name: "Hamlet", folder: "Plays" });
   expect(problem.detail).toContain("Reopen the play");
@@ -33,10 +41,12 @@ const outline: SaveSubject = { kind: "outline", name: "Outline", folder: "Hamlet
 
 describe("why a save was refused", () => {
   it("reads the lock the vault saw in front of the OS's words", () => {
-    // What the installed app showed on 2026-09-13, and what the vault says now.
+    // What the app once showed, and what the vault says now.
     expect(saveRefusal("Operation not permitted (os error 1)")).toBe("not-allowed");
     expect(saveRefusal("locked: Operation not permitted (os error 1)")).toBe("locked");
-    expect(saveRefusal("folder-locked: Operation not permitted (os error 1)")).toBe("folder-locked");
+    expect(saveRefusal("folder-locked: Operation not permitted (os error 1)")).toBe(
+      "folder-locked",
+    );
     expect(saveRefusal("folder-gone: entity not found")).toBe("folder-gone");
   });
 
@@ -80,7 +90,9 @@ describe("why a save was refused", () => {
     const mock = new Error("No space left on device (os error 28)");
     expect(saveRefusal(mock)).toBe("disk-full");
     expect(saveRefusal(new VaultWriteError(mock))).toBe("disk-full");
-    expect(saveRefusal(new VaultWriteError("locked: Operation not permitted (os error 1)"))).toBe("locked");
+    expect(saveRefusal(new VaultWriteError("locked: Operation not permitted (os error 1)"))).toBe(
+      "locked",
+    );
   });
 
   it("leaves String(e) where it has not been replaced exactly as it was", () => {
@@ -97,12 +109,14 @@ describe("what the writer reads", () => {
   it("says a locked script plainly, that the words are safe, and how it will save", () => {
     expect(saveProblem("locked", hamlet)).toEqual({
       title: "“Hamlet” is locked in Finder.",
-      detail: "Your words are still here, and a copy is being kept. It will save once you unlock it in Finder's Get Info window.",
+      detail:
+        "Your words are still here, and a copy is being kept. It will save once you unlock it in Finder's Get Info window.",
       code: "E-SAVE-LOCKED",
     });
     expect(saveProblem("disk-full", hamlet)).toEqual({
       title: "The disk is full.",
-      detail: "Your words are still here, in this window. “Hamlet” will save once there is room on the disk.",
+      detail:
+        "Your words are still here, in this window. “Hamlet” will save once there is room on the disk.",
       code: "E-SAVE-DISK-FULL",
     });
   });
@@ -143,7 +157,11 @@ describe("what the writer reads", () => {
         expect(detail.startsWith("Your words are still here")).toBe(true);
         expect(detail.includes("copy is being kept")).toBe(refusal !== "disk-full");
       }
-      expect(saveProblem(refusal, hamlet, "change").detail.startsWith("Nothing in “Hamlet” was changed.")).toBe(true);
+      expect(
+        saveProblem(refusal, hamlet, "change").detail.startsWith(
+          "Nothing in “Hamlet” was changed.",
+        ),
+      ).toBe(true);
     }
   });
 
@@ -160,7 +178,8 @@ describe("what the writer reads", () => {
     }
     expect(saveProblem("disk-full", mara, "quitting")).toEqual({
       title: "The disk is full.",
-      detail: "If Proscenium quits now, what was typed is lost. “Mara” will save once there is room on the disk.",
+      detail:
+        "If Proscenium quits now, what was typed is lost. “Mara” will save once there is room on the disk.",
       code: "E-SAVE-DISK-FULL",
     });
   });
@@ -172,7 +191,10 @@ describe("what the writer reads", () => {
       for (const subject of [hamlet, mara, outline]) {
         for (const what of ["saving", "change", "quitting"] as const) {
           const { title, detail } = saveProblem(refusal, subject, what);
-          expect([refusal, `${title} ${detail}`.match(internal)?.[0] ?? null]).toEqual([refusal, null]);
+          expect([refusal, `${title} ${detail}`.match(internal)?.[0] ?? null]).toEqual([
+            refusal,
+            null,
+          ]);
         }
       }
     }

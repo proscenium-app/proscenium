@@ -33,7 +33,11 @@ pub fn desk(appearance: &str, system_dark: bool) -> Color {
         "light" => false,
         _ => system_dark,
     };
-    if dark { DESK_DARK } else { DESK_LIGHT }
+    if dark {
+        DESK_DARK
+    } else {
+        DESK_LIGHT
+    }
 }
 
 /// WebKit paints its own background again: the page has painted its first
@@ -48,7 +52,10 @@ pub fn draw_webkit_background(webview: &tauri::Webview) {
         // key webview_policy.rs set on its configuration.
         unsafe {
             let view = &*(platform.inner() as *const NSObject);
-            view.setValue_forKey(Some(&NSNumber::numberWithBool(true)), &NSString::from_str("drawsBackground"));
+            view.setValue_forKey(
+                Some(&NSNumber::numberWithBool(true)),
+                &NSString::from_str("drawsBackground"),
+            );
         }
     });
 }
@@ -60,7 +67,9 @@ pub fn system_is_dark() -> bool {
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSApplication};
     use objc2_foundation::NSArray;
-    let Some(mtm) = MainThreadMarker::new() else { return false };
+    let Some(mtm) = MainThreadMarker::new() else {
+        return false;
+    };
     let appearance = NSApplication::sharedApplication(mtm).effectiveAppearance();
     // SAFETY: AppKit's appearance-name statics, read on the main thread.
     let (aqua, dark) = unsafe { (NSAppearanceNameAqua, NSAppearanceNameDarkAqua) };
@@ -79,14 +88,21 @@ mod tests {
         let at = css.find(from).expect("tokens.css has moved on") + from.len();
         let rest = &css[at..];
         let value = &rest[rest.find("--desk:").expect("no --desk") + "--desk:".len()..];
-        let hex = value.trim_start().strip_prefix('#').expect("--desk is a hex colour");
+        let hex = value
+            .trim_start()
+            .strip_prefix('#')
+            .expect("--desk is a hex colour");
         let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).expect("hex");
         Color(byte(0), byte(2), byte(4), 0xff)
     }
 
     #[test]
     fn the_window_is_the_desk_the_page_will_draw() {
-        assert_eq!(desk_in_tokens(""), DESK_LIGHT, "light --desk in tokens.css changed; change DESK_LIGHT with it");
+        assert_eq!(
+            desk_in_tokens(""),
+            DESK_LIGHT,
+            "light --desk in tokens.css changed; change DESK_LIGHT with it"
+        );
         assert_eq!(
             desk_in_tokens(":root[data-theme=\"dark\"] {"),
             DESK_DARK,

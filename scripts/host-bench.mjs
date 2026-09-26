@@ -9,8 +9,8 @@
  * it before their heavy part. Anywhere that names no module, nothing waits.
  *
  * Why: a native self-test's accessibility-tree reads share the host's cores.
- * On 2026-09-26, smoke loops run by hand beside a CI self-test stretched one
- * read past its budget, and five of eight runs failed on passing code.
+ * Smoke loops run by hand beside a CI self-test once stretched one read past
+ * its budget, and five of eight runs failed on passing code.
  */
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

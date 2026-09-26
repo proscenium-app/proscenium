@@ -76,6 +76,8 @@ Every change keeps these green:
 ```sh
 bun test ./src                                 # unit tests
 bun run typecheck
+bun run lint                                   # Biome's rules, accessibility included
+bun run format:check                           # Biome's and rustfmt's formatting (bun run format writes it)
 bun run check:layout                           # no page geometry in code
 bun run check:design                           # chrome on the design scales
 bun run check:spdx                             # every source file licensed
@@ -94,6 +96,13 @@ cargo test --manifest-path src-tauri/Cargo.toml
 
 - **Every source file starts with its SPDX header.** Copy the two lines from
   any neighbouring file.
+- **Formatting is the formatters'.** `bun run format` writes Biome's formatting
+  for TypeScript, scripts, stylesheets and the Worker, and rustfmt's for Rust,
+  and `bun run format:check` is a gate, so a pull request that changes
+  formatting by hand fails it. `bun run lint` runs Biome's recommended rules; the ones the
+  tree did not meet when the gate went in are warnings until each is cleared,
+  a rule at a time (`biome.jsonc` says which), so fixing one is welcome as its
+  own pull request.
 - **Page layout lives in `formats/`, never in code** ([formats/README.md](formats/README.md)).
 - **Chrome stays on the design scales**, and the accessibility contract is part
   of the design ([DESIGN.md](DESIGN.md)).

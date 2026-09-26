@@ -50,8 +50,10 @@ if (!app || !existsSync(join(app, "Contents/Info.plist"))) {
   process.exit(1);
 }
 
-const run = (cmd, argv) => execFileSync(cmd, argv, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-const plist = (key) => run("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, join(app, "Contents/Info.plist")]).trim();
+const run = (cmd, argv) =>
+  execFileSync(cmd, argv, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+const plist = (key) =>
+  run("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, join(app, "Contents/Info.plist")]).trim();
 
 const tauri = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
 const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
@@ -65,10 +67,12 @@ const passed = [];
 const archs = run("lipo", ["-archs", exe]).trim().split(/\s+/);
 if (UNIVERSAL) {
   const missing = ["x86_64", "arm64"].filter((a) => !archs.includes(a));
-  if (missing.length) failures.push(`lipo -archs says "${archs.join(" ")}" — missing ${missing.join(" and ")}`);
+  if (missing.length)
+    failures.push(`lipo -archs says "${archs.join(" ")}" — missing ${missing.join(" and ")}`);
   else passed.push(`universal (${archs.join(" + ")})`);
 } else if (ARM64) {
-  if (archs.join(" ") !== "arm64") failures.push(`lipo -archs says "${archs.join(" ")}" — expected arm64 alone`);
+  if (archs.join(" ") !== "arm64")
+    failures.push(`lipo -archs says "${archs.join(" ")}" — expected arm64 alone`);
   else passed.push("arm64 alone");
 } else {
   passed.push(archs.join(" + "));
@@ -104,29 +108,37 @@ for (const dep of others) {
   const short = dep.slice(app.length + 1);
   if (UNIVERSAL) {
     const missing = ["x86_64", "arm64"].filter((a) => !depArchs.includes(a));
-    if (missing.length) failures.push(`${short} says "${depArchs.join(" ")}" — missing ${missing.join(" and ")}`);
+    if (missing.length)
+      failures.push(`${short} says "${depArchs.join(" ")}" — missing ${missing.join(" and ")}`);
   }
-  if (ARM64 && !depArchs.includes("arm64")) failures.push(`${short} says "${depArchs.join(" ")}" — missing arm64`);
+  if (ARM64 && !depArchs.includes("arm64"))
+    failures.push(`${short} says "${depArchs.join(" ")}" — missing arm64`);
 }
 if (others.length) passed.push(`${others.length} other Mach-O file(s) checked`);
 
 // 2. The floor, as Finder reads it and as the loader reads it.
 const lsmin = plist("LSMinimumSystemVersion");
-if (lsmin !== floor) failures.push(`Info.plist LSMinimumSystemVersion is ${lsmin}, the floor is ${floor}`);
+if (lsmin !== floor)
+  failures.push(`Info.plist LSMinimumSystemVersion is ${lsmin}, the floor is ${floor}`);
 for (const arch of archs) {
   const build = run("vtool", ["-arch", arch, "-show-build", exe]);
   const minos = build.match(/minos\s+(\S+)/)?.[1] ?? build.match(/version\s+(\d+\.\d+)/)?.[1];
   if (minos !== floor) {
-    failures.push(`${arch} slice says minos ${minos ?? "(none)"}, the floor is ${floor} — MACOSX_DEPLOYMENT_TARGET was not applied`);
+    failures.push(
+      `${arch} slice says minos ${minos ?? "(none)"}, the floor is ${floor} — MACOSX_DEPLOYMENT_TARGET was not applied`,
+    );
   }
 }
-if (!failures.some((f) => f.includes("minos") || f.includes("LSMinimum"))) passed.push(`macOS ${floor} floor`);
+if (!failures.some((f) => f.includes("minos") || f.includes("LSMinimum")))
+  passed.push(`macOS ${floor} floor`);
 
 // 3. One version.
 const shortVersion = plist("CFBundleShortVersionString");
 const expected = EXPECTED_VERSION ?? pkg.version;
 if (shortVersion !== expected) {
-  failures.push(`CFBundleShortVersionString is ${shortVersion}, ${EXPECTED_VERSION ? "expected" : "package.json is"} ${expected}`);
+  failures.push(
+    `CFBundleShortVersionString is ${shortVersion}, ${EXPECTED_VERSION ? "expected" : "package.json is"} ${expected}`,
+  );
 } else {
   passed.push(`version ${shortVersion}`);
 }
@@ -157,10 +169,14 @@ if (RELEASE) {
   // child-process buffer.)
   const bytes = readFileSync(exe).toString("latin1");
   const hits = [...bytes.matchAll(/[\x20-\x7e]{0,40}selftest[\x20-\x7e]{0,40}/gi)].map((m) => m[0]);
-  if (hits.length) failures.push(`the binary contains self-test code: ${hits.slice(0, 3).join(" · ")}`);
+  if (hits.length)
+    failures.push(`the binary contains self-test code: ${hits.slice(0, 3).join(" · ")}`);
   const assets = join(ROOT, "dist/assets");
   const leaked = existsSync(assets)
-    ? readdirSync(assets).filter((f) => /\.(js|css|html)$/.test(f) && /selftest/i.test(readFileSync(join(assets, f), "utf8")))
+    ? readdirSync(assets).filter(
+        (f) =>
+          /\.(js|css|html)$/.test(f) && /selftest/i.test(readFileSync(join(assets, f), "utf8")),
+      )
     : [];
   if (leaked.length) failures.push(`dist/ carries self-test code: ${leaked.join(", ")}`);
   if (!hits.length && !leaked.length) passed.push("no self-test code");

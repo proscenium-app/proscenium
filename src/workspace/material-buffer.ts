@@ -50,7 +50,11 @@ export interface BufferLease<T> {
  * landed — each built on the one before, back to what the disk holds.
  * `failed` maps a save's text to the version it was built on.
  */
-export function buildsOn(base: string, onDisk: string, failed: ReadonlyMap<string, string>): boolean {
+export function buildsOn(
+  base: string,
+  onDisk: string,
+  failed: ReadonlyMap<string, string>,
+): boolean {
   return builtOn(base, onDisk, failed) === onDisk;
 }
 

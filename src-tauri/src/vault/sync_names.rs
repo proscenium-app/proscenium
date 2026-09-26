@@ -38,7 +38,9 @@ fn is_syncthing_conflict(name: &str) -> bool {
         && b[8] == b'-'
         && digits(9..15)
         && b[15] == b'-'
-        && b[16..23].iter().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+        && b[16..23]
+            .iter()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
         && b[23] == b'.'
 }
 
@@ -115,7 +117,9 @@ mod tests {
         assert!(is_provider_artifact("~syncthing~script.fountain.tmp"));
         assert!(!is_conflict_copy("script.fountain"));
         // A near-miss must not be swallowed: it is a file the writer may have made.
-        assert!(!is_conflict_copy("script.sync-conflict-2026-06-18.fountain"));
+        assert!(!is_conflict_copy(
+            "script.sync-conflict-2026-06-18.fountain"
+        ));
     }
 
     #[test]
@@ -123,7 +127,9 @@ mod tests {
         assert!(is_conflict_copy(
             "The Weight of Water (Robin's conflicted copy 2026-07-18).fountain"
         ));
-        assert!(!is_conflict_copy("The Weight of Water (draft two).fountain"));
+        assert!(!is_conflict_copy(
+            "The Weight of Water (draft two).fountain"
+        ));
         // A localized form is deliberately an ordinary file.
         assert!(!is_conflict_copy(
             "The Weight of Water (copie en conflit 2026-07-18).fountain"

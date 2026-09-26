@@ -99,7 +99,9 @@ const USER_FORMATS_KEY = "proscenium:dev:formats";
 
 /** A bare, visible `.json` name — the rule formats.rs applies. */
 function isFormatFileName(name: string): boolean {
-  return name.endsWith(".json") && name.length > 5 && !name.startsWith(".") && !/[/\\\0]/.test(name);
+  return (
+    name.endsWith(".json") && name.length > 5 && !name.startsWith(".") && !/[/\\\0]/.test(name)
+  );
 }
 
 function readUserFormats(): Record<string, string> {
@@ -177,10 +179,7 @@ const TUTORIAL_PROGRESS = "proscenium:dev:tutorial-progress";
  */
 const appData = new Map<string, string>();
 /** Version rings, keyed `<playId>/<scriptId>` — newest first. */
-const rings = new Map<
-  string,
-  { name: string; ts: string; reason: string; content: string }[]
->();
+const rings = new Map<string, { name: string; ts: string; reason: string; content: string }[]>();
 const RING_MAX = 300;
 const PINNED = new Set(["collision", "pre-keep", "pre-reload-at-banner", "recovery"]);
 
@@ -207,7 +206,10 @@ const QUIT_NOTE_KEY = "proscenium:dev:kept-at-quit:";
  * smoke asks with `window.__prosceniumQuit()` and reads the answer.
  */
 const quitListeners = new Set<Box<number>>();
-const quitAnswers = new Map<number, { heard: boolean; go: boolean | null; answered: (go: boolean) => void }>();
+const quitAnswers = new Map<
+  number,
+  { heard: boolean; go: boolean | null; answered: (go: boolean) => void }
+>();
 let quitAsked = 0;
 let quitGone = false;
 
@@ -245,14 +247,19 @@ function hashOf(s: string): string {
     "sha256:" +
     s.length +
     "-" +
-    (s.split("").reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0)).toString(16)
+    s
+      .split("")
+      .reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 0)
+      .toString(16)
   );
 }
 
 function existsSync(key: string): boolean {
   if (filesFor(key).has(key) || dirs.has(key)) return true;
   const inside = absoluteOf(key) + "/";
-  return [...store.keys(), ...OUTSIDE.keys(), ...dirs].some((k) => absoluteOf(k).startsWith(inside));
+  return [...store.keys(), ...OUTSIDE.keys(), ...dirs].some((k) =>
+    absoluteOf(k).startsWith(inside),
+  );
 }
 
 /**
@@ -298,7 +305,7 @@ const OUTSIDE = new Map<string, string>([
       '<Paragraph Type="Scene Heading"><Text>INT. ELSINORE - NIGHT</Text></Paragraph>\n' +
       '<Paragraph Type="Action"><Text>A platform before the castle. Cold.</Text></Paragraph>\n' +
       '<Paragraph Type="Character"><Text>BARNARDO</Text></Paragraph>\n' +
-      "<Paragraph Type=\"Dialogue\"><Text>Who's there?</Text></Paragraph>\n" +
+      '<Paragraph Type="Dialogue"><Text>Who\'s there?</Text></Paragraph>\n' +
       "</Content>\n<TitlePage><Content><Paragraph><Text>Hamlet</Text></Paragraph></Content></TitlePage>\n" +
       "</FinalDraft>\n",
   ],
@@ -312,12 +319,22 @@ const OUTSIDE = new Map<string, string>([
  */
 const OUTSIDE_BYTES = new Map<string, Uint8Array>();
 try {
-  for (const [path, content] of Object.entries(JSON.parse(localStorage.getItem(TUTORIAL_FILES) ?? "{}"))) {
-    if (path.startsWith(TUTORIAL_BASE + "/") && typeof content === "string") OUTSIDE.set(path, content);
+  for (const [path, content] of Object.entries(
+    JSON.parse(localStorage.getItem(TUTORIAL_FILES) ?? "{}"),
+  )) {
+    if (path.startsWith(TUTORIAL_BASE + "/") && typeof content === "string")
+      OUTSIDE.set(path, content);
   }
-} catch { /* Corrupt fixture storage does not affect the sample vault. */ }
+} catch {
+  /* Corrupt fixture storage does not affect the sample vault. */
+}
 function persistPractice() {
-  localStorage.setItem(TUTORIAL_FILES, JSON.stringify(Object.fromEntries([...OUTSIDE].filter(([p]) => p.startsWith(TUTORIAL_BASE + "/")))));
+  localStorage.setItem(
+    TUTORIAL_FILES,
+    JSON.stringify(
+      Object.fromEntries([...OUTSIDE].filter(([p]) => p.startsWith(TUTORIAL_BASE + "/"))),
+    ),
+  );
 }
 /**
  * Gates: vault calls held back or failed on purpose, until opened. A held read
@@ -365,9 +382,16 @@ function mockFacts(path: string): OpenedFacts {
   const has = (abs: string) =>
     inVault
       ? store.has(abs.slice(ROOT.length + 1)) || existsSync(abs.slice(ROOT.length + 1))
-      : OUTSIDE.has(abs) || OUTSIDE_BYTES.has(abs) || dirs.has(abs) || [...OUTSIDE.keys(), ...OUTSIDE_BYTES.keys(), ...dirs].some((k) => k.startsWith(abs + "/"));
+      : OUTSIDE.has(abs) ||
+        OUTSIDE_BYTES.has(abs) ||
+        dirs.has(abs) ||
+        [...OUTSIDE.keys(), ...OUTSIDE_BYTES.keys(), ...dirs].some((k) => k.startsWith(abs + "/"));
   const exists = inVault ? path === ROOT || has(path) : has(path);
-  const isDir = exists && !(inVault ? store.has(path.slice(ROOT.length + 1)) : OUTSIDE.has(path) || OUTSIDE_BYTES.has(path));
+  const isDir =
+    exists &&
+    !(inVault
+      ? store.has(path.slice(ROOT.length + 1))
+      : OUTSIDE.has(path) || OUTSIDE_BYTES.has(path));
   const keys = inVault ? [...store.keys()].map((k) => `${ROOT}/${k}`) : [...OUTSIDE.keys()];
   const playDirs: OpenedFacts["playDirs"] = [];
   let dir: string | null = isDir ? path : path.slice(0, path.lastIndexOf("/"));
@@ -433,65 +457,132 @@ export const devVault = {
     const path = tutorialSessionRoot(id);
     if (create) {
       if (existsSync(path)) throw new Error("This practice already exists");
-      dirs.add(path); dirs.add(path + "/Practice Play");
-    } else if (!existsSync(path + "/Practice Play")) throw new Error("This practice is no longer available");
+      dirs.add(path);
+      dirs.add(path + "/Practice Play");
+    } else if (!existsSync(path + "/Practice Play"))
+      throw new Error("This practice is no longer available");
     return path;
   },
-  tutorialSessions: async () => [...new Set([...OUTSIDE.keys(), ...dirs].filter(p => p.startsWith(TUTORIAL_BASE + "/sessions/"))
-    .map(p => p.slice((TUTORIAL_BASE + "/sessions/").length).split("/")[0]).filter(id => /^[A-Z0-9]{26}$/.test(id)))].sort().reverse(),
+  tutorialSessions: async () =>
+    [
+      ...new Set(
+        [...OUTSIDE.keys(), ...dirs]
+          .filter((p) => p.startsWith(TUTORIAL_BASE + "/sessions/"))
+          .map((p) => p.slice((TUTORIAL_BASE + "/sessions/").length).split("/")[0])
+          .filter((id) => /^[A-Z0-9]{26}$/.test(id)),
+      ),
+    ]
+      .sort()
+      .reverse(),
   tutorialReserveCopy: async (name: string) => {
-    if (!name || /[/\\]/.test(name) || [".", ".."].includes(name) || existsSync(toKey(name))) throw new Error("The destination already exists");
+    if (!name || /[/\\]/.test(name) || [".", ".."].includes(name) || existsSync(toKey(name)))
+      throw new Error("The destination already exists");
     dirs.add(toKey(name));
   },
-  tutorialCopyFile: async (source: {session?: string; dir: string}, relative: string, destination: string) => {
-    if ([relative, destination].some(p => p.startsWith("/") || p.includes("\\") || p.split("/").some(c => !c || c === "." || c === ".."))) throw new Error("Invalid practice copy path");
-    if (!source.session && (!source.dir || /[/\\]/.test(source.dir) || [".", ".."].includes(source.dir))) throw new Error("Invalid practice source");
-    const base = source.session ? tutorialSessionRoot(source.session) + "/Practice Play" : TUTORIAL_ROOT + "/" + source.dir;
+  tutorialCopyFile: async (
+    source: { session?: string; dir: string },
+    relative: string,
+    destination: string,
+  ) => {
+    if (
+      [relative, destination].some(
+        (p) =>
+          p.startsWith("/") ||
+          p.includes("\\") ||
+          p.split("/").some((c) => !c || c === "." || c === ".."),
+      )
+    )
+      throw new Error("Invalid practice copy path");
+    if (
+      !source.session &&
+      (!source.dir || /[/\\]/.test(source.dir) || [".", ".."].includes(source.dir))
+    )
+      throw new Error("Invalid practice source");
+    const base = source.session
+      ? tutorialSessionRoot(source.session) + "/Practice Play"
+      : TUTORIAL_ROOT + "/" + source.dir;
     const content = OUTSIDE.get(base + "/" + relative);
     if (content === undefined) throw new Error("The original practice file could not be read");
     const result = await devVault.write(destination, content, "");
-    if (result.status !== "ok" || (await devVault.read(destination)).content !== content) throw new Error("The copy could not be verified. The original practice is kept.");
+    if (result.status !== "ok" || (await devVault.read(destination)).content !== content)
+      throw new Error("The copy could not be verified. The original practice is kept.");
   },
   tutorialTrash: async (id: string) => {
     const path = tutorialSessionRoot(id);
-    if (openAt === path || openAt.startsWith(path + "/")) throw new Error("Stop this practice before moving it to Trash.");
-    for (const [key, value] of [...OUTSIDE]) if (key.startsWith(path + "/")) {
-      OUTSIDE.set(TUTORIAL_BASE + "/trash/" + id + key.slice(path.length), value); OUTSIDE.delete(key);
-    }
+    if (openAt === path || openAt.startsWith(path + "/"))
+      throw new Error("Stop this practice before moving it to Trash.");
+    for (const [key, value] of [...OUTSIDE])
+      if (key.startsWith(path + "/")) {
+        OUTSIDE.set(TUTORIAL_BASE + "/trash/" + id + key.slice(path.length), value);
+        OUTSIDE.delete(key);
+      }
     for (const dir of [...dirs]) if (dir === path || dir.startsWith(path + "/")) dirs.delete(dir);
     persistPractice();
   },
-  tutorialRoot: async () => { dirs.add(TUTORIAL_ROOT); return TUTORIAL_ROOT; },
-  tutorialRead: async () => { const content = localStorage.getItem(TUTORIAL_PROGRESS); return {content, hash: content === null ? "" : hashOf(content)}; },
+  tutorialRoot: async () => {
+    dirs.add(TUTORIAL_ROOT);
+    return TUTORIAL_ROOT;
+  },
+  tutorialRead: async () => {
+    const content = localStorage.getItem(TUTORIAL_PROGRESS);
+    return { content, hash: content === null ? "" : hashOf(content) };
+  },
   tutorialWrite: async (content: string, expected: string, preserve = false) => {
     const before = await devVault.tutorialRead();
-    if (before.hash !== expected) throw new Error("Tutorial progress changed in another window. Choose Reload Saved Tutorial Progress in Help.");
+    if (before.hash !== expected)
+      throw new Error(
+        "Tutorial progress changed in another window. Choose Reload Saved Tutorial Progress in Help.",
+      );
     if (JSON.parse(content).version !== 1) throw new Error("Unsupported tutorial progress");
-    if (preserve && before.content !== null) localStorage.setItem(TUTORIAL_PROGRESS + ":preserved:" + before.hash, before.content);
+    if (preserve && before.content !== null)
+      localStorage.setItem(TUTORIAL_PROGRESS + ":preserved:" + before.hash, before.content);
     localStorage.setItem(TUTORIAL_PROGRESS, content);
     return hashOf(content);
   },
-  savedCopies: (): Promise<SavedCopy[]> => delay([...savedCopyStore.values()].filter((entry) => entry.root === openAt).map((entry) => entry.copy)),
+  savedCopies: (): Promise<SavedCopy[]> =>
+    delay(
+      [...savedCopyStore.values()]
+        .filter((entry) => entry.root === openAt)
+        .map((entry) => entry.copy),
+    ),
   readSavedCopy: (id: string): Promise<string> => {
     const entry = savedCopyStore.get(id);
-    return entry?.root === openAt ? delay(entry.content) : Promise.reject(new Error("The saved copy could not be read."));
+    return entry?.root === openAt
+      ? delay(entry.content)
+      : Promise.reject(new Error("The saved copy could not be read."));
   },
   onSavedCopies: (cb: (root: string) => void) => subscribe(savedCopyListeners, cb),
   mockSavedCopy: (rel: string, content: string): void => {
-    const copy = { id: `copy${savedCopyStore.size + 1}`, rel, hash: hashOf(content), createdMs: Date.now() };
+    const copy = {
+      id: `copy${savedCopyStore.size + 1}`,
+      rel,
+      hash: hashOf(content),
+      createdMs: Date.now(),
+    };
     savedCopyStore.set(copy.id, { root: openAt, copy, content });
     for (const listener of savedCopyListeners) listener.cb(openAt);
   },
-  setBufferState: (dirty: boolean): Promise<void> => { dirtyBuffer = dirty; return delay(undefined); },
+  setBufferState: (dirty: boolean): Promise<void> => {
+    dirtyBuffer = dirty;
+    return delay(undefined);
+  },
   updateState: () => delay(updateState),
   onUpdateState: (cb: (state: UpdateState) => void) => subscribe(updateListeners, cb),
   updateRestart: (): Promise<RestartOutcome> => {
     if (dirtyBuffer) return Promise.resolve({ kind: "unsaved" });
     if (updateState.kind !== "ready") return Promise.resolve({ kind: "notReady" });
-    return new Promise((_, reject) => { finishUpdate = () => { finishUpdate = null; reject(new Error("Test replacement refused")); }; });
+    return new Promise((_, reject) => {
+      finishUpdate = () => {
+        finishUpdate = null;
+        reject(new Error("Test replacement refused"));
+      };
+    });
   },
   mockUpdate: (finish = false): void => {
-    if (finish) { finishUpdate?.(); return; }
+    if (finish) {
+      finishUpdate?.();
+      return;
+    }
     updateState = { kind: "ready", version: "9.9.9", notes: null, publishedAt: null };
     for (const l of updateListeners) l.cb(updateState);
   },
@@ -510,7 +601,10 @@ export const devVault = {
     return delay(undefined);
   },
   mockFolderAccess: (): void => {
-    accessIssue = { path: ROOT, message: "The folder opened, but its access could not be renewed for the next launch." };
+    accessIssue = {
+      path: ROOT,
+      message: "The folder opened, but its access could not be renewed for the next launch.",
+    };
     for (const l of accessListeners) l.cb(accessIssue);
   },
   pickFolder: (): Promise<string | null> => {
@@ -530,8 +624,14 @@ export const devVault = {
     const dir = path.replace(/\/+$/, "");
     const facts = mockFacts(dir);
     openAt = dir === ROOT || (facts.exists && facts.isDir) ? dir : ROOT;
-    return delay({ root: openAt, identity: openAt, conflicts: [],
-      moves: [...pendingMoves.values()].filter((move) => move.root === openAt).map((move) => move.intent) });
+    return delay({
+      root: openAt,
+      identity: openAt,
+      conflicts: [],
+      moves: [...pendingMoves.values()]
+        .filter((move) => move.root === openAt)
+        .map((move) => move.intent),
+    });
   },
 
   list: (relDir: string): Promise<VaultEntry[]> => {
@@ -579,7 +679,11 @@ export const devVault = {
       const actual = matchingPath(key, files.keys()) ?? key;
       const content = files.get(actual);
       if (content === undefined) return Promise.reject(new Error("ENOENT " + rel));
-      try { assertDocumentText(content); } catch (error) { return Promise.reject(error); }
+      try {
+        assertDocumentText(content);
+      } catch (error) {
+        return Promise.reject(error);
+      }
       return delay({ content, hash: hashOf(content) });
     };
     return through("read", key, go);
@@ -596,7 +700,11 @@ export const devVault = {
     const key = toKey(rel);
     const root = openAt;
     return through("write", key, (): Promise<WriteOutcome> => {
-      if ([...pendingMoves.values()].some((move) => move.root === root && move.intent.manifest !== rel)) {
+      if (
+        [...pendingMoves.values()].some(
+          (move) => move.root === root && move.intent.manifest !== rel,
+        )
+      ) {
         return Promise.reject(new Error("A file move needs to finish before saving."));
       }
       const files = filesFor(key);
@@ -629,7 +737,8 @@ export const devVault = {
     const source = filesFor(fromKey);
     const target = filesFor(toKeyPath);
     if (fromKey === toKeyPath) return delay(undefined);
-    if (existsSync(toKeyPath)) return Promise.reject(new Error("Something is already at that name, so nothing was moved."));
+    if (existsSync(toKeyPath))
+      return Promise.reject(new Error("Something is already at that name, so nothing was moved."));
     if (!existsSync(fromKey)) return Promise.reject(new Error("The original file is missing."));
     for (const k of [...source.keys()]) {
       if (k === fromKey || k.startsWith(fromKey + "/")) {
@@ -652,19 +761,33 @@ export const devVault = {
     return delay(undefined);
   },
 
-  beginMove: async (from: string, to: string, manifest: string, payload: string): Promise<MoveStart> => {
+  beginMove: async (
+    from: string,
+    to: string,
+    manifest: string,
+    payload: string,
+  ): Promise<MoveStart> => {
     if ([...pendingMoves.values()].some((move) => move.root === openAt)) {
-      return { status: "refused", message: "An earlier file move needs recovery. Reopen the play.", blocked: true };
+      return {
+        status: "refused",
+        message: "An earlier file move needs recovery. Reopen the play.",
+        blocked: true,
+      };
     }
     const intent: PendingMove = { id: `move${++moveSequence}`, from, to, manifest, payload };
     pendingMoves.set(intent.id, { root: openAt, intent });
-    try { await devVault.rename(from, to); return { status: "ok", intent }; }
-    catch (error) {
+    try {
+      await devVault.rename(from, to);
+      return { status: "ok", intent };
+    } catch (error) {
       pendingMoves.delete(intent.id);
       return { status: "refused", message: String(error), blocked: false };
     }
   },
-  finishMove: (id: string): Promise<void> => { pendingMoves.delete(id); return delay(undefined); },
+  finishMove: (id: string): Promise<void> => {
+    pendingMoves.delete(id);
+    return delay(undefined);
+  },
   rollbackMove: async (id: string): Promise<void> => {
     const move = pendingMoves.get(id);
     if (!move || move.root !== openAt) throw new Error("The unfinished move is in another folder.");
@@ -781,9 +904,15 @@ export const devVault = {
   /** Dev-only: the app would be gone — the page said go, or the writer chose Quit Anyway. */
   mockQuitGone: (): boolean => quitGone,
 
-  recoveryWrite: (playId: string, scriptId: string, content: string, owner: string): Promise<void> => {
+  recoveryWrite: (
+    playId: string,
+    scriptId: string,
+    content: string,
+    owner: string,
+  ): Promise<void> => {
     const key = recoveryKey(playId, scriptId, owner);
-    if (owner === "legacy" || (!recoveryOwners.has(key) && sessionStorage.getItem(key) !== null)) return Promise.reject(new Error("An earlier session owns those recovery words."));
+    if (owner === "legacy" || (!recoveryOwners.has(key) && sessionStorage.getItem(key) !== null))
+      return Promise.reject(new Error("An earlier session owns those recovery words."));
     recoveryOwners.add(key);
     sessionStorage.setItem(key, content);
     return delay(undefined);
@@ -792,7 +921,12 @@ export const devVault = {
     delay(sessionStorage.getItem(recoveryKey(playId, scriptId, owner))),
   recoveryRemove: (playId: string, scriptId: string, owner: string): Promise<void> => {
     const key = recoveryKey(playId, scriptId, owner);
-    if (sessionStorage.getItem(key) !== null && !recoveryOwners.has(key) && !recoveryClaims.has(key)) return Promise.reject(new Error("The recovery file belongs to another session."));
+    if (
+      sessionStorage.getItem(key) !== null &&
+      !recoveryOwners.has(key) &&
+      !recoveryClaims.has(key)
+    )
+      return Promise.reject(new Error("The recovery file belongs to another session."));
     sessionStorage.removeItem(key);
     recoveryClaims.delete(key);
     return delay(undefined);
@@ -856,13 +990,17 @@ export const devVault = {
     telemetryQueue.push(event);
     return delay(undefined);
   },
-  pageError: (name: string, frames: import("../diagnostics/page-error").PageFrame[]): Promise<void> => {
+  pageError: (
+    name: string,
+    frames: import("../diagnostics/page-error").PageFrame[],
+  ): Promise<void> => {
     pageErrors.push(`${name} ${frames.length} frames`.trim());
     return delay(undefined);
   },
   /** The same shape Rust writes (telemetry/diagnostics.rs), from what the mock knows. */
   reviewDiagnostics: async (formatsInUse: string[]): Promise<string> => {
-    if (localStorage.getItem("proscenium:dev:feedback-details-fail") === "true") throw new Error("Unavailable");
+    if (localStorage.getItem("proscenium:dev:feedback-details-fail") === "true")
+      throw new Error("Unavailable");
     const s = readSettings(readSettingsObject());
     const onOff = (on: boolean) => (on ? "on" : "off");
     const text = [
@@ -880,28 +1018,59 @@ export const devVault = {
   },
   copyDiagnostics: async (formatsInUse: string[]): Promise<string> => {
     const text = await devVault.reviewDiagnostics(formatsInUse);
-    try { await navigator.clipboard?.writeText(text); } catch { /* headless clipboard */ }
+    try {
+      await navigator.clipboard?.writeText(text);
+    } catch {
+      /* headless clipboard */
+    }
     return text;
   },
-  feedbackLoad: async (): Promise<FeedbackDraft> => JSON.parse(localStorage.getItem(feedbackKey) ?? "null")?.draft ?? emptyDraft(),
+  feedbackLoad: async (): Promise<FeedbackDraft> =>
+    JSON.parse(localStorage.getItem(feedbackKey) ?? "null")?.draft ?? emptyDraft(),
   feedbackSave: async (draft: FeedbackDraft): Promise<void> => {
     const previous = JSON.parse(localStorage.getItem(feedbackKey) ?? "null");
-    if (!draft.message && !draft.email && !draft.includeDetails) localStorage.removeItem(feedbackKey);
-    else localStorage.setItem(feedbackKey, JSON.stringify({ draft, id: JSON.stringify(previous?.draft) === JSON.stringify(draft) ? previous?.id : undefined }));
+    if (!draft.message && !draft.email && !draft.includeDetails)
+      localStorage.removeItem(feedbackKey);
+    else
+      localStorage.setItem(
+        feedbackKey,
+        JSON.stringify({
+          draft,
+          id: JSON.stringify(previous?.draft) === JSON.stringify(draft) ? previous?.id : undefined,
+        }),
+      );
   },
-  feedbackDiscard: async (): Promise<void> => { localStorage.removeItem(feedbackKey); },
+  feedbackDiscard: async (): Promise<void> => {
+    localStorage.removeItem(feedbackKey);
+  },
   feedbackSend: async (draft: FeedbackDraft, details: string | null): Promise<void> => {
     await devVault.feedbackSave(draft);
     const saved = JSON.parse(localStorage.getItem(feedbackKey)!);
-    saved.id ??= crypto.randomUUID(); localStorage.setItem(feedbackKey, JSON.stringify(saved));
+    saved.id ??= crypto.randomUUID();
+    localStorage.setItem(feedbackKey, JSON.stringify(saved));
     await delay(undefined);
-    if (localStorage.getItem("proscenium:dev:feedback-fail") === "true") throw new Error("You're offline. Your message is saved here; try again once you're connected.");
-    feedbackSent.push({ id: saved.id, message: draft.message, ...(draft.email.trim() ? { email: draft.email.trim() } : {}), ...(draft.includeDetails ? { details: details ?? "" } : {}) });
+    if (localStorage.getItem("proscenium:dev:feedback-fail") === "true")
+      throw new Error(
+        "You're offline. Your message is saved here; try again once you're connected.",
+      );
+    feedbackSent.push({
+      id: saved.id,
+      message: draft.message,
+      ...(draft.email.trim() ? { email: draft.email.trim() } : {}),
+      ...(draft.includeDetails ? { details: details ?? "" } : {}),
+    });
     localStorage.removeItem(feedbackKey);
   },
-  feedbackCopy: async (message: string): Promise<void> => { feedbackCopied = message; },
-  mockFeedback: () => ({ sent: [...feedbackSent], copied: feedbackCopied, saved: JSON.parse(localStorage.getItem(feedbackKey) ?? "null") }),
-  telemetryConfigured: (): Promise<boolean> => delay(localStorage.getItem("proscenium:dev:analytics-key") !== "false"),
+  feedbackCopy: async (message: string): Promise<void> => {
+    feedbackCopied = message;
+  },
+  mockFeedback: () => ({
+    sent: [...feedbackSent],
+    copied: feedbackCopied,
+    saved: JSON.parse(localStorage.getItem(feedbackKey) ?? "null"),
+  }),
+  telemetryConfigured: (): Promise<boolean> =>
+    delay(localStorage.getItem("proscenium:dev:analytics-key") !== "false"),
   mockTelemetry: () => ({
     on: readSettings(readSettingsObject()).shareAnalytics,
     asked: [...telemetryAsked],
@@ -909,7 +1078,8 @@ export const devVault = {
     errors: [...errorLog],
     pageErrors: [...pageErrors],
   }),
-  appInfo: (): Promise<AppInfo> => delay({ version: APP_VERSION, arch: "browser", channel: "browser" }),
+  appInfo: (): Promise<AppInfo> =>
+    delay({ version: APP_VERSION, arch: "browser", channel: "browser" }),
   /** No Mac here: the stand-in blue, unless a check chooses a colour. */
   systemAccent: (): Promise<string | null> => delay(mockAccent),
   /**
@@ -960,7 +1130,10 @@ export const devVault = {
   /** Dev-only: a binary file outside the Plays folder, for Finder to open. Also
    * on `window.__prosceniumOutsideFile`. */
   mockOutsideFile: (path: string, base64: string): void => {
-    OUTSIDE_BYTES.set(path, Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)));
+    OUTSIDE_BYTES.set(
+      path,
+      Uint8Array.from(atob(base64), (c) => c.charCodeAt(0)),
+    );
   },
   onOpened: (cb: () => void) => subscribe(openedListeners, cb),
   /**
@@ -1039,7 +1212,11 @@ export const devVault = {
   },
 
   // Browser dev has no save dialog: deliver exports as a download.
-  saveFile: (suggestedName: string, bytes: Uint8Array, type: "pdf" | "docx" | "odt" = "pdf"): Promise<string | null> => {
+  saveFile: (
+    suggestedName: string,
+    bytes: Uint8Array,
+    type: "pdf" | "docx" | "odt" = "pdf",
+  ): Promise<string | null> => {
     const blob = new Blob([bytes.slice().buffer], { type: EXPORT_MEDIA_TYPE[type] });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

@@ -188,7 +188,9 @@ export const Find = Extension.create<Record<string, never>, FindStorage>({
   },
 
   addCommands() {
-    const send = (meta: FindMeta) => () =>
+    const send =
+      (meta: FindMeta) =>
+      () =>
       ({ tr, dispatch }: { tr: Transaction; dispatch?: (tr: Transaction) => void }) => {
         // Not a document change, so it must never become an undo step.
         if (dispatch) dispatch(tr.setMeta(findKey, meta).setMeta("addToHistory", false));
@@ -375,9 +377,10 @@ export const Find = Extension.create<Record<string, never>, FindStorage>({
 });
 
 /** Seed the bar from the selection, the way every editor does. */
-function seedQuery(state: { doc: PMNode; selection: { from: number; to: number; empty: boolean } }):
-  | string
-  | null {
+function seedQuery(state: {
+  doc: PMNode;
+  selection: { from: number; to: number; empty: boolean };
+}): string | null {
   const { selection, doc } = state;
   if (selection.empty || selection.to - selection.from > 200) return null;
   const text = doc.textBetween(selection.from, selection.to, "\n", "");

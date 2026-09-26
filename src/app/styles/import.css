@@ -207,8 +207,7 @@
 .import-desk__note {
   color: var(--ink-2);
 }
-.import-desk__line.is-selected
-  :is(.import-desk__number, .import-desk__kind, .import-desk__note) {
+.import-desk__line.is-selected :is(.import-desk__number, .import-desk__kind, .import-desk__note) {
   color: var(--ink);
 }
 .import-desk__empty {

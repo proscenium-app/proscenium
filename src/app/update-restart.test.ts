@@ -8,10 +8,31 @@ test("Restart to Update locks before settling, coalesces requests, and unlocks a
   const events: string[] = [];
   let finish!: () => void;
   const services: RestartServices = {
-    lock: () => { events.push("lock"); return () => { events.push("unlock"); }; },
-    settle: async () => { events.push("settle"); return { lost: [], leave: async () => { events.push("kept"); } }; },
-    confirmSaved: async () => { events.push("acknowledge"); },
-    restart: async () => { events.push("install"); await new Promise<void>((r) => { finish = r; }); throw new Error("swap refused"); },
+    lock: () => {
+      events.push("lock");
+      return () => {
+        events.push("unlock");
+      };
+    },
+    settle: async () => {
+      events.push("settle");
+      return {
+        lost: [],
+        leave: async () => {
+          events.push("kept");
+        },
+      };
+    },
+    confirmSaved: async () => {
+      events.push("acknowledge");
+    },
+    restart: async () => {
+      events.push("install");
+      await new Promise<void>((r) => {
+        finish = r;
+      });
+      throw new Error("swap refused");
+    },
   };
   const updater = new UpdateRestart();
   const a = updater.run(services);
@@ -28,10 +49,17 @@ test("Restart to Update: lost words or an unacknowledged beacon never call the i
     let installs = 0;
     let unlocked = false;
     const result = await new UpdateRestart().run({
-      lock: () => () => { unlocked = true; },
+      lock: () => () => {
+        unlocked = true;
+      },
       settle: async () => ({ lost, leave: async () => {} }),
-      confirmSaved: async () => { throw new Error("save state could not be written"); },
-      restart: async () => { installs++; return { kind: "notReady" }; },
+      confirmSaved: async () => {
+        throw new Error("save state could not be written");
+      },
+      restart: async () => {
+        installs++;
+        return { kind: "notReady" };
+      },
     });
     expect(result).toHaveProperty("failed");
     expect(installs).toBe(0);

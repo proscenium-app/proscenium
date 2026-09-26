@@ -4,8 +4,9 @@
 /**
  * The fast gates, before every push: `bun run gates`.
  *
- * Unit tests (the app's and the scripts'), the typecheck, and every `check:*`
- * script in package.json, about half a minute on a warm checkout. Each runs even
+ * Unit tests (the app's and the scripts'), the typecheck, the lint and the
+ * format check, and every `check:*` script in package.json, about half a
+ * minute on a warm checkout. Each runs even
  * after another fails, so one pass says everything that is wrong; the exit code
  * is 1 if any failed. Smoke, the Rust tests and the native self-test are the
  * pipeline's: they take minutes, and the pipeline runs them for the files a
@@ -32,6 +33,9 @@ export function gateCommands(pkg) {
     ["bun test ./src", ["bun", "test", "./src"]],
     ["bun test ./scripts", ["bun", "test", "./scripts"]],
     ["typecheck", ["bun", "run", "typecheck"]],
+    // Biome's rules and its formatting, and rustfmt's (docs/engineering/release-engineering.md#REL-102).
+    ["lint", ["bun", "run", "lint"]],
+    ["format:check", ["bun", "run", "format:check"]],
     ...checks.map((name) => [name, ["bun", "run", name]]),
   ];
 }
@@ -53,11 +57,18 @@ function main() {
     console.log(`  ${ok ? "ok  " : "FAIL"}  ${name} (${((Date.now() - t) / 1000).toFixed(1)} s)`);
     if (!ok) {
       const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().split("\n");
-      console.log(out.slice(-30).map((l) => `        ${l}`).join("\n"));
+      console.log(
+        out
+          .slice(-30)
+          .map((l) => `        ${l}`)
+          .join("\n"),
+      );
     }
   }
   const failed = results.filter((r) => !r.ok);
-  console.log(`\ngates: ${failed.length ? `${failed.length} failed (${failed.map((f) => f.name).join(", ")})` : "clean"} in ${Math.round((Date.now() - started) / 1000)} s`);
+  console.log(
+    `\ngates: ${failed.length ? `${failed.length} failed (${failed.map((f) => f.name).join(", ")})` : "clean"} in ${Math.round((Date.now() - started) / 1000)} s`,
+  );
   process.exit(failed.length ? 1 : 0);
 }
 

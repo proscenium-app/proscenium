@@ -73,9 +73,7 @@ function dataAttr(dataName: string, def: unknown = null) {
 }
 
 function camel(dataName: string): string {
-  return dataName
-    .replace(/^data-/, "")
-    .replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  return dataName.replace(/^data-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
 
 // --- structural ---

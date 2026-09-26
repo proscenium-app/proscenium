@@ -16,9 +16,18 @@ const userFile = (id: string, name = id) =>
     page: { size: "letter", margins: { left: 1.5, top: 1, right: 1, bottom: 1 } },
     type: { family: "Courier Prime", size: 12, lineHeight: 1 },
     elements: Object.fromEntries(
-      ["act", "scene", "sceneHeading", "action", "character", "parenthetical", "dialogue", "transition", "lyric", "centered"].map(
-        (k) => [k, {}],
-      ),
+      [
+        "act",
+        "scene",
+        "sceneHeading",
+        "action",
+        "character",
+        "parenthetical",
+        "dialogue",
+        "transition",
+        "lyric",
+        "centered",
+      ].map((k) => [k, {}]),
     ),
   });
 

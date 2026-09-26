@@ -26,12 +26,14 @@ export type OpenAtLaunch = "plays" | "lastPlay";
 /** Where updates come from (docs/app/preferences-and-help/settings.md#SET-37), slowest first. */
 export const UPDATE_TRACKS = ["stable", "beta", "alpha"] as const;
 export type UpdateTrack = (typeof UPDATE_TRACKS)[number];
-export const isUpdateTrack = (v: unknown): v is UpdateTrack => (UPDATE_TRACKS as readonly unknown[]).includes(v);
+export const isUpdateTrack = (v: unknown): v is UpdateTrack =>
+  (UPDATE_TRACKS as readonly unknown[]).includes(v);
 /**
  * Alpha's key, as scripts/track-key.mjs makes it: 32 random bytes, base64url,
  * unpadded (docs/app/preferences-and-help/settings.md#SET-37). settings.rs holds the same shape.
  */
-export const isUpdateTrackKey = (v: unknown): v is string => typeof v === "string" && /^[A-Za-z0-9_-]{43}$/.test(v);
+export const isUpdateTrackKey = (v: unknown): v is string =>
+  typeof v === "string" && /^[A-Za-z0-9_-]{43}$/.test(v);
 export type Appearance = "system" | "light" | "dark";
 export const DEFAULT_SCENE_STATUSES = ["idea", "drafting", "revising", "ready for reading"];
 
@@ -145,8 +147,8 @@ export interface SettingsPatch {
  * the defaults are what the app did before each was a choice — the strip was
  * on, spelling was checked — with one exception. Launch went to the Plays
  * screen, and stayed that way so no one's app changed on upgrade, until a
- * writer wanted the page that was open when the app closed (2026-09-16): it goes
- * back where the writer left off now.
+ * writer wanted the page that was open when the app closed: it goes back
+ * where the writer left off now.
  */
 export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   accent: "gilt",
@@ -245,19 +247,28 @@ export function readSettings(raw: unknown): Settings {
   return {
     accent: isAccentId(o.accent) ? o.accent : DEFAULT_SETTINGS.accent,
     appearance: o.appearance === "light" || o.appearance === "dark" ? o.appearance : "system",
-    formatOrder: Array.isArray(o.formatOrder) ? [...new Set(o.formatOrder.filter(isFormatId))].slice(0, 256) : [],
-    sceneStatuses: Array.isArray(o.sceneStatuses) ? readStatuses(o.sceneStatuses) : [...DEFAULT_SCENE_STATUSES],
+    formatOrder: Array.isArray(o.formatOrder)
+      ? [...new Set(o.formatOrder.filter(isFormatId))].slice(0, 256)
+      : [],
+    sceneStatuses: Array.isArray(o.sceneStatuses)
+      ? readStatuses(o.sceneStatuses)
+      : [...DEFAULT_SCENE_STATUSES],
     interfaceTextSize: isInterfaceTextSize(o.interfaceTextSize) ? o.interfaceTextSize : 100,
     runningTimeStrip:
-      typeof o.runningTimeStrip === "boolean" ? o.runningTimeStrip : DEFAULT_SETTINGS.runningTimeStrip,
+      typeof o.runningTimeStrip === "boolean"
+        ? o.runningTimeStrip
+        : DEFAULT_SETTINGS.runningTimeStrip,
     spellcheck: typeof o.spellcheck === "boolean" ? o.spellcheck : DEFAULT_SETTINGS.spellcheck,
     learnedWords: Array.isArray(o.learnedWords)
       ? o.learnedWords.filter((w): w is string => typeof w === "string")
       : [],
     playStatuses: readStatuses(o.playStatuses),
-    showProgress: typeof o.showProgress === "boolean" ? o.showProgress : DEFAULT_SETTINGS.showProgress,
+    showProgress:
+      typeof o.showProgress === "boolean" ? o.showProgress : DEFAULT_SETTINGS.showProgress,
     openAtLaunch:
-      o.openAtLaunch === "plays" || o.openAtLaunch === "lastPlay" ? o.openAtLaunch : DEFAULT_SETTINGS.openAtLaunch,
+      o.openAtLaunch === "plays" || o.openAtLaunch === "lastPlay"
+        ? o.openAtLaunch
+        : DEFAULT_SETTINGS.openAtLaunch,
     lastPlay: isPlayRef(o.lastPlay) ? o.lastPlay : null,
     checkForUpdates:
       typeof o.checkForUpdates === "boolean" ? o.checkForUpdates : DEFAULT_SETTINGS.checkForUpdates,
@@ -269,14 +280,18 @@ export function readSettings(raw: unknown): Settings {
     shareAnalytics:
       typeof o.shareAnalytics === "boolean" ? o.shareAnalytics : DEFAULT_SETTINGS.shareAnalytics,
     privacyNoticeSeen:
-      typeof o.privacyNoticeSeen === "boolean" ? o.privacyNoticeSeen : DEFAULT_SETTINGS.privacyNoticeSeen,
+      typeof o.privacyNoticeSeen === "boolean"
+        ? o.privacyNoticeSeen
+        : DEFAULT_SETTINGS.privacyNoticeSeen,
   };
 }
 
 /** Why a patch would be refused, or null when settings.rs would accept it. */
 export function validatePatch(patch: SettingsPatch): string | null {
   const known = new Set([
-    "appearance", "formatOrder", "sceneStatuses",
+    "appearance",
+    "formatOrder",
+    "sceneStatuses",
     "accent",
     "interfaceTextSize",
     "runningTimeStrip",
@@ -296,26 +311,48 @@ export function validatePatch(patch: SettingsPatch): string | null {
   for (const key of Object.keys(patch)) {
     if (!known.has(key)) return `"${key}" is not a setting`;
   }
-  if (patch.appearance !== undefined && !["system", "light", "dark"].includes(patch.appearance)) return "Unknown appearance";
-  if (patch.formatOrder !== undefined && (!Array.isArray(patch.formatOrder) || patch.formatOrder.length > 256 || !patch.formatOrder.every(isFormatId) || new Set(patch.formatOrder).size !== patch.formatOrder.length)) return "Invalid format order";
+  if (patch.appearance !== undefined && !["system", "light", "dark"].includes(patch.appearance))
+    return "Unknown appearance";
+  if (
+    patch.formatOrder !== undefined &&
+    (!Array.isArray(patch.formatOrder) ||
+      patch.formatOrder.length > 256 ||
+      !patch.formatOrder.every(isFormatId) ||
+      new Set(patch.formatOrder).size !== patch.formatOrder.length)
+  )
+    return "Invalid format order";
   if (patch.sceneStatuses !== undefined) {
     const problem = statusListProblem(patch.sceneStatuses);
     if (problem) return problem;
   }
-  if (patch.interfaceTextSize !== undefined && !isInterfaceTextSize(patch.interfaceTextSize)) return "interfaceTextSize must be a whole percentage from 100 to 200";
+  if (patch.interfaceTextSize !== undefined && !isInterfaceTextSize(patch.interfaceTextSize))
+    return "interfaceTextSize must be a whole percentage from 100 to 200";
   if (patch.accent !== undefined && !isAccentId(patch.accent)) {
     return `"${String(patch.accent)}" is not an accent`;
   }
-  for (const key of ["runningTimeStrip", "spellcheck", "checkForUpdates", "shareAnalytics", "privacyNoticeSeen", "showProgress"] as const) {
-    if (patch[key] !== undefined && typeof patch[key] !== "boolean") return `${key} is not true or false`;
+  for (const key of [
+    "runningTimeStrip",
+    "spellcheck",
+    "checkForUpdates",
+    "shareAnalytics",
+    "privacyNoticeSeen",
+    "showProgress",
+  ] as const) {
+    if (patch[key] !== undefined && typeof patch[key] !== "boolean")
+      return `${key} is not true or false`;
   }
-  if (patch.openAtLaunch !== undefined && patch.openAtLaunch !== "plays" && patch.openAtLaunch !== "lastPlay") {
+  if (
+    patch.openAtLaunch !== undefined &&
+    patch.openAtLaunch !== "plays" &&
+    patch.openAtLaunch !== "lastPlay"
+  ) {
     return `"${String(patch.openAtLaunch)}" is not a launch choice`;
   }
   if (patch.updateTrack !== undefined && !isUpdateTrack(patch.updateTrack)) {
     return `"${String(patch.updateTrack)}" is not an update track`;
   }
-  if (patch.updateTrackKey !== undefined && !isUpdateTrackKey(patch.updateTrackKey)) return "That is not a key";
+  if (patch.updateTrackKey !== undefined && !isUpdateTrackKey(patch.updateTrackKey))
+    return "That is not a key";
   if (patch.lastPlay !== undefined && patch.lastPlay !== null && !isPlayRef(patch.lastPlay)) {
     return `"${String(patch.lastPlay)}" is not a play`;
   }
@@ -323,7 +360,11 @@ export function validatePatch(patch: SettingsPatch): string | null {
     const problem = statusListProblem(patch.playStatuses);
     if (problem) return problem;
   }
-  if (patch.defaultFormat !== undefined && patch.defaultFormat !== null && !isFormatId(patch.defaultFormat)) {
+  if (
+    patch.defaultFormat !== undefined &&
+    patch.defaultFormat !== null &&
+    !isFormatId(patch.defaultFormat)
+  ) {
     return `"${String(patch.defaultFormat)}" is not a format id`;
   }
   if (patch.learnedWords !== undefined) {
@@ -485,12 +526,20 @@ export function legacyMigration(
 ): SettingsPatch | null {
   const legacy = legacyValues(storage);
   const patch: SettingsPatch = {};
-  if (legacy.accent !== undefined && legacy.accent !== DEFAULT_SETTINGS.accent && stored.accent === DEFAULT_SETTINGS.accent) {
+  if (
+    legacy.accent !== undefined &&
+    legacy.accent !== DEFAULT_SETTINGS.accent &&
+    stored.accent === DEFAULT_SETTINGS.accent
+  ) {
     patch.accent = legacy.accent;
   }
   for (const key of ["runningTimeStrip", "spellcheck"] as const) {
     const value = legacy[key];
-    if (value !== undefined && value !== DEFAULT_SETTINGS[key] && stored[key] === DEFAULT_SETTINGS[key]) {
+    if (
+      value !== undefined &&
+      value !== DEFAULT_SETTINGS[key] &&
+      stored[key] === DEFAULT_SETTINGS[key]
+    ) {
       patch[key] = value;
     }
   }

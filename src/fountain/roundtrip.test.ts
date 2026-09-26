@@ -44,9 +44,7 @@ describe("sample-vault fixture", () => {
     expect(frontMatter.authors).toEqual(["A. Playwright"]);
     expect(frontMatter.draftDate).toBe("2026-06-18");
     expect(frontMatter.contact).toEqual(["playwright@example.com"]);
-    expect(frontMatter.setting).toBe(
-      "A coastal kitchen, and the rooms of memory around it.",
-    );
+    expect(frontMatter.setting).toBe("A coastal kitchen, and the rooms of memory around it.");
     expect(frontMatter.time).toBe("The last night of winter.");
     expect(frontMatter.characters).toEqual([
       { name: "MARA", description: "a hydrologist, 40s" },
@@ -67,17 +65,14 @@ describe("sample-vault fixture", () => {
       ordinal: 0,
       act: "ACT ONE",
       heading: "SCENE 1",
-      synopsis:
-        "Mara, alone before dawn, can't stop the dripping. Jonah arrives uninvited.",
+      synopsis: "Mara, alone before dawn, can't stop the dripping. Jonah arrives uninvited.",
     });
     expect(extracted[2].act).toBe("ACT TWO");
   });
 
   it("has no element-type drift after a round-trip", () => {
     const before = parse(sampleText).doc.content.map((b: BlockNode) => b.type);
-    const after = parse(serialize(parse(sampleText))).doc.content.map(
-      (b: BlockNode) => b.type,
-    );
+    const after = parse(serialize(parse(sampleText))).doc.content.map((b: BlockNode) => b.type);
     expect(after).toEqual(before);
   });
 });
@@ -95,17 +90,11 @@ describe("edge-case corpus (full element set)", () => {
 
     "inline note": "She pauses [[is this too long?]] at the door.",
 
-    "block note": ["Before.", "", "[[ a standalone thought ]]", "", "After."].join(
-      "\n",
-    ),
+    "block note": ["Before.", "", "[[ a standalone thought ]]", "", "After."].join("\n"),
 
-    "boneyard is preserved": ["Visible.", "", "/* hidden cut */", "", "End."].join(
-      "\n",
-    ),
+    "boneyard is preserved": ["Visible.", "", "/* hidden cut */", "", "End."].join("\n"),
 
-    lyrics: ["MARA", "~Row, row, row your boat", "~Gently down the stream"].join(
-      "\n",
-    ),
+    lyrics: ["MARA", "~Row, row, row your boat", "~Gently down the stream"].join("\n"),
 
     centered: "> THE END <",
 
@@ -137,9 +126,7 @@ describe("edge-case corpus (full element set)", () => {
 
     "page break": ["One.", "", "===", "", "Two."].join("\n"),
 
-    "all-caps action is forced": ["MARA", "Hello.", "", "!THE LIGHTS DIM."].join(
-      "\n",
-    ),
+    "all-caps action is forced": ["MARA", "Hello.", "", "!THE LIGHTS DIM."].join("\n"),
 
     "nested section becomes a sub-scene": [
       "# ACT ONE",
@@ -177,7 +164,9 @@ describe("edge-case corpus (full element set)", () => {
   // block. The blank line must serialize as Fountain's two-space line, or the
   // next parse ends the speech there and demotes the rest to action.
   it("keeps a spaced-out speech in one dialogue block", () => {
-    const spaced = ["MARA", "It's colder than I remember.", "  ", "I keep listening.", ""].join("\n");
+    const spaced = ["MARA", "It's colder than I remember.", "  ", "I keep listening.", ""].join(
+      "\n",
+    );
     expectRoundTripStable(spaced);
     const { doc } = parse(spaced);
     expect(doc.content.map((b) => b.type)).toEqual(["character", "dialogue"]);
@@ -226,25 +215,21 @@ describe("fountain.io spec's own examples", () => {
       "Screw retirement.",
     ].join("\n"),
 
-    "transition": ["Jack begins to argue vociferously.", "", "CUT TO:"].join("\n"),
+    transition: ["Jack begins to argue vociferously.", "", "CUT TO:"].join("\n"),
 
-    "lyrics": "~Willy Wonka! Willy Wonka! The amazing chocolatier",
+    lyrics: "~Willy Wonka! Willy Wonka! The amazing chocolatier",
 
     centered: "> THE END <",
 
-    "sections and synopses": [
-      "# Act",
-      "",
-      "= Set up the characters.",
-      "",
-      "## Sequence",
-    ].join("\n"),
+    "sections and synopses": ["# Act", "", "= Set up the characters.", "", "## Sequence"].join(
+      "\n",
+    ),
 
     "inline note (wait for the phone)": [
       "His hand is an inch from the receiver when the phone RINGS.  [[ wait for the phone to ring ]]",
     ].join("\n"),
 
-    "boneyard": [
+    boneyard: [
       "Murtaugh, springing hell bent for leather.",
       "",
       "/*",
@@ -303,7 +288,10 @@ describe("Shift+Enter shapes are stable on disk", () => {
     const doc = {
       type: "doc" as const,
       content: [
-        { type: "action" as const, content: [{ type: "text" as const, text: "LIGHTS UP.\nShe is alone." }] },
+        {
+          type: "action" as const,
+          content: [{ type: "text" as const, text: "LIGHTS UP.\nShe is alone." }],
+        },
       ],
     };
     const text = serialize({ frontMatter: {}, doc });
@@ -332,10 +320,13 @@ describe("Shift+Enter shapes are stable on disk", () => {
 
 it("keeps freely written opening pages and their formatting across a script save", () => {
   const parsed = parse("Title: My Play\n\n# ACT ONE\n\n## Scene 1\n\nA room.\n");
-  parsed.frontMatter = { ...parsed.frontMatter, titlePage: "# Title\n\nBy me\n",
+  parsed.frontMatter = {
+    ...parsed.frontMatter,
+    titlePage: "# Title\n\nBy me\n",
     charactersPage: "**A**\n\nA person, with a colon: and a slash \\",
     openingNotes: "<!-- proscenium:align=right -->\n\n# Time & place\n\nAnywhere.\n\nAny time.",
-    openingNotesBeforeCharacters: true };
+    openingNotesBeforeCharacters: true,
+  };
   const source = serialize(parsed);
   const again = parse(source);
   expect(again.frontMatter).toEqual(parsed.frontMatter);
@@ -347,14 +338,22 @@ it("retains an empty speech and its cue on every reopen, including retained prac
   for (const cue of ["IVO", "@Ivo", "IVO (O.S.)"]) {
     const source = `## SCENE 1\n\nMARA\nA line.\n\n${cue}\n  \n`;
     const expected = parse(source);
-    expect(expected.doc.content.map(b=>b.type)).toEqual(["scene","character","dialogue","character","dialogue"]);
+    expect(expected.doc.content.map((b) => b.type)).toEqual([
+      "scene",
+      "character",
+      "dialogue",
+      "character",
+      "dialogue",
+    ]);
     expect(expected.doc.content[expected.doc.content.length - 1]?.content).toEqual([]);
     for (let attempt = 0; attempt < 12; attempt++) {
       expect(parse(source)).toEqual(expected);
       expect(parse(serialize(expected))).toEqual(expected);
     }
   }
-  expect(parse("  \n\nA room.\n").doc.content).toEqual([{type:"action",content:[{type:"text",text:"A room."}]}]);
+  expect(parse("  \n\nA room.\n").doc.content).toEqual([
+    { type: "action", content: [{ type: "text", text: "A room." }] },
+  ]);
   const literal = "MARA\nThe mark EMPTY-SPEECH stays.\n  \nAnd so does this.\n";
   expectRoundTripStable(literal);
   expect(serialize(parse(literal))).toContain("EMPTY-SPEECH");

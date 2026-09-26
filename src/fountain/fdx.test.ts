@@ -73,7 +73,8 @@ it("docs/app/keeping-work/storage-and-file-format.md#STOR-33: refuses incomplete
     `<FinalDraft><Content>${para}<Paragraph></Content></FinalDraft>`,
     `<FinalDraft><Content>${"<Unknown>".repeat(150)}${para}${"</Unknown>".repeat(150)}</Content></FinalDraft>`,
     `<FinalDraft><Content>${para.repeat(25_000)}</Content></FinalDraft>`,
-  ]) expect(fdxToFountain(xml)).toBeNull();
+  ])
+    expect(fdxToFountain(xml)).toBeNull();
 });
 
 describe("scriptFromFile", () => {
@@ -89,11 +90,11 @@ describe("scriptFromFile", () => {
 });
 
 // A paragraph type that is a property of Object, not of the table (docs/app/importing/document-import.md#IMPT-64).
-import { test as a108, expect as a108expect } from "bun:test";
-a108("a __proto__ paragraph type is unknown, not a crash", () => {
+import { test as protoTest, expect as protoExpect } from "bun:test";
+protoTest("a __proto__ paragraph type is unknown, not a crash", () => {
   const out = fdxToFountain(
     '<FinalDraft><Content><Paragraph Type="__proto__"><Text>Hello</Text></Paragraph><Paragraph Type="constructor"><Text>There</Text></Paragraph></Content></FinalDraft>',
   );
-  a108expect(out?.fountain).toContain("Hello");
-  a108expect(out?.fountain).toContain("There");
+  protoExpect(out?.fountain).toContain("Hello");
+  protoExpect(out?.fountain).toContain("There");
 });

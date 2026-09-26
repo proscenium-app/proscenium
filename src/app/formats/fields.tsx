@@ -222,7 +222,9 @@ export function SlotField(
           aria-haspopup="menu"
           aria-expanded={menu.open}
           aria-label={`Insert into ${props.label}`}
-          onClick={() => (props.locked ? props.onLockedEdit() : menu.openFrom(trigger.current, "end"))}
+          onClick={() =>
+            props.locked ? props.onLockedEdit() : menu.openFrom(trigger.current, "end")
+          }
         >
           Insert
         </button>

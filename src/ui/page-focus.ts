@@ -140,7 +140,10 @@ function typingSomewhere(): boolean {
   const el = document.activeElement;
   if (!(el instanceof HTMLElement) || el === document.body) return false;
   if (el.isContentEditable || el instanceof HTMLTextAreaElement) return true;
-  return el instanceof HTMLInputElement && !["button", "checkbox", "radio", "submit", "reset"].includes(el.type);
+  return (
+    el instanceof HTMLInputElement &&
+    !["button", "checkbox", "radio", "submit", "reset"].includes(el.type)
+  );
 }
 
 const pageFocus = createPageFocus({

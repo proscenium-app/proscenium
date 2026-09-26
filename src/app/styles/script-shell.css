@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Script view: the writing well — sheets of paper on a deep desk. */
 .editor-frame--desk {
   background: var(--desk);
@@ -45,4 +44,3 @@
   background: var(--accent);
   color: var(--on-accent);
 }
-

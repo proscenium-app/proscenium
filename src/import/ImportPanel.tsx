@@ -58,12 +58,8 @@ function Text({ content }: { content: InlineNode[] }) {
           <span
             key={i}
             style={{
-              fontWeight: n.marks?.some((m) => m.type === "strong")
-                ? 700
-                : undefined,
-              fontStyle: n.marks?.some((m) => m.type === "em")
-                ? "italic"
-                : undefined,
+              fontWeight: n.marks?.some((m) => m.type === "strong") ? 700 : undefined,
+              fontStyle: n.marks?.some((m) => m.type === "em") ? "italic" : undefined,
               textDecoration: n.marks?.some((m) => m.type === "underline")
                 ? "underline"
                 : undefined,
@@ -90,11 +86,7 @@ export function ImportPanel({
   request: ImportRequest;
   destination: string;
   onClose: () => void;
-  onCreate: (
-    title: string,
-    script: string,
-    original: KeptFile,
-  ) => Promise<boolean>;
+  onCreate: (title: string, script: string, original: KeptFile) => Promise<boolean>;
   /** Adds to the open play when the request names one. */
   onAdd?: (as: AddAs, title: string, content: string, original: KeptFile) => Promise<boolean>;
 }) {
@@ -104,8 +96,7 @@ export function ImportPanel({
   const [original, setOriginal] = useState<Uint8Array | null>(null);
   const [title, setTitle] = useState("");
   const [reading, setReading] = useState<Reading>("detect");
-  const [corrections, setCorrections] =
-    useState<Corrections>(EMPTY_CORRECTIONS);
+  const [corrections, setCorrections] = useState<Corrections>(EMPTY_CORRECTIONS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -158,15 +149,19 @@ export function ImportPanel({
       setDoc(document);
       setOriginal(bytes);
       setTitle(documentTitle(document));
-      if (play) setAddAs(looksLikeScript(document, reviewLines(document, "detect", EMPTY_CORRECTIONS)) ? "script" : "document");
+      if (play)
+        setAddAs(
+          looksLikeScript(document, reviewLines(document, "detect", EMPTY_CORRECTIONS))
+            ? "script"
+            : "document",
+        );
       announce(
         `${name} is ready to review. ${document.paragraphs.length} paragraphs. Nothing has been imported yet.`,
       );
     };
     void load()
       .catch((e) => {
-        if (!controller.signal.aborted)
-          setError(e instanceof Error ? e.message : String(e));
+        if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e));
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -188,31 +183,20 @@ export function ImportPanel({
         .filter(
           ({ line }) =>
             (!reviewOnly || line.review) &&
-            paragraphText(line)
-              .toLocaleLowerCase()
-              .includes(search.toLocaleLowerCase()),
+            paragraphText(line).toLocaleLowerCase().includes(search.toLocaleLowerCase()),
         ),
     [lines, reviewOnly, search],
   );
   const lastPage = Math.max(0, Math.ceil(filtered.length / PAGE_SIZE) - 1);
   const currentPage = Math.min(page, lastPage);
-  const shown = filtered.slice(
-    currentPage * PAGE_SIZE,
-    (currentPage + 1) * PAGE_SIZE,
-  );
+  const shown = filtered.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
   const active = lines[selected];
-  const sourceStyleCount = active
-    ? lines.filter((line) => line.style === active.style).length
-    : 0;
-  const scenes = lines.filter(
-    (p) => p.kind === "scene" || p.kind === "sceneHeading",
-  ).length;
+  const sourceStyleCount = active ? lines.filter((line) => line.style === active.style).length : 0;
+  const scenes = lines.filter((p) => p.kind === "scene" || p.kind === "sceneHeading").length;
   const headings = doc ? doc.paragraphs.filter((p) => headingLevel(p)).length : 0;
   const asDocument = !!play && addAs === "document";
   const characters = new Set(
-    lines
-      .filter((p) => p.kind === "character")
-      .map((p) => paragraphText(p).toUpperCase()),
+    lines.filter((p) => p.kind === "character").map((p) => paragraphText(p).toUpperCase()),
   ).size;
   const close = () => {
     if (!busy.current) {
@@ -239,9 +223,10 @@ export function ImportPanel({
       const content = asDocument
         ? documentMarkdown(doc)
         : makeScript(doc, title.trim(), reading, corrections);
-      const ok = play && onAdd
-        ? await onAdd(addAs, title.trim(), content, kept)
-        : await onCreate(title.trim(), content, kept);
+      const ok =
+        play && onAdd
+          ? await onAdd(addAs, title.trim(), content, kept)
+          : await onCreate(title.trim(), content, kept);
       if (!ok) {
         setError(
           play
@@ -294,10 +279,7 @@ export function ImportPanel({
             {made ? "Done" : "Cancel"}
           </Button>
           {queue.length > 1 && (
-            <Button
-              disabled={saving}
-              onClick={() => setQueue((q) => q.slice(1))}
-            >
+            <Button disabled={saving} onClick={() => setQueue((q) => q.slice(1))}>
               Skip This File
             </Button>
           )}
@@ -344,44 +326,31 @@ export function ImportPanel({
         />
         {error && (
           <div className="import-desk__error" role="alert">
-            <strong>
-              {source
-                ? `About “${sourceName(source)}”`
-                : "Import needs attention"}
-            </strong>
+            <strong>{source ? `About “${sourceName(source)}”` : "Import needs attention"}</strong>
             <p>{error}</p>
           </div>
         )}
         {loading ? (
           <div className="import-desk__reading" role="status">
             <h3>Reading {source ? sourceName(source) : "your draft"}…</h3>
-            <p>
-              Preparing the text and checking its structure. You can cancel at
-              any time.
-            </p>
+            <p>Preparing the text and checking its structure. You can cancel at any time.</p>
           </div>
         ) : !doc ? (
           <>
             <div className="import-desk__choose">
               <h3>Choose a draft to bring in</h3>
-              <p>
-                Drop your file here, or choose it below. The original stays
-                untouched.
-              </p>
-              <Button
-                treatment="primary"
-                onClick={() => fileInput.current?.click()}
-              >
+              <p>Drop your file here, or choose it below. The original stays untouched.</p>
+              <Button treatment="primary" onClick={() => fileInput.current?.click()}>
                 Choose Files…
               </Button>
               <p className="import-desk__hint">
-                Word (.docx), Pages, OpenDocument (.odt), RTF, text, Markdown,
-                Fountain and Final Draft.
+                Word (.docx), Pages, OpenDocument (.odt), RTF, text, Markdown, Fountain and Final
+                Draft.
               </p>
             </div>
             <p className="import-desk__batchhint">
-              Bringing several drafts? Choose them together and review each
-              before it becomes a separate play.
+              Bringing several drafts? Choose them together and review each before it becomes a
+              separate play.
             </p>
             <div className="import-desk__guides">
               <h3>Coming from another app?</h3>
@@ -444,10 +413,7 @@ export function ImportPanel({
                   </p>
                 </div>
               )}
-              <Button
-                disabled={saving}
-                onClick={() => fileInput.current?.click()}
-              >
+              <Button disabled={saving} onClick={() => fileInput.current?.click()}>
                 Choose Different Files…
               </Button>
             </div>
@@ -506,36 +472,33 @@ export function ImportPanel({
                 }}
               />
               {!asDocument && (
-              <span className="import-desk__reviewfilter">
-                <Checkbox
-                  on={reviewOnly}
-                  onChange={(v) => {
-                    setReviewOnly(v);
-                    setPage(0);
-                  }}
-                  label="Inferred or Unrecognized Only"
-                />
-                <span>Inferred or Unrecognized Only</span>
-              </span>
+                <span className="import-desk__reviewfilter">
+                  <Checkbox
+                    on={reviewOnly}
+                    onChange={(v) => {
+                      setReviewOnly(v);
+                      setPage(0);
+                    }}
+                    label="Inferred or Unrecognized Only"
+                  />
+                  <span>Inferred or Unrecognized Only</span>
+                </span>
               )}
               {!asDocument && (
-              <PopupButton
-                label="Unstyled text"
-                value={reading}
-                disabled={saving}
-                options={[
-                  { value: "detect", label: "Recognize Script Elements" },
-                  { value: "directions", label: "Keep as Stage Directions" },
-                ]}
-                onChange={setReading}
-              />
+                <PopupButton
+                  label="Unstyled text"
+                  value={reading}
+                  disabled={saving}
+                  options={[
+                    { value: "detect", label: "Recognize Script Elements" },
+                    { value: "directions", label: "Keep as Stage Directions" },
+                  ]}
+                  onChange={setReading}
+                />
               )}
             </div>
             <div className="import-desk__review">
-              <section
-                className="import-desk__preview"
-                aria-label="Paragraph preview"
-              >
+              <section className="import-desk__preview" aria-label="Paragraph preview">
                 <div className="import-desk__previewhead">
                   <h3>Reading preview</h3>
                   <span>
@@ -556,9 +519,7 @@ export function ImportPanel({
                         onClick={() => setSelected(index)}
                       >
                         <span className="import-desk__number">{index + 1}</span>
-                        <span
-                          className={`import-desk__words import-desk__words--${line.kind}`}
-                        >
+                        <span className={`import-desk__words import-desk__words--${line.kind}`}>
                           <Text content={line.content} />
                           {line.kind === "pageBreak" && "Page break"}
                         </span>
@@ -578,10 +539,7 @@ export function ImportPanel({
                   )}
                 </div>
                 <div className="import-desk__pagination">
-                  <Button
-                    disabled={currentPage === 0}
-                    onClick={() => setPage(currentPage - 1)}
-                  >
+                  <Button disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>
                     Previous
                   </Button>
                   <span>
@@ -597,10 +555,7 @@ export function ImportPanel({
                   </Button>
                 </div>
               </section>
-              <aside
-                className="import-desk__adjust"
-                aria-label="Adjust paragraph"
-              >
+              <aside className="import-desk__adjust" aria-label="Adjust paragraph">
                 {active && asDocument && (
                   <>
                     <h3>Paragraph {selected + 1}</h3>
@@ -608,12 +563,10 @@ export function ImportPanel({
                     <p className="import-desk__excerpt">
                       <Text content={active.content} />
                     </p>
+                    <p className="import-desk__hint">Source style: {active.style}</p>
                     <p className="import-desk__hint">
-                      Source style: {active.style}
-                    </p>
-                    <p className="import-desk__hint">
-                      A document keeps its words as written. Change a heading
-                      or anything else once it is in the binder.
+                      A document keeps its words as written. Change a heading or anything else once
+                      it is in the binder.
                     </p>
                   </>
                 )}
@@ -631,9 +584,7 @@ export function ImportPanel({
                       onChange={correct}
                       disabled={saving}
                     />
-                    <p className="import-desk__hint">
-                      Source style: {active.style}
-                    </p>
+                    <p className="import-desk__hint">Source style: {active.style}</p>
                     <Button
                       disabled={saving}
                       onClick={() => {
@@ -650,8 +601,8 @@ export function ImportPanel({
                     </Button>
                     <p className="import-desk__hint">
                       Applies to {sourceStyleCount}{" "}
-                      {sourceStyleCount === 1 ? "paragraph" : "paragraphs"}.
-                      Individual corrections take priority.
+                      {sourceStyleCount === 1 ? "paragraph" : "paragraphs"}. Individual corrections
+                      take priority.
                     </p>
                     <Button
                       disabled={

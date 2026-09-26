@@ -33,11 +33,7 @@ describe("parseInline — marks", () => {
 
   it("emphasis amid plain text", () => {
     const nodes = parseInline("a *b* c");
-    expect(nodes.map((n) => (n.type === "text" ? n.text : "N"))).toEqual([
-      "a ",
-      "b",
-      " c",
-    ]);
+    expect(nodes.map((n) => (n.type === "text" ? n.text : "N"))).toEqual(["a ", "b", " c"]);
     expect(marksOf(nodes[1])).toBe("em");
   });
 
@@ -55,9 +51,7 @@ describe("parseInline — marks", () => {
   });
 
   it("unmatched delimiter folds back to literal", () => {
-    expect(parseInline("file_name")).toEqual([
-      { type: "text", text: "file_name" },
-    ]);
+    expect(parseInline("file_name")).toEqual([{ type: "text", text: "file_name" }]);
   });
 });
 
@@ -87,9 +81,7 @@ describe("serializeInline — round-trip", () => {
   }
 
   it("clean corpus stays byte-identical (no needless escaping)", () => {
-    expect(serializeInline(parseInline("She turns off the tap."))).toBe(
-      "She turns off the tap.",
-    );
+    expect(serializeInline(parseInline("She turns off the tap."))).toBe("She turns off the tap.");
     expect(serializeInline(parseInline("*i*"))).toBe("*i*");
     expect(serializeInline(parseInline("_*i*_"))).toBe("_*i*_");
   });

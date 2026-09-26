@@ -46,7 +46,9 @@ export function General({
         {/* The last clause of this sentence is the one that must exist: a
             writer whose plays are on this Mac alone should never find that out
             from a backup they didn't have (docs/app/keeping-work/storage-and-file-format.md#STOR-D11). */}
-        <Note>{playsFolder ? wherePlaysLive : "Your plays will be saved in the folder you choose."}</Note>
+        <Note>
+          {playsFolder ? wherePlaysLive : "Your plays will be saved in the folder you choose."}
+        </Note>
         <div className="settings__folder">
           <span className="settings__path mono" title={playsFolder ?? undefined}>
             {playsFolder ?? "No folder chosen"}
@@ -74,7 +76,10 @@ export function General({
           </Button>
         </div>
         {playsFolder && (
-          <Note>Changing the folder doesn’t move any plays. Proscenium shows the plays in the new folder instead.</Note>
+          <Note>
+            Changing the folder doesn’t move any plays. Proscenium shows the plays in the new folder
+            instead.
+          </Note>
         )}
       </Group>
 

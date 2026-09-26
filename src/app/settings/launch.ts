@@ -3,7 +3,7 @@
 
 /**
  * Settings › General › "When Proscenium opens": where the writer left off (the
- * default since 2026-09-16), or the Plays screen.
+ * default), or the Plays screen.
  *
  * It sits on top of the workspace rather than inside its bootstrap. Launch
  * reopens the last Plays folder and lists its plays, exactly as it always has;
@@ -75,7 +75,9 @@ export function leftOff(state: {
   lastPlay: string | null;
 }): { left: string | null; lastPlay?: string | null } {
   if (state.open) {
-    return state.open === state.lastPlay ? { left: state.open } : { left: state.open, lastPlay: state.open };
+    return state.open === state.lastPlay
+      ? { left: state.open }
+      : { left: state.open, lastPlay: state.open };
   }
   if (state.left && state.mode === "picker") {
     return state.lastPlay === null ? { left: null } : { left: null, lastPlay: null };
@@ -128,7 +130,12 @@ export function launchStep(state: {
   if (state.practicing || state.playOpen) return "arrived";
   if (!state.booted) return "waiting";
   if (!state.root) return "arrived";
-  if (state.mode === "picker" && state.vaultRoot && state.settingsLoaded && state.launchVault !== undefined) {
+  if (
+    state.mode === "picker" &&
+    state.vaultRoot &&
+    state.settingsLoaded &&
+    state.launchVault !== undefined
+  ) {
     return "decide";
   }
   return "waiting";
@@ -202,18 +209,41 @@ export function useOpenAtLaunch(
   useEffect(() => {
     if (decided.current) return;
     const step = launchStep({
-      booted, practicing, playOpen: !!current, root, mode, vaultRoot, settingsLoaded: loaded, launchVault,
+      booted,
+      practicing,
+      playOpen: !!current,
+      root,
+      mode,
+      vaultRoot,
+      settingsLoaded: loaded,
+      launchVault,
     });
     if (step === "waiting") return;
     decided.current = true;
-    const play = step === "decide" ? launchPlay({ openAtLaunch, lastPlay, vaultRoot, launchVault: launchVault ?? null, plays }) : null;
+    const play =
+      step === "decide"
+        ? launchPlay({ openAtLaunch, lastPlay, vaultRoot, launchVault: launchVault ?? null, plays })
+        : null;
     if (!play) {
       setArrived(true);
       return;
     }
     setOpening(play.title);
     void enterPlay(play).finally(() => setEntered(true));
-  }, [booted, practicing, current, root, mode, vaultRoot, plays, loaded, launchVault, openAtLaunch, lastPlay, enterPlay]);
+  }, [
+    booted,
+    practicing,
+    current,
+    root,
+    mode,
+    vaultRoot,
+    plays,
+    loaded,
+    launchVault,
+    openAtLaunch,
+    lastPlay,
+    enterPlay,
+  ]);
 
   // Arrived when the play is in place — or, when it could not be opened, back
   // on the Plays screen with the reason (enterPlay reopens the folder then).

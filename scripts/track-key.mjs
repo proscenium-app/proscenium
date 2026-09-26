@@ -26,7 +26,15 @@
  */
 import { spawnSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
-import { closeSync, fsyncSync, openSync, readFileSync, renameSync, statSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  fsyncSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -40,7 +48,8 @@ const USAGE = "usage: node scripts/track-key.mjs status | issue";
 
 export function mintKey() {
   const key = randomBytes(32).toString("base64url");
-  if (!KEY_SHAPE.test(key)) throw new Error("A new key came out the wrong shape. Nothing was filed.");
+  if (!KEY_SHAPE.test(key))
+    throw new Error("A new key came out the wrong shape. Nothing was filed.");
   return key;
 }
 
@@ -53,8 +62,13 @@ export function keyHash(key) {
 export function readSettings(path) {
   let value;
   // Not JSON.parse's own message: it quotes the text, which may hold a key.
-  try { value = JSON.parse(readFileSync(path, "utf8")); } catch { throw new Error(`${path} could not be read as JSON. Nothing was written.`); }
-  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error(`${path} is not a settings object. Nothing was written.`);
+  try {
+    value = JSON.parse(readFileSync(path, "utf8"));
+  } catch {
+    throw new Error(`${path} could not be read as JSON. Nothing was written.`);
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`${path} is not a settings object. Nothing was written.`);
   return value;
 }
 
@@ -90,13 +104,16 @@ function running(name) {
 
 /** Why settings.json may not be written now, or null. */
 function busy() {
-  if (running("proscenium")) return "Proscenium is running. Quit it first: it reads and rewrites settings.json.";
+  if (running("proscenium"))
+    return "Proscenium is running. Quit it first: it reads and rewrites settings.json.";
   if (running("CptHost")) return "A call is live. Wait until it ends.";
   return null;
 }
 
 function status() {
-  console.log(holdsKey(SETTINGS) ? "settings.json holds an alpha key." : "settings.json holds no alpha key.");
+  console.log(
+    holdsKey(SETTINGS) ? "settings.json holds an alpha key." : "settings.json holds no alpha key.",
+  );
   console.log(busy() ?? "Proscenium is not running and no call is live: a key can be written.");
 }
 
@@ -105,14 +122,25 @@ function issue() {
   const before = busy();
   if (before) throw new Error(`${before} Nothing was filed.`);
   const key = mintKey();
-  const filed = spawnSync(process.execPath, [fileURLToPath(new URL("./edge-wrangler.mjs", import.meta.url)), "secret", SECRET], {
-    input: keyHash(key), stdio: ["pipe", "inherit", "inherit"],
-  });
-  if (filed.status !== 0) throw new Error(`The Worker secret ${SECRET} was not filed. settings.json is unchanged.`);
+  const filed = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL("./edge-wrangler.mjs", import.meta.url)), "secret", SECRET],
+    {
+      input: keyHash(key),
+      stdio: ["pipe", "inherit", "inherit"],
+    },
+  );
+  if (filed.status !== 0)
+    throw new Error(`The Worker secret ${SECRET} was not filed. settings.json is unchanged.`);
   const after = busy();
-  if (after) throw new Error(`${after} The Worker holds the new key's hash but settings.json does not hold the key: issue again once it is clear.`);
+  if (after)
+    throw new Error(
+      `${after} The Worker holds the new key's hash but settings.json does not hold the key: issue again once it is clear.`,
+    );
   writeKey(SETTINGS, key);
-  console.log(`A new alpha key is in settings.json, and its hash is the Worker's ${SECRET}. Neither was displayed; the last key no longer works.`);
+  console.log(
+    `A new alpha key is in settings.json, and its hash is the Worker's ${SECRET}. Neither was displayed; the last key no longer works.`,
+  );
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {

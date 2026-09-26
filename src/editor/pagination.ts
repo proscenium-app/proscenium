@@ -79,7 +79,10 @@ interface LayoutMetaMsg {
 type Meta = ConfigMeta | LayoutMetaMsg;
 
 /** Extract engine blocks from the live doc; srcStart carries PM positions. */
-function blocksFromPmDoc(doc: PMNode, spec: FormatSpec): {
+function blocksFromPmDoc(
+  doc: PMNode,
+  spec: FormatSpec,
+): {
   blocks: LayoutBlock[];
   blockPos: number[];
 } {
@@ -191,9 +194,7 @@ function dualChainDecorations(doc: PMNode): Decoration[] {
           // The widget takes the clearance instead, and the next block's
           // margin then applies normally below the float.
           const at = blks[rightEnd].from;
-          out.push(
-            Decoration.widget(at, dualClearWidget, { side: -1, key: `dual-clear-${at}` }),
-          );
+          out.push(Decoration.widget(at, dualClearWidget, { side: -1, key: `dual-clear-${at}` }));
         }
         i = rightEnd;
         continue;
@@ -245,7 +246,11 @@ function breakWidget(args: {
 
 /** Draw a shared engine page before the script, with the normal sheet band.
  * Its positioned text never wraps or makes a pagination decision in the DOM. */
-function frontMatterWidget(page: FrontMatterPage, spec: FormatSpec, onClick: (() => void) | null): HTMLElement {
+function frontMatterWidget(
+  page: FrontMatterPage,
+  spec: FormatSpec,
+  onClick: (() => void) | null,
+): HTMLElement {
   const root = el(`pgchrome pgchrome--${page.kind === "title" ? "title" : "front"}`);
   root.contentEditable = "false";
   const sheet = el(page.kind === "title" ? "titlesheet" : "frontsheet", root);
@@ -253,7 +258,10 @@ function frontMatterWidget(page: FrontMatterPage, spec: FormatSpec, onClick: (()
   if (page.kind === "title" && onClick) {
     sheet.classList.add("titlesheet--editable");
     sheet.title = "Edit title page";
-    sheet.addEventListener("mousedown", (event) => { event.preventDefault(); onClick(); });
+    sheet.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      onClick();
+    });
   }
   frontMatterLines(page.lines, sheet, spec);
   el("pgchrome__botmargin", root);
@@ -269,15 +277,18 @@ function frontMatterLines(lines: FrontMatterLine[], sheet: HTMLElement, spec: Fo
       bold: line.fontStyle === "bold" || line.fontStyle === "bold-italic",
       italic: line.fontStyle === "italic" || line.fontStyle === "bold-italic",
     })) {
-      const span = document.createElement("span"); span.textContent = segment.text;
+      const span = document.createElement("span");
+      span.textContent = segment.text;
       span.style.fontWeight = segment.bold ? "700" : "400";
       span.style.fontStyle = segment.italic ? "italic" : "normal";
       text.appendChild(span);
     }
     text.style.top = `calc(${line.row} * var(--fmt-line))`;
     text.style.left = `${inchesToCh(spec, line.xIn)}ch`;
-    text.style.fontWeight = line.fontStyle === "bold" || line.fontStyle === "bold-italic" ? "700" : "400";
-    text.style.fontStyle = line.fontStyle === "italic" || line.fontStyle === "bold-italic" ? "italic" : "normal";
+    text.style.fontWeight =
+      line.fontStyle === "bold" || line.fontStyle === "bold-italic" ? "700" : "400";
+    text.style.fontStyle =
+      line.fontStyle === "italic" || line.fontStyle === "bold-italic" ? "italic" : "normal";
     text.dataset.frontParagraph = line.paragraphId;
   }
 }
@@ -290,23 +301,32 @@ function introWidget(layout: LayoutResult, spec: FormatSpec, bodyPage: number): 
   for (let index = 0; index <= bodyPage; index++) {
     const page = layout.pages[index];
     const sheet = el("frontsheet", root);
-    const height = index < bodyPage ? layout.maxRows : page.lines[0]?.row ?? page.usedRows;
+    const height = index < bodyPage ? layout.maxRows : (page.lines[0]?.row ?? page.usedRows);
     sheet.style.height = `calc(${height} * var(--fmt-line))`;
     frontMatterLines(page.intro ?? [], sheet, spec);
-    if (index < bodyPage) root.appendChild(breakWidget({
-      fillRows: 0, footer: page.footer, header: layout.pages[index + 1].header, contd: null,
-    }));
+    if (index < bodyPage)
+      root.appendChild(
+        breakWidget({
+          fillRows: 0,
+          footer: page.footer,
+          header: layout.pages[index + 1].header,
+          contd: null,
+        }),
+      );
   }
   return root;
 }
 
 /** A first-page header (formats that don't suppress it) drawn into the top
  * margin, and the last sheet's bottom fill with that sheet's footer. */
-function edgeWidget(kind: "first-header" | "fill", args: {
-  fillRows?: number;
-  header?: Slots | null;
-  footer?: Slots | null;
-}): HTMLElement {
+function edgeWidget(
+  kind: "first-header" | "fill",
+  args: {
+    fillRows?: number;
+    header?: Slots | null;
+    footer?: Slots | null;
+  },
+): HTMLElement {
   const root = el("pgchrome");
   root.contentEditable = "false";
   if (kind === "first-header" && args.header) {
@@ -348,44 +368,85 @@ function computeLayout(
     if (dualDecos.some((d) => d.from === at && d.to === at + node.nodeSize)) continue;
     dualDecos.push(Decoration.node(at, at + node.nodeSize, { class: "pm-beside" }));
     const index = blocks.findIndex((b) => b.sourceIndex === source);
-    const next = blocks[index + 1], previous = blocks[index - 1];
+    const next = blocks[index + 1],
+      previous = blocks[index - 1];
     const firstRow = pages.flatMap((p) => p.lines).find((line) => line.sourceIndex === source)?.row;
-    const gap = index === 0 || config.enabled && firstRow === 0 ? 0
-      : Math.max(previous ? config.spec.elements[previous.type].spacingAfter : 0, config.spec.elements[blocks[index].type].spacingBefore);
+    const gap =
+      index === 0 || (config.enabled && firstRow === 0)
+        ? 0
+        : Math.max(
+            previous ? config.spec.elements[previous.type].spacingAfter : 0,
+            config.spec.elements[blocks[index].type].spacingBefore,
+          );
     // Floats do not collapse margins like regular paragraphs. Give the pair
     // one measured gap, outside both blocks, so both begin on the same row.
     if (previous) {
       const priorAt = blockPos[previous.sourceIndex];
-      dualDecos.push(Decoration.node(priorAt, priorAt + doc.child(previous.sourceIndex).nodeSize, { class: "pm-before-beside" }));
+      dualDecos.push(
+        Decoration.node(priorAt, priorAt + doc.child(previous.sourceIndex).nodeSize, {
+          class: "pm-before-beside",
+        }),
+      );
     }
-    dualDecos.push(Decoration.widget(at, () => {
-      const spacer = document.createElement("div");
-      spacer.className = "pm-beside-gap";
-      spacer.style.height = `calc(${gap} * var(--fmt-line))`;
-      return spacer;
-    }, { side: -1, key: `beside-gap-${source}-${gap}` }));
-    dualDecos.push(Decoration.node(blockPos[next.sourceIndex], blockPos[next.sourceIndex] + doc.child(next.sourceIndex).nodeSize, { class: "pm-beside-body" }));
+    dualDecos.push(
+      Decoration.widget(
+        at,
+        () => {
+          const spacer = document.createElement("div");
+          spacer.className = "pm-beside-gap";
+          spacer.style.height = `calc(${gap} * var(--fmt-line))`;
+          return spacer;
+        },
+        { side: -1, key: `beside-gap-${source}-${gap}` },
+      ),
+    );
+    dualDecos.push(
+      Decoration.node(
+        blockPos[next.sourceIndex],
+        blockPos[next.sourceIndex] + doc.child(next.sourceIndex).nodeSize,
+        { class: "pm-beside-body" },
+      ),
+    );
     const tail = runIns.has(next.sourceIndex) ? blocks[index + 2] : next;
     const end = blockPos[tail.sourceIndex] + doc.child(tail.sourceIndex).nodeSize;
-    dualDecos.push(Decoration.widget(end, () => {
-      const clear = document.createElement("div");
-      clear.className = "pm-beside-clear";
-      return clear;
-    }, { side: -1, key: `beside-clear-${source}` }));
+    dualDecos.push(
+      Decoration.widget(
+        end,
+        () => {
+          const clear = document.createElement("div");
+          clear.className = "pm-beside-clear";
+          return clear;
+        },
+        { side: -1, key: `beside-clear-${source}` },
+      ),
+    );
   }
   const beside = besidePairs(blocks, config.spec);
   for (const source of runIns) {
     const index = blocks.findIndex((b) => b.sourceIndex === source);
-    const block = blocks[index], previous = blocks[index - 1], next = blocks[index + 1];
+    const block = blocks[index],
+      previous = blocks[index - 1],
+      next = blocks[index + 1];
     const col = elementColumnIn(config.spec, block.type);
-    const previousCol = previous && beside.has(previous.sourceIndex) ? elementColumnIn(config.spec, previous.type) : null;
+    const previousCol =
+      previous && beside.has(previous.sourceIndex)
+        ? elementColumnIn(config.spec, previous.type)
+        : null;
     const left = col.leftIn - (previousCol ? previousCol.leftIn + previousCol.widthIn : 0);
     const at = blockPos[source];
-    dualDecos.push(Decoration.node(at, at + doc.child(source).nodeSize, {
-      class: "pm-run-in",
-      style: `margin-left:${inchesToCh(config.spec, left)}ch;width:${block.text.length}ch;max-width:${block.text.length}ch;`,
-    }));
-    dualDecos.push(Decoration.node(blockPos[next.sourceIndex], blockPos[next.sourceIndex] + doc.child(next.sourceIndex).nodeSize, { class: "pm-run-in-body" }));
+    dualDecos.push(
+      Decoration.node(at, at + doc.child(source).nodeSize, {
+        class: "pm-run-in",
+        style: `margin-left:${inchesToCh(config.spec, left)}ch;width:${block.text.length}ch;max-width:${block.text.length}ch;`,
+      }),
+    );
+    dualDecos.push(
+      Decoration.node(
+        blockPos[next.sourceIndex],
+        blockPos[next.sourceIndex] + doc.child(next.sourceIndex).nodeSize,
+        { class: "pm-run-in-body" },
+      ),
+    );
   }
 
   if (!config.enabled) {
@@ -398,10 +459,13 @@ function computeLayout(
 
   const decorations: Decoration[] = [...dualDecos];
   for (const [index, page] of paginateFrontMatter(config.frontMatter, config.spec).entries()) {
-    decorations.push(Decoration.widget(0,
-      () => frontMatterWidget(page, config.spec!, config.onTitlePageClick ?? null),
-      { side: -1, key: `pg-front-${index}-${JSON.stringify(page)}` },
-    ));
+    decorations.push(
+      Decoration.widget(
+        0,
+        () => frontMatterWidget(page, config.spec!, config.onTitlePageClick ?? null),
+        { side: -1, key: `pg-front-${index}-${JSON.stringify(page)}` },
+      ),
+    );
   }
   if (pages[0]?.header) {
     decorations.push(
@@ -415,13 +479,20 @@ function computeLayout(
   const firstBody = pages.findIndex((page) => page.lines.length);
   const bodyPage = firstBody < 0 ? pages.length - 1 : firstBody;
   if (hasIntro) {
-    decorations.push(Decoration.widget(0, () => introWidget(layout, config.spec!, bodyPage), {
-      side: -1, key: `pg-intro-${JSON.stringify(pages.slice(0, bodyPage + 1))}`,
-    }));
+    decorations.push(
+      Decoration.widget(0, () => introWidget(layout, config.spec!, bodyPage), {
+        side: -1,
+        key: `pg-intro-${JSON.stringify(pages.slice(0, bodyPage + 1))}`,
+      }),
+    );
     const first = pages[bodyPage].lines[0];
     if (first && first.sourceIndex >= 0) {
       const at = blockPos[first.sourceIndex];
-      decorations.push(Decoration.node(at, at + doc.child(first.sourceIndex).nodeSize, { class: "pm-after-intro" }));
+      decorations.push(
+        Decoration.node(at, at + doc.child(first.sourceIndex).nodeSize, {
+          class: "pm-after-intro",
+        }),
+      );
     }
   }
   for (let i = hasIntro ? bodyPage + 1 : 1; i < pages.length; i++) {
@@ -443,10 +514,14 @@ function computeLayout(
   if (last) {
     const footer = last.footer;
     decorations.push(
-      Decoration.widget(doc.content.size, () => edgeWidget("fill", { fillRows: last.fillRows, footer }), {
-        side: 1,
-        key: `pg-last-${last.fillRows}-${JSON.stringify(footer)}`,
-      }),
+      Decoration.widget(
+        doc.content.size,
+        () => edgeWidget("fill", { fillRows: last.fillRows, footer }),
+        {
+          side: 1,
+          key: `pg-last-${last.fillRows}-${JSON.stringify(footer)}`,
+        },
+      ),
     );
   }
   return { deco: DecorationSet.create(doc, decorations), pageStarts, total: pages.length };

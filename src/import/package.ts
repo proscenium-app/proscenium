@@ -11,8 +11,13 @@ import { assertDocumentSize } from "../storage/read-limit";
  * back into the folder (docs/app/importing/document-import.md#IMPT-89).
  * Stored, not deflated: the parts are compressed already.
  */
-export function zipPackage(folder: string, files: { path: string; bytes: Uint8Array }[]): { name: string; bytes: Uint8Array } {
-  const bytes = zipSync(Object.fromEntries(files.map((f) => [`${folder}/${f.path}`, f.bytes])), { level: 0 });
+export function zipPackage(
+  folder: string,
+  files: { path: string; bytes: Uint8Array }[],
+): { name: string; bytes: Uint8Array } {
+  const bytes = zipSync(Object.fromEntries(files.map((f) => [`${folder}/${f.path}`, f.bytes])), {
+    level: 0,
+  });
   assertDocumentSize(bytes.byteLength);
   return { name: `${folder}.zip`, bytes };
 }

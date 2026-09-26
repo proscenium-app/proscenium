@@ -120,7 +120,17 @@ function block(type: string, text = ""): PMNode {
 describe("Enter (docs/app/writing/editor-ux.md#EDIT-29)", () => {
   /** A double Enter is where a writer reaches for the element picker. */
   it("opens the element menu on an empty line, the second Enter of a pair", () => {
-    for (const type of ["action", "dialogue", "character", "parenthetical", "lyric", "sceneHeading", "transition", "act", "scene"]) {
+    for (const type of [
+      "action",
+      "dialogue",
+      "character",
+      "parenthetical",
+      "lyric",
+      "sceneHeading",
+      "transition",
+      "act",
+      "scene",
+    ]) {
       expect(enterDecision(block(type)).kind).toBe("menu");
     }
   });
@@ -136,7 +146,19 @@ describe("Enter (docs/app/writing/editor-ux.md#EDIT-29)", () => {
 
   it("only ever suggests an element the menu has a row for", () => {
     const rows = new Set(Object.values(LEADER_ELEMENTS));
-    for (const type of ["action", "dialogue", "character", "parenthetical", "lyric", "sceneHeading", "transition", "act", "scene", "synopsis", "centered"]) {
+    for (const type of [
+      "action",
+      "dialogue",
+      "character",
+      "parenthetical",
+      "lyric",
+      "sceneHeading",
+      "transition",
+      "act",
+      "scene",
+      "synopsis",
+      "centered",
+    ]) {
       const decision = enterDecision(block(type));
       if (decision.kind !== "menu") throw new Error(`${type}: ${decision.kind}`);
       expect(rows.has(decision.suggested)).toBe(true);
@@ -146,7 +168,10 @@ describe("Enter (docs/app/writing/editor-ux.md#EDIT-29)", () => {
   it("still advances from a line with words in it", () => {
     expect(enterDecision(block("character", "MARA"))).toEqual({ kind: "advance", to: "dialogue" });
     expect(enterDecision(block("dialogue", "Stay."))).toEqual({ kind: "advance", to: "action" });
-    expect(enterDecision(block("parenthetical", "beat"))).toEqual({ kind: "advance", to: "dialogue" });
+    expect(enterDecision(block("parenthetical", "beat"))).toEqual({
+      kind: "advance",
+      to: "dialogue",
+    });
     expect(enterDecision(block("action", "She waits."))).toEqual({ kind: "advance", to: "action" });
   });
 

@@ -29,7 +29,15 @@ import { parseFormatFile, validateFormatSpec } from "./validate";
 /** The format applied when a project names none (docs/app/keeping-work/storage-and-file-format.md#STOR-D4 `settings.houseStyle`). */
 export const DEFAULT_FORMAT_ID = "dg-modern";
 
-const BUILTIN_RAW: readonly unknown[] = [dgModernRaw, stageUsModernRaw, stageUkRaw, samuelFrenchRaw, dgTraditionalRaw, dgMusicalRaw, sketchComedyRaw];
+const BUILTIN_RAW: readonly unknown[] = [
+  dgModernRaw,
+  stageUsModernRaw,
+  stageUkRaw,
+  samuelFrenchRaw,
+  dgTraditionalRaw,
+  dgMusicalRaw,
+  sketchComedyRaw,
+];
 
 /** Validate and return the shipped formats; throws on any invalid built-in. */
 export function builtinFormats(): FormatSpec[] {
@@ -74,7 +82,10 @@ export class FormatRegistry {
       return;
     }
     if (this.isBuiltin(result.spec.id)) {
-      this.warnings.push({ source: fileName, message: `Built-in format "${result.spec.id}" is read-only. Import this file with a new name to use your copy.` });
+      this.warnings.push({
+        source: fileName,
+        message: `Built-in format "${result.spec.id}" is read-only. Import this file with a new name to use your copy.`,
+      });
       return;
     }
     if (this.byId.has(result.spec.id)) {

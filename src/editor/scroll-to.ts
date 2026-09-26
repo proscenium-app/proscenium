@@ -44,11 +44,7 @@ export interface ScrollToOptions {
   centerIfHidden?: boolean;
 }
 
-export function scrollPosIntoView(
-  view: EditorView,
-  pos: number,
-  opts: ScrollToOptions = {},
-): void {
+export function scrollPosIntoView(view: EditorView, pos: number, opts: ScrollToOptions = {}): void {
   const scroller = scrollParent(view.dom);
   if (!scroller) return;
   let coords: { top: number; bottom: number };

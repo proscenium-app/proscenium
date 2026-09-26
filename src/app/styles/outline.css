@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Outline (docs/app/organizing/workspace-model.md#WORK-D3) -------------------------------------------------------- */
 /* Two cards: loose thinking above the structure it is about. */
 .outliner {
@@ -23,7 +22,7 @@
   border-bottom: 0.5px solid var(--rule);
   white-space: nowrap;
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .outliner thead th {
     color: var(--ink-2);
   }
@@ -33,7 +32,7 @@
 .outliner__row:nth-child(even) {
   background: rgba(31, 41, 51, 0.025);
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .outliner__row:nth-child(even) {
     background: rgba(255, 255, 255, 0.03);
   }
@@ -153,10 +152,6 @@
   margin: 0 0 1rem;
 }
 
-
-
-
-
 /* Outline surface: the freeform scratchpad, then the scene table ---------- */
 /* Two halves of one job — loose thinking above the structure it's about. The
    notes sit on paper like a page pinned above the desk; the table below keeps
@@ -234,16 +229,26 @@
   font-size: var(--t-body);
   line-height: 1.65;
 }
-.outline-notes__body .prose h1 { font-size: var(--t-title); }
-.outline-notes__body .prose h2 { font-size: var(--t-head); }
-.outline-notes__body .prose h3 { font-size: var(--t-body); }
+.outline-notes__body .prose h1 {
+  font-size: var(--t-title);
+}
+.outline-notes__body .prose h2 {
+  font-size: var(--t-head);
+}
+.outline-notes__body .prose h3 {
+  font-size: var(--t-body);
+}
 .outline-notes__body .prose h1,
 .outline-notes__body .prose h2,
 .outline-notes__body .prose h3,
-.outline-notes__body .prose h4 { margin: 1.2rem 0 0.5rem; }
+.outline-notes__body .prose h4 {
+  margin: 1.2rem 0 0.5rem;
+}
 .outline-notes__body .prose p,
 .outline-notes__body .prose ul,
-.outline-notes__body .prose ol { margin-bottom: 0.7rem; }
+.outline-notes__body .prose ol {
+  margin-bottom: 0.7rem;
+}
 .outline-notes__body .prose p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: var(--ash);
@@ -252,4 +257,3 @@
   height: 0;
   pointer-events: none;
 }
-

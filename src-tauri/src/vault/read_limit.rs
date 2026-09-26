@@ -1,7 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fs::File, io::{self, Read}, path::Path};
+use std::{
+    fs::File,
+    io::{self, Read},
+    path::Path,
+};
 
 /// Matches src/storage/read-limit.ts. Read at most one byte beyond the bound
 /// even if the file grows after stat; never allocate from an untrusted length.
@@ -12,17 +16,27 @@ fn too_large() -> io::Error {
 }
 fn bounded(mut reader: impl Read) -> io::Result<Vec<u8>> {
     let mut bytes = Vec::new();
-    reader.by_ref().take(MAX_DOCUMENT_BYTES + 1).read_to_end(&mut bytes)?;
-    if bytes.len() as u64 > MAX_DOCUMENT_BYTES { return Err(too_large()); }
+    reader
+        .by_ref()
+        .take(MAX_DOCUMENT_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_DOCUMENT_BYTES {
+        return Err(too_large());
+    }
     Ok(bytes)
 }
 pub fn read_document(path: &Path) -> io::Result<Vec<u8>> {
     let file = File::open(path)?;
     let metadata = file.metadata()?;
     if !metadata.is_file() {
-        return Err(io::Error::new(io::ErrorKind::InvalidInput, "This document is not a regular file."));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "This document is not a regular file.",
+        ));
     }
-    if metadata.len() > MAX_DOCUMENT_BYTES { return Err(too_large()); }
+    if metadata.len() > MAX_DOCUMENT_BYTES {
+        return Err(too_large());
+    }
     bounded(file)
 }
 
@@ -52,17 +66,29 @@ pub fn read_package(dir: &Path) -> io::Result<Option<PackageFiles>> {
             let entry = entry?;
             let kind = entry.file_type()?;
             let name = entry.file_name().to_string_lossy().into_owned();
-            let rel = if prefix.is_empty() { name } else { format!("{prefix}/{name}") };
+            let rel = if prefix.is_empty() {
+                name
+            } else {
+                format!("{prefix}/{name}")
+            };
             if kind.is_dir() {
-                if depth >= MAX_PACKAGE_DEPTH { return Err(too_complex()); }
+                if depth >= MAX_PACKAGE_DEPTH {
+                    return Err(too_complex());
+                }
                 pending.push((entry.path(), rel, depth + 1));
             } else if kind.is_file() {
-                if files.len() >= MAX_PACKAGE_FILES { return Err(too_complex()); }
+                if files.len() >= MAX_PACKAGE_FILES {
+                    return Err(too_complex());
+                }
                 // Checked before the read, and again after it: a file can grow.
-                if total + entry.metadata()?.len() > MAX_DOCUMENT_BYTES { return Err(too_large()); }
+                if total + entry.metadata()?.len() > MAX_DOCUMENT_BYTES {
+                    return Err(too_large());
+                }
                 let bytes = read_document(&entry.path())?;
                 total += bytes.len() as u64;
-                if total > MAX_DOCUMENT_BYTES { return Err(too_large()); }
+                if total > MAX_DOCUMENT_BYTES {
+                    return Err(too_large());
+                }
                 files.push((rel, bytes));
             }
         }
@@ -80,19 +106,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a106_bounded_reader_stops_a_growing_input() {
+    fn bounded_reader_stops_a_growing_input() {
         let mut stream = io::repeat(b'a');
-        assert!(bounded(&mut stream).unwrap_err().to_string().contains("16 MiB"));
+        assert!(bounded(&mut stream)
+            .unwrap_err()
+            .to_string()
+            .contains("16 MiB"));
         assert_eq!(bounded(io::Cursor::new(b"small")).unwrap(), b"small");
     }
 
     #[test]
-    fn a106_oversized_open_leaves_the_file_unchanged() {
+    fn oversized_open_leaves_the_file_unchanged() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("large.fdx");
         let file = File::create(&path).unwrap();
         file.set_len(MAX_DOCUMENT_BYTES + 1).unwrap();
-        assert!(read_document(&path).unwrap_err().to_string().contains("16 MiB"));
+        assert!(read_document(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("16 MiB"));
         assert_eq!(file.metadata().unwrap().len(), MAX_DOCUMENT_BYTES + 1);
     }
 
@@ -105,13 +137,16 @@ mod tests {
         std::fs::write(package.join("Metadata/Properties.plist"), b"plist").unwrap();
         std::fs::write(package.join(".iwpv2"), b"verifier").unwrap();
         std::fs::write(dir.path().join("elsewhere.txt"), b"not the package's").unwrap();
-        std::os::unix::fs::symlink(dir.path().join("elsewhere.txt"), package.join("link.txt")).unwrap();
+        std::os::unix::fs::symlink(dir.path().join("elsewhere.txt"), package.join("link.txt"))
+            .unwrap();
         let files = read_package(&package).unwrap().unwrap();
         let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(names, [".iwpv2", "Index.zip", "Metadata/Properties.plist"]);
         assert_eq!(files[1].1, b"index");
         // A plain file is not a package: the caller reads it as bytes.
-        assert!(read_package(&dir.path().join("elsewhere.txt")).unwrap().is_none());
+        assert!(read_package(&dir.path().join("elsewhere.txt"))
+            .unwrap()
+            .is_none());
     }
 
     #[test]
@@ -120,8 +155,14 @@ mod tests {
         let package = dir.path().join("Large.pages");
         std::fs::create_dir(&package).unwrap();
         for name in ["a", "b"] {
-            File::create(package.join(name)).unwrap().set_len(MAX_DOCUMENT_BYTES / 2 + 1).unwrap();
+            File::create(package.join(name))
+                .unwrap()
+                .set_len(MAX_DOCUMENT_BYTES / 2 + 1)
+                .unwrap();
         }
-        assert!(read_package(&package).unwrap_err().to_string().contains("16 MiB"));
+        assert!(read_package(&package)
+            .unwrap_err()
+            .to_string()
+            .contains("16 MiB"));
     }
 }

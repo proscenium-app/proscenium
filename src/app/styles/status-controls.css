@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Zoom, in the status bar (docs/engineering/design-system.md#UI-D106 stepper, docs/engineering/design-system.md#UI-D107 popover). Chrome for a pure view
    transform: the format spec decides the page, this only decides how big it
    looks. The label between the two steps is itself the button that opens the
@@ -78,4 +77,3 @@
   color: var(--ash);
   font-variant-numeric: tabular-nums;
 }
-

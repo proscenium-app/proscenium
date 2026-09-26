@@ -22,12 +22,19 @@ export { buildDocument } from "./model";
 export type { WpInput } from "./model";
 
 /** The file, from its model and the faces it embeds. Pure: the tests call this. */
-export function writeScriptDocument(type: DocumentType, input: WpInput, fonts: FontFaces): Uint8Array {
+export function writeScriptDocument(
+  type: DocumentType,
+  input: WpInput,
+  fonts: FontFaces,
+): Uint8Array {
   const doc = buildDocument(input);
   return type === "docx" ? writeDocx(doc, fonts) : writeOdt(doc, fonts);
 }
 
-export async function renderScriptDocument(type: DocumentType, input: WpInput): Promise<Uint8Array> {
+export async function renderScriptDocument(
+  type: DocumentType,
+  input: WpInput,
+): Promise<Uint8Array> {
   // The Courier Prime files the PDF embeds (docs/app/formatting/formats-and-layout.md#FMT-154).
   return writeScriptDocument(type, input, await loadPdfFonts());
 }

@@ -40,14 +40,14 @@ export const MONITOR_PCT = 10;
 /**
  * Gigabytes of build output to leave room for, above the alarm line.
  *
- * Measured 2026-09-21 on a build host with a cold target: `cargo test` alone
+ * Measured on a build host with a cold target: `cargo test` alone
  * took 2.6 GB, clippy `--all-targets` took it to 3.3 GB, and a universal
  * release with its disk image finished at 5.7 GB. The default is roughly twice
  * the whole of that, because the number that matters is not what a build uses
  * but what is left when it is wrong.
  *
  * An old, much-used checkout can hold four times as much — a machine's main
- * target was 24 GB the same day — but that is years of accumulated profiles
+ * target was 24 GB at the same time — but that is years of accumulated profiles
  * and other platforms' slices, not what one build needs. Sizing the floor for
  * it would refuse builds that had room.
  */
@@ -81,7 +81,9 @@ const DAY = 24 * 60 * 60 * 1000;
 export function profiles(target) {
   const dirs = (path) => {
     try {
-      return readdirSync(path, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => join(path, d.name));
+      return readdirSync(path, { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => join(path, d.name));
     } catch {
       return [];
     }
@@ -96,8 +98,11 @@ export function profiles(target) {
 
 /** The lock files Cargo holds while it builds in a target. */
 export function cargoLocks(target) {
-  return profiles(target).flatMap((p) => [".cargo-lock", ".cargo-build-lock", ".cargo-artifact-lock"]
-    .map((f) => join(p, f)).filter(existsSync));
+  return profiles(target).flatMap((p) =>
+    [".cargo-lock", ".cargo-build-lock", ".cargo-artifact-lock"]
+      .map((f) => join(p, f))
+      .filter(existsSync),
+  );
 }
 
 /**
@@ -108,14 +113,19 @@ export function cargoLocks(target) {
 export function targetInUse(target) {
   const locks = cargoLocks(target);
   if (!locks.length) return false;
-  const r = spawnSync("perl", ["-MFcntl=:flock", "-e", `
+  const r = spawnSync("perl", [
+    "-MFcntl=:flock",
+    "-e",
+    `
     my @held;
     for my $lock (@ARGV) {
       open(my $fh, "<", $lock) or next;
       flock($fh, LOCK_SH | LOCK_NB) or exit 75;
       push @held, $fh;
     }
-  `, ...locks]);
+  `,
+    ...locks,
+  ]);
   return r.status === 75;
 }
 
@@ -129,7 +139,9 @@ function lastActivity(path, target) {
   const mtime = (p) => {
     try {
       times.push(statSync(p).mtimeMs);
-    } catch { /* gone, or never made */ }
+    } catch {
+      /* gone, or never made */
+    }
   };
   mtime(target);
   for (const p of profiles(target)) {
@@ -137,18 +149,22 @@ function lastActivity(path, target) {
     for (const sub of ["deps", ".fingerprint", "build", "incremental"]) mtime(join(p, sub));
   }
   try {
-    const gitDir = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-dir"],
-      { cwd: path, encoding: "utf8" }).trim();
+    const gitDir = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-dir"], {
+      cwd: path,
+      encoding: "utf8",
+    }).trim();
     mtime(join(gitDir, "index"));
     mtime(join(gitDir, "logs/HEAD"));
-  } catch { /* not a checkout any more */ }
+  } catch {
+    /* not a checkout any more */
+  }
   return Math.max(0, ...times);
 }
 
 /**
  * Build output that can be deleted without losing anything a person wrote:
  * the target directory of a worktree whose HEAD is already in main — on a
- * merged branch or, as Claude's worktrees are, detached — or of one nobody has
+ * merged branch or, as an agent's worktrees are, detached — or of one nobody has
  * built in or committed from for more than `idleDays`. Cargo rebuilds them;
  * nothing else is in them. The main checkout is never listed, because its
  * target is the warm build new worktrees clone (scripts/worktree-target.sh),
@@ -162,18 +178,21 @@ function lastActivity(path, target) {
  * since a build can start the moment after the list is made.
  */
 export function sweepable({ root = ROOT, idleDays = IDLE_DAYS, now = Date.now() } = {}) {
-  const git = (args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const git = (args) =>
+    execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
   let worktrees = [];
   try {
     git(["rev-parse", "--verify", "--quiet", "main^{commit}"]);
     worktrees = git(["worktree", "list", "--porcelain"]).trim().split("\n\n");
   } catch {
-    return [];                       // Not a checkout with a main. Nothing to say.
+    return []; // Not a checkout with a main. Nothing to say.
   }
   let here = root;
   try {
     here = git(["rev-parse", "--show-toplevel"]).trim();
-  } catch { /* root itself, then */ }
+  } catch {
+    /* root itself, then */
+  }
 
   const found = [];
   for (const [i, block] of worktrees.entries()) {
@@ -189,20 +208,31 @@ export function sweepable({ root = ROOT, idleDays = IDLE_DAYS, now = Date.now() 
       try {
         git(["merge-base", "--is-ancestor", head, "main"]);
         merged = true;
-      } catch { /* not in main, or not a commit git knows */ }
+      } catch {
+        /* not in main, or not a commit git knows */
+      }
     }
     const idle = Math.floor((now - lastActivity(path, target)) / DAY);
     let reason;
-    if (merged) reason = branch ? `branch ${branch} is in main` : `detached at ${head.slice(0, 7)}, in main`;
+    if (merged)
+      reason = branch ? `branch ${branch} is in main` : `detached at ${head.slice(0, 7)}, in main`;
     else if (idle > idleDays) reason = `idle ${idle} days`;
     else continue;
 
     let bytes = 0;
     try {
-      bytes = Number(execFileSync("du", ["-sk", target], { encoding: "utf8" })
-        .split(/\s+/)[0]) * 1024;
-    } catch { /* an unreadable target is not worth failing over */ }
-    found.push({ name: branch ?? `${basename(path)} (detached)`, target, reason, idleDays: idle, bytes });
+      bytes =
+        Number(execFileSync("du", ["-sk", target], { encoding: "utf8" }).split(/\s+/)[0]) * 1024;
+    } catch {
+      /* an unreadable target is not worth failing over */
+    }
+    found.push({
+      name: branch ?? `${basename(path)} (detached)`,
+      target,
+      reason,
+      idleDays: idle,
+      bytes,
+    });
   }
   return found;
 }
@@ -238,9 +268,13 @@ export function requireDiskFloor({ reserveGb = DEFAULT_RESERVE_GB, label = "this
   const sweep = sweepable();
   if (sweep.length) {
     const total = sweep.reduce((n, s) => n + s.bytes, 0);
-    lines.push(`  ${gb(total)} is build output of worktrees merged or idle, and can be deleted (${SWEEP_NOTE}):`);
+    lines.push(
+      `  ${gb(total)} is build output of worktrees merged or idle, and can be deleted (${SWEEP_NOTE}):`,
+    );
     for (const s of sweep) lines.push(`    ${sweepLine(s)}`);
-    lines.push("  Check no session is about to build in one, delete those targets, then run this again.");
+    lines.push(
+      "  Check no session is about to build in one, delete those targets, then run this again.",
+    );
   } else {
     lines.push("  No merged or idle worktree has build output to reclaim. Free space elsewhere.");
   }
@@ -266,7 +300,8 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import
       process.exit(2);
     }
     const sweep = sweepable({ idleDays });
-    if (!sweep.length) console.log("disk-floor: no merged or idle worktree has build output to reclaim.");
+    if (!sweep.length)
+      console.log("disk-floor: no merged or idle worktree has build output to reclaim.");
     else console.log(`disk-floor: ${SWEEP_NOTE}.`);
     for (const s of sweep) console.log(sweepLine(s));
     process.exit(0);

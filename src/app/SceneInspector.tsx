@@ -33,7 +33,6 @@ const COLORS: { id: CardColor; name: string }[] = [
   { id: "ash", name: "Parked" },
 ];
 
-
 /** A field that commits on blur, so every keystroke is not a disk write. */
 function LazyField({
   value,
@@ -126,8 +125,8 @@ export function SceneInspector({
         </span>
         <p className="emptysurface__title">No scene here</p>
         <p className="emptysurface__body">
-          Put the caret in a scene, or type <span className="mono">## Scene</span> in
-          the script, and its card appears here.
+          Put the caret in a scene, or type <span className="mono">## Scene</span> in the script,
+          and its card appears here.
         </p>
       </div>
     );
@@ -211,12 +210,13 @@ export function SceneInspector({
                   : 0;
             if (!step) return;
             e.preventDefault();
-            const at = Math.max(0, COLORS.findIndex((c) => c.id === scene.card.color));
+            const at = Math.max(
+              0,
+              COLORS.findIndex((c) => c.id === scene.card.color),
+            );
             const next = COLORS[(at + step + COLORS.length) % COLORS.length];
             onSetCard(scene.id, { color: next.id });
-            e.currentTarget
-              .querySelector<HTMLButtonElement>(`[data-swatch="${next.id}"]`)
-              ?.focus();
+            e.currentTarget.querySelector<HTMLButtonElement>(`[data-swatch="${next.id}"]`)?.focus();
           }}
         >
           {COLORS.map((c, i) => {
@@ -287,9 +287,7 @@ export function SceneInspector({
       {pendingChange && (
         <div className="insp__notice">
           <span className="insp__noticedot" />
-          <span className="insp__noticetext">
-            Changed somewhere else {pendingChange.when}.
-          </span>
+          <span className="insp__noticetext">Changed somewhere else {pendingChange.when}.</span>
           <button type="button" className="insp__noticelink" onClick={onReviewChange}>
             Review
           </button>

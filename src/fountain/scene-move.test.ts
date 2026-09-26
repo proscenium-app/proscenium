@@ -25,8 +25,7 @@ const THREE = [
   "Ccc.",
 ].join("\n");
 
-const headings = (doc: ReturnType<typeof parse>["doc"]) =>
-  extractScenes(doc).map((s) => s.heading);
+const headings = (doc: ReturnType<typeof parse>["doc"]) => extractScenes(doc).map((s) => s.heading);
 const acts = (doc: ReturnType<typeof parse>["doc"]) => extractScenes(doc).map((s) => s.act);
 
 describe("moveSceneInDoc", () => {

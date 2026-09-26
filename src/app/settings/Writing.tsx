@@ -90,7 +90,13 @@ export function Writing() {
           use the macOS dictionary, which is shared with other apps.
         </Note>
         <div>
-          <form className="settings__actions" onSubmit={(e) => { e.preventDefault(); addWord(); }}>
+          <form
+            className="settings__actions"
+            onSubmit={(e) => {
+              e.preventDefault();
+              addWord();
+            }}
+          >
             <input
               className="field"
               aria-label="Word or name to add"
@@ -103,10 +109,16 @@ export function Writing() {
                 setWordProblem("");
               }}
             />
-            <Button type="submit" disabled={!newWord.trim()}>Add Word</Button>
+            <Button type="submit" disabled={!newWord.trim()}>
+              Add Word
+            </Button>
           </form>
           {/* Mounted empty, so it is read when it fills (StatusList does the same). */}
-          <p id="dictionary-problem" className="settings__note settings__problem" aria-live="polite">
+          <p
+            id="dictionary-problem"
+            className="settings__note settings__problem"
+            aria-live="polite"
+          >
             {wordProblem}
           </p>
         </div>
@@ -140,7 +152,11 @@ export function Writing() {
           Offered for scenes in Board, Outline and the Inspector, in this order. Renaming or
           deleting a status doesn’t change scenes that already have it.
         </Note>
-        <StatusList statuses={sceneStatuses} onChange={(sceneStatuses) => updateSettings({ sceneStatuses })} subject="Scenes" />
+        <StatusList
+          statuses={sceneStatuses}
+          onChange={(sceneStatuses) => updateSettings({ sceneStatuses })}
+          subject="Scenes"
+        />
       </Group>
     </SectionBody>
   );

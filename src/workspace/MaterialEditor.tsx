@@ -126,7 +126,6 @@ export interface MaterialEditorProps {
   onSheetMoved?: () => void;
 }
 
-
 export function MaterialEditor({
   item,
   content,
@@ -159,7 +158,10 @@ export function MaterialEditor({
   // long unbroken stream of typing lands every two seconds instead of only
   // when it pauses.
   const scheduler = useRef(
-    new AutosaveScheduler({ debounceMs: DEBOUNCE_MS, maxWaitMs: DEFAULT_AUTOSAVE.maxWaitMs }, () => void flushRef.current()),
+    new AutosaveScheduler(
+      { debounceMs: DEBOUNCE_MS, maxWaitMs: DEFAULT_AUTOSAVE.maxWaitMs },
+      () => void flushRef.current(),
+    ),
   );
   const box = useRef<HTMLTextAreaElement | null>(null);
   const latest = useRef(parsed.body);
@@ -244,10 +246,15 @@ export function MaterialEditor({
   const root = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const pane = root.current?.closest<HTMLElement>(".pane__body");
-    const bars = [...(root.current?.querySelectorAll<HTMLElement>(":scope > .material__head, :scope > .fmt") ?? [])];
+    const bars = [
+      ...(root.current?.querySelectorAll<HTMLElement>(":scope > .material__head, :scope > .fmt") ??
+        []),
+    ];
     if (!pane || !bars.length) return;
     const measure = () => {
-      const covered = Math.max(...bars.map((bar) => (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight));
+      const covered = Math.max(
+        ...bars.map((bar) => (parseFloat(getComputedStyle(bar).top) || 0) + bar.offsetHeight),
+      );
       pane.style.scrollPaddingTop = `${covered}px`;
     };
     measure();
@@ -270,7 +277,12 @@ export function MaterialEditor({
     // The version that arrived holds exactly the words on this page: a save an
     // earlier editor of this sheet sent, landing after this one took its words
     // over. They are saved — left "unsaved", the sheet said Saving… for good.
-    if (!forced && !sending.current && latest.current !== savedBody.current && parsed.body === latest.current) {
+    if (
+      !forced &&
+      !sending.current &&
+      latest.current !== savedBody.current &&
+      parsed.body === latest.current
+    ) {
       savedBody.current = latest.current;
       base.current = content;
       setSaveState("clean");
@@ -467,7 +479,13 @@ export function MaterialEditor({
   const showKind = kind !== "document";
 
   return (
-    <div ref={root} className="material" lang={language} style={pageVars} onKeyDownCapture={onKeyDownCapture}>
+    <div
+      ref={root}
+      className="material"
+      lang={language}
+      style={pageVars}
+      onKeyDownCapture={onKeyDownCapture}
+    >
       <header className="material__head">
         <div className="material__headinner">
           <div className="material__titleblock">
@@ -496,20 +514,61 @@ export function MaterialEditor({
             {tags.map((t) => (
               <span className="material__tag" key={t}>
                 {t}
-                {editingTags && <IconButton size="mini" label={`Remove tag “${t}”`} disabled={!!gate}
-                  onClick={() => onEditTags?.((now) => now.filter((x) => x !== t))}><CloseIcon size={10} /></IconButton>}
+                {editingTags && (
+                  <IconButton
+                    size="mini"
+                    label={`Remove tag “${t}”`}
+                    disabled={!!gate}
+                    onClick={() => onEditTags?.((now) => now.filter((x) => x !== t))}
+                  >
+                    <CloseIcon size={10} />
+                  </IconButton>
+                )}
               </span>
             ))}
-            {onEditTags && <Button size="small" treatment="borderless" data-tutorial="material-tags" onClick={() => setEditingTags(!editingTags)} aria-expanded={editingTags}>
-              {editingTags ? "Done Editing Tags" : "Edit Tags"}
-            </Button>}
-            {editingTags && <form className="settings__actions" onSubmit={(e) => {
-              e.preventDefault(); const value = tag.trim();
-              if (value && !/[\n\r,\[\]]/.test(value)) { onEditTags?.((now) => now.includes(value) ? now : [...now, value]); setTag(""); }
-            }}>
-              <input className="field" data-tutorial="tag-field" aria-label="New tag" value={tag} maxLength={80} placeholder="New tag" disabled={!!gate} onChange={(e) => setTag(e.target.value)} />
-              <Button type="submit" size="small" data-tutorial="add-tag" disabled={!!gate || !tag.trim() || /[\n\r,\[\]]/.test(tag)}>Add Tag</Button>
-            </form>}
+            {onEditTags && (
+              <Button
+                size="small"
+                treatment="borderless"
+                data-tutorial="material-tags"
+                onClick={() => setEditingTags(!editingTags)}
+                aria-expanded={editingTags}
+              >
+                {editingTags ? "Done Editing Tags" : "Edit Tags"}
+              </Button>
+            )}
+            {editingTags && (
+              <form
+                className="settings__actions"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const value = tag.trim();
+                  if (value && !/[\n\r,\[\]]/.test(value)) {
+                    onEditTags?.((now) => (now.includes(value) ? now : [...now, value]));
+                    setTag("");
+                  }
+                }}
+              >
+                <input
+                  className="field"
+                  data-tutorial="tag-field"
+                  aria-label="New tag"
+                  value={tag}
+                  maxLength={80}
+                  placeholder="New tag"
+                  disabled={!!gate}
+                  onChange={(e) => setTag(e.target.value)}
+                />
+                <Button
+                  type="submit"
+                  size="small"
+                  data-tutorial="add-tag"
+                  disabled={!!gate || !tag.trim() || /[\n\r,\[\]]/.test(tag)}
+                >
+                  Add Tag
+                </Button>
+              </form>
+            )}
           </div>
           <div className="material__headright">
             <span
@@ -543,8 +602,7 @@ export function MaterialEditor({
       {gate && (
         <div className="material__gate" role="status">
           <span className="material__gatetext">
-            This changed somewhere else while you were writing. Nothing has been
-            overwritten.
+            This changed somewhere else while you were writing. Nothing has been overwritten.
           </span>
           <button onClick={() => onResolveGate?.("theirs")}>Use the other</button>
           <button onClick={() => onResolveGate?.("mine")}>Keep this one</button>
@@ -553,18 +611,27 @@ export function MaterialEditor({
       {mode === "page" ? (
         <>
           <FormatBar editor={editor} />
-          {kind === "character" && !body.trim() && <div className="settings__actions">
-            <Button size="small" treatment="borderless" onClick={() => onChange((schemaFor("character")?.sections ?? [])
-              .filter((s) => !s.managed).map((s) => `## ${s.heading}\n\n`).join(""))}>Start with Character Prompts</Button>
-          </div>}
+          {kind === "character" && !body.trim() && (
+            <div className="settings__actions">
+              <Button
+                size="small"
+                treatment="borderless"
+                onClick={() =>
+                  onChange(
+                    (schemaFor("character")?.sections ?? [])
+                      .filter((s) => !s.managed)
+                      .map((s) => `## ${s.heading}\n\n`)
+                      .join(""),
+                  )
+                }
+              >
+                Start with Character Prompts
+              </Button>
+            </div>
+          )}
           <div className="material__desk">
             <div className="material__page" data-tutorial="material-page" style={sheetZoom}>
-              <ProseEditor
-                markdown={body}
-                onChange={onChange}
-                onBlur={flush}
-                onReady={setEditor}
-              />
+              <ProseEditor markdown={body} onChange={onChange} onBlur={flush} onReady={setEditor} />
             </div>
           </div>
         </>

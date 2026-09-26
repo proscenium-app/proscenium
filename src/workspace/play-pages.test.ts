@@ -6,7 +6,13 @@ import { FormatRegistry } from "../format";
 import { parse } from "../fountain";
 import { scenePageMap } from "../layout";
 import { SAMPLE_PLAY } from "./sample-play";
-import { cachedPages, countPages, playPages, specFingerprint, type PageCountIo } from "./play-pages";
+import {
+  cachedPages,
+  countPages,
+  playPages,
+  specFingerprint,
+  type PageCountIo,
+} from "./play-pages";
 import type { VaultPlay } from "./vault-plays";
 
 const registry = FormatRegistry.withBuiltins();
@@ -25,7 +31,11 @@ const play = (over: Partial<VaultPlay> = {}): VaultPlay => ({
 });
 
 /** An app-data cache and a Plays folder in memory, counting what was asked of them. */
-function io(files: Record<string, string> = { "The Weight of Water/The Weight of Water.fountain": SAMPLE_PLAY }) {
+function io(
+  files: Record<string, string> = {
+    "The Weight of Water/The Weight of Water.fountain": SAMPLE_PLAY,
+  },
+) {
   const cache = new Map<string, string>();
   const asked = { reads: 0, writes: 0 };
   const methods: PageCountIo = {
@@ -48,13 +58,18 @@ describe("a play's pages (docs/app/keeping-work/storage-and-file-format.md#STOR-
     const pages = countPages(SAMPLE_PLAY, dg);
     expect(pages).toBeGreaterThan(1);
     expect(pages).toBe(scenePageMap(parse(SAMPLE_PLAY).doc, dg).totalPages);
-    expect(countPages(SAMPLE_PLAY, stage)).toBe(scenePageMap(parse(SAMPLE_PLAY).doc, stage).totalPages);
+    expect(countPages(SAMPLE_PLAY, stage)).toBe(
+      scenePageMap(parse(SAMPLE_PLAY).doc, stage).totalPages,
+    );
   });
 
   test("are counted once, then read back while the script and the format are the same", async () => {
     const disk = io();
     const first = await playPages(play(), registry, disk.methods);
-    expect(first).toEqual({ pages: { kind: "pages", pages: countPages(SAMPLE_PLAY, dg) }, counted: true });
+    expect(first).toEqual({
+      pages: { kind: "pages", pages: countPages(SAMPLE_PLAY, dg) },
+      counted: true,
+    });
     expect(disk.asked).toEqual({ reads: 1, writes: 1 });
 
     const again = await playPages(play(), registry, disk.methods);
@@ -82,7 +97,10 @@ describe("a play's pages (docs/app/keeping-work/storage-and-file-format.md#STOR-
   test("are a dash in a format this Mac does not have, and nothing is read", async () => {
     const disk = io();
     const result = await playPages(play({ format: "made-on-another-mac" }), registry, disk.methods);
-    expect(result).toEqual({ pages: { kind: "no-format", format: "made-on-another-mac" }, counted: false });
+    expect(result).toEqual({
+      pages: { kind: "no-format", format: "made-on-another-mac" },
+      counted: false,
+    });
     expect(disk.asked.reads).toBe(0);
   });
 
@@ -93,16 +111,27 @@ describe("a play's pages (docs/app/keeping-work/storage-and-file-format.md#STOR-
 
   test("are unknown with no script, a play file to repair, or a script that will not read", async () => {
     const disk = io({});
-    expect((await playPages(play({ script: undefined }), registry, disk.methods)).pages).toEqual({ kind: "unknown" });
-    expect((await playPages(play({ problem: "malformed" }), registry, disk.methods)).pages).toEqual({ kind: "unknown" });
+    expect((await playPages(play({ script: undefined }), registry, disk.methods)).pages).toEqual({
+      kind: "unknown",
+    });
+    expect((await playPages(play({ problem: "malformed" }), registry, disk.methods)).pages).toEqual(
+      { kind: "unknown" },
+    );
     expect((await playPages(play(), registry, disk.methods)).pages).toEqual({ kind: "unknown" });
     expect(disk.asked.writes).toBe(0);
   });
 
   test("a cache holding another key, or garbage, is no count at all", () => {
-    const key = { script: "a.fountain", modified: "t", format: "dg-modern", spec: specFingerprint(dg) };
+    const key = {
+      script: "a.fountain",
+      modified: "t",
+      format: "dg-modern",
+      spec: specFingerprint(dg),
+    };
     expect(cachedPages(JSON.stringify({ ...key, pages: 42 }), key)).toBe(42);
-    expect(cachedPages(JSON.stringify({ ...key, pages: 42 }), { ...key, modified: "u" })).toBeNull();
+    expect(
+      cachedPages(JSON.stringify({ ...key, pages: 42 }), { ...key, modified: "u" }),
+    ).toBeNull();
     expect(cachedPages(JSON.stringify({ ...key, pages: -1 }), key)).toBeNull();
     expect(cachedPages("{ not json", key)).toBeNull();
     expect(cachedPages(null, key)).toBeNull();

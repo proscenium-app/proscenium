@@ -1,31 +1,19 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import {
-useCallback,
-useEffect,
-useMemo,
-useRef,
-useState,
-type ReactNode
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CommentsFeed } from "../comments";
 import { commentsState } from "../comments/plugin";
-import {
-errorShown,
-playOpened,
-surfaceShown,
-workspaceErrorCode
-} from "../diagnostics";
+import { errorShown, playOpened, surfaceShown, workspaceErrorCode } from "../diagnostics";
 import { FeedbackSheet } from "../feedback/FeedbackSheet";
 import { PlayEditor } from "../editor";
 import { useCaretScene } from "../editor/caret-scene";
 import { ChangesView } from "../review";
 import { useRecoveryCopies } from "../review/RecoveryCopies";
 import { useSavedCopies } from "../review/SavedCopies";
-import { settings,vault } from "../storage";
+import { settings, vault } from "../storage";
 import type { Surface as ReportedSurface } from "../storage/ipc";
-import { Button,ToastHost,useToast } from "../ui";
+import { Button, ToastHost, useToast } from "../ui";
 import type { BinderItem } from "../workspace";
 import { titleOf } from "../workspace";
 import { Binder } from "../workspace/BinderView";
@@ -36,41 +24,38 @@ import { AppDialogs } from "./AppDialogs";
 import { BannerActions } from "./BannerActions";
 import { CastView } from "./CastView";
 import type { ExportRequest } from "./ExportDialog";
-import { Inspector,type InspectorTab } from "./Inspector";
+import { Inspector, type InspectorTab } from "./Inspector";
 import { PaneTree } from "./PaneTree";
 import { SceneInspector } from "./SceneInspector";
 import { SheetInspector } from "./SheetInspector";
 import { StatusBar } from "./StatusBar";
-import { Toolbar,type ViewId } from "./Toolbar";
+import { Toolbar, type ViewId } from "./Toolbar";
 import { VaultScreen } from "./VaultScreen";
 import { ImportPanel, type ImportRequest, type ImportSource } from "../import/ImportPanel";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { LaunchScreen } from "./LaunchScreen";
 import { ZoomControl } from "./ZoomControl";
-import {
-openFormatDesigner,
-useFormatDesignerRequest
-} from "./formats/open";
-import { findLeaf,hasSurface,type Surface } from "./panes";
+import { openFormatDesigner, useFormatDesignerRequest } from "./formats/open";
+import { findLeaf, hasSurface, type Surface } from "./panes";
 import { usePrivacyNotice } from "./privacy-notice";
 import { useQuitGate } from "./quit";
 import { playLanding } from "./regions";
 import {
-learnWord,
-openSettings,
-updateSettings,
-useOpenAtLaunch,
-useSettings,
-useSettingsSheet
+  learnWord,
+  openSettings,
+  updateSettings,
+  useOpenAtLaunch,
+  useSettings,
+  useSettingsSheet,
 } from "./settings";
 import { UpdateInstallSheet } from "./update-lock";
 import { useUpdateNotices } from "./updates";
 import { useCreatedPages } from "./use-created-pages";
 import { useKeyboardInset } from "./use-keyboard-inset";
 import { useNarrowLayout } from "./use-narrow-layout";
-import { useShellCommands,VIEW_TO_SURFACE } from "./use-shell-commands";
-import { findBinderItem,useWorkspacePanes } from "./use-workspace-panes";
-import { findFitTarget,useZoom } from "./use-zoom";
+import { useShellCommands, VIEW_TO_SURFACE } from "./use-shell-commands";
+import { findBinderItem, useWorkspacePanes } from "./use-workspace-panes";
+import { findFitTarget, useZoom } from "./use-zoom";
 import { useFinderOpens } from "./useFinderOpens";
 import { useWorkspace } from "./useWorkspace";
 import { useTutorial } from "../tutorial/useTutorial";
@@ -92,9 +77,7 @@ function ago(iso: string): string {
 
 /** The binder's "Characters" folder, so new character sheets land there. */
 function findCharactersFolder(binder: BinderItem[]): BinderItem | null {
-  return (
-    binder.find((it) => it.type === "folder" && /^characters$/i.test(titleOf(it))) ?? null
-  );
+  return binder.find((it) => it.type === "folder" && /^characters$/i.test(titleOf(it))) ?? null;
 }
 
 /** What `surface_shown` calls each view (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3). */
@@ -153,24 +136,40 @@ function AppShell() {
      on the Plays screen it makes a play; in a play it adds a script or a
      binder document to that play. Finder always makes a play. */
   const openPlayTitle = ws.mode === "workspace" && ws.playTitle ? ws.playTitle : undefined;
-  const beginImport = useCallback((sources: ImportSource[] = [], play?: string, parentId: string | null = null) => {
-    if (!ws.vaultRoot) {
-      toast({ kind: "plain", title: "Choose where your plays live first", detail: "Then use Import a Draft to bring your writing here." });
-      return Promise.resolve();
-    }
-    if (sources.length > 20) {
-      toast({ kind: "plain", title: "Choose up to 20 files at a time", detail: "Each file is reviewed before it becomes a separate play." });
-      return Promise.resolve();
-    }
-    return new Promise<void>(finish => {
-      const id = ++importId.current;
-      const folder = parentId ? findBinderItem(ws.binder, parentId) : null;
-      setImportQueue(q => [...q, { id, sources, finish, play, parentId, folder: folder ? titleOf(folder) : undefined }]);
-    });
-  }, [ws.vaultRoot, ws.binder, toast]);
-  const finderOpens = useFinderOpens(ws, toast, path => beginImport([{ path }]));
+  const beginImport = useCallback(
+    (sources: ImportSource[] = [], play?: string, parentId: string | null = null) => {
+      if (!ws.vaultRoot) {
+        toast({
+          kind: "plain",
+          title: "Choose where your plays live first",
+          detail: "Then use Import a Draft to bring your writing here.",
+        });
+        return Promise.resolve();
+      }
+      if (sources.length > 20) {
+        toast({
+          kind: "plain",
+          title: "Choose up to 20 files at a time",
+          detail: "Each file is reviewed before it becomes a separate play.",
+        });
+        return Promise.resolve();
+      }
+      return new Promise<void>((finish) => {
+        const id = ++importId.current;
+        const folder = parentId ? findBinderItem(ws.binder, parentId) : null;
+        setImportQueue((q) => [
+          ...q,
+          { id, sources, finish, play, parentId, folder: folder ? titleOf(folder) : undefined },
+        ]);
+      });
+    },
+    [ws.vaultRoot, ws.binder, toast],
+  );
+  const finderOpens = useFinderOpens(ws, toast, (path) => beginImport([{ path }]));
   useEffect(() => {
-    const open = () => { void beginImport([], openPlayTitle); };
+    const open = () => {
+      void beginImport([], openPlayTitle);
+    };
     window.addEventListener("proscenium:import-draft", open);
     return () => window.removeEventListener("proscenium:import-draft", open);
   }, [beginImport, openPlayTitle]);
@@ -216,13 +215,13 @@ function AppShell() {
      a different problem and gets a different answer: fit-width zoom, since 560px
      for an 816px page overflows too (use-zoom.ts). */
   // Binder ids whose file is gone from disk, for the greyed "missing" chip.
-  const missingIds = useMemo(
-    () => new Set(ws.missingItems.map((i) => i.id)),
-    [ws.missingItems],
-  );
+  const missingIds = useMemo(() => new Set(ws.missingItems.map((i) => i.id)), [ws.missingItems]);
   // How many changes from outside the app are still waiting on the writer.
   const pendingChanges = useMemo(
-    () => ws.ledger.filter((e) => e.status === "pending").length + savedCopies.copies.length + recoveryCopies.copies.length,
+    () =>
+      ws.ledger.filter((e) => e.status === "pending").length +
+      savedCopies.copies.length +
+      recoveryCopies.copies.length,
     [ws.ledger, savedCopies.copies, recoveryCopies.copies],
   );
 
@@ -306,9 +305,7 @@ function AppShell() {
   const [savedTime, setSavedTime] = useState<string | null>(null);
   useEffect(() => {
     if (ws.status !== "saved") return;
-    setSavedTime(
-      new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
-    );
+    setSavedTime(new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }));
   }, [ws.status]);
 
   /** What the focused pane is showing, for the titlebar. */
@@ -479,14 +476,16 @@ function AppShell() {
                 reset={open.reset}
                 onSave={(content, base) => ws.saveMaterial(surface.id, content, base)}
                 onRename={ws.readOnly ? undefined : ws.renameTo}
-                onEditTags={ws.readOnly ? undefined : (edit) => void ws.editMaterialTags(surface.id, edit)}
+                onEditTags={
+                  ws.readOnly ? undefined : (edit) => void ws.editMaterialTags(surface.id, edit)
+                }
                 onDirty={(dirty) => ws.setMaterialDirty(surface.id, dirty)}
                 onRegisterBuffer={(buffer) => ws.registerMaterialBuffer(surface.id, buffer)}
                 gate={ws.materialGates[surface.id] ?? null}
                 onResolveGate={(choice) => ws.resolveMaterialGate(surface.id, choice)}
                 // The script's page, at the script's zoom: a note is a page too.
                 format={ws.format}
-            language={ws.playLanguage}
+                language={ws.playLanguage}
                 zoom={zoom}
                 // Page and Source move the sheet: a fit counts what is above it.
                 onSheetMoved={refit}
@@ -564,14 +563,7 @@ function AppShell() {
     }
     if (inspectorVisible && inspectorTab === "comments") setInspectorOpen(false);
     else showInInspector("comments");
-  }, [
-    commentsPaned,
-    panes,
-    inspectorVisible,
-    inspectorTab,
-    setInspectorOpen,
-    showInInspector,
-  ]);
+  }, [commentsPaned, panes, inspectorVisible, inspectorTab, setInspectorOpen, showInInspector]);
   toggleCommentsRef.current = toggleComments;
 
   const commentsOpen = commentsPaned || (inspectorVisible && inspectorTab === "comments");
@@ -746,7 +738,6 @@ function AppShell() {
     dismissNotice();
   }, [wsNotice, toast, dismissNotice]);
 
-
   /* The chrome comes back on a pointer move and goes again two seconds after it
      stops. Not on hover: a writer whose pointer is parked over the toolbar has
      not asked for it, and a bar that flickers with every stray twitch is worse
@@ -807,284 +798,330 @@ function AppShell() {
 
   const guide = useTutorial(ws, {
     welcomeReady: !privacyNoticeDue,
-    show: panes.show, view: switcherView,
-    revealBinder: () => {setBinderOpenState(true);setNarrowRail("binder");},
-    openExport: () => setShowExport({sidesFor:null}),
-    closeDialogs: () => {setShowExport(null);setShowTitlePage(false);setShowHistoryFor(null);},
+    show: panes.show,
+    view: switcherView,
+    revealBinder: () => {
+      setBinderOpenState(true);
+      setNarrowRail("binder");
+    },
+    openExport: () => setShowExport({ sidesFor: null }),
+    closeDialogs: () => {
+      setShowExport(null);
+      setShowTitlePage(false);
+      setShowHistoryFor(null);
+    },
     // Asked one place at a time, not as one selector list: a list answers with its
     // first match in the page, and the toolbar's Help & Tutorials comes before any
     // pane, so Stop Tutorial handed that button the keyboard instead of the script.
-    writing: () => playLanding() ?? document.querySelector<HTMLElement>(".vault-screen__title") ?? document.querySelector<HTMLElement>(".welcome button"),
+    writing: () =>
+      playLanding() ??
+      document.querySelector<HTMLElement>(".vault-screen__title") ??
+      document.querySelector<HTMLElement>(".welcome button"),
     material: focusedMaterial,
   });
-  const practiceChrome = useRef<{binder: boolean; focus: boolean} | null>(null);
+  const practiceChrome = useRef<{ binder: boolean; focus: boolean } | null>(null);
   useEffect(() => {
-    if(ws.practicing && !practiceChrome.current) {practiceChrome.current = {binder:binderOpen,focus:focusMode};setFocusMode(false);}
-    else if(!ws.practicing && practiceChrome.current) {setBinderOpenState(practiceChrome.current.binder);setFocusMode(practiceChrome.current.focus);practiceChrome.current=null;}
+    if (ws.practicing && !practiceChrome.current) {
+      practiceChrome.current = { binder: binderOpen, focus: focusMode };
+      setFocusMode(false);
+    } else if (!ws.practicing && practiceChrome.current) {
+      setBinderOpenState(practiceChrome.current.binder);
+      setFocusMode(practiceChrome.current.focus);
+      practiceChrome.current = null;
+    }
   }, [ws.practicing]);
-  useShellCommands(ws, { panes, binderVisible, inspectorVisible, setBinderOpen, setInspectorOpen, toggleComments, splitFocused, zoomBy, zoomReset, zoomCtl, openTitlePage, openHistory, toast, caretOrdinalRef, showShortcutsRef, toggleCommentsRef, setShowShortcuts, setFocusMode, setShowExport, setShowGoToScene });
+  /** File › New Play… (⌘N): the Plays screen names a blank play for each new count. */
+  const [newPlayAsk, setNewPlayAsk] = useState(0);
+  const askNewPlay = useCallback(() => setNewPlayAsk((n) => n + 1), []);
+  useShellCommands(ws, {
+    panes,
+    binderVisible,
+    inspectorVisible,
+    setBinderOpen,
+    setInspectorOpen,
+    toggleComments,
+    splitFocused,
+    zoomBy,
+    zoomReset,
+    zoomCtl,
+    openTitlePage,
+    openHistory,
+    askNewPlay,
+    toast,
+    caretOrdinalRef,
+    showShortcutsRef,
+    toggleCommentsRef,
+    setShowShortcuts,
+    setFocusMode,
+    setShowExport,
+    setShowGoToScene,
+  });
 
   return (
     <>
-    <div
-      className={`app-shell${focusMode ? " is-focus" : ""}${
-        focusMode && peeking ? " is-peeking" : ""
-      }`}
-      aria-busy={launching || undefined}
-    >
-      <Toolbar
-        title={focusedTitle || "Proscenium"}
-        scriptOpen={ws.mode === "workspace" && !!ws.scriptTitle}
-        binderOpen={binderVisible}
-        onToggleBinder={() => setBinderOpen(!binderVisible)}
-        inspectorOpen={inspectorVisible}
-        onToggleInspector={() => setInspectorOpen(!inspectorVisible)}
-        view={switcherView}
-        onSetView={(v) => panes.show(VIEW_TO_SURFACE[v])}
-        addable={toolbarAddable}
-        onAddSurface={(sf) => panes.open(sf)}
-        pendingChanges={pendingChanges}
-        hasTrackedChanges={ws.hasTrackedChanges}
-        showTracked={ws.showTracked}
-        onSetShowTracked={ws.setShowTracked}
-        onSplit={splitFocused}
-        document={
-          ws.mode === "workspace" && ws.scriptTitle
-            ? {
-                onAllPlays: ws.backToVault,
-                onReveal: ws.canReveal ? () => void vault.reveal() : undefined,
-                formats: ws.formats,
-                activeFormatId: ws.format.id,
-                onSetFormat: ws.setFormat,
-                language: ws.playLanguage,
-                onSaveLanguage: (value) => ws.savePlayLanguage(value, ws.openScriptKey),
-                paginated: ws.paginated,
-                onSetPaginated: ws.setPaginated,
-                spellcheck: prefs.spellcheck,
-                onSetSpellcheck: (on) => updateSettings({ spellcheck: on }),
-                onEditTitlePage: openTitlePage,
-                onShowHistory: () => openHistory(),
-                onExport: () => setShowExport({ sidesFor: null }),
-                onExportAs: (type) => setShowExport({ sidesFor: null, type }),
-                onPrint: () => setShowExport({ sidesFor: null, action: "print" }),
-                exporting: ws.exporting,
-                onSettings: () => openSettings(),
-                onEditFormats: () => openFormatDesigner({ kind: "edit", formatId: ws.format.id }),
-              }
-            : null
-        }
-      />
+      <div
+        className={`app-shell${focusMode ? " is-focus" : ""}${
+          focusMode && peeking ? " is-peeking" : ""
+        }`}
+        aria-busy={launching || undefined}
+      >
+        <Toolbar
+          title={focusedTitle || "Proscenium"}
+          scriptOpen={ws.mode === "workspace" && !!ws.scriptTitle}
+          binderOpen={binderVisible}
+          onToggleBinder={() => setBinderOpen(!binderVisible)}
+          inspectorOpen={inspectorVisible}
+          onToggleInspector={() => setInspectorOpen(!inspectorVisible)}
+          view={switcherView}
+          onSetView={(v) => panes.show(VIEW_TO_SURFACE[v])}
+          addable={toolbarAddable}
+          onAddSurface={(sf) => panes.open(sf)}
+          pendingChanges={pendingChanges}
+          hasTrackedChanges={ws.hasTrackedChanges}
+          showTracked={ws.showTracked}
+          onSetShowTracked={ws.setShowTracked}
+          onSplit={splitFocused}
+          document={
+            ws.mode === "workspace" && ws.scriptTitle
+              ? {
+                  onAllPlays: ws.backToVault,
+                  onReveal: ws.canReveal ? () => void vault.reveal() : undefined,
+                  formats: ws.formats,
+                  activeFormatId: ws.format.id,
+                  onSetFormat: ws.setFormat,
+                  language: ws.playLanguage,
+                  onSaveLanguage: (value) => ws.savePlayLanguage(value, ws.openScriptKey),
+                  paginated: ws.paginated,
+                  onSetPaginated: ws.setPaginated,
+                  spellcheck: prefs.spellcheck,
+                  onSetSpellcheck: (on) => updateSettings({ spellcheck: on }),
+                  onEditTitlePage: openTitlePage,
+                  onShowHistory: () => openHistory(),
+                  onExport: () => setShowExport({ sidesFor: null }),
+                  onExportAs: (type) => setShowExport({ sidesFor: null, type }),
+                  onPrint: () => setShowExport({ sidesFor: null, action: "print" }),
+                  exporting: ws.exporting,
+                  onSettings: () => openSettings(),
+                  onEditFormats: () => openFormatDesigner({ kind: "edit", formatId: ws.format.id }),
+                }
+              : null
+          }
+        />
 
-      {/* Ambient, never modal (docs/app/keeping-work/storage-and-file-format.md#STOR-109). "Another version" rather than "conflict":
+        {/* Ambient, never modal (docs/app/keeping-work/storage-and-file-format.md#STOR-109). "Another version" rather than "conflict":
           nothing went wrong, the file simply changed somewhere else, and both
           sides are kept either way (docs/app/keeping-work/storage-and-file-format.md#STOR-D1, docs/app/keeping-work/storage-and-file-format.md#STOR-D9). */}
-      {ws.gate && (
-        <section className="banner-area" aria-label="Another version of this script">
-          <div className="banner banner--conflict" role="alert">
-            <span className="banner__text">
-              This script changed somewhere else. Your writing is safe — both
-              versions are kept.
-            </span>
-            <BannerActions
-              label="Which version to keep"
-              actions={[
-                { text: "Keep this one", onClick: ws.keepMine },
-                { text: "Use the other", onClick: ws.loadTheirs, primary: true },
-              ]}
-            />
-          </div>
-        </section>
-      )}
+        {ws.gate && (
+          <section className="banner-area" aria-label="Another version of this script">
+            <div className="banner banner--conflict" role="alert">
+              <span className="banner__text">
+                This script changed somewhere else. Your writing is safe — both versions are kept.
+              </span>
+              <BannerActions
+                label="Which version to keep"
+                actions={[
+                  { text: "Keep this one", onClick: ws.keepMine },
+                  { text: "Use the other", onClick: ws.loadTheirs, primary: true },
+                ]}
+              />
+            </div>
+          </section>
+        )}
 
-      {/* Words from before the app stopped (docs/app/keeping-work/storage-and-file-format.md#STOR-D10). Ambient like the
+        {/* Words from before the app stopped (docs/app/keeping-work/storage-and-file-format.md#STOR-D10). Ambient like the
           banner above (docs/app/keeping-work/storage-and-file-format.md#STOR-109): the writer can keep writing and answer later, and
           nothing is applied until they choose. */}
-      {ws.recoveryOffer && ws.mode === "workspace" && (
-        <section className="banner-area" aria-label="Changes from before Proscenium closed">
-          <div className="banner banner--conflict banner--recovery" role="alert">
-            <span className="banner__text">
-              Proscenium closed before these changes were saved.
-            </span>
-            <BannerActions
-              label="What to do with these changes"
-              actions={[
-                { text: "Discard", onClick: ws.discardOffer },
-                { text: "Review…", onClick: () => setShowRecovery(true), primary: true },
-              ]}
-            />
-          </div>
-        </section>
-      )}
+        {ws.recoveryOffer && ws.mode === "workspace" && (
+          <section className="banner-area" aria-label="Changes from before Proscenium closed">
+            <div className="banner banner--conflict banner--recovery" role="alert">
+              <span className="banner__text">
+                Proscenium closed before these changes were saved.
+              </span>
+              <BannerActions
+                label="What to do with these changes"
+                actions={[
+                  { text: "Discard", onClick: ws.discardOffer },
+                  { text: "Review…", onClick: () => setShowRecovery(true), primary: true },
+                ]}
+              />
+            </div>
+          </section>
+        )}
 
-      <div className="workspace-body">
-        {/* No edge strip when the binder is closed: the toolbar's sidebar
+        <div className="workspace-body">
+          {/* No edge strip when the binder is closed: the toolbar's sidebar
             button is the one way in and out, which is where a Mac user looks
             for it (docs/app/organizing/workspace-model.md#WORK-D1). */}
-        {ws.root && ws.mode === "workspace" && binderVisible && (
-          <Binder
-            binder={ws.binder}
-            activeId={ws.activeId}
-            playTitle={ws.playTitle}
-            readOnly={ws.readOnly}
-            justCreated={ws.justCreated}
-            onConsumeCreated={ws.consumeCreated}
-            onSelect={onSelectBinderItem}
-            onOpenInNewPane={(item) => {
-              ws.selectItem(item);
-              panes.openBeside(
-                item.type === "script"
-                  ? { kind: "script" }
-                  : { kind: "material", id: item.id },
-                "row",
-              );
-            }}
-            onReorder={ws.reorder}
-            onMove={ws.moveTo}
-            onRename={ws.renameTo}
-            onDelete={(id) => {
-              /* No dialog: the file goes to the OS Trash, which is
+          {ws.root && ws.mode === "workspace" && binderVisible && (
+            <Binder
+              binder={ws.binder}
+              activeId={ws.activeId}
+              playTitle={ws.playTitle}
+              readOnly={ws.readOnly}
+              justCreated={ws.justCreated}
+              onConsumeCreated={ws.consumeCreated}
+              onSelect={onSelectBinderItem}
+              onOpenInNewPane={(item) => {
+                ws.selectItem(item);
+                panes.openBeside(
+                  item.type === "script" ? { kind: "script" } : { kind: "material", id: item.id },
+                  "row",
+                );
+              }}
+              onReorder={ws.reorder}
+              onMove={ws.moveTo}
+              onRename={ws.renameTo}
+              onDelete={(id) => {
+                /* No dialog: the file goes to the OS Trash, which is
                  recoverable, so Finder's rule applies — a recoverable
                  action is not confirmed. The undo is real, not a pointer
                  at the Finder: the bytes were read before the trash. */
-              void ws.remove(id).then((res) => {
-                if (!res) return;
-                toast({
-                  kind: "trash",
-                  title: `“${res.title}” moved to the Trash`,
-                  detail: "It's in the Finder's Trash if you need it later.",
-                  action: res.undo
-                    ? { label: "Undo", run: () => void res.undo?.() }
-                    : undefined,
+                void ws.remove(id).then((res) => {
+                  if (!res) return;
+                  toast({
+                    kind: "trash",
+                    title: `“${res.title}” moved to the Trash`,
+                    detail: "It's in the Finder's Trash if you need it later.",
+                    action: res.undo ? { label: "Undo", run: () => void res.undo?.() } : undefined,
+                  });
                 });
-              });
-            }}
-            onDuplicate={ws.duplicate}
-            onReveal={ws.canReveal ? ws.revealItem : undefined}
-            onNewFolder={ws.createFolder}
-            onNewMaterial={ws.createMaterial}
-            onNewScript={ws.createScript}
-            onImport={(parentId) => void beginImport([], ws.playTitle, parentId)}
-            onImportFiles={(files, parentId) => void beginImport(files.map((file) => ({ file })), ws.playTitle, parentId)}
-            onOpenCast={ws.scriptTitle ? () => ws.setView("cast") : undefined}
-            castActive={visibleSurfaces.some((s) => s.kind === "cast")}
-            newlyFiled={ws.newlyFiled}
-            missingIds={missingIds}
-            onAcknowledgeFiled={ws.acknowledgeFiled}
-            scenes={binderScenes}
-            caretScene={caretOrdinal}
-            onOpenScene={ws.openScene}
-          />
-        )}
-        {ws.mode === "workspace" && ws.root ? (
-          /* The one `main` landmark: VoiceOver's rotor jumps binder →
+              }}
+              onDuplicate={ws.duplicate}
+              onReveal={ws.canReveal ? ws.revealItem : undefined}
+              onNewFolder={ws.createFolder}
+              onNewMaterial={ws.createMaterial}
+              onNewScript={ws.createScript}
+              onImport={(parentId) => void beginImport([], ws.playTitle, parentId)}
+              onImportFiles={(files, parentId) =>
+                void beginImport(
+                  files.map((file) => ({ file })),
+                  ws.playTitle,
+                  parentId,
+                )
+              }
+              onOpenCast={ws.scriptTitle ? () => ws.setView("cast") : undefined}
+              castActive={visibleSurfaces.some((s) => s.kind === "cast")}
+              newlyFiled={ws.newlyFiled}
+              missingIds={missingIds}
+              onAcknowledgeFiled={ws.acknowledgeFiled}
+              scenes={binderScenes}
+              caretScene={caretOrdinal}
+              onOpenScene={ws.openScene}
+            />
+          )}
+          {ws.mode === "workspace" && ws.root ? (
+            /* The one `main` landmark: VoiceOver's rotor jumps binder →
              panes → inspector, and with a play open the panes were a div,
              so the rotor listed a navigation and a complementary and no
              place to write. */
-          <main ref={paneRootRef} className="paneroot" aria-label="Play">
-            <PaneTree
-              node={paneTree}
-              activeLeafId={panes.focusedLeaf}
-              onFocusLeaf={panes.setFocusedLeaf}
-              onActivateTab={onActivateTab}
-              onCloseTab={onCloseTab}
-              onResize={panes.resize}
-              onAddSurface={panes.openInLeaf}
-              onDropTab={panes.dropTab}
-              onDropBinderItem={onDropBinderItem}
-              labelFor={labelFor}
-              addable={addableFor}
-              renderSurface={renderSurface}
-            />
-          </main>
-        ) : (
-          <main ref={mainRef} className="editor-frame">
-            {!launching && ws.root && ws.mode === "picker" && (
-              <VaultScreen
-                tutorialInvitation={<TutorialInvitation guide={guide} />}
-                vaultRoot={ws.vaultRoot ?? ws.root}
-                wherePlaysLive={ws.wherePlaysLive}
-                plays={ws.plays}
-                hint={ws.playsFolderHint}
-                lookingBelow={ws.lookingBelow}
-                onUseFolder={ws.openFolderBelow}
-                onKeepFolder={ws.keepPlaysFolder}
-                onOpen={ws.enterPlay}
-                onCreate={ws.createPlay}
-                onUpdate={ws.updatePlay}
-                onImport={files => { void beginImport(files?.map(file => ({ file }))); }}
+            <main ref={paneRootRef} className="paneroot" aria-label="Play">
+              <PaneTree
+                node={paneTree}
+                activeLeafId={panes.focusedLeaf}
+                onFocusLeaf={panes.setFocusedLeaf}
+                onActivateTab={onActivateTab}
+                onCloseTab={onCloseTab}
+                onResize={panes.resize}
+                onAddSurface={panes.openInLeaf}
+                onDropTab={panes.dropTab}
+                onDropBinderItem={onDropBinderItem}
+                labelFor={labelFor}
+                addable={addableFor}
+                renderSurface={renderSurface}
               />
-            )}
-            {!launching && !ws.root && (
-              <WelcomeScreen
-                cloudRoot={ws.cloudRoot}
-                lastVault={lastVault}
-                onChooseCloud={ws.openCloudFolder}
-                onChooseFolder={ws.openFolder}
-                onReopenLast={ws.openFolder}
-                privacyNotice={privacyNoticeDue}
-                onPrivacyNoticeSeen={() => updateSettings({ privacyNoticeSeen: true })}
-                onPrivacySettings={() => openSettings("privacy")}
-              />
-            )}
-          </main>
-        )}
-        {inspectorVisible && (
-          <Inspector
-            tab={inspectorTab}
-            onSetTab={setInspectorTab}
-            sheetMode={focusedMaterial !== null}
-            onPopOut={popOutInspector}
-          >
-            {inspectorTab === "scene" &&
-              (focusedMaterial ? (
-                <SheetInspector
-                  key={focusedMaterial.item.id}
-                  item={focusedMaterial.item}
-                  content={focusedMaterial.content}
-                  locked={!!ws.materialGates[focusedMaterial.item.id]}
-                  onSetField={(key, value) =>
-                    void ws.setMaterialField(focusedMaterial.item.id, key, value)
-                  }
-                  onEditTags={(edit) => void ws.editMaterialTags(focusedMaterial.item.id, edit)}
-                  derived={sheetDerived}
-                  onOpenCast={() => panes.open({ kind: "cast" })}
-                  onExportSides={
-                    sheetDerived
-                      ? () => setShowExport({ sidesFor: titleOf(focusedMaterial.item) })
-                      : undefined
-                  }
+            </main>
+          ) : (
+            <main ref={mainRef} className="editor-frame">
+              {!launching && ws.root && ws.mode === "picker" && (
+                <VaultScreen
+                  tutorialInvitation={<TutorialInvitation guide={guide} />}
+                  vaultRoot={ws.vaultRoot ?? ws.root}
+                  wherePlaysLive={ws.wherePlaysLive}
+                  plays={ws.plays}
+                  hint={ws.playsFolderHint}
+                  lookingBelow={ws.lookingBelow}
+                  onUseFolder={ws.openFolderBelow}
+                  onKeepFolder={ws.keepPlaysFolder}
+                  onOpen={ws.enterPlay}
+                  onCreate={ws.createPlay}
+                  onUpdate={ws.updatePlay}
+                  onImport={(files) => {
+                    void beginImport(files?.map((file) => ({ file })));
+                  }}
+                  newPlayAsk={newPlayAsk}
                 />
-              ) : (
-                <SceneInspector
-                  key={caretCard?.id ?? "no-scene"}
-                  scene={caretCard}
-                  scenePages={ws.scenePages}
-                  onSetCard={ws.setCard}
-                  onEditSynopsis={ws.editSynopsis}
-                  speakers={caretSpeakers}
-                  commentCount={caretComments.total}
-                  todoCount={caretComments.todo}
-                  onShowComments={() => setInspectorTab("comments")}
-                  pendingChange={caretPending}
-                  onReviewChange={() => panes.open({ kind: "changes" })}
+              )}
+              {!launching && !ws.root && (
+                <WelcomeScreen
+                  cloudRoot={ws.cloudRoot}
+                  lastVault={lastVault}
+                  onChooseCloud={ws.openCloudFolder}
+                  onChooseFolder={ws.openFolder}
+                  onReopenLast={ws.openFolder}
+                  privacyNotice={privacyNoticeDue}
+                  onPrivacyNoticeSeen={() => updateSettings({ privacyNoticeSeen: true })}
+                  onPrivacySettings={() => openSettings("privacy")}
                 />
-              ))}
-            {inspectorTab === "comments" &&
-              (commentsPaned ? (
-                <PoppedOut
-                  what="The comment list"
-                  onBringBack={() => panes.closeSurface({ kind: "comments" })}
-                />
-              ) : (
-                <div className="inspector__surface">
-                  <CommentsFeed editor={ws.editor} onJump={ws.openComment} />
-                </div>
-              ))}
-          </Inspector>
-        )}
-      </div>
+              )}
+            </main>
+          )}
+          {inspectorVisible && (
+            <Inspector
+              tab={inspectorTab}
+              onSetTab={setInspectorTab}
+              sheetMode={focusedMaterial !== null}
+              onPopOut={popOutInspector}
+            >
+              {inspectorTab === "scene" &&
+                (focusedMaterial ? (
+                  <SheetInspector
+                    key={focusedMaterial.item.id}
+                    item={focusedMaterial.item}
+                    content={focusedMaterial.content}
+                    locked={!!ws.materialGates[focusedMaterial.item.id]}
+                    onSetField={(key, value) =>
+                      void ws.setMaterialField(focusedMaterial.item.id, key, value)
+                    }
+                    onEditTags={(edit) => void ws.editMaterialTags(focusedMaterial.item.id, edit)}
+                    derived={sheetDerived}
+                    onOpenCast={() => panes.open({ kind: "cast" })}
+                    onExportSides={
+                      sheetDerived
+                        ? () => setShowExport({ sidesFor: titleOf(focusedMaterial.item) })
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <SceneInspector
+                    key={caretCard?.id ?? "no-scene"}
+                    scene={caretCard}
+                    scenePages={ws.scenePages}
+                    onSetCard={ws.setCard}
+                    onEditSynopsis={ws.editSynopsis}
+                    speakers={caretSpeakers}
+                    commentCount={caretComments.total}
+                    todoCount={caretComments.todo}
+                    onShowComments={() => setInspectorTab("comments")}
+                    pendingChange={caretPending}
+                    onReviewChange={() => panes.open({ kind: "changes" })}
+                  />
+                ))}
+              {inspectorTab === "comments" &&
+                (commentsPaned ? (
+                  <PoppedOut
+                    what="The comment list"
+                    onBringBack={() => panes.closeSurface({ kind: "comments" })}
+                  />
+                ) : (
+                  <div className="inspector__surface">
+                    <CommentsFeed editor={ws.editor} onJump={ws.openComment} />
+                  </div>
+                ))}
+            </Inspector>
+          )}
+        </div>
 
-      {/*
+        {/*
         The editor is mounted EXACTLY ONCE, here, and its DOM node is moved into
         whichever pane currently shows the Script (the layout effect above).
         Rendering it inside the recursive pane tree instead would remount
@@ -1093,84 +1130,95 @@ function AppShell() {
         this subtree; only the parent element changes, which ProseMirror does
         not care about.
       */}
-      <div className="editorpark" ref={editorParkRef} aria-hidden={!scriptVisible}>
-        <div className="editormount" ref={editorHostRef}>
-          <PlayEditor
-            tutorialActive={ws.practicing}
-            editable={ws.editable}
-            cast={ws.cast}
-            onReady={ws.onEditorReady}
-            onChange={ws.onEditorChange}
-            onSaveShortcut={ws.onSaveShortcut}
-            format={ws.format}
-                language={ws.playLanguage}
-            paginated={ws.paginated}
-            layoutMeta={ws.layoutMeta}
-            frontMatter={ws.frontMatter}
-            onEditTitlePage={openTitlePage}
-            trackedMarks={ws.showTracked ? ws.trackedMarks : undefined}
-            zoom={zoom}
-            commentsOpen={commentsOpen}
-            onToggleComments={toggleComments}
-            spellcheck={prefs.spellcheck}
-            learnedWords={prefs.learnedWords}
-            onLearnWord={learnWord}
-            cards={ws.cards}
-            scenePages={ws.scenePages}
-            onJumpToScene={ws.openScene}
-            showRunningTime={prefs.runningTimeStrip}
-          />
+        <div className="editorpark" ref={editorParkRef} aria-hidden={!scriptVisible}>
+          <div className="editormount" ref={editorHostRef}>
+            <PlayEditor
+              tutorialActive={ws.practicing}
+              editable={ws.editable}
+              cast={ws.cast}
+              onReady={ws.onEditorReady}
+              onChange={ws.onEditorChange}
+              onSaveShortcut={ws.onSaveShortcut}
+              format={ws.format}
+              language={ws.playLanguage}
+              paginated={ws.paginated}
+              layoutMeta={ws.layoutMeta}
+              frontMatter={ws.frontMatter}
+              onEditTitlePage={openTitlePage}
+              trackedMarks={ws.showTracked ? ws.trackedMarks : undefined}
+              zoom={zoom}
+              commentsOpen={commentsOpen}
+              onToggleComments={toggleComments}
+              spellcheck={prefs.spellcheck}
+              learnedWords={prefs.learnedWords}
+              onLearnWord={learnWord}
+              cards={ws.cards}
+              scenePages={ws.scenePages}
+              onJumpToScene={ws.openScene}
+              showRunningTime={prefs.runningTimeStrip}
+            />
+          </div>
         </div>
-      </div>
 
-      <StatusBar
-        root={ws.root}
-        status={ws.status}
-        savedTime={savedTime}
-        formatWarnings={ws.formatWarnings}
-        conflictCopies={ws.conflictCopies}
-        preserved={ws.preserved}
-      >
-        {/* Zoom lives here, not in the document menu: it is a view transform,
+        <StatusBar
+          root={ws.root}
+          status={ws.status}
+          savedTime={savedTime}
+          formatWarnings={ws.formatWarnings}
+          conflictCopies={ws.conflictCopies}
+          preserved={ws.preserved}
+        >
+          {/* Zoom lives here, not in the document menu: it is a view transform,
             not a property of the script, and buried three clicks deep it read
             as missing entirely. */}
-        {ws.mode === "workspace" && ws.scriptTitle && (
-          <ZoomControl
-            mode={zoomCtl.mode}
-            label={zoomCtl.label}
-            onDelta={zoomBy}
-            onSetMode={zoomCtl.setMode}
-            onReset={zoomReset}
+          {ws.mode === "workspace" && ws.scriptTitle && (
+            <ZoomControl
+              mode={zoomCtl.mode}
+              label={zoomCtl.label}
+              onDelta={zoomBy}
+              onSetMode={zoomCtl.setMode}
+              onReset={zoomReset}
+            />
+          )}
+        </StatusBar>
+
+        {importQueue[0] && (
+          <ImportPanel
+            key={importQueue[0].id}
+            request={importQueue[0]}
+            destination={ws.vaultRoot ?? "Plays"}
+            onCreate={ws.createPlayFrom}
+            onAdd={(as, title, content, kept) =>
+              ws.addImport(as, title, content, kept, importQueue[0]?.parentId ?? null)
+            }
+            onClose={() => {
+              importQueue[0]?.finish?.();
+              setImportQueue((q) => q.slice(1));
+            }}
           />
         )}
-      </StatusBar>
-
-      {importQueue[0] && <ImportPanel key={importQueue[0].id} request={importQueue[0]}
-        destination={ws.vaultRoot ?? "Plays"} onCreate={ws.createPlayFrom}
-        onAdd={(as, title, content, kept) => ws.addImport(as, title, content, kept, importQueue[0]?.parentId ?? null)}
-        onClose={() => { importQueue[0]?.finish?.(); setImportQueue(q => q.slice(1)); }} />}
-      <AppDialogs
-        ws={ws}
-        showTitlePage={showTitlePage}
-        setShowTitlePage={setShowTitlePage}
-        showExport={showExport}
-        setShowExport={setShowExport}
-        showShortcuts={showShortcuts}
-        setShowShortcuts={setShowShortcuts}
-        showGoToScene={showGoToScene}
-        setShowGoToScene={setShowGoToScene}
-        settingsSheet={settingsSheet}
-        designer={designer}
-        finderOpens={finderOpens}
-        quitGate={quitGate}
-        showRecovery={showRecovery}
-        setShowRecovery={setShowRecovery}
-        showHistory={showHistory}
-        setShowHistoryFor={setShowHistoryFor}
-        historyTarget={historyTarget}
-      />
-      {launching && <LaunchScreen play={opening} />}
-    </div>
+        <AppDialogs
+          ws={ws}
+          showTitlePage={showTitlePage}
+          setShowTitlePage={setShowTitlePage}
+          showExport={showExport}
+          setShowExport={setShowExport}
+          showShortcuts={showShortcuts}
+          setShowShortcuts={setShowShortcuts}
+          showGoToScene={showGoToScene}
+          setShowGoToScene={setShowGoToScene}
+          settingsSheet={settingsSheet}
+          designer={designer}
+          finderOpens={finderOpens}
+          quitGate={quitGate}
+          showRecovery={showRecovery}
+          setShowRecovery={setShowRecovery}
+          showHistory={showHistory}
+          setShowHistoryFor={setShowHistoryFor}
+          historyTarget={historyTarget}
+        />
+        {launching && <LaunchScreen play={opening} />}
+      </div>
       <Catalogue guide={guide} practicing={ws.practicing} />
       <CueCard guide={guide} editor={ws.editor} />
     </>

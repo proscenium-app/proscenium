@@ -8,9 +8,17 @@ import type { BinderItem, PlayFile } from "./play-file";
 const a: BinderItem = { id: "A", type: "script", path: "A.fountain" };
 const b: BinderItem = { id: "B", type: "script", path: "B.fountain" };
 const notes = { scenes: [], orphans: [], unique: "B's newer notes" };
-const play = (binder: BinderItem[]): PlayFile => ({ kind: "proscenium/play", schemaVersion: 1,
-  id: "PLAY", created: "today", modified: "today", generator: { app: "Proscenium", version: "1" },
-  settings: {}, binder, scripts: { B: notes } });
+const play = (binder: BinderItem[]): PlayFile => ({
+  kind: "proscenium/play",
+  schemaVersion: 1,
+  id: "PLAY",
+  created: "today",
+  modified: "today",
+  generator: { app: "Proscenium", version: "1" },
+  settings: {},
+  binder,
+  scripts: { B: notes },
+});
 
 test("docs/app/keeping-work/storage-and-file-format.md#STOR-90: undo inserts only the deleted row and leaves later notes and order intact", () => {
   const fresh = play([{ id: "folder", type: "folder", path: "Notes", children: [b] }]);

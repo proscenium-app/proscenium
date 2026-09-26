@@ -32,8 +32,16 @@ describe("format files", () => {
     spec.name = "Everything Moved";
     spec.page = { size: "a4", margins: { left: 1.25, top: 0.75, right: 0.9, bottom: 1.1 } };
     spec.type = { family: base.type.family, size: 11, lineHeight: 1.2 };
-    spec.header = { content: { left: "{title}", center: "— {page} —" }, position: 0.6, suppressOnFirstPage: false };
-    spec.footer = { content: { right: "{act} / {scene}" }, position: 0.4, suppressOnFirstPage: true };
+    spec.header = {
+      content: { left: "{title}", center: "— {page} —" },
+      position: 0.6,
+      suppressOnFirstPage: false,
+    };
+    spec.footer = {
+      content: { right: "{act} / {scene}" },
+      position: 0.4,
+      suppressOnFirstPage: true,
+    };
     for (const key of FORMAT_ELEMENT_KEYS) {
       spec.elements[key] = {
         indentFromMargin: 0.3,

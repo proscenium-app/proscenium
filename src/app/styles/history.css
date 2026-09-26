@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Version history (docs/app/keeping-work/storage-and-file-format.md#STOR-D15) — list + preview inside the sheet -------- */
 .historypanel__body {
   display: flex;
@@ -98,7 +97,7 @@
   background: #f8f2e4;
   color: var(--ink);
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .historypanel__preview,
   :where(:root[data-theme="dark"]) .historypanel__diff {
     background: var(--cream);
@@ -163,4 +162,3 @@
 .recoverypanel__diff {
   max-height: none;
 }
-

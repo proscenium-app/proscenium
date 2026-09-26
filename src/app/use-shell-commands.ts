@@ -46,6 +46,8 @@ interface ShellActions {
   zoomCtl: Pick<ReturnType<typeof useZoom>, "setMode">;
   openTitlePage: () => void;
   openHistory: () => void;
+  /** File › New Play… (⌘N): the Plays screen names a blank play. */
+  askNewPlay: () => void;
   toast: ReturnType<typeof useToast>;
   caretOrdinalRef: MutableRefObject<number | null>;
   showShortcutsRef: MutableRefObject<boolean>;
@@ -98,6 +100,7 @@ export function useShellCommands(
     zoomCtl,
     openTitlePage,
     openHistory,
+    askNewPlay,
     toast,
     caretOrdinalRef,
     showShortcutsRef,
@@ -225,6 +228,21 @@ export function useShellCommands(
         setShowShortcuts((on) => !on);
         return;
       }
+      // ⌘N is File › New Play…. Where the menu bar exists it takes the chord
+      // first and its item arrives above; this is the same thing for a window
+      // without one, unless the binder, whose ⌘N adds a document, answered.
+      if (
+        key === "n" &&
+        !e.shiftKey &&
+        !e.altKey &&
+        !(e.ctrlKey && e.metaKey) &&
+        !e.defaultPrevented
+      ) {
+        e.preventDefault();
+        backToVault();
+        askNewPlay();
+        return;
+      }
       // All Plays needs a play, not a script, as the menu bar's item does: a
       // play whose script is still reading (from iCloud, or just after Stop
       // Tutorial brought the play back) or could not be read is left by its key
@@ -289,6 +307,7 @@ export function useShellCommands(
     openScene,
     exporting,
     backToVault,
+    askNewPlay,
     openFolder,
     onSaveShortcut,
     editor,
@@ -371,6 +390,12 @@ export function useShellCommands(
           openFeedback(formatsInPlay());
           return;
         case "new-play":
+          // File › New Play… from anywhere: the Plays screen, then a blank play
+          // named there, as its New Play button does. It used to stop at the
+          // Plays screen, so the menu's "Blank Play ⌘N" made nothing.
+          backToVault();
+          askNewPlay();
+          return;
         case "all-plays":
           backToVault();
           return;
@@ -391,7 +416,8 @@ export function useShellCommands(
           return;
         case "export-docx":
         case "export-odt":
-          if (!exporting) setShowExport({ sidesFor: null, type: id === "export-docx" ? "docx" : "odt" });
+          if (!exporting)
+            setShowExport({ sidesFor: null, type: id === "export-docx" ? "docx" : "odt" });
           return;
         case "print":
           if (!exporting) setShowExport({ sidesFor: null, action: "print" });

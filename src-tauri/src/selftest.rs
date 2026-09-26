@@ -95,11 +95,15 @@ static DRAWING: OnceLock<Value> = OnceLock::new();
 static KEY_STATUS: OnceLock<&'static str> = OnceLock::new();
 
 fn run() -> Result<&'static Run, String> {
-    RUN.get().ok_or_else(|| "no self-test is running".to_string())
+    RUN.get()
+        .ok_or_else(|| "no self-test is running".to_string())
 }
 
 fn say(line: &str) {
-    let ms = RUN.get().map(|r| r.started.elapsed().as_millis()).unwrap_or(0);
+    let ms = RUN
+        .get()
+        .map(|r| r.started.elapsed().as_millis())
+        .unwrap_or(0);
     println!("[selftest {:>6}ms] {line}", ms);
 }
 
@@ -178,11 +182,19 @@ fn begin_proof() -> bool {
         return false;
     };
     let line = std::env::var("PROSCENIUM_UPDATE_PROOF_LINE").unwrap_or_default();
-    if line.is_empty() || !line.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ' ') {
+    if line.is_empty()
+        || !line
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == ' ')
+    {
         eprintln!("[update-proof] PROSCENIUM_UPDATE_PROOF_LINE must be letters, digits, spaces and hyphens");
         std::process::exit(2);
     }
-    let _ = PROOF.set(Proof { log, line, started: Instant::now() });
+    let _ = PROOF.set(Proof {
+        log,
+        line,
+        started: Instant::now(),
+    });
     proof_say(&format!(
         "v{} {} · macOS {} · HOME {}",
         env!("CARGO_PKG_VERSION"),
@@ -199,7 +211,11 @@ fn proof_say(line: &str) {
     let Some(proof) = PROOF.get() else { return };
     let line = format!("[{:>7}ms] {line}\n", proof.started.elapsed().as_millis());
     print!("[update-proof] {line}");
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&proof.log) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&proof.log)
+    {
         let _ = f.write_all(line.as_bytes());
     }
 }
@@ -253,7 +269,9 @@ fn begin() -> bool {
     let report = if report.is_absolute() {
         report
     } else {
-        std::env::current_dir().map(|d| d.join(&report)).unwrap_or(report)
+        std::env::current_dir()
+            .map(|d| d.join(&report))
+            .unwrap_or(report)
     };
     let shots = report.parent().map(Path::to_path_buf).unwrap_or_default();
     let _ = std::fs::create_dir_all(&shots);
@@ -270,10 +288,16 @@ fn begin() -> bool {
     // before the Tauri builder exists, while the process has one thread.
     std::env::set_var("HOME", &home);
 
-    let brk = std::env::var("PROSCENIUM_SELFTEST_BREAK").ok().filter(|b| !b.is_empty());
-    let only = std::env::var("PROSCENIUM_SELFTEST_ONLY").ok().filter(|o| !o.is_empty());
-    let features = std::env::var("PROSCENIUM_SELFTEST_FEATURES").ok().filter(|f| !f.is_empty());
-    let _ = RUN.set(Run {
+    let brk = std::env::var("PROSCENIUM_SELFTEST_BREAK")
+        .ok()
+        .filter(|b| !b.is_empty());
+    let only = std::env::var("PROSCENIUM_SELFTEST_ONLY")
+        .ok()
+        .filter(|o| !o.is_empty());
+    let features = std::env::var("PROSCENIUM_SELFTEST_FEATURES")
+        .ok()
+        .filter(|f| !f.is_empty());
+    let run = RUN.get_or_init(|| Run {
         report,
         shots,
         root,
@@ -284,7 +308,6 @@ fn begin() -> bool {
         started: Instant::now(),
         state: Mutex::new(State::default()),
     });
-    let run = RUN.get().unwrap();
     if let Err(e) = copy_vault(&plays_dir(run, 0)) {
         eprintln!("[selftest] cannot copy the sample vault: {e}");
         std::process::exit(2);
@@ -307,7 +330,9 @@ fn start_watchdog() {
         .unwrap_or(DEFAULT_TIMEOUT_SECS);
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(timeout));
-        let pass = run().map(|r| r.state.lock().unwrap().pass).unwrap_or(0);
+        let pass = run()
+            .map(|r| r.state.lock().unwrap_or_else(|p| p.into_inner()).pass)
+            .unwrap_or(0);
         // The window only, never the whole screen: on a desktop the screen is
         // someone's other work.
         if let (Ok(run), Some(number)) = (run(), WINDOW_NUMBER.get()) {
@@ -346,7 +371,11 @@ fn copy_vault(dest: &Path) -> std::io::Result<()> {
 pub fn picked_folder() -> Option<String> {
     let run = RUN.get()?;
     let pass = run.state.lock().ok()?.pass;
-    Some(plays_dir(run, pass.min(PASSES.len() - 1)).to_string_lossy().to_string())
+    Some(
+        plays_dir(run, pass.min(PASSES.len() - 1))
+            .to_string_lossy()
+            .to_string(),
+    )
 }
 
 /// Where an export goes in a self-test: the save panel is the one thing that
@@ -375,7 +404,9 @@ pub fn selftest_exported() -> Result<Option<Value>, String> {
         .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
         .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
         .max();
-    let Some((_, path)) = newest else { return Ok(None) };
+    let Some((_, path)) = newest else {
+        return Ok(None);
+    };
     let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
     Ok(Some(json!({
         "name": path.file_name().map(|n| n.to_string_lossy().into_owned()),
@@ -394,12 +425,15 @@ pub fn record_reveal((how, path): (&str, &Path)) -> bool {
         return false;
     }
     say(&format!("reveal: {how} {}", path.display()));
-    REVEALS.lock().unwrap_or_else(|p| p.into_inner()).push(json!({
-        "how": how,
-        "path": path.to_string_lossy(),
-        "exists": path.exists(),
-        "isDir": path.is_dir(),
-    }));
+    REVEALS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .push(json!({
+            "how": how,
+            "path": path.to_string_lossy(),
+            "exists": path.exists(),
+            "isDir": path.is_dir(),
+        }));
     true
 }
 
@@ -407,7 +441,9 @@ pub fn record_reveal((how, path): (&str, &Path)) -> bool {
 #[tauri::command]
 pub fn selftest_reveals() -> Result<Value, String> {
     run()?;
-    Ok(Value::Array(REVEALS.lock().unwrap_or_else(|p| p.into_inner()).clone()))
+    Ok(Value::Array(
+        REVEALS.lock().unwrap_or_else(|p| p.into_inner()).clone(),
+    ))
 }
 
 /// Which slice this is and whether it runs translated, for a check that must
@@ -420,7 +456,7 @@ pub fn selftest_slice() -> Value {
 #[tauri::command]
 pub fn selftest_context() -> Result<Value, String> {
     let run = run()?;
-    let state = run.state.lock().unwrap();
+    let state = run.state.lock().unwrap_or_else(|p| p.into_inner());
     let pass = state.pass;
     Ok(json!({
         "pass": PASSES[pass.min(PASSES.len() - 1)].0,
@@ -441,9 +477,13 @@ pub fn selftest_log(line: String) {
 /// A check is about to reload the page (smoke-checks.mjs allows it only as a
 /// check's last statement): keep what the page knew, for the page after it.
 #[tauri::command]
-pub fn selftest_reload(resume_at: usize, console: Vec<Value>, advisories: serde_json::Map<String, Value>) -> Result<(), String> {
+pub fn selftest_reload(
+    resume_at: usize,
+    console: Vec<Value>,
+    advisories: serde_json::Map<String, Value>,
+) -> Result<(), String> {
     let run = run()?;
-    let mut state = run.state.lock().unwrap();
+    let mut state = run.state.lock().unwrap_or_else(|p| p.into_inner());
     state.resume_at = resume_at;
     state.carried_console.extend(console);
     merge_advisories(&mut state.carried_advisories, advisories);
@@ -452,9 +492,14 @@ pub fn selftest_reload(resume_at: usize, console: Vec<Value>, advisories: serde_
 }
 
 /// Union the surfaces each piece of advice was seen on.
-fn merge_advisories(into: &mut serde_json::Map<String, Value>, from: serde_json::Map<String, Value>) {
+fn merge_advisories(
+    into: &mut serde_json::Map<String, Value>,
+    from: serde_json::Map<String, Value>,
+) {
     for (id, advice) in from {
-        let entry = into.entry(id).or_insert_with(|| json!({ "help": advice["help"], "surfaces": [] }));
+        let entry = into
+            .entry(id)
+            .or_insert_with(|| json!({ "help": advice["help"], "surfaces": [] }));
         let mut surfaces: Vec<Value> = entry["surfaces"].as_array().cloned().unwrap_or_default();
         for surface in advice["surfaces"].as_array().into_iter().flatten() {
             if !surfaces.contains(surface) {
@@ -468,7 +513,12 @@ fn merge_advisories(into: &mut serde_json::Map<String, Value>, from: serde_json:
 /// One check's result, the moment it has one.
 #[tauri::command]
 pub fn selftest_check(result: Value) -> Result<(), String> {
-    run()?.state.lock().unwrap().checks.push(result);
+    run()?
+        .state
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .checks
+        .push(result);
     Ok(())
 }
 
@@ -484,15 +534,26 @@ pub struct KeyEvent {
 
 #[tauri::command]
 pub async fn selftest_key(window: WebviewWindow, event: KeyEvent) -> Result<(), String> {
-    on_webview(&window, move |webview, ns_window| native::key(webview, ns_window, &event)).await
+    on_webview(&window, move |webview, ns_window| {
+        native::key(webview, ns_window, &event)
+    })
+    .await
 }
 
 /// A left click at a point in the page's CSS pixels.
 #[tauri::command]
-pub async fn selftest_click(window: WebviewWindow, x: f64, y: f64, press: Option<bool>) -> Result<(), String> {
+pub async fn selftest_click(
+    window: WebviewWindow,
+    x: f64,
+    y: f64,
+    press: Option<bool>,
+) -> Result<(), String> {
     // `press: false` only moves the pointer there: where it rests decides hover.
     let press = press.unwrap_or(true);
-    on_webview(&window, move |webview, ns_window| native::click(webview, ns_window, x, y, press)).await
+    on_webview(&window, move |webview, ns_window| {
+        native::click(webview, ns_window, x, y, press)
+    })
+    .await
 }
 
 /// Where native input would go now, for a key or click the page never saw.
@@ -533,7 +594,13 @@ pub async fn selftest_capture(window: WebviewWindow, name: String) -> Result<(),
     let run = run()?;
     let safe: String = name
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
     let number = on_webview(&window, |_, ns_window| Ok(native::window_number(ns_window))).await?;
     let _ = std::process::Command::new("/usr/sbin/screencapture")
@@ -577,7 +644,10 @@ const AX_ANSWER: Duration = Duration::from_secs(120);
 #[tauri::command]
 pub async fn selftest_ax(window: WebviewWindow, selector: String) -> Result<String, String> {
     run()?;
-    let script = format!("const selector = {};\n{AX_WALK}", serde_json::to_string(&selector).map_err(|e| e.to_string())?);
+    let script = format!(
+        "const selector = {};\n{AX_WALK}",
+        serde_json::to_string(&selector).map_err(|e| e.to_string())?
+    );
     // The inspector's page loads after it connects: wait for it, a few seconds at most.
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
@@ -618,7 +688,11 @@ async fn tokio_sleep(d: Duration) {
 /// or `<name>.dark.yml` in the dark pass where the dark scheme reads the
 /// surface otherwise (an Appearance menu naming the scheme it is in).
 #[tauri::command]
-pub fn selftest_aria(name: String, text: String, scheme: Option<String>) -> Result<Option<String>, String> {
+pub fn selftest_aria(
+    name: String,
+    text: String,
+    scheme: Option<String>,
+) -> Result<Option<String>, String> {
     let run = run()?;
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
         return Err(format!("{name:?} is not a surface's file name"));
@@ -629,12 +703,20 @@ pub fn selftest_aria(name: String, text: String, scheme: Option<String>) -> Resu
     }
     let dir = run.shots.join("aria");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    std::fs::write(dir.join(format!("{name}.{scheme}.yml")), format!("{text}\n")).map_err(|e| e.to_string())?;
+    std::fs::write(
+        dir.join(format!("{name}.{scheme}.yml")),
+        format!("{text}\n"),
+    )
+    .map_err(|e| e.to_string())?;
     let Some(expected) = std::env::var_os("PROSCENIUM_SELFTEST_ARIA").map(PathBuf::from) else {
         return Ok(None);
     };
     let variant = expected.join(format!("{name}.{scheme}.yml"));
-    let file = if scheme != "light" && variant.exists() { variant } else { expected.join(format!("{name}.yml")) };
+    let file = if scheme != "light" && variant.exists() {
+        variant
+    } else {
+        expected.join(format!("{name}.yml"))
+    };
     match std::fs::read_to_string(file) {
         Ok(t) => Ok(Some(t.trim_end().to_string())),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -647,7 +729,7 @@ pub fn selftest_aria(name: String, text: String, scheme: Option<String>) -> Resu
 pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String> {
     let run = run()?;
     let next = {
-        let mut state = run.state.lock().unwrap();
+        let mut state = run.state.lock().unwrap_or_else(|p| p.into_inner());
         let mut result = result;
         result["checks"] = Value::Array(std::mem::take(&mut state.checks));
         // What a mid-pass reload carried over belongs to this pass.
@@ -664,7 +746,13 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
         state.pass += 1;
         state.pass
     };
-    let stop = run.state.lock().unwrap().results.last().is_some_and(|r| r["stop"] == true);
+    let stop = run
+        .state
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .results
+        .last()
+        .is_some_and(|r| r["stop"] == true);
     if next >= PASSES.len() || stop {
         finish(None);
     }
@@ -677,7 +765,9 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
         }
     }
     copy_vault(&plays_dir(run, next)).map_err(|e| e.to_string())?;
-    window.set_theme(Some(PASSES[next].1)).map_err(|e| e.to_string())?;
+    window
+        .set_theme(Some(PASSES[next].1))
+        .map_err(|e| e.to_string())?;
     say(&format!("starting the {} pass", PASSES[next].0));
     window
         .eval("try { localStorage.clear(); sessionStorage.clear(); } catch {} location.reload();")
@@ -686,9 +776,12 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
 
 /// Write the report and exit: 0 only when both passes ran and nothing failed.
 fn finish(error: Option<String>) -> ! {
-    let Ok(run) = run() else { std::process::exit(2) };
+    let Ok(run) = run() else {
+        std::process::exit(2)
+    };
     let results = {
-        let mut state = run.state.lock().unwrap();
+        // A thread that panicked while holding the state still gets the report written.
+        let mut state = run.state.lock().unwrap_or_else(|p| p.into_inner());
         if state.finished {
             // The watchdog and the last pass can race; one report is enough.
             drop(state);
@@ -714,14 +807,22 @@ fn finish(error: Option<String>) -> ! {
         let scheme = pass["scheme"].as_str().unwrap_or("?");
         if let Some(crash) = pass["crash"].as_str() {
             // The first line is the message; the stack stays in the report.
-            failures.push(format!("{scheme} · harness crashed: {}", crash.lines().next().unwrap_or("")));
+            failures.push(format!(
+                "{scheme} · harness crashed: {}",
+                crash.lines().next().unwrap_or("")
+            ));
         }
         for check in pass["checks"].as_array().into_iter().flatten() {
             if check["ok"] != true {
                 failures.push(format!(
                     "{scheme} · {}: {}",
                     check["name"].as_str().unwrap_or("?"),
-                    check["error"].as_str().unwrap_or("").lines().next().unwrap_or("")
+                    check["error"]
+                        .as_str()
+                        .unwrap_or("")
+                        .lines()
+                        .next()
+                        .unwrap_or("")
                 ));
             }
         }
@@ -733,7 +834,10 @@ fn finish(error: Option<String>) -> ! {
     if let Some(e) = &error {
         failures.push(e.clone());
     }
-    let completed = results.iter().filter(|p| p.get("unfinished").is_none()).count();
+    let completed = results
+        .iter()
+        .filter(|p| p.get("unfinished").is_none())
+        .count();
     if completed < PASSES.len() && error.is_none() {
         failures.push(format!("only {completed} of {} passes ran", PASSES.len()));
     }
@@ -760,12 +864,17 @@ fn finish(error: Option<String>) -> ! {
     if let Err(e) = std::fs::write(&run.report, text) {
         eprintln!("[selftest] could not write {}: {e}", run.report.display());
     }
-    if std::env::var_os("PROSCENIUM_SELFTEST_KEEP").is_none() && run.root.starts_with(std::env::temp_dir()) {
+    if std::env::var_os("PROSCENIUM_SELFTEST_KEEP").is_none()
+        && run.root.starts_with(std::env::temp_dir())
+    {
         let _ = std::fs::remove_dir_all(&run.root);
     }
 
     if ok {
-        say(&format!("clean — both passes in {}s", run.started.elapsed().as_secs()));
+        say(&format!(
+            "clean — both passes in {}s",
+            run.started.elapsed().as_secs()
+        ));
     } else {
         say(&format!("{} failure(s):", failures.len()));
         for f in &failures {
@@ -836,9 +945,12 @@ mod native {
         NSEventType, NSImage, NSView, NSWindow,
     };
     use objc2_app_kit::{
-        NSWindowDidBecomeKeyNotification, NSWindowDidBecomeMainNotification, NSWindowDidChangeOcclusionStateNotification,
+        NSWindowDidBecomeKeyNotification, NSWindowDidBecomeMainNotification,
+        NSWindowDidChangeOcclusionStateNotification,
     };
-    use objc2_foundation::{NSDictionary, NSError, NSNotificationCenter, NSPoint, NSProcessInfo, NSString};
+    use objc2_foundation::{
+        NSDictionary, NSError, NSNotificationCenter, NSPoint, NSProcessInfo, NSString,
+    };
     use objc2_web_kit::{WKInactiveSchedulingPolicy, WKWebView};
 
     use super::KeyEvent;
@@ -867,7 +979,8 @@ mod native {
         if dict.is_null() {
             return false;
         }
-        let dictionary = unsafe { &*(dict as *const NSDictionary<NSString, objc2::runtime::AnyObject>) };
+        let dictionary =
+            unsafe { &*(dict as *const NSDictionary<NSString, objc2::runtime::AnyObject>) };
         let key = NSString::from_str("CGSSessionScreenIsLocked");
         let locked = dictionary.objectForKey(&key).is_some_and(|v| {
             let on: bool = unsafe { msg_send![&*v, boolValue] };
@@ -895,7 +1008,9 @@ mod native {
         let meta = NSEvent::class().metaclass();
         if let Some(method) = meta.instance_method(sel!(pressedMouseButtons)) {
             let imp: Imp = unsafe {
-                std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel) -> usize, Imp>(pressed_mouse_buttons)
+                std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel) -> usize, Imp>(
+                    pressed_mouse_buttons,
+                )
             };
             unsafe { method.set_implementation(imp) };
         }
@@ -927,7 +1042,9 @@ mod native {
     /// screen unlocked. Proven on the build host with
     /// a probe first: an untargeted undo: then reaches the page, and it has focus.
     pub fn claim_key_status(ns_window: *mut c_void) -> bool {
-        let Some(mtm) = MainThreadMarker::new() else { return false };
+        let Some(mtm) = MainThreadMarker::new() else {
+            return false;
+        };
         if !screen_locked() {
             return false;
         }
@@ -938,10 +1055,13 @@ mod native {
         let app_class = app.class();
         let window_class = window.class();
         let window_getter: Imp = unsafe {
-            std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel) -> *mut AnyObject, Imp>(stand_in_window)
+            std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel) -> *mut AnyObject, Imp>(
+                stand_in_window,
+            )
         };
-        let is_window: Imp =
-            unsafe { std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel) -> Bool, Imp>(is_stand_in) };
+        let is_window: Imp = unsafe {
+            std::mem::transmute::<extern "C-unwind" fn(&AnyObject, Sel) -> Bool, Imp>(is_stand_in)
+        };
         for (class, selector, imp) in [
             (app_class, sel!(keyWindow), window_getter),
             (app_class, sel!(mainWindow), window_getter),
@@ -999,7 +1119,10 @@ mod native {
             if let Some(window) = webview.window() {
                 let center = NSNotificationCenter::defaultCenter();
                 unsafe {
-                    center.postNotificationName_object(NSWindowDidChangeOcclusionStateNotification, Some(&window));
+                    center.postNotificationName_object(
+                        NSWindowDidChangeOcclusionStateNotification,
+                        Some(&window),
+                    );
                 }
                 if standing_in() {
                     announce_key(&window);
@@ -1007,7 +1130,11 @@ mod native {
             }
             if webview.respondsToSelector(sel!(_windowOcclusionDetectionEnabled)) {
                 let on: bool = unsafe { msg_send![webview, _windowOcclusionDetectionEnabled] };
-                if on { "still on" } else { "off" }
+                if on {
+                    "still on"
+                } else {
+                    "off"
+                }
             } else {
                 "set, not readable"
             }
@@ -1023,7 +1150,10 @@ mod native {
     /// The class of the window's first responder: the page's input goes to it.
     pub fn first_responder(ns_window: *mut c_void) -> String {
         let window = unsafe { &*(ns_window as *const NSWindow) };
-        window.firstResponder().map_or_else(|| "none".to_string(), |r| r.class().name().to_string_lossy().into_owned())
+        window.firstResponder().map_or_else(
+            || "none".to_string(),
+            |r| r.class().name().to_string_lossy().into_owned(),
+        )
     }
 
     /// Whether the text input system holds marked text in the first responder —
@@ -1043,7 +1173,11 @@ mod native {
         window.windowNumber()
     }
 
-    pub fn key(_webview: *mut c_void, ns_window: *mut c_void, event: &KeyEvent) -> Result<(), String> {
+    pub fn key(
+        _webview: *mut c_void,
+        ns_window: *mut c_void,
+        event: &KeyEvent,
+    ) -> Result<(), String> {
         let mtm = MainThreadMarker::new().ok_or("not on the main thread")?;
         let window = unsafe { &*(ns_window as *const NSWindow) };
         make_key(mtm, window);
@@ -1085,7 +1219,9 @@ mod native {
                 // AppKit's own order for a key equivalent: the key window's views
                 // first — the page, whose shortcuts handle ⌘Z and ⌘F themselves —
                 // and the menu only if nothing in the window took it.
-                let taken = window.contentView().is_some_and(|view| view.performKeyEquivalent(&ns_event));
+                let taken = window
+                    .contentView()
+                    .is_some_and(|view| view.performKeyEquivalent(&ns_event));
                 if !taken {
                     app.sendEvent(&ns_event);
                 }
@@ -1096,22 +1232,42 @@ mod native {
         Ok(())
     }
 
-    pub fn click(webview: *mut c_void, ns_window: *mut c_void, x: f64, y: f64, press: bool) -> Result<(), String> {
+    pub fn click(
+        webview: *mut c_void,
+        ns_window: *mut c_void,
+        x: f64,
+        y: f64,
+        press: bool,
+    ) -> Result<(), String> {
         let mtm = MainThreadMarker::new().ok_or("not on the main thread")?;
         let window = unsafe { &*(ns_window as *const NSWindow) };
         let view = unsafe { &*(webview as *const NSView) };
         make_key(mtm, window);
         let bounds = view.bounds();
-        let local = NSPoint::new(x, if view.isFlipped() { y } else { bounds.size.height - y });
+        let local = NSPoint::new(
+            x,
+            if view.isFlipped() {
+                y
+            } else {
+                bounds.size.height - y
+            },
+        );
         let point = view.convertPoint_toView(local, None);
         let app = NSApplication::sharedApplication(mtm);
         let kinds: &[NSEventType] = if press {
-            &[NSEventType::MouseMoved, NSEventType::LeftMouseDown, NSEventType::LeftMouseUp]
+            &[
+                NSEventType::MouseMoved,
+                NSEventType::LeftMouseDown,
+                NSEventType::LeftMouseUp,
+            ]
         } else {
             &[NSEventType::MouseMoved]
         };
         for &kind in kinds {
-            PRESSED.store(usize::from(kind == NSEventType::LeftMouseDown), Ordering::Relaxed);
+            PRESSED.store(
+                usize::from(kind == NSEventType::LeftMouseDown),
+                Ordering::Relaxed,
+            );
             let ns_event = NSEvent::mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure(
                 kind,
                 point,
@@ -1131,8 +1287,13 @@ mod native {
 
     /// Whether an inspector error means only that its page has not loaded yet.
     pub fn inspector_loading(error: &str) -> bool {
-        error.contains("inspector is still loading") || error.contains("Can't find variable: WI") || error.contains("mainTarget")
+        error.contains("inspector is still loading")
+            || error.contains("Can't find variable: WI")
+            || error.contains("mainTarget")
     }
+
+    /// Whether the inspector's page has been held in the foreground (ax_tree).
+    static FRONTEND_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
     /// Run `script` (scripts/selftest/ax-walk.js) in this webview's own Web
     /// Inspector, connecting it the first time, and deliver what it returns.
@@ -1168,10 +1329,35 @@ mod native {
         // (the first CI run lost a surface's tree to that every few checks).
         // It runs as the app's page does; it is never shown, and never key.
         unsafe {
-            frontend.configuration().preferences().setInactiveSchedulingPolicy(WKInactiveSchedulingPolicy::None);
+            frontend
+                .configuration()
+                .preferences()
+                .setInactiveSchedulingPolicy(WKInactiveSchedulingPolicy::None);
             if frontend.respondsToSelector(sel!(_setWindowOcclusionDetectionEnabled:)) {
                 let _: () = msg_send![frontend, _setWindowOcclusionDetectionEnabled: false];
             }
+        }
+        // That is not enough on its own. The page is in no window, so after a
+        // stretch with no read (the tutorial checks audit nothing for a
+        // minute) WebKit suspends its process, and the next read waited 13 to
+        // 35 s for it to run again: timed while one hung, the app's main thread
+        // and the inspected page answered at once, the inspector's page ran
+        // nothing, and the walk itself took 12 ms. Its process is held in the
+        // foreground for the run, the way WebKit's own tests hold one (2 is
+        // ProcessThrottleState::Foreground; the hold outlasts later changes).
+        if !FRONTEND_HELD.swap(true, Ordering::Relaxed) {
+            let held = frontend.respondsToSelector(sel!(_setThrottleStateForTesting:));
+            if held {
+                let _: () = unsafe { msg_send![frontend, _setThrottleStateForTesting: 2i32] };
+            }
+            super::say(&format!(
+                "the inspector's page {}",
+                if held {
+                    "is held in the foreground"
+                } else {
+                    "cannot be held in the foreground: this WebKit has no _setThrottleStateForTesting:"
+                }
+            ));
         }
         let body = NSString::from_str(script);
         let arguments = NSDictionary::<NSString, AnyObject>::new();
@@ -1210,10 +1396,16 @@ mod native {
         let block = RcBlock::new(move |image: *mut NSImage, _error: *mut NSError| {
             let png = (|| {
                 let image = unsafe { image.as_ref() }.ok_or("WebKit returned no image")?;
-                let tiff = image.TIFFRepresentation().ok_or("the snapshot has no bitmap")?;
-                let rep = NSBitmapImageRep::imageRepWithData(&tiff).ok_or("the snapshot has no bitmap")?;
+                let tiff = image
+                    .TIFFRepresentation()
+                    .ok_or("the snapshot has no bitmap")?;
+                let rep = NSBitmapImageRep::imageRepWithData(&tiff)
+                    .ok_or("the snapshot has no bitmap")?;
                 let data = unsafe {
-                    rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new())
+                    rep.representationUsingType_properties(
+                        NSBitmapImageFileType::PNG,
+                        &NSDictionary::new(),
+                    )
                 }
                 .ok_or("the snapshot would not encode as PNG")?;
                 Ok::<_, &str>(data.to_vec())

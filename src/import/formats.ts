@@ -12,21 +12,11 @@ export const DIRECT_EXTENSIONS = [
   "spmd",
   "fdx",
 ];
-export const GUIDED_EXTENSIONS = [
-  "doc",
-  "gdoc",
-  "scriv",
-  "scrivx",
-  "wdz",
-  "wdx",
-  "pdf",
-  "zip",
-];
+export const GUIDED_EXTENSIONS = ["doc", "gdoc", "scriv", "scrivx", "wdz", "wdx", "pdf", "zip"];
 export const IMPORT_ACCEPT = [...DIRECT_EXTENSIONS, ...GUIDED_EXTENSIONS]
   .map((x) => `.${x}`)
   .join(",");
-export const extension = (name: string) =>
-  name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+export const extension = (name: string) => name.slice(name.lastIndexOf(".") + 1).toLowerCase();
 /** A `.pages` document, or a package-form one zipped whole: the web view hands
  * a package over as `Name.pages.zip`, and Finder's Compress names it the same. */
 export const isPagesName = (name: string) => /\.pages(?:\.zip)?$/i.test(name);

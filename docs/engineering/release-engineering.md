@@ -412,6 +412,17 @@ keep the app's copy in step with whatever replaces it.
 - <a id="REL-105"></a> **REL-105** **File size:** `useWorkspace.ts` (about 3,200 lines), `styles.css` (about
   5,700) and `App.tsx` (about 1,500) are candidates for splitting along
   existing seams. That is not required for 1.0; record a plan if it is not done.
+  Measured after 1.0.0: `styles.css` is a 39-line index over 34 sheets in
+  `src/app/styles/`, so it is done; `App.tsx` is about 1,200 lines and
+  `useWorkspace.ts` about 4,700. The plan, in order of risk: `App.tsx` gives up
+  its chrome state, caret context, focus mode and banners as hooks and a
+  component, each named by a smoke check; `useWorkspace.ts` gives up its pure
+  helpers, then the play's format and export, the change ledger, the binder
+  operations and the Plays folder as units on the pattern of
+  `use-material-sessions.ts` (docs/engineering/architecture.md#ARCH-D105); the
+  script session, the safety path, waits for a session contract decided on its
+  own. Every step moves code along a seam that exists, changes no behaviour,
+  keeps every ARIA snapshot, and lands alone.
 
 <a id="PUBLIC-D7"></a>
 
@@ -853,7 +864,10 @@ full name is how Homebrew 6 lets someone trust a single cask from a tap.
 
 *Agent:*
 
-1. Every gate green on `main`.
+1. Every gate green on `main`, and the update service's stable route proven
+   against GitHub itself, not a stand-in: `cd services/edge && bun run test:live`
+   (docs/engineering/services-and-feedback.md#SERV-267). The tag's own run
+   repeats it before the build.
 2. [CHANGELOG.md](../../CHANGELOG.md) under **Unreleased**, in words a playwright
    reads: what they can do now, what is better, what was broken and is fixed.
 3. `bun run version 1.0.1`. That updates every file that states the version and
@@ -906,8 +920,21 @@ full name is how Homebrew 6 lets someone trust a single cask from a tap.
 
 8. The *maintainer* says publish, and says yes to deploying the Worker. The *agent* runs
    `node scripts/edge-wrangler.mjs deploy` first, so `updates.proscenium.ink`
-   admits 1.0.1. Otherwise it answers 502 and every copy updates from GitHub
-   directly. Then the agent runs `gh release edit v1.0.1 --draft=false`.
+   admits 1.0.1 and serves its files: until then a 1.0.1 copy's own check is
+   refused (400) and its archive is not served (404), and every copy falls back
+   to GitHub directly. Then the *maintainer* publishes the draft the pipeline
+   made, and nothing else: its edit page is
+   `https://github.com/proscenium-app/proscenium/releases/edit/v1.0.1` (the
+   release's page, then Edit), and **Publish release** at the bottom of it is
+   the click. Never **Draft a new release** from the tag's page, and never a
+   release made by hand on the tag: that makes a second, empty release beside
+   the pipeline's, GitHub serves no `latest.json`, and the website's Download
+   answers 404, as it did for five minutes on 2026-09-26 until the empty one
+   went back to draft. An agent's `gh release edit v1.0.1 --draft=false` is
+   refused as a public action, so the click is the maintainer's; the agent
+   gives the edit address and checks afterwards: one release on the tag, its
+   seven files, `proscenium.ink/download` redirecting to the DMG whose SHA-256
+   is `SHA256SUMS`'s, and GitHub's `latest.json` answering the version.
    Homebrew's workflow runs within a minute; the agent checks it went green and
    that `brew install --cask proscenium-app/tap/proscenium` installs 1.0.1.
 

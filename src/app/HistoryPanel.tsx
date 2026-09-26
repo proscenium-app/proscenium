@@ -175,12 +175,22 @@ export function HistoryPanel(props: HistoryPanelProps) {
   };
 
   const chosen = (entries ?? []).find((e) => e.name === selected);
-  const loading = !error && (entries === null || (!!selected && preview === null) || (comparing && againstText === null));
-  useAnnouncedStatus(error ? `Could not read versions. ${error}`
-    : loading ? "Reading versions…"
-    : !entries?.length ? "No saved versions yet."
-    : diff ? `Comparison ready. ${diff.added} lines added and ${diff.removed} removed.`
-    : chosen ? `Version ready: ${dayLabel(chosen.ts)}, ${timeLabel(chosen.ts)}.` : null);
+  const loading =
+    !error &&
+    (entries === null || (!!selected && preview === null) || (comparing && againstText === null));
+  useAnnouncedStatus(
+    error
+      ? `Could not read versions. ${error}`
+      : loading
+        ? "Reading versions…"
+        : !entries?.length
+          ? "No saved versions yet."
+          : diff
+            ? `Comparison ready. ${diff.added} lines added and ${diff.removed} removed.`
+            : chosen
+              ? `Version ready: ${dayLabel(chosen.ts)}, ${timeLabel(chosen.ts)}.`
+              : null,
+  );
 
   return (
     <>
@@ -223,8 +233,8 @@ export function HistoryPanel(props: HistoryPanelProps) {
             </span>
             <p className="emptysurface__title">No versions yet</p>
             <p className="emptysurface__body">
-              Snapshots are taken as you write — about every five minutes of
-              activity — and before anything replaces what is here.
+              Snapshots are taken as you write — about every five minutes of activity — and before
+              anything replaces what is here.
             </p>
           </div>
         )}
@@ -267,9 +277,7 @@ export function HistoryPanel(props: HistoryPanelProps) {
                       tabIndex={e.name === (selected ?? groups[0]?.items[0]?.name) ? 0 : -1}
                       aria-selected={e.name === selected}
                       aria-label={`${g.day}, ${timeLabel(e.ts)}, ${REASON_LABEL[e.reason] ?? e.reason}`}
-                      className={`historypanel__row${
-                        e.name === selected ? " is-selected" : ""
-                      }`}
+                      className={`historypanel__row${e.name === selected ? " is-selected" : ""}`}
                       onClick={() => setSelected(e.name)}
                     >
                       <span className="historypanel__time">{timeLabel(e.ts)}</span>

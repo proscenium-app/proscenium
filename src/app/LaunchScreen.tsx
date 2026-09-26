@@ -26,7 +26,9 @@
  */
 import { AppMarkIcon } from "../ui";
 
-export function LaunchScreen({ play }: {
+export function LaunchScreen({
+  play,
+}: {
   /** The play the launch is walking into, once it has chosen one. */
   play: string | null;
 }) {
@@ -39,7 +41,9 @@ export function LaunchScreen({ play }: {
           <span className="empty-card__icon">
             <AppMarkIcon size={64} />
           </span>
-          <p className="launch-screen__what">{play ? `Opening “${play}”…` : "Opening your plays…"}</p>
+          <p className="launch-screen__what">
+            {play ? `Opening “${play}”…` : "Opening your plays…"}
+          </p>
         </div>
       </div>
     </div>

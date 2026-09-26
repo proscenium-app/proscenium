@@ -116,9 +116,13 @@ describe("find: scope is the actual feature", () => {
   });
 
   it("searches one element type", () => {
-    const inDialogue = findMatches(script, "water", opts({
-      scope: { kind: "element", types: ["dialogue"] },
-    }));
+    const inDialogue = findMatches(
+      script,
+      "water",
+      opts({
+        scope: { kind: "element", types: ["dialogue"] },
+      }),
+    );
     expect(inDialogue).toHaveLength(3);
     expect(new Set(inDialogue.map((m) => m.blockType))).toEqual(new Set(["dialogue"]));
   });
@@ -130,9 +134,13 @@ describe("find: scope is the actual feature", () => {
   });
 
   it("searches one character's speeches — their words, not their cue line", () => {
-    const jonah = findMatches(script, "water", opts({
-      scope: { kind: "speaker", name: "JONAH" },
-    }));
+    const jonah = findMatches(
+      script,
+      "water",
+      opts({
+        scope: { kind: "speaker", name: "JONAH" },
+      }),
+    );
     // Two in the speech, one in the wryly. Not MARA's, and not the cue itself.
     expect(jonah).toHaveLength(3);
     expect(jonah.every((m) => m.speaker === "JONAH")).toBe(true);
@@ -140,9 +148,13 @@ describe("find: scope is the actual feature", () => {
   });
 
   it("scoping to a speaker does not match their own cue", () => {
-    const mara = findMatches(script, "MARA", opts({
-      scope: { kind: "speaker", name: "MARA" },
-    }));
+    const mara = findMatches(
+      script,
+      "MARA",
+      opts({
+        scope: { kind: "speaker", name: "MARA" },
+      }),
+    );
     expect(mara).toEqual([]);
   });
 });

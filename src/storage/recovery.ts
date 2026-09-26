@@ -93,7 +93,8 @@ export class RecoverySnapshots {
 
   /** Stop following. A snapshot already on disk stays — that is its purpose. */
   detach(): void {
-    const target = this.target, owner = this.owner;
+    const target = this.target,
+      owner = this.owner;
     if (target && owner && this.io.release) {
       void this.enqueue(() => this.io.release!(target.playId, target.scriptId, owner));
     }
@@ -127,7 +128,8 @@ export class RecoverySnapshots {
     if (!whose) return this.queue;
     const owner = this.owners.get(`${whose.playId}/${whose.scriptId}`);
     if (!owner) return this.queue;
-    const open = target !== null && target.playId === whose.playId && target.scriptId === whose.scriptId;
+    const open =
+      target !== null && target.playId === whose.playId && target.scriptId === whose.scriptId;
     if (open) {
       // Nothing was ever written for it: a flush with no snapshot behind it
       // costs no IPC at all.

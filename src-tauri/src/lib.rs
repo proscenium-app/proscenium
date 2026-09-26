@@ -13,14 +13,14 @@ mod authority;
 mod conflict;
 mod export;
 mod feedback;
-mod formats;
 mod folder_access;
-mod opens;
-mod providers;
+mod formats;
 /// Desktop-only: iOS has no menu bar, and every item here is also bound at
 /// the window by the frontend, so the mobile build simply carries neither.
 #[cfg(desktop)]
 mod menu;
+mod opens;
+mod providers;
 /// Desktop-only: a quit asks the page to keep its words first (docs/app/keeping-work/storage-and-file-format.md#STOR-D13).
 /// iOS ends an app from the background, where the page's hide flush runs.
 #[cfg(desktop)]
@@ -32,29 +32,29 @@ mod scope;
 mod selftest;
 mod settings;
 mod smartsubs;
+mod store;
 mod symbols;
+/// Anonymous usage and crash reports, crash files, the local error log, and
+/// Copy Diagnostics (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D100). `telemetry::allowlist` holds
+/// every address the app uses.
+mod telemetry;
 mod tutorials;
 /// The in-app updater (docs/engineering/release-engineering.md#REL-D6). Desktop builds with the
 /// `updater` feature only: the App Store and the iPad are updated by the store.
 #[cfg(all(desktop, feature = "updater"))]
 mod updates;
-mod store;
-/// Anonymous usage and crash reports, crash files, the local error log, and
-/// Copy Diagnostics (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D100). `telemetry::allowlist` holds
-/// every address the app uses.
-mod telemetry;
 mod vault;
 /// The version this copy answers to, with a track build's pre-release in it.
 mod version;
-#[cfg(target_os = "macos")]
-mod webview_policy;
-#[cfg(target_os = "macos")]
-mod window_color;
 /// Desktop-only: mobile has no usable filesystem watch and rescans on foreground
 /// instead (docs/engineering/cross-platform.md#PLAT-D103). Gated at the module so the mobile build
 /// carries no dead watcher code.
 #[cfg(desktop)]
 mod watcher;
+#[cfg(target_os = "macos")]
+mod webview_policy;
+#[cfg(target_os = "macos")]
+mod window_color;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -64,8 +64,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 #[cfg(desktop)]
 use tauri_plugin_dialog::DialogExt;
 
-use store::PlayStore;
 use authority::{Authority, FolderGrant};
+use store::PlayStore;
 use vault::{sha256_hex, LocalFsVault, SelfWrites, Vault, WriteOutcome};
 
 /// The single piece of mutable backend state: which vault is open, the watcher
@@ -94,7 +94,7 @@ fn estr<E: std::fmt::Display>(e: E) -> String {
 fn current_vault(state: &ManagerState) -> Result<Arc<LocalFsVault>, String> {
     state
         .lock()
-        .unwrap()
+        .unwrap_or_else(|p| p.into_inner())
         .vault
         .clone()
         .ok_or_else(|| "no vault is open".to_string())
@@ -138,7 +138,8 @@ async fn vault_pick_folder(
     #[cfg(feature = "selftest")]
     if let Some(path) = selftest::picked_folder() {
         let _ = (&start, &message);
-        *picked.0.lock().unwrap_or_else(|p| p.into_inner()) = Some((PathBuf::from(&path), scope::bookmark(&path)));
+        *picked.0.lock().unwrap_or_else(|p| p.into_inner()) =
+            Some((PathBuf::from(&path), scope::bookmark(&path)));
         return authority.grant(std::path::Path::new(&path)).map(Some);
     }
     let handle = app.clone();
@@ -199,7 +200,9 @@ async fn vault_pick_folder(
         Ok(Some(chosen)) => {
             *picked.0.lock().unwrap_or_else(|p| p.into_inner()) =
                 Some((PathBuf::from(&chosen.path), Some(chosen.bookmark)));
-            authority.grant(std::path::Path::new(&chosen.path)).map(Some)
+            authority
+                .grant(std::path::Path::new(&chosen.path))
+                .map(Some)
         }
         // Cancelled — an answer, not a failure. A picker that failed leaves the
         // writer where they were, which is the same answer.
@@ -233,7 +236,8 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
                     // bookmark names, kept on that folder's grant (docs/app/keeping-work/storage-and-file-format.md#STOR-D12).
                     let path =
                         settings::reopen_path(reopened.path, settings::last_vault_path(&app));
-                    let _ = folder_access::retain(&app, path.clone(), Some(reopened.bookmark), None);
+                    let _ =
+                        folder_access::retain(&app, path.clone(), Some(reopened.bookmark), None);
                     return authority.grant(std::path::Path::new(&path)).ok();
                 }
                 Err(_) => {
@@ -256,7 +260,11 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
             return authority.grant(std::path::Path::new(&path)).ok();
         }
         if let Some(path) = settings::last_vault_path(&app) {
-            folder_access::report(&app, path, "The saved folder could not be reopened. Choose it again to restore access.".into());
+            folder_access::report(
+                &app,
+                path,
+                "The saved folder could not be reopened. Choose it again to restore access.".into(),
+            );
         }
     }
     // A saved path is only a hint, never permission. Without a valid bookmark only an
@@ -264,12 +272,24 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
     let stored = settings::last_vault_path(&app)?;
     let path = std::path::Path::new(&stored).canonicalize().ok()?;
     let mut own_roots = vec![app.path().app_data_dir().ok()];
-    if let Some(cloud) = scope::cloud_root() { own_roots.push(Some(PathBuf::from(cloud))); }
+    if let Some(cloud) = scope::cloud_root() {
+        own_roots.push(Some(PathBuf::from(cloud)));
+    }
     #[cfg(mobile)]
     own_roots.push(app.path().document_dir().ok());
-    let own = own_roots.into_iter().flatten().filter_map(|p| p.canonicalize().ok()).any(|p| path.starts_with(p));
-    if own { authority.grant(&path).ok() } else {
-        folder_access::report(&app, stored, "Choose your Plays folder again so Proscenium can retain access.".into());
+    let own = own_roots
+        .into_iter()
+        .flatten()
+        .filter_map(|p| p.canonicalize().ok())
+        .any(|p| path.starts_with(p));
+    if own {
+        authority.grant(&path).ok()
+    } else {
+        folder_access::report(
+            &app,
+            stored,
+            "Choose your Plays folder again so Proscenium can retain access.".into(),
+        );
         None
     }
 }
@@ -290,11 +310,16 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
 /// door that opens onto nothing.
 #[tauri::command]
 async fn vault_cloud_root(app: AppHandle) -> Option<FolderGrant> {
-    app.state::<Authority>().grant(std::path::Path::new(&scope::cloud_root()?)).ok()
+    app.state::<Authority>()
+        .grant(std::path::Path::new(&scope::cloud_root()?))
+        .ok()
 }
 
 #[tauri::command]
-async fn vault_default_root(app: AppHandle, authority: State<'_, Authority>) -> Result<FolderGrant, String> {
+async fn vault_default_root(
+    app: AppHandle,
+    authority: State<'_, Authority>,
+) -> Result<FolderGrant, String> {
     #[cfg(desktop)]
     {
         let _ = (app, authority);
@@ -302,14 +327,18 @@ async fn vault_default_root(app: AppHandle, authority: State<'_, Authority>) -> 
     }
     #[cfg(mobile)]
     {
-    let dir = app.path().document_dir().map_err(estr)?;
-    std::fs::create_dir_all(&dir).map_err(estr)?;
-    authority.grant(&dir)
+        let dir = app.path().document_dir().map_err(estr)?;
+        std::fs::create_dir_all(&dir).map_err(estr)?;
+        authority.grant(&dir)
     }
 }
 
 #[tauri::command]
-async fn vault_folder_below(authority: State<'_, Authority>, handle: String, relative: String) -> Result<FolderGrant, String> {
+async fn vault_folder_below(
+    authority: State<'_, Authority>,
+    handle: String,
+    relative: String,
+) -> Result<FolderGrant, String> {
     authority.descendant(&handle, &relative)
 }
 
@@ -339,10 +368,13 @@ async fn vault_open(
     // its transaction owner before recovering the same folder after a failure.
     mgr.vault = None;
     #[cfg(desktop)]
-    { mgr.watch = None; }
+    {
+        mgr.watch = None;
+    }
     let vault = Arc::new(
         LocalFsVault::open(path, self_writes.clone(), trash_dir)
-            .map_err(estr)?.with_journal(&store::app_data_dir(&app).map_err(estr)?),
+            .map_err(estr)?
+            .with_journal(&store::app_data_dir(&app).map_err(estr)?),
     );
     let moves = vault.recover_moves().map_err(estr)?;
     let root = vault.root().to_path_buf();
@@ -363,6 +395,7 @@ async fn vault_open(
         let _ = (&app, &self_writes);
     }
 
+    let identity = vault.identity();
     mgr.vault = Some(vault);
 
     // A Plays folder the panel just granted is remembered now that it has
@@ -370,43 +403,53 @@ async fn vault_open(
     // folder is never the Plays folder, and a grant for some other folder than
     // the one that opened is dropped.
     if play_id.is_none() {
-        if let Some((granted, bookmark)) = picked.0.lock().unwrap_or_else(|p| p.into_inner()).take() {
+        if let Some((granted, bookmark)) = picked.0.lock().unwrap_or_else(|p| p.into_inner()).take()
+        {
             if granted.canonicalize().unwrap_or(granted) == root {
                 #[cfg(target_os = "macos")]
                 let problem = bookmark.is_none().then(|| "Proscenium could not make a bookmark for this folder. Choose it again to retain access.".into());
                 #[cfg(not(target_os = "macos"))]
                 let problem = None;
-                let _ = folder_access::retain(&app, root.to_string_lossy().to_string(), bookmark, problem);
+                let _ = folder_access::retain(
+                    &app,
+                    root.to_string_lossy().to_string(),
+                    bookmark,
+                    problem,
+                );
             }
         }
     }
 
     Ok(OpenResult {
         root: root.to_string_lossy().to_string(),
-        identity: mgr.vault.as_ref().expect("vault was installed").identity(),
+        identity,
         moves,
         conflicts,
     })
 }
 
 #[tauri::command]
-async fn vault_list(
-    state: ManagerState<'_>,
-    rel_dir: String,
-) -> Result<Vec<vault::Entry>, String> {
+async fn vault_list(state: ManagerState<'_>, rel_dir: String) -> Result<Vec<vault::Entry>, String> {
     current_vault(&state)?.list(&rel_dir).map_err(estr)
 }
 
 #[tauri::command]
 #[cfg(desktop)]
 async fn watcher_status(state: ManagerState<'_>) -> Result<Option<watcher::WatchHealth>, String> {
-    let health = state.lock().unwrap_or_else(|p| p.into_inner()).watch.as_ref().map(|watch| watch.health());
+    let health = state
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .watch
+        .as_ref()
+        .map(|watch| watch.health());
     Ok(health)
 }
 
 #[tauri::command]
 #[cfg(mobile)]
-async fn watcher_status() -> Option<()> { None }
+async fn watcher_status() -> Option<()> {
+    None
+}
 
 /// A read that comes back "not found" may be an **evicted** iCloud file rather
 /// than a missing one: iCloud keeps the name and takes the bytes. Ask the
@@ -416,11 +459,7 @@ async fn watcher_status() -> Option<()> { None }
 /// platform-neutral (docs/engineering/architecture.md#ARCH-D100: Rust stores bytes) and the whole notion of
 /// eviction is confined to the boundary that already knows about plugins.
 #[cfg(mobile)]
-fn fetch_evicted(
-    app: &AppHandle,
-    vault: &LocalFsVault,
-    rel: &str,
-) -> Result<Vec<u8>, String> {
+fn fetch_evicted(app: &AppHandle, vault: &LocalFsVault, rel: &str) -> Result<Vec<u8>, String> {
     use tauri_plugin_vault_picker::VaultPickerExt;
 
     let abs = vault.abs_path(rel).map_err(estr)?;
@@ -449,14 +488,18 @@ async fn vault_read(
     let bytes = match vault.read(&rel) {
         Ok(bytes) => bytes,
         #[cfg(mobile)]
-        Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::WouldBlock) => {
+        Err(e)
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::WouldBlock
+            ) =>
+        {
             fetch_evicted(&app, &vault, &rel)?
         }
         Err(e) => return Err(estr(e)),
     };
     let hash = sha256_hex(&bytes);
-    let content =
-        String::from_utf8(bytes).map_err(|_| "file is not valid UTF-8".to_string())?;
+    let content = String::from_utf8(bytes).map_err(|_| "file is not valid UTF-8".to_string())?;
     Ok(ReadResult { content, hash })
 }
 
@@ -476,14 +519,22 @@ async fn vault_write(
     let vault = current_vault(&state)?;
     let bytes = content.as_bytes();
     let result = if rebasable.unwrap_or(false) {
-        vault.write_rebasable(&rel, bytes, expected.as_deref()).map_err(estr)
+        vault
+            .write_rebasable(&rel, bytes, expected.as_deref())
+            .map_err(estr)
     } else {
         vault.write(&rel, bytes, expected.as_deref()).map_err(estr)
     };
     // Copies also survive failures after a swap. The next open/foreground
     // query is the fallback when a page misses this notification.
-    if vault.saved_copies().map_or(true, |copies| !copies.is_empty()) {
-        let _ = app.emit("vault://saved-copies", vault.root().to_string_lossy().to_string());
+    if vault
+        .saved_copies()
+        .map_or(true, |copies| !copies.is_empty())
+    {
+        let _ = app.emit(
+            "vault://saved-copies",
+            vault.root().to_string_lossy().to_string(),
+        );
     }
     result
 }
@@ -495,13 +546,25 @@ async fn vault_saved_copies(state: ManagerState<'_>) -> Result<Vec<vault::SavedC
 
 /// Imported originals are immutable copies. This command has no overwrite mode.
 #[tauri::command]
-async fn vault_create_binary(state: ManagerState<'_>, rel: String, base64: String) -> Result<WriteOutcome, String> {
+async fn vault_create_binary(
+    state: ManagerState<'_>,
+    rel: String,
+    base64: String,
+) -> Result<WriteOutcome, String> {
     use base64::Engine;
     let limit = vault::read_limit::MAX_DOCUMENT_BYTES as usize;
-    if base64.len() > limit.div_ceil(3) * 4 { return Err("This file exceeds the 16 MiB import limit.".into()); }
-    let bytes = base64::engine::general_purpose::STANDARD.decode(base64).map_err(estr)?;
-    if bytes.len() > limit { return Err("This file exceeds the 16 MiB import limit.".into()); }
-    current_vault(&state)?.write(&rel, &bytes, Some("")).map_err(estr)
+    if base64.len() > limit.div_ceil(3) * 4 {
+        return Err("This file exceeds the 16 MiB import limit.".into());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(base64)
+        .map_err(estr)?;
+    if bytes.len() > limit {
+        return Err("This file exceeds the 16 MiB import limit.".into());
+    }
+    current_vault(&state)?
+        .write(&rel, &bytes, Some(""))
+        .map_err(estr)
 }
 
 #[tauri::command]
@@ -523,11 +586,7 @@ async fn vault_trash(state: ManagerState<'_>, rel: String) -> Result<(), String>
 
 /// Atomically relocate a file/dir within the vault (binder move/rename).
 #[tauri::command]
-async fn vault_rename(
-    state: ManagerState<'_>,
-    from: String,
-    to: String,
-) -> Result<(), String> {
+async fn vault_rename(state: ManagerState<'_>, from: String, to: String) -> Result<(), String> {
     current_vault(&state)?.rename(&from, &to).map_err(estr)
 }
 
@@ -539,11 +598,20 @@ enum MoveStart {
 }
 
 #[tauri::command]
-async fn vault_begin_move(state: ManagerState<'_>, from: String, to: String, manifest: String, payload: String) -> Result<MoveStart, String> {
+async fn vault_begin_move(
+    state: ManagerState<'_>,
+    from: String,
+    to: String,
+    manifest: String,
+    payload: String,
+) -> Result<MoveStart, String> {
     let vault = current_vault(&state)?;
     Ok(match vault.begin_move(&from, &to, manifest, payload) {
         Ok(intent) => MoveStart::Ok { intent },
-        Err(error) => MoveStart::Refused { message: error.to_string(), blocked: vault.has_pending_moves() },
+        Err(error) => MoveStart::Refused {
+            message: error.to_string(),
+            blocked: vault.has_pending_moves(),
+        },
     })
 }
 
@@ -587,7 +655,11 @@ async fn vault_reveal(state: ManagerState<'_>, rel: Option<String>) -> Result<()
     // window on the build host: the click, the command and the path it
     // resolved are the app's; showing a folder is Finder's.
     #[cfg(feature = "selftest")]
-    if selftest::record_reveal(target.as_deref().map_or(("open", root.as_path()), |p| ("open -R", p))) {
+    if selftest::record_reveal(
+        target
+            .as_deref()
+            .map_or(("open", root.as_path()), |p| ("open -R", p)),
+    ) {
         return Ok(());
     }
     let mut cmd = std::process::Command::new("open");
@@ -782,13 +854,28 @@ async fn recovery_remove(
 }
 
 #[tauri::command]
-async fn recovery_list(app: AppHandle, play_id: String, script_id: Option<String>) -> Result<Vec<store::recovery::RecoveryFile>, String> {
-    PlayStore::open(&app, &play_id).map_err(estr)?.recovery_list(script_id.as_deref()).map_err(estr)
+async fn recovery_list(
+    app: AppHandle,
+    play_id: String,
+    script_id: Option<String>,
+) -> Result<Vec<store::recovery::RecoveryFile>, String> {
+    PlayStore::open(&app, &play_id)
+        .map_err(estr)?
+        .recovery_list(script_id.as_deref())
+        .map_err(estr)
 }
 
 #[tauri::command]
-async fn recovery_release(app: AppHandle, play_id: String, script_id: String, owner: String) -> Result<(), String> {
-    PlayStore::open(&app, &play_id).map_err(estr)?.recovery_release(&script_id, &owner).map_err(estr)
+async fn recovery_release(
+    app: AppHandle,
+    play_id: String,
+    script_id: String,
+    owner: String,
+) -> Result<(), String> {
+    PlayStore::open(&app, &play_id)
+        .map_err(estr)?
+        .recovery_release(&script_id, &owner)
+        .map_err(estr)
 }
 
 /// What a folder is before it becomes the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-D2, docs/app/keeping-work/storage-and-file-format.md#STOR-D11): a
@@ -814,7 +901,9 @@ struct FolderFacts {
 /// The writer's real home, even inside the App Sandbox, where `HOME` is the
 /// app's container and every provider path would look like "not under home".
 fn real_home() -> PathBuf {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_default();
     let text = home.to_string_lossy().to_string();
     match text.find("/Library/Containers/") {
         Some(i) => PathBuf::from(&text[..i]),
@@ -839,13 +928,23 @@ async fn vault_folder_facts(
     let same = |other: &std::path::Path| {
         other.canonicalize().unwrap_or_else(|_| other.to_path_buf()) == canonical
     };
-    let is_picked = picked.0.lock().unwrap_or_else(|p| p.into_inner()).as_ref().is_some_and(|(p, _)| same(p));
+    let is_picked = picked
+        .0
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .as_ref()
+        .is_some_and(|(p, _)| same(p));
     // A folder inside the one open, which the vault lists already: the Plays
     // screen offers one when the Plays folder looks chosen one level too high
     // (docs/app/keeping-work/storage-and-file-format.md#STOR-D12). Only a path that resolves, so `..` never walks out of it.
-    let is_open = state.lock().unwrap_or_else(|p| p.into_inner()).vault.as_ref().is_some_and(|v| {
-        same(v.root()) || resolved.as_ref().is_some_and(|r| r.starts_with(v.root()))
-    });
+    let is_open = state
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .vault
+        .as_ref()
+        .is_some_and(|v| {
+            same(v.root()) || resolved.as_ref().is_some_and(|r| r.starts_with(v.root()))
+        });
     if !(is_picked || is_open || pending.is_around_granted(&canonical)) {
         return Err("that folder was not chosen or opened in Proscenium".to_string());
     }
@@ -860,7 +959,10 @@ async fn vault_folder_facts(
         listable: std::fs::read_dir(&canonical).is_ok(),
         providers: providers::detect(
             &canonical,
-            &providers::Environment { home: home.clone(), is_icloud_item: &is_icloud },
+            &providers::Environment {
+                home: home.clone(),
+                is_icloud_item: &is_icloud,
+            },
         ),
         path: here,
     })
@@ -899,7 +1001,10 @@ async fn opened_facts(
     let facts = opens::facts(&p, &real_home());
     // The OS-open grant reaches the play that contains the opened file. Its
     // parent is a different folder, selected natively if it is to hold plays.
-    let folder = facts.play_dirs.first().and_then(|play| authority.grant(std::path::Path::new(&play.dir)).ok());
+    let folder = facts
+        .play_dirs
+        .first()
+        .and_then(|play| authority.grant(std::path::Path::new(&play.dir)).ok());
     Ok(OpenedWithGrant { facts, folder })
 }
 
@@ -921,10 +1026,15 @@ async fn opened_read(
 }
 
 #[tauri::command]
-async fn opened_read_binary(pending: State<'_, opens::PendingOpens>, path: String) -> Result<String, String> {
+async fn opened_read_binary(
+    pending: State<'_, opens::PendingOpens>,
+    path: String,
+) -> Result<String, String> {
     use base64::Engine;
     let p = PathBuf::from(path);
-    if !pending.is_granted(&p) { return Err("that file was not opened with Proscenium".into()); }
+    if !pending.is_granted(&p) {
+        return Err("that file was not opened with Proscenium".into());
+    }
     let bytes = vault::read_limit::read_document(&p).map_err(estr)?;
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
@@ -940,14 +1050,25 @@ struct PackageFile {
 /// original (docs/app/importing/document-import.md#IMPT-89). `None` when the
 /// path is a plain file, which `opened_read_binary` reads.
 #[tauri::command]
-async fn opened_read_package(pending: State<'_, opens::PendingOpens>, path: String) -> Result<Option<Vec<PackageFile>>, String> {
+async fn opened_read_package(
+    pending: State<'_, opens::PendingOpens>,
+    path: String,
+) -> Result<Option<Vec<PackageFile>>, String> {
     use base64::Engine;
     let p = PathBuf::from(path);
-    if !pending.is_granted(&p) { return Err("that file was not opened with Proscenium".into()); }
+    if !pending.is_granted(&p) {
+        return Err("that file was not opened with Proscenium".into());
+    }
     let files = vault::read_limit::read_package(&p).map_err(estr)?;
-    Ok(files.map(|files| files.into_iter()
-        .map(|(path, bytes)| PackageFile { path, base64: base64::engine::general_purpose::STANDARD.encode(bytes) })
-        .collect()))
+    Ok(files.map(|files| {
+        files
+            .into_iter()
+            .map(|(path, bytes)| PackageFile {
+                path,
+                base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+            })
+            .collect()
+    }))
 }
 
 /// Where the main window may navigate: its own origin only. Production serves
@@ -1010,8 +1131,12 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             {
                 // The desk, light or dark, from the first instant (window_color.rs).
-                let background = window_color::desk(&settings::current(app.handle()).appearance, window_color::system_is_dark());
-                webview_policy::build(app.handle().clone(), main, background).map_err(std::io::Error::other)?;
+                let background = window_color::desk(
+                    &settings::current(app.handle()).appearance,
+                    window_color::system_is_dark(),
+                );
+                webview_policy::build(app.handle().clone(), main, background)
+                    .map_err(std::io::Error::other)?;
             }
             #[cfg(not(target_os = "macos"))]
             tauri::WebviewWindowBuilder::from_config(app.handle(), &main)?
@@ -1180,6 +1305,8 @@ pub fn run() {
             vault_folder_facts,
         ])
         .build(tauri::generate_context!())
+        // Nothing runs before this: a builder that cannot make the app has no
+        // window to say so in, so the process ends here with the reason on stderr.
         .expect("error while building the Proscenium application")
         .run(|app, event| {
             // Finder's "open these" (docs/app/keeping-work/storage-and-file-format.md#STOR-D5): queue, then say so. The same
@@ -1210,10 +1337,17 @@ mod navigation_tests {
         let url = |s: &str| tauri::Url::parse(s).unwrap();
         assert!(navigation_allowed(&url("tauri://localhost/index.html")));
         assert!(navigation_allowed(&url("tauri://localhost/")));
-        assert!(!navigation_allowed(&url("https://attacker.example/?d=SYNTHETIC%20PLAY%20LINE")));
+        assert!(!navigation_allowed(&url(
+            "https://attacker.example/?d=SYNTHETIC%20PLAY%20LINE"
+        )));
         assert!(!navigation_allowed(&url("http://attacker.example/")));
-        assert!(!navigation_allowed(&url("file:///Users/writer/Plays/x.html")));
+        assert!(!navigation_allowed(&url(
+            "file:///Users/writer/Plays/x.html"
+        )));
         assert!(!navigation_allowed(&url("javascript:alert(1)")));
-        assert_eq!(navigation_allowed(&url("http://localhost:1420/")), cfg!(dev));
+        assert_eq!(
+            navigation_allowed(&url("http://localhost:1420/")),
+            cfg!(dev)
+        );
     }
 }

@@ -23,13 +23,7 @@ import { AutosaveScheduler, DEFAULT_AUTOSAVE } from "../storage/autosave";
 import type { BufferLease, MaterialBuffer, ParkedWords } from "./material-buffer";
 import { useSceneStatusOptions } from "../app/settings/scene-statuses";
 import type { Card } from "./play-file";
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  OutlineIcon,
-  PopupButton,
-} from "../ui";
-
+import { ArrowDownIcon, ArrowUpIcon, OutlineIcon, PopupButton } from "../ui";
 
 /** Collapsed state is a view preference, so it rides along app-level. */
 const NOTES_OPEN_KEY = "proscenium:outlineNotesOpen";
@@ -106,8 +100,8 @@ export function OutlinerView({
             <p className="emptysurface__title">No scenes yet</p>
             <p className="emptysurface__body">
               Type <span className="mono">## Scene</span> in the script, or{" "}
-              <span className="mono">;</span> then <span className="mono">2</span>, and a
-              row appears here.
+              <span className="mono">;</span> then <span className="mono">2</span>, and a row
+              appears here.
             </p>
           </div>
         </div>
@@ -197,7 +191,10 @@ function OutlineNotes({
   });
   // Idle debounce with a ceiling, like the script and the sheets (docs/app/keeping-work/storage-and-file-format.md#STOR-150).
   const scheduler = useRef(
-    new AutosaveScheduler({ debounceMs: 600, maxWaitMs: DEFAULT_AUTOSAVE.maxWaitMs }, () => void saveRef.current()),
+    new AutosaveScheduler(
+      { debounceMs: 600, maxWaitMs: DEFAULT_AUTOSAVE.maxWaitMs },
+      () => void saveRef.current(),
+    ),
   );
   const latest = useRef(notes);
   /** What the note holds on disk as far as this buffer knows: read, or last saved. */
@@ -219,7 +216,12 @@ function OutlineNotes({
     seenReset.current = reset;
     // Exactly the words on this page (an earlier scratchpad's save, landing
     // after this one took its words over): saved.
-    if (!forced && !sending.current && latest.current !== saved.current && notes === latest.current) {
+    if (
+      !forced &&
+      !sending.current &&
+      latest.current !== saved.current &&
+      notes === latest.current
+    ) {
       saved.current = notes;
       base.current = notes;
       onDirty?.(false);
@@ -332,15 +334,12 @@ function OutlineNotes({
           Outline notes
         </button>
         {path && <span className="outline-notes__path">{path}</span>}
-        {!open && body.trim() && (
-          <span className="outline-notes__peek">{firstLine(body)}</span>
-        )}
+        {!open && body.trim() && <span className="outline-notes__peek">{firstLine(body)}</span>}
       </header>
       {gate && (
         <div className="material__gate" role="status">
           <span className="material__gatetext">
-            These notes changed somewhere else while you were writing. Nothing has been
-            overwritten.
+            These notes changed somewhere else while you were writing. Nothing has been overwritten.
           </span>
           <button onClick={() => onResolveGate?.("theirs")}>Use the other</button>
           <button onClick={() => onResolveGate?.("mine")}>Keep this one</button>

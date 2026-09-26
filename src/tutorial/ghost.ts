@@ -15,12 +15,19 @@
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
-export interface Ghost { index: number; text: string; key?: string }
+export interface Ghost {
+  index: number;
+  text: string;
+  key?: string;
+}
 /** The line the guide points at, with or without a suggestion. */
-export interface Lit { line: number | null; ghost: Ghost | null }
+export interface Lit {
+  line: number | null;
+  ghost: Ghost | null;
+}
 
 export const ghostKey = new PluginKey<Lit>("tutorial-ghost");
-const NONE: Lit = {line: null, ghost: null};
+const NONE: Lit = { line: null, ghost: null };
 
 /** The position before top-level block `index`, or null past the end. */
 export function blockPos(state: EditorState, index: number): number | null {
@@ -55,29 +62,39 @@ export function decorationsFor(state: EditorState, lit: Lit): DecorationSet {
   const line = lit.line === null ? null : blockPos(state, lit.line);
   if (line !== null && lit.line !== null) {
     const node = state.doc.child(lit.line);
-    out.push(Decoration.node(line, line + node.nodeSize, {class: "tutorial-line"}));
+    out.push(Decoration.node(line, line + node.nodeSize, { class: "tutorial-line" }));
   }
   const g = lit.ghost;
   const at = g ? blockPos(state, g.index) : null;
   if (g && at !== null && (g.text || g.key)) {
     const node = state.doc.child(g.index);
-    if (node.isTextblock) out.push(Decoration.widget(at + 1 + node.content.size, () => widget(g),
-      {side: 1, ignoreSelection: true, key: `tutorial-ghost:${g.text}:${g.key ?? ""}`}));
+    if (node.isTextblock)
+      out.push(
+        Decoration.widget(at + 1 + node.content.size, () => widget(g), {
+          side: 1,
+          ignoreSelection: true,
+          key: `tutorial-ghost:${g.text}:${g.key ?? ""}`,
+        }),
+      );
   }
   return out.length ? DecorationSet.create(state.doc, out) : DecorationSet.empty;
 }
 
-export const ghostPlugin = () => new Plugin<Lit>({
-  key: ghostKey,
-  state: {
-    init: () => NONE,
-    apply: (tr, value) => (tr.getMeta(ghostKey) as Lit | undefined) ?? value,
-  },
-  props: {decorations: state => decorationsFor(state, ghostKey.getState(state) ?? NONE)},
-});
+export const ghostPlugin = () =>
+  new Plugin<Lit>({
+    key: ghostKey,
+    state: {
+      init: () => NONE,
+      apply: (tr, value) => (tr.getMeta(ghostKey) as Lit | undefined) ?? value,
+    },
+    props: { decorations: (state) => decorationsFor(state, ghostKey.getState(state) ?? NONE) },
+  });
 
-const same = (a: Lit, b: Lit) => a.line === b.line && a.ghost?.index === b.ghost?.index
-  && a.ghost?.text === b.ghost?.text && a.ghost?.key === b.ghost?.key;
+const same = (a: Lit, b: Lit) =>
+  a.line === b.line &&
+  a.ghost?.index === b.ghost?.index &&
+  a.ghost?.text === b.ghost?.text &&
+  a.ghost?.key === b.ghost?.key;
 /** Draw (or clear) the lit line and suggestion; a no-op when nothing changed. */
 export function showGhost(view: EditorView, lit: Lit = NONE) {
   const now = ghostKey.getState(view.state);

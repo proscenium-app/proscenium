@@ -18,7 +18,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-for (const [pkg, prefix, license] of [["dictionary-en", "en", "LICENSE"], ["dictionary-en-gb", "en-GB", "LICENSE-en-GB"]]) {
+for (const [pkg, prefix, license] of [
+  ["dictionary-en", "en", "LICENSE"],
+  ["dictionary-en-gb", "en-GB", "LICENSE-en-GB"],
+]) {
   const src = join(root, "node_modules", pkg);
   const out = join(root, "dictionaries");
   mkdirSync(out, { recursive: true });

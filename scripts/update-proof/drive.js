@@ -22,22 +22,43 @@
     for (;;) {
       const value = await fn();
       if (value) return value;
-      if (Date.now() > deadline) throw new Error(`timed out after ${Math.round(timeout / 1000)}s waiting for ${what}`);
+      if (Date.now() > deadline)
+        throw new Error(`timed out after ${Math.round(timeout / 1000)}s waiting for ${what}`);
       await sleep(250);
     }
   }
-  const button = (text) => [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === text && !b.disabled);
+  const button = (text) =>
+    [...document.querySelectorAll("button")].find(
+      (b) => b.textContent.trim() === text && !b.disabled,
+    );
   const settingsOpen = () => !!document.querySelector(".prefs");
 
   async function openUpdates() {
     if (!settingsOpen()) {
-      window.dispatchEvent(new KeyboardEvent("keydown", { key: ",", code: "Comma", metaKey: true, bubbles: true, cancelable: true }));
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: ",",
+          code: "Comma",
+          metaKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
       await until("Settings to open", settingsOpen, 10_000);
     }
-    const tab = [...document.querySelectorAll('.prefs__nav [role="tab"]')].find((t) => t.textContent.trim() === "Updates");
+    const tab = [...document.querySelectorAll('.prefs__nav [role="tab"]')].find(
+      (t) => t.textContent.trim() === "Updates",
+    );
     if (!tab) throw new Error("Settings has no Updates section");
     tab.click();
-    await until("the Updates section", () => [...document.querySelectorAll("button")].some((b) => /^(Check Now|Restart to Update)$/.test(b.textContent.trim())), 10_000);
+    await until(
+      "the Updates section",
+      () =>
+        [...document.querySelectorAll("button")].some((b) =>
+          /^(Check Now|Restart to Update)$/.test(b.textContent.trim()),
+        ),
+      10_000,
+    );
   }
 
   function closeSettings() {
@@ -48,7 +69,11 @@
   async function main() {
     const { line } = await invoke("selftest_proof_context");
     await log(`page loaded: ${location.href}`);
-    const editor = await until("the play open, its script in the editor", () => document.querySelector(".editor-surface .ProseMirror"), 120_000);
+    const editor = await until(
+      "the play open, its script in the editor",
+      () => document.querySelector(".editor-surface .ProseMirror"),
+      120_000,
+    );
     await log(`play open: ${document.querySelector(".doctitle")?.textContent?.trim() ?? "?"}`);
 
     await openUpdates();
@@ -59,13 +84,20 @@
     // Checking, then Downloading, then Ready: a failure is said in the same row.
     // Checking, then Downloading, then Ready (src/app/updates.ts). An answer that
     // ends it otherwise is said in the same row, and stops the proof with it.
-    await until("Restart to Update (the new version downloaded and verified)", () => {
-      if (button("Restart to Update")) return true;
-      const said = document.querySelector(".prefs")?.textContent ?? "";
-      const end = said.match(/[^.]*(is up to date|Couldn’t connect|Couldn’t check|security check|didn’t check|can’t check)[^.]*\./)?.[0];
-      if (end && button("Check Now")) throw new Error(`the check ended without an update: ${end.trim()}`);
-      return false;
-    }, 15 * 60_000);
+    await until(
+      "Restart to Update (the new version downloaded and verified)",
+      () => {
+        if (button("Restart to Update")) return true;
+        const said = document.querySelector(".prefs")?.textContent ?? "";
+        const end = said.match(
+          /[^.]*(is up to date|Couldn’t connect|Couldn’t check|security check|didn’t check|can’t check)[^.]*\./,
+        )?.[0];
+        if (end && button("Check Now"))
+          throw new Error(`the check ended without an update: ${end.trim()}`);
+        return false;
+      },
+      15 * 60_000,
+    );
     await log("the update is downloaded: Restart to Update is offered");
     closeSettings();
     await until("Settings to close", () => !settingsOpen(), 10_000);
@@ -89,7 +121,8 @@
       // The app refuses while edits are still being written, says so, and is
       // asked again; the process ends when the install begins.
       await sleep(5_000);
-      if (attempt >= 12) throw new Error("the app never restarted after 12 presses of Restart to Update");
+      if (attempt >= 12)
+        throw new Error("the app never restarted after 12 presses of Restart to Update");
     }
   }
 

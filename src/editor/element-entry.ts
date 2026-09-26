@@ -117,7 +117,9 @@ export function confirmActionAs(node: PMNode): "character" | "transition" | null
  * takes the one it used to make. Shift+Enter is a different key (a line break,
  * breaks.ts) and never reaches this.
  */
-export function enterDecision(node: PMNode):
+export function enterDecision(
+  node: PMNode,
+):
   | { kind: "confirm"; as: "character" | "transition" }
   | { kind: "menu"; suggested: string }
   | { kind: "advance"; to: string } {
@@ -203,11 +205,7 @@ function handleEnter(editor: Editor): boolean {
   }
   if (decision.kind === "menu") return armLeaderMenu(editor.view, decision.suggested);
 
-  return editor
-    .chain()
-    .splitBlock()
-    .command(setElement(decision.to))
-    .run();
+  return editor.chain().splitBlock().command(setElement(decision.to)).run();
 }
 
 function cycle(editor: Editor, dir: 1 | -1): boolean {
@@ -235,8 +233,7 @@ export const ElementEntry = Extension.create({
   name: "elementEntry",
 
   addKeyboardShortcuts() {
-    const set = (name: string) => () =>
-      this.editor.chain().focus().setNode(name).run();
+    const set = (name: string) => () => this.editor.chain().focus().setNode(name).run();
     const mark = (name: string) => () => toggleEmphasis(this.editor, name);
 
     return {

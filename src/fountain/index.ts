@@ -15,7 +15,13 @@ export { serialize } from "./serialize";
 export { extractScenes } from "./scenes";
 export type { SceneSpan } from "./scenes";
 export { headingHash, headingPath } from "./heading-hash";
-export { addSceneToDoc, moveSceneInDoc, sameSceneOutline, sceneBlockRanges, setSceneSynopsis } from "./scene-move";
+export {
+  addSceneToDoc,
+  moveSceneInDoc,
+  sameSceneOutline,
+  sceneBlockRanges,
+  setSceneSynopsis,
+} from "./scene-move";
 export type { SceneBlock } from "./scene-move";
 export {
   parseInline,

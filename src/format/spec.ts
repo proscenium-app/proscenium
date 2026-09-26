@@ -237,7 +237,10 @@ export function elementColumnIn(
 ): { leftIn: number; widthIn: number } {
   const el = spec.elements[type];
   const block = textBlockWidthIn(spec);
-  const leftIn = Math.min(standalone ? el.standaloneIndentFromMargin ?? el.indentFromMargin : el.indentFromMargin, block);
+  const leftIn = Math.min(
+    standalone ? (el.standaloneIndentFromMargin ?? el.indentFromMargin) : el.indentFromMargin,
+    block,
+  );
   const remaining = block - leftIn;
   const widthIn = el.maxWidth === "full" ? remaining : Math.min(el.maxWidth, remaining);
   return { leftIn, widthIn };

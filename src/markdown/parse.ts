@@ -23,7 +23,14 @@
 
 import { assertDocumentText, DocumentSizeError } from "../storage/read-limit";
 import { MANAGED_MARK } from "../materials/schema";
-import { scanSpans, spend, MarkdownBudget, MAX_MARKDOWN_DEPTH, MAX_MARKDOWN_NODES, type Budget } from "./inline";
+import {
+  scanSpans,
+  spend,
+  MarkdownBudget,
+  MAX_MARKDOWN_DEPTH,
+  MAX_MARKDOWN_NODES,
+  type Budget,
+} from "./inline";
 
 export interface CodeBlock {
   kind: "code";
@@ -102,8 +109,11 @@ function tableDelimiter(line: string): boolean {
   // last cell and an optional trailing |. Check each cell once, with no retry.
   for (let i = 1; i < cells.length; i++) {
     if (!/^:?-+:?$/.test(cells[i - 1]!.trim())) return false;
-    if ((i === cells.length - 1 || (i === cells.length - 2 && cells[i + 1] === "")) &&
-        /^:?-*:?$/.test(cells[i]!.trim())) return true;
+    if (
+      (i === cells.length - 1 || (i === cells.length - 2 && cells[i + 1] === "")) &&
+      /^:?-*:?$/.test(cells[i]!.trim())
+    )
+      return true;
   }
   return false;
 }
@@ -149,7 +159,8 @@ export function parseBlocks(source: string): Block[] {
     const blocks = scanBlocks(source, { left: MAX_MARKDOWN_NODES });
     // Alignment is a narrow, inert comment; unmatched comments stay visible.
     return blocks.filter((block, i) => {
-      if (block.kind !== "paragraph" || block.spans.length !== 1 || block.spans[0].kind !== "text") return true;
+      if (block.kind !== "paragraph" || block.spans.length !== 1 || block.spans[0].kind !== "text")
+        return true;
       const marker = block.spans[0].text.match(/^<!-- proscenium:align=(center|right) -->$/);
       const next = blocks[i + 1];
       if (!marker || !next || (next.kind !== "paragraph" && next.kind !== "heading")) return true;
@@ -268,7 +279,13 @@ function scanBlocks(source: string, budget: Budget): Block[] {
  * return to the caller. A single blank line between items keeps the list
  * together — notes are written loose far more often than tight.
  */
-function readList(lines: string[], start: number, base: number, budget: Budget, depth = 0): [ListBlock, number] {
+function readList(
+  lines: string[],
+  start: number,
+  base: number,
+  budget: Budget,
+  depth = 0,
+): [ListBlock, number] {
   if (depth >= MAX_MARKDOWN_DEPTH) throw new MarkdownBudget();
   const first = lines[start]!.match(ITEM)!;
   const ordered = /\d/.test(first[2]!);
@@ -349,7 +366,10 @@ function readTable(lines: string[], start: number, budget: Budget): [TableBlock,
 
 /** Cells of one table row. Outer pipes are optional; `\|` is a literal pipe. */
 function splitRow(line: string): string[] {
-  const body = line.trim().replace(/^\|/, "").replace(/\|\s*$/, "");
+  const body = line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|\s*$/, "");
   const cells: string[] = [];
   let buf = "";
   for (let i = 0; i < body.length; i += 1) {

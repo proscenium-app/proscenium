@@ -11,9 +11,21 @@ function mint() {
 }
 
 const THREE = [
-  "# ACT ONE", "", "## SCENE 1", "", "Aaa.", "",
-  "## SCENE 2", "", "Bbb.", "",
-  "# ACT TWO", "", "## SCENE 3", "", "Ccc.",
+  "# ACT ONE",
+  "",
+  "## SCENE 1",
+  "",
+  "Aaa.",
+  "",
+  "## SCENE 2",
+  "",
+  "Bbb.",
+  "",
+  "# ACT TWO",
+  "",
+  "## SCENE 3",
+  "",
+  "Ccc.",
 ].join("\n");
 
 describe("app-driven scene reorder (doc move + card reorder)", () => {

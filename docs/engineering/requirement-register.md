@@ -13,7 +13,7 @@ Initial allocation: 2026-09-21. Every integer in each inclusive range is permane
 | PRIV | 1 | 85 |
 | PROD | 1 | 30 |
 | REL | 1 | 125 |
-| SERV | 1 | 265 |
+| SERV | 1 | 267 |
 | SET | 1 | 40 |
 | STOR | 1 | 176 |
 | TUT | 1 | 10 |

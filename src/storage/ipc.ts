@@ -76,9 +76,22 @@ export interface OpenResult {
   conflicts: string[];
 }
 
-export interface PendingMove { id: string; from: string; to: string; manifest: string | null; payload: string | null }
-export type MoveStart = { status: "ok"; intent: PendingMove } | { status: "refused"; message: string; blocked: boolean };
-export interface SavedCopy { id: string; rel: string; hash: string; createdMs: number }
+export interface PendingMove {
+  id: string;
+  from: string;
+  to: string;
+  manifest: string | null;
+  payload: string | null;
+}
+export type MoveStart =
+  | { status: "ok"; intent: PendingMove }
+  | { status: "refused"; message: string; blocked: boolean };
+export interface SavedCopy {
+  id: string;
+  rel: string;
+  hash: string;
+  createdMs: number;
+}
 
 export interface ReadResult {
   content: string;
@@ -111,12 +124,17 @@ export interface ConflictCopyEvent {
   relPath: string;
 }
 
-export interface WatchHealth { root: string; status: "watching" | "restarting" | "unavailable" }
+export interface WatchHealth {
+  root: string;
+  status: "watching" | "restarting" | "unavailable";
+}
 export const watcherHealth = {
-  state: (): Promise<WatchHealth | null> => USE_MOCK ? mock().then((m) => m.watcherHealth()) : invoke("watcher_status"),
-  onState: (cb: (health: WatchHealth) => void): Promise<UnlistenFn> => USE_MOCK
-    ? mock().then((m) => m.onWatcherHealth(cb))
-    : listen<WatchHealth>("vault://watcher-health", (event) => cb(event.payload)),
+  state: (): Promise<WatchHealth | null> =>
+    USE_MOCK ? mock().then((m) => m.watcherHealth()) : invoke("watcher_status"),
+  onState: (cb: (health: WatchHealth) => void): Promise<UnlistenFn> =>
+    USE_MOCK
+      ? mock().then((m) => m.onWatcherHealth(cb))
+      : listen<WatchHealth>("vault://watcher-health", (event) => cb(event.payload)),
 };
 
 /** True when the real Tauri runtime is present. */
@@ -158,7 +176,10 @@ function mock() {
   return (mockPromise ??= import("./dev-mock").then((m) => m.devVault));
 }
 
-interface FolderGrant { handle: string; path: string }
+interface FolderGrant {
+  handle: string;
+  path: string;
+}
 const folderGrants = new Map<string, FolderGrant>();
 let beaconQueue = Promise.resolve();
 function rememberFolder(grant: FolderGrant | null): string | null {
@@ -171,39 +192,66 @@ function rememberFolder(grant: FolderGrant | null): string | null {
 async function folderHandle(path: string): Promise<string> {
   const known = folderGrants.get(path);
   if (known) return known.handle;
-  const parent = [...folderGrants.values()].filter((g) => path.startsWith(`${g.path}/`))
+  const parent = [...folderGrants.values()]
+    .filter((g) => path.startsWith(`${g.path}/`))
     .sort((a, b) => b.path.length - a.path.length)[0];
   if (!parent) throw new Error("Choose this folder in the folder panel before opening it.");
   const grant = await invoke<FolderGrant>("vault_folder_below", {
-    handle: parent.handle, relative: path.slice(parent.path.length + 1),
+    handle: parent.handle,
+    relative: path.slice(parent.path.length + 1),
   });
   rememberFolder(grant);
   return grant.handle;
 }
 
 /** App-owned practice only: callers cannot supply a filesystem path. */
-export interface PracticeSource { session?: string; dir: string }
+export interface PracticeSource {
+  session?: string;
+  dir: string;
+}
 export const tutorials = {
-  session: (id: string, create: boolean): Promise<string> => USE_MOCK ? mock().then(m => m.tutorialSession(id, create))
-    : invoke<FolderGrant>("tutorials_session", {id, create}).then(g => rememberFolder(g)!),
-  sessions: (): Promise<string[]> => USE_MOCK ? mock().then(m => m.tutorialSessions()) : invoke("tutorials_sessions"),
-  reserveCopy: (name: string): Promise<void> => USE_MOCK ? mock().then(m => m.tutorialReserveCopy(name)) : invoke("tutorials_reserve_copy", {name}),
-  copyFile: (source: PracticeSource, relative: string, destination: string): Promise<void> => USE_MOCK
-    ? mock().then(m => m.tutorialCopyFile(source, relative, destination))
-    : invoke("tutorials_copy_file", {id: source.session ?? null, legacy: source.session ? null : source.dir, relative, destination}),
-  trash: (id: string): Promise<void> => USE_MOCK ? mock().then(m => m.tutorialTrash(id)) : invoke("tutorials_trash", {id}),
-  root: (): Promise<string> => USE_MOCK ? mock().then(m => m.tutorialRoot())
-    : invoke<FolderGrant>("tutorials_root").then(g => rememberFolder(g)!),
-  read: (): Promise<{content: string | null; hash: string}> => USE_MOCK ? mock().then(m => m.tutorialRead()) : invoke("tutorials_read"),
-  write: (content: string, expected: string, preserve = false): Promise<string> => USE_MOCK ? mock().then(m => m.tutorialWrite(content, expected, preserve)) : invoke("tutorials_write", {content, expected, preserve}),
+  session: (id: string, create: boolean): Promise<string> =>
+    USE_MOCK
+      ? mock().then((m) => m.tutorialSession(id, create))
+      : invoke<FolderGrant>("tutorials_session", { id, create }).then((g) => rememberFolder(g)!),
+  sessions: (): Promise<string[]> =>
+    USE_MOCK ? mock().then((m) => m.tutorialSessions()) : invoke("tutorials_sessions"),
+  reserveCopy: (name: string): Promise<void> =>
+    USE_MOCK
+      ? mock().then((m) => m.tutorialReserveCopy(name))
+      : invoke("tutorials_reserve_copy", { name }),
+  copyFile: (source: PracticeSource, relative: string, destination: string): Promise<void> =>
+    USE_MOCK
+      ? mock().then((m) => m.tutorialCopyFile(source, relative, destination))
+      : invoke("tutorials_copy_file", {
+          id: source.session ?? null,
+          legacy: source.session ? null : source.dir,
+          relative,
+          destination,
+        }),
+  trash: (id: string): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.tutorialTrash(id)) : invoke("tutorials_trash", { id }),
+  root: (): Promise<string> =>
+    USE_MOCK
+      ? mock().then((m) => m.tutorialRoot())
+      : invoke<FolderGrant>("tutorials_root").then((g) => rememberFolder(g)!),
+  read: (): Promise<{ content: string | null; hash: string }> =>
+    USE_MOCK ? mock().then((m) => m.tutorialRead()) : invoke("tutorials_read"),
+  write: (content: string, expected: string, preserve = false): Promise<string> =>
+    USE_MOCK
+      ? mock().then((m) => m.tutorialWrite(content, expected, preserve))
+      : invoke("tutorials_write", { content, expected, preserve }),
 };
 
 export const vault = {
-  savedCopies: (): Promise<SavedCopy[]> => USE_MOCK ? mock().then((m) => m.savedCopies()) : invoke("vault_saved_copies"),
-  readSavedCopy: (id: string): Promise<string> => USE_MOCK ? mock().then((m) => m.readSavedCopy(id)) : invoke("vault_read_saved_copy", { id }),
-  onSavedCopies: (cb: (root: string) => void): Promise<UnlistenFn> => USE_MOCK
-    ? mock().then((m) => m.onSavedCopies(cb))
-    : listen<string>("vault://saved-copies", (event) => cb(event.payload)),
+  savedCopies: (): Promise<SavedCopy[]> =>
+    USE_MOCK ? mock().then((m) => m.savedCopies()) : invoke("vault_saved_copies"),
+  readSavedCopy: (id: string): Promise<string> =>
+    USE_MOCK ? mock().then((m) => m.readSavedCopy(id)) : invoke("vault_read_saved_copy", { id }),
+  onSavedCopies: (cb: (root: string) => void): Promise<UnlistenFn> =>
+    USE_MOCK
+      ? mock().then((m) => m.onSavedCopies(cb))
+      : listen<string>("vault://saved-copies", (event) => cb(event.payload)),
   /**
    * Open the platform folder picker; resolves to the chosen path or null.
    * `start` is the folder it opens at, when the app already knows which one
@@ -212,7 +260,10 @@ export const vault = {
   pickFolder: (start?: string, message?: string): Promise<string | null> =>
     USE_MOCK
       ? mock().then((m) => m.pickFolder())
-      : invoke<FolderGrant | null>("vault_pick_folder", { start: start ?? null, message: message ?? null }).then(rememberFolder),
+      : invoke<FolderGrant | null>("vault_pick_folder", {
+          start: start ?? null,
+          message: message ?? null,
+        }).then(rememberFolder),
   /**
    * What a folder is before it becomes the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-D2, docs/app/keeping-work/storage-and-file-format.md#STOR-D11): a
    * play, inside one, and which providers keep it.
@@ -227,9 +278,12 @@ export const vault = {
   open: (path: string, playId?: string): Promise<OpenResult> => {
     // Nothing written from here until the open lands belongs to a play.
     vaultOpenedAt(null);
-    return (USE_MOCK
-      ? mock().then((m) => m.open(path))
-      : folderHandle(path).then((handle) => invoke<OpenResult>("vault_open", { handle, playId: playId ?? null }))
+    return (
+      USE_MOCK
+        ? mock().then((m) => m.open(path))
+        : folderHandle(path).then((handle) =>
+            invoke<OpenResult>("vault_open", { handle, playId: playId ?? null }),
+          )
     ).then((opened) => {
       vaultOpenedAt(playId ?? null);
       return opened;
@@ -258,9 +312,10 @@ export const vault = {
   ): Promise<WriteOutcome> => {
     // What lands is what the writer has: Changes follows it (own-writes.ts).
     const landed = sendingWrite(rel, content);
-    return (USE_MOCK
-      ? mock().then((m) => m.write(rel, content, expected, rebasable))
-      : invoke<WriteOutcome>("vault_write", { rel, content, expected, rebasable })
+    return (
+      USE_MOCK
+        ? mock().then((m) => m.write(rel, content, expected, rebasable))
+        : invoke<WriteOutcome>("vault_write", { rel, content, expected, rebasable })
     ).then(
       (out) => {
         landed(out.status === "ok");
@@ -289,7 +344,7 @@ export const vault = {
   createBinary: async (rel: string, base64: string): Promise<string> => {
     decodeBytes(base64); // Enforce the document limit before crossing IPC.
     const out = USE_MOCK
-      ? await mock().then(m => m.write(rel, atob(base64), NO_FILE_YET))
+      ? await mock().then((m) => m.write(rel, atob(base64), NO_FILE_YET))
       : await invoke<WriteOutcome>("vault_create_binary", { rel, base64 });
     if (out.status !== "ok") throw new Error(`“${rel}” is already there, so it was left alone.`);
     return out.hash;
@@ -302,13 +357,14 @@ export const vault = {
   /** Atomically relocate a file/dir within the vault (binder move/rename). */
   rename: (from: string, to: string): Promise<void> =>
     USE_MOCK ? mock().then((m) => m.rename(from, to)) : invoke("vault_rename", { from, to }),
-  beginMove: (from: string, to: string, manifest: string, payload: string): Promise<MoveStart> => USE_MOCK
-    ? mock().then((m) => m.beginMove(from, to, manifest, payload))
-    : invoke("vault_begin_move", { from, to, manifest, payload }),
-  finishMove: (id: string): Promise<void> => USE_MOCK
-    ? mock().then((m) => m.finishMove(id)) : invoke("vault_finish_move", { id }),
-  rollbackMove: (id: string): Promise<void> => USE_MOCK
-    ? mock().then((m) => m.rollbackMove(id)) : invoke("vault_rollback_move", { id }),
+  beginMove: (from: string, to: string, manifest: string, payload: string): Promise<MoveStart> =>
+    USE_MOCK
+      ? mock().then((m) => m.beginMove(from, to, manifest, payload))
+      : invoke("vault_begin_move", { from, to, manifest, payload }),
+  finishMove: (id: string): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.finishMove(id)) : invoke("vault_finish_move", { id }),
+  rollbackMove: (id: string): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.rollbackMove(id)) : invoke("vault_rollback_move", { id }),
   /** Create a directory (and parents) — a new binder folder. */
   mkdir: (rel: string): Promise<void> =>
     USE_MOCK ? mock().then((m) => m.mkdir(rel)) : invoke("vault_mkdir", { rel }),
@@ -326,16 +382,20 @@ export const vault = {
    * case the welcome screen does not offer it.
    */
   cloudRoot: (): Promise<string | null> =>
-    USE_MOCK ? mock().then((m) => m.cloudRoot()) : invoke<FolderGrant | null>("vault_cloud_root").then(rememberFolder),
+    USE_MOCK
+      ? mock().then((m) => m.cloudRoot())
+      : invoke<FolderGrant | null>("vault_cloud_root").then(rememberFolder),
   /**
    * The app's own Documents directory — always available, needing no picker
    * and no grant. Mobile's fallback when there is no container.
    */
   defaultRoot: (): Promise<string> =>
-    USE_MOCK ? mock().then((m) => m.defaultRoot()) : invoke<FolderGrant>("vault_default_root").then((grant) => {
-      rememberFolder(grant);
-      return grant.path;
-    }),
+    USE_MOCK
+      ? mock().then((m) => m.defaultRoot())
+      : invoke<FolderGrant>("vault_default_root").then((grant) => {
+          rememberFolder(grant);
+          return grant.path;
+        }),
 };
 
 /**
@@ -424,9 +484,7 @@ export const versions = {
  */
 export const playStore = {
   read: (playId: string, rel: string): Promise<string | null> =>
-    USE_MOCK
-      ? mock().then((m) => m.storeRead(playId, rel))
-      : invoke("store_read", { playId, rel }),
+    USE_MOCK ? mock().then((m) => m.storeRead(playId, rel)) : invoke("store_read", { playId, rel }),
   write: (playId: string, rel: string, content: string): Promise<void> =>
     USE_MOCK
       ? mock().then((m) => m.storeWrite(playId, rel, content))
@@ -442,7 +500,11 @@ export const playStore = {
  * could not land it, one per editor session, in app data. The envelope and the policy
  * are the frontend's (recovery-policy.ts); these only move the bytes.
  */
-export interface RecoveryFile { scriptId: string; owner: string; content: string }
+export interface RecoveryFile {
+  scriptId: string;
+  owner: string;
+  content: string;
+}
 export const recovery = {
   write: (playId: string, scriptId: string, content: string, owner: string): Promise<void> =>
     USE_MOCK
@@ -457,9 +519,13 @@ export const recovery = {
       ? mock().then((m) => m.recoveryRemove(playId, scriptId, owner))
       : invoke("recovery_remove", { playId, scriptId, owner }),
   release: (playId: string, scriptId: string, owner: string): Promise<void> =>
-    USE_MOCK ? mock().then((m) => m.recoveryRelease(playId, scriptId, owner)) : invoke("recovery_release", { playId, scriptId, owner }),
+    USE_MOCK
+      ? mock().then((m) => m.recoveryRelease(playId, scriptId, owner))
+      : invoke("recovery_release", { playId, scriptId, owner }),
   list: (playId: string, scriptId?: string): Promise<RecoveryFile[]> =>
-    USE_MOCK ? mock().then((m) => m.recoveryList(playId, scriptId)) : invoke("recovery_list", { playId, scriptId: scriptId ?? null }),
+    USE_MOCK
+      ? mock().then((m) => m.recoveryList(playId, scriptId))
+      : invoke("recovery_list", { playId, scriptId: scriptId ?? null }),
 };
 
 /** What Rust saw about a folder (lib.rs `FolderFacts`). */
@@ -495,10 +561,14 @@ export const opened = {
   take: (): Promise<string[]> =>
     USE_MOCK ? mock().then((m) => m.openedTake()) : invoke("opens_take"),
   facts: (path: string): Promise<OpenedFacts> =>
-    USE_MOCK ? mock().then((m) => m.openedFacts(path)) : invoke<OpenedFacts & { folder: FolderGrant | null }>("opened_facts", { path }).then((facts) => {
-      rememberFolder(facts.folder);
-      return facts;
-    }),
+    USE_MOCK
+      ? mock().then((m) => m.openedFacts(path))
+      : invoke<OpenedFacts & { folder: FolderGrant | null }>("opened_facts", { path }).then(
+          (facts) => {
+            rememberFolder(facts.folder);
+            return facts;
+          },
+        ),
   read: (path: string): Promise<ReadResult> =>
     USE_MOCK ? mock().then((m) => m.openedRead(path)) : invoke("opened_read", { path }),
   readBytes: async (path: string): Promise<Uint8Array> => {
@@ -508,7 +578,9 @@ export const opened = {
   /** A package-form document (a `.pages` folder) as its files; null for a plain file. */
   readPackage: async (path: string): Promise<{ path: string; bytes: Uint8Array }[] | null> => {
     if (USE_MOCK) return mock().then((m) => m.openedReadPackage(path));
-    const files = await invoke<{ path: string; base64: string }[] | null>("opened_read_package", { path });
+    const files = await invoke<{ path: string; base64: string }[] | null>("opened_read_package", {
+      path,
+    });
     return files && files.map((f) => ({ path: f.path, bytes: decodeBytes(f.base64) }));
   },
 };
@@ -568,7 +640,11 @@ export type ExportFileType = "pdf" | "docx" | "odt";
  * if the user cancelled. `type` names the panel and its file filter.
  */
 export const exporter = {
-  saveFile: async (suggestedName: string, bytes: Uint8Array, type: ExportFileType = "pdf"): Promise<string | null> => {
+  saveFile: async (
+    suggestedName: string,
+    bytes: Uint8Array,
+    type: ExportFileType = "pdf",
+  ): Promise<string | null> => {
     if (USE_MOCK) return mock().then((m) => m.saveFile(suggestedName, bytes, type));
     return invoke("save_export", { suggestedName, base64: toBase64(bytes), kind: type });
   },
@@ -635,7 +711,9 @@ export const settings = {
    * where there is no Mac to ask, which leaves tokens.css's stand-in blue.
    */
   systemAccent: (): Promise<string | null> =>
-    USE_MOCK ? mock().then((m) => m.systemAccent()) : invoke<string | null>("system_accent").catch(() => null),
+    USE_MOCK
+      ? mock().then((m) => m.systemAccent())
+      : invoke<string | null>("system_accent").catch(() => null),
   getLastVault: (): Promise<string | null> =>
     USE_MOCK ? mock().then((m) => m.getLastVault()) : invoke("get_last_vault"),
   /**
@@ -646,12 +724,22 @@ export const settings = {
    * every platform, so the bootstrap needs no platform branch.
    */
   reopenLastVault: (): Promise<string | null> =>
-    USE_MOCK ? mock().then((m) => m.getLastVault()) : invoke<FolderGrant | null>("vault_reopen_last").then(rememberFolder),
+    USE_MOCK
+      ? mock().then((m) => m.getLastVault())
+      : invoke<FolderGrant | null>("vault_reopen_last").then(rememberFolder),
   setLastVault: (path: string): Promise<void> =>
-    USE_MOCK ? mock().then((m) => m.setLastVault(path)) : folderHandle(path).then((handle) => invoke("set_last_vault", { handle })),
+    USE_MOCK
+      ? mock().then((m) => m.setLastVault(path))
+      : folderHandle(path).then((handle) => invoke("set_last_vault", { handle })),
   /** Unsaved-work beacon the installer reads before replacing the app (docs/engineering/release-engineering.md#REL-63). */
   setBufferState: (dirty: boolean): Promise<void> => {
-    const next = beaconQueue.catch(() => {}).then(() => USE_MOCK ? mock().then((m) => m.setBufferState(dirty)) : invoke<void>("set_buffer_state", { dirty }));
+    const next = beaconQueue
+      .catch(() => {})
+      .then(() =>
+        USE_MOCK
+          ? mock().then((m) => m.setBufferState(dirty))
+          : invoke<void>("set_buffer_state", { dirty }),
+      );
     beaconQueue = next;
     return next;
   },
@@ -671,17 +759,29 @@ export type UpdateState =
   | { kind: "downloading"; version: string; received: number; total: number | null }
   | { kind: "ready"; version: string; notes: string | null; publishedAt: number | null }
   | { kind: "installing"; version: string }
-  | { kind: "failed"; reason: "offline" | "signature" | "noKey" | "other"; message: string; checkedAt: number };
+  | {
+      kind: "failed";
+      reason: "offline" | "signature" | "noKey" | "other";
+      message: string;
+      checkedAt: number;
+    };
 
 /** Why a restart did not happen: edits still saving, or nothing to install. */
 export type RestartOutcome = { kind: "unsaved" } | { kind: "notReady" } | { kind: "installing" };
 
-export interface FolderAccessIssue { path: string; message: string }
+export interface FolderAccessIssue {
+  path: string;
+  message: string;
+}
 export const folderAccess = {
-  state: (): Promise<FolderAccessIssue | null> => USE_MOCK ? mock().then((m) => m.folderAccessState()) : invoke("folder_access_state"),
-  retry: (): Promise<void> => USE_MOCK ? mock().then((m) => m.folderAccessRetry()) : invoke("folder_access_retry"),
-  onState: (cb: (state: FolderAccessIssue | null) => void): Promise<UnlistenFn> => USE_MOCK
-    ? mock().then((m) => m.onFolderAccess(cb)) : listen<FolderAccessIssue | null>("folder-access://state", (e) => cb(e.payload)),
+  state: (): Promise<FolderAccessIssue | null> =>
+    USE_MOCK ? mock().then((m) => m.folderAccessState()) : invoke("folder_access_state"),
+  retry: (): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.folderAccessRetry()) : invoke("folder_access_retry"),
+  onState: (cb: (state: FolderAccessIssue | null) => void): Promise<UnlistenFn> =>
+    USE_MOCK
+      ? mock().then((m) => m.onFolderAccess(cb))
+      : listen<FolderAccessIssue | null>("folder-access://state", (e) => cb(e.payload)),
 };
 
 export const EVENT_UPDATE_STATE = "updates://state";
@@ -743,12 +843,16 @@ export const telemetry = {
   configured: (): Promise<boolean> =>
     USE_MOCK ? mock().then((m) => m.telemetryConfigured()) : invoke("telemetry_configured"),
   record: (event: TelemetryEvent): void => {
-    const done = USE_MOCK ? mock().then((m) => m.recordTelemetry(event)) : invoke("telemetry_record", { event });
+    const done = USE_MOCK
+      ? mock().then((m) => m.recordTelemetry(event))
+      : invoke("telemetry_record", { event });
     void done.catch(() => {});
   },
   /** An error the page did not catch, as a crash file: its name and top frame, never its message. */
   pageError: (name: string, frames: import("../diagnostics/page-error").PageFrame[]): void => {
-    const done = USE_MOCK ? mock().then((m) => m.pageError(name, frames)) : invoke("telemetry_page_error", { name, frames });
+    const done = USE_MOCK
+      ? mock().then((m) => m.pageError(name, frames))
+      : invoke("telemetry_page_error", { name, frames });
     void done.catch(() => {});
   },
 };
@@ -761,11 +865,14 @@ export const telemetry = {
 export const diagnostics = {
   /** Put the diagnostics on the clipboard; resolves to the text copied. */
   copy: (formatsInUse: string[]): Promise<string> =>
-    USE_MOCK ? mock().then((m) => m.copyDiagnostics(formatsInUse)) : invoke("diagnostics_copy", { formatsInUse }),
+    USE_MOCK
+      ? mock().then((m) => m.copyDiagnostics(formatsInUse))
+      : invoke("diagnostics_copy", { formatsInUse }),
   /** Read locally; neither the clipboard nor a browser is touched. */
   review: (formatsInUse: string[]): Promise<string> =>
-    USE_MOCK ? mock().then((m) => m.reviewDiagnostics(formatsInUse)) : invoke("diagnostics_review", { formatsInUse }),
-
+    USE_MOCK
+      ? mock().then((m) => m.reviewDiagnostics(formatsInUse))
+      : invoke("diagnostics_review", { formatsInUse }),
 };
 
 export const EVENT_QUIT_REQUESTED = "app://quit-requested";
@@ -800,25 +907,28 @@ export function onOpened(cb: () => void): Promise<UnlistenFn> {
 }
 export const EVENT_CONFLICT_COPY = "vault://conflict-copy";
 
-export function onExternalChange(
-  cb: (e: ExternalChangeEvent) => void,
-): Promise<UnlistenFn> {
+export function onExternalChange(cb: (e: ExternalChangeEvent) => void): Promise<UnlistenFn> {
   if (USE_MOCK) return mock().then((m) => m.onExternalChange(cb));
   return listen<ExternalChangeEvent>(EVENT_EXTERNAL_CHANGE, (e) => cb(e.payload));
 }
 
-export function onConflictCopy(
-  cb: (e: ConflictCopyEvent) => void,
-): Promise<UnlistenFn> {
+export function onConflictCopy(cb: (e: ConflictCopyEvent) => void): Promise<UnlistenFn> {
   if (USE_MOCK) return mock().then((m) => m.onConflictCopy(cb));
   return listen<ConflictCopyEvent>(EVENT_CONFLICT_COPY, (e) => cb(e.payload));
 }
 
 /** Manual feedback is independent of the reports preference. */
 export const feedback = {
-  load: (): Promise<FeedbackDraft> => USE_MOCK ? mock().then(m => m.feedbackLoad()) : invoke("feedback_load"),
-  save: (draft: FeedbackDraft): Promise<void> => USE_MOCK ? mock().then(m => m.feedbackSave(draft)) : invoke("feedback_save", { draft }),
-  discard: (): Promise<void> => USE_MOCK ? mock().then(m => m.feedbackDiscard()) : invoke("feedback_discard"),
-  send: (draft: FeedbackDraft, details: string | null): Promise<void> => USE_MOCK ? mock().then(m => m.feedbackSend(draft, details)) : invoke("feedback_send", { draft, details }),
-  copy: (message: string): Promise<void> => USE_MOCK ? mock().then(m => m.feedbackCopy(message)) : invoke("feedback_copy", { message }),
+  load: (): Promise<FeedbackDraft> =>
+    USE_MOCK ? mock().then((m) => m.feedbackLoad()) : invoke("feedback_load"),
+  save: (draft: FeedbackDraft): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.feedbackSave(draft)) : invoke("feedback_save", { draft }),
+  discard: (): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.feedbackDiscard()) : invoke("feedback_discard"),
+  send: (draft: FeedbackDraft, details: string | null): Promise<void> =>
+    USE_MOCK
+      ? mock().then((m) => m.feedbackSend(draft, details))
+      : invoke("feedback_send", { draft, details }),
+  copy: (message: string): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.feedbackCopy(message)) : invoke("feedback_copy", { message }),
 };

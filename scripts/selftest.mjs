@@ -71,9 +71,13 @@ if (!app || !existsSync(join(app, "Contents/Info.plist"))) {
   process.exit(2);
 }
 const plist = (key) =>
-  execFileSync("/usr/libexec/PlistBuddy", ["-c", `Print :${key}`, join(app, "Contents/Info.plist")], {
-    encoding: "utf8",
-  }).trim();
+  execFileSync(
+    "/usr/libexec/PlistBuddy",
+    ["-c", `Print :${key}`, join(app, "Contents/Info.plist")],
+    {
+      encoding: "utf8",
+    },
+  ).trim();
 if (!plist("CFBundleIdentifier").endsWith(".selftest")) {
   console.error(`selftest: ${app} is not a self-test build — refusing to run it with test data`);
   process.exit(2);
@@ -92,15 +96,19 @@ const hardware = (() => {
 const expectArch = ARCH === "x86_64" ? "x86_64" : hardware;
 const expectTranslated = expectArch !== hardware;
 
-const out = resolve(opt("--out") ?? join(ROOT, ".selftest", `${expectArch}${BREAK ? `-break-${BREAK}` : ""}`));
+const out = resolve(
+  opt("--out") ?? join(ROOT, ".selftest", `${expectArch}${BREAK ? `-break-${BREAK}` : ""}`),
+);
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 const reportPath = join(out, "report.json");
 
 const command = ARCH === "x86_64" && hardware !== "x86_64" ? ["arch", ["-x86_64", exe]] : [exe, []];
-console.log(`selftest: ${app}\n          slice ${expectArch}${expectTranslated ? " (Rosetta)" : ""}${BREAK ? ` · break=${BREAK}` : ""} · out ${out}`);
+console.log(
+  `selftest: ${app}\n          slice ${expectArch}${expectTranslated ? " (Rosetta)" : ""}${BREAK ? ` · break=${BREAK}` : ""} · out ${out}`,
+);
 if (expectTranslated) {
-  // Seen 2026-09-13: the notice this run causes read as a fault in the app.
+  // The notice this run causes has been read as a fault in the app.
   console.log(
     "          macOS 26 answers a Rosetta run with “Support Ending for Intel-based Apps” for the\n" +
       "          self-test app, and may count it later among “apps that still rely on Rosetta”.\n" +
@@ -122,10 +130,13 @@ const child = spawn(command[0], command[1], {
   },
 });
 // The app has its own watchdog; this one is for an app that cannot even start.
-const killer = setTimeout(() => {
-  console.error(`selftest: no exit after ${TIMEOUT + 60}s — killing it`);
-  child.kill("SIGKILL");
-}, (TIMEOUT + 60) * 1000);
+const killer = setTimeout(
+  () => {
+    console.error(`selftest: no exit after ${TIMEOUT + 60}s — killing it`);
+    child.kill("SIGKILL");
+  },
+  (TIMEOUT + 60) * 1000,
+);
 const code = await new Promise((r) => child.on("exit", (c, signal) => r(c ?? (signal ? 128 : 1))));
 clearTimeout(killer);
 
@@ -134,9 +145,12 @@ const problems = [];
 if (!report) problems.push(`the app wrote no report (exit ${code})`);
 
 if (report) {
-  if (report.app.arch !== expectArch) problems.push(`ran the ${report.app.arch} slice, expected ${expectArch}`);
+  if (report.app.arch !== expectArch)
+    problems.push(`ran the ${report.app.arch} slice, expected ${expectArch}`);
   if (report.app.translated !== expectTranslated) {
-    problems.push(`translated=${report.app.translated}, expected ${expectTranslated} — ${expectTranslated ? "not under Rosetta" : "ran under Rosetta"}`);
+    problems.push(
+      `translated=${report.app.translated}, expected ${expectTranslated} — ${expectTranslated ? "not under Rosetta" : "ran under Rosetta"}`,
+    );
   }
 }
 
@@ -158,14 +172,23 @@ if (interrupted) {
 } else if (BREAK) {
   // The negative control passes only by failing, on the frame it broke.
   // The collapsed frame, named by the box assertion that exists to catch it.
-  const caught = report?.failures?.some((f) => /\.editor-frame|invisible on screen|not rendered at all/.test(f));
-  if (code === 0 || report?.ok) problems.push(`--break ${BREAK} and the self-test still PASSED — it is not looking at the screen`);
-  else if (!caught) problems.push(`--break ${BREAK} failed, but not on a box assertion: ${report?.failures?.[0] ?? "no report"}`);
+  const caught = report?.failures?.some((f) =>
+    /\.editor-frame|invisible on screen|not rendered at all/.test(f),
+  );
+  if (code === 0 || report?.ok)
+    problems.push(
+      `--break ${BREAK} and the self-test still PASSED — it is not looking at the screen`,
+    );
+  else if (!caught)
+    problems.push(
+      `--break ${BREAK} failed, but not on a box assertion: ${report?.failures?.[0] ?? "no report"}`,
+    );
   verdict = problems.length ? "FAIL" : "ok — the deliberate break was caught";
 } else {
   if (code !== 0) problems.push(`exited ${code}`);
   if (report && !report.ok) problems.push(...report.failures);
-  if (report && report.passes?.length !== 2) problems.push(`${report.passes?.length ?? 0} of 2 passes ran`);
+  if (report && report.passes?.length !== 2)
+    problems.push(`${report.passes?.length ?? 0} of 2 passes ran`);
   verdict = problems.length
     ? "FAIL"
     : ONLY

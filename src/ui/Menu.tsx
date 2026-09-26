@@ -4,7 +4,7 @@
 /**
  * ONE menu anatomy, for every menu, popup and popover in the app.
  *
- * The audit counted eight floating chromes — `binder__menu` at 6px/0 6px 20px,
+ * An audit counted eight floating chromes — `binder__menu` at 6px/0 6px 20px,
  * `binder__ctx` at 7px/0 10px 30px, `formatmenu__pop` at 8px, `pane__addmenu`
  * at 4px, `fmpanel` at 10px, `toast` at 6px — with four different radii, four
  * shadows and three item heights, because every menu invented its own. This
@@ -44,11 +44,17 @@ let caretPopupId = 0;
  * Suggestions retain the editor's caret; command menus move real focus to rows.
  * Both activate on click (including assistive-technology synthetic clicks).
  */
-export function bindCaretPopup(popup: HTMLElement, owner: HTMLElement, select: (row: HTMLElement) => void) {
+export function bindCaretPopup(
+  popup: HTMLElement,
+  owner: HTMLElement,
+  select: (row: HTMLElement) => void,
+) {
   popup.id = `caret-popup-${++caretPopupId}`;
   const down = (event: MouseEvent) => event.preventDefault();
   const click = (event: MouseEvent) => {
-    const row = (event.target as HTMLElement).closest<HTMLElement>("[role='option'], [role='menuitem']");
+    const row = (event.target as HTMLElement).closest<HTMLElement>(
+      "[role='option'], [role='menuitem']",
+    );
     if (row && popup.contains(row)) select(row);
   };
   popup.addEventListener("mousedown", down);
@@ -64,7 +70,13 @@ export function bindCaretPopup(popup: HTMLElement, owner: HTMLElement, select: (
     },
     unlink() {
       if (owner.getAttribute("aria-controls") !== popup.id) return;
-      for (const name of ["aria-controls", "aria-haspopup", "aria-autocomplete", "aria-activedescendant"]) owner.removeAttribute(name);
+      for (const name of [
+        "aria-controls",
+        "aria-haspopup",
+        "aria-autocomplete",
+        "aria-activedescendant",
+      ])
+        owner.removeAttribute(name);
     },
     destroy() {
       this.unlink();
@@ -79,13 +91,20 @@ export function bindCaretPopup(popup: HTMLElement, owner: HTMLElement, select: (
  * `initial` is the row it opens on. Enter with a modifier is not a choice: the
  * script behind it keeps Shift+Enter and ⌘Enter, so those go to `fallback`.
  */
-export function openCaretMenu(popup: HTMLElement, owner: HTMLElement, close: () => void,
-  fallback: (event: KeyboardEvent) => void, initial = 0) {
+export function openCaretMenu(
+  popup: HTMLElement,
+  owner: HTMLElement,
+  close: () => void,
+  fallback: (event: KeyboardEvent) => void,
+  initial = 0,
+) {
   const layer = registerLayer();
   const rows = () => [...popup.querySelectorAll<HTMLElement>("[role='menuitem']")];
   const focus = (index: number) => {
     const items = rows();
-    items.forEach((row, i) => { row.tabIndex = i === index ? 0 : -1; });
+    items.forEach((row, i) => {
+      row.tabIndex = i === index ? 0 : -1;
+    });
     items[index]?.focus({ preventScroll: true });
     items[index]?.scrollIntoView({ block: "nearest" });
   };
@@ -100,12 +119,23 @@ export function openCaretMenu(popup: HTMLElement, owner: HTMLElement, close: () 
       event.preventDefault();
       event.stopPropagation();
       fallback(event);
-    } else if (["ArrowDown", "ArrowUp", "Home", "End", "Enter", " ", "Escape", "Tab"].includes(key)) {
+    } else if (
+      ["ArrowDown", "ArrowUp", "Home", "End", "Enter", " ", "Escape", "Tab"].includes(key)
+    ) {
       event.preventDefault();
       event.stopPropagation();
-      if (key === "Escape" || key === "Tab") { owner.focus({ preventScroll: true }); close(); }
-      else if (key === "Enter" || key === " ") items[index]?.click();
-      else focus(key === "Home" ? 0 : key === "End" ? items.length - 1 : (index + (key === "ArrowDown" ? 1 : -1) + items.length) % items.length);
+      if (key === "Escape" || key === "Tab") {
+        owner.focus({ preventScroll: true });
+        close();
+      } else if (key === "Enter" || key === " ") items[index]?.click();
+      else
+        focus(
+          key === "Home"
+            ? 0
+            : key === "End"
+              ? items.length - 1
+              : (index + (key === "ArrowDown" ? 1 : -1) + items.length) % items.length,
+        );
     } else if (key === "ArrowLeft" || key === "ArrowRight") {
       event.preventDefault(); // no submenu; keep the pending leader intact
     } else fallback(event);
@@ -225,14 +255,16 @@ export function Menu({
     above?: boolean;
   } | null>(null);
   const [cursor, setCursor] = useState<number>(() => firstRow(entries, start));
-  const [submenu, setSubmenu] = useState<
-    { index: number; rect: DOMRect; keyboard: boolean } | null
-  >(null);
+  const [submenu, setSubmenu] = useState<{
+    index: number;
+    rect: DOMRect;
+    keyboard: boolean;
+  } | null>(null);
   const typed = useRef({ buf: "", at: 0 });
   const menuId = useId();
   const rowId = (i: number) => {
     const entry = entries[i];
-    return `${menuId}-row-${isAction(entry) ? entry.id ?? i : i}`;
+    return `${menuId}-row-${isAction(entry) ? (entry.id ?? i) : i}`;
   };
   const isTop = useLayer(!passive);
   const restoreOwn = useFocusReturn();
@@ -270,14 +302,20 @@ export function Menu({
       // An arrow needs its own height of clearance, or it lands on the control.
       const gap = arrow ? GAP + 6 : GAP;
       const below = r.bottom + gap;
-      top = anchor.side === "top" || below + h > window.innerHeight - GAP
-        ? Math.max(GAP, r.top - h - gap)
-        : below;
+      top =
+        anchor.side === "top" || below + h > window.innerHeight - GAP
+          ? Math.max(GAP, r.top - h - gap)
+          : below;
       left = anchor.align === "end" ? r.right - w : r.left;
       left = Math.max(GAP, Math.min(left, window.innerWidth - w - GAP));
       if (arrow) {
         const x = Math.min(Math.max(r.left + r.width / 2 - left, 14), w - 14);
-        setPos({ top: Math.round(top), left: Math.round(left), arrowX: Math.round(x), above: top < r.top });
+        setPos({
+          top: Math.round(top),
+          left: Math.round(left),
+          arrowX: Math.round(x),
+          above: top < r.top,
+        });
         return;
       }
     }
@@ -444,9 +482,10 @@ export function Menu({
     visibility: pos ? "visible" : "hidden",
     ...(pos?.arrowX !== undefined ? { ["--arrow-x" as string]: `${pos.arrowX}px` } : null),
   };
-  const arrowClass = arrow && pos?.arrowX !== undefined
-    ? ` menu--arrow ${pos.above ? "menu--above" : "menu--below"}`
-    : "";
+  const arrowClass =
+    arrow && pos?.arrowX !== undefined
+      ? ` menu--arrow ${pos.above ? "menu--above" : "menu--below"}`
+      : "";
 
   const renderedEntries = entries.map((e, i) => {
     if ("kind" in e && e.kind === "sep")
@@ -470,11 +509,13 @@ export function Menu({
         </div>
       );
     const a = e as MenuAction;
-    const role = search ? "option" : a.radio
-      ? "menuitemradio"
-      : a.checked === undefined
-        ? "menuitem"
-        : "menuitemcheckbox";
+    const role = search
+      ? "option"
+      : a.radio
+        ? "menuitemradio"
+        : a.checked === undefined
+          ? "menuitem"
+          : "menuitemcheckbox";
     // The shortcut stays in the row's name: VoiceOver reads a native
     // menu row as "All Plays, command shift O", and so does this one.
     const trail = a.submenu ? undefined : (a.shortcut ?? a.hint);
@@ -487,7 +528,9 @@ export function Menu({
         data-menu-id={a.id}
         role={role}
         tabIndex={!search && i === cursor && !a.disabled ? 0 : -1}
-        aria-checked={role === "menuitemradio" || role === "menuitemcheckbox" ? !!a.checked : undefined}
+        aria-checked={
+          role === "menuitemradio" || role === "menuitemcheckbox" ? !!a.checked : undefined
+        }
         aria-selected={search ? i === cursor : undefined}
         aria-haspopup={a.submenu ? "menu" : undefined}
         aria-expanded={a.submenu ? submenu?.index === i : undefined}
@@ -541,12 +584,28 @@ export function Menu({
         tabIndex={-1}
         style={style}
       >
-        {search && <input className={`field${search.className ? ` ${search.className}` : ""}`}
-          role="combobox" aria-expanded="true" aria-autocomplete="list" aria-haspopup="listbox"
-          aria-label={search.label} placeholder={search.label} value={search.value}
-          aria-controls={menuId} aria-activedescendant={cursor >= 0 ? rowId(cursor) : undefined}
-          onChange={(e) => search.onChange(e.target.value)} />}
-        {search ? <div className="menu__results" role="listbox" id={menuId} aria-label={label}>{renderedEntries}</div> : renderedEntries}
+        {search && (
+          <input
+            className={`field${search.className ? ` ${search.className}` : ""}`}
+            role="combobox"
+            aria-expanded="true"
+            aria-autocomplete="list"
+            aria-haspopup="listbox"
+            aria-label={search.label}
+            placeholder={search.label}
+            value={search.value}
+            aria-controls={menuId}
+            aria-activedescendant={cursor >= 0 ? rowId(cursor) : undefined}
+            onChange={(e) => search.onChange(e.target.value)}
+          />
+        )}
+        {search ? (
+          <div className="menu__results" role="listbox" id={menuId} aria-label={label}>
+            {renderedEntries}
+          </div>
+        ) : (
+          renderedEntries
+        )}
         {arrow && <div className="menu__arrow" aria-hidden="true" />}
       </div>
       {submenu &&

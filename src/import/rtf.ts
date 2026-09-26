@@ -37,8 +37,7 @@ const DESTINATIONS = new Set([
 /** Small, bounded RTF reader. Groups restore formatting; Unicode fallback
  * characters and binary payloads are consumed, never mistaken for prose. */
 export function readRtf(name: string, source: string): ImportDocument {
-  if (!/^\s*\{\\rtf1\b/.test(source))
-    throw new Error("This file is not a readable RTF document.");
+  if (!/^\s*\{\\rtf1\b/.test(source)) throw new Error("This file is not a readable RTF document.");
   let state: State = {
     skip: false,
     uc: 1,
@@ -66,10 +65,7 @@ export function readRtf(name: string, source: string): ImportDocument {
     if (!content.length) paragraphStyle = state.style;
     const marks = [...state.marks].map((type) => ({ type }));
     const last = content[content.length - 1];
-    if (
-      last?.type === "text" &&
-      JSON.stringify(last.marks) === JSON.stringify(marks)
-    )
+    if (last?.type === "text" && JSON.stringify(last.marks) === JSON.stringify(marks))
       last.text += value;
     else content.push({ type: "text", text: value, marks });
   };
@@ -82,9 +78,7 @@ export function readRtf(name: string, source: string): ImportDocument {
     const c = source[i++];
     if (c === "{") {
       if (stack.length >= 100)
-        throw new Error(
-          "This RTF is too deeply nested. Export as Word or plain text.",
-        );
+        throw new Error("This RTF is too deeply nested. Export as Word or plain text.");
       stack.push(state);
       state = { ...state, marks: new Set(state.marks) };
       continue;
@@ -101,11 +95,7 @@ export function readRtf(name: string, source: string): ImportDocument {
     }
     const symbol = source[i];
     if (symbol === "'" && /^[\da-f]{2}$/i.test(source.slice(i + 1, i + 3))) {
-      emit(
-        decoder.decode(
-          new Uint8Array([parseInt(source.slice(i + 1, i + 3), 16)]),
-        ),
-      );
+      emit(decoder.decode(new Uint8Array([parseInt(source.slice(i + 1, i + 3), 16)])));
       i += 3;
       continue;
     }
@@ -143,12 +133,8 @@ export function readRtf(name: string, source: string): ImportDocument {
     }
     if (word === "ansicpg") {
       // Single-byte legacy encodings only; refusing is safer than mojibake.
-      if (
-        ![1250, 1251, 1252, 1253, 1254, 1255, 1256, 1257, 1258].includes(number)
-      )
-        throw new Error(
-          "This RTF uses an unsupported text encoding. Export it as Word (.docx).",
-        );
+      if (![1250, 1251, 1252, 1253, 1254, 1255, 1256, 1257, 1258].includes(number))
+        throw new Error("This RTF uses an unsupported text encoding. Export it as Word (.docx).");
       decoder = new TextDecoder(`windows-${number}`);
       continue;
     }
@@ -165,8 +151,7 @@ export function readRtf(name: string, source: string): ImportDocument {
     if (word === "par" || word === "row") flush();
     else if (word === "line") emit("\n");
     else if (word === "tab" || word === "cell") emit("\t");
-    else if (word === "s")
-      state.style = styles.get(String(number)) ?? `Style ${number}`;
+    else if (word === "s") state.style = styles.get(String(number)) ?? `Style ${number}`;
     else if (word === "pard") state.style = "Unstyled";
     else if (word === "plain") state.marks.clear();
     else if (["b", "i", "ul", "ulnone"].includes(word)) {
@@ -187,9 +172,7 @@ export function readRtf(name: string, source: string): ImportDocument {
     }
   }
   if (stack.length)
-    throw new Error(
-      "This RTF file ends before the document is complete. Export a fresh copy.",
-    );
+    throw new Error("This RTF file ends before the document is complete. Export a fresh copy.");
   flush();
   return {
     name,

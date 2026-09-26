@@ -66,8 +66,7 @@ function orderKeys(value: unknown, tmpl: KeyTemplate | true | undefined): unknow
 
   const obj = value as Record<string, unknown>;
   const out: Record<string, unknown> = {};
-  const known =
-    tmpl && tmpl !== true ? Object.keys(tmpl).filter((k) => k !== WILDCARD) : [];
+  const known = tmpl && tmpl !== true ? Object.keys(tmpl).filter((k) => k !== WILDCARD) : [];
   for (const k of known) {
     if (k in obj) out[k] = orderKeys(obj[k], childTemplate(tmpl, k));
   }
@@ -97,14 +96,10 @@ function emit(value: unknown, indent: number): string {
   if (entries.length === 0) return "{}";
   if (entries.every(([, v]) => isPrimitive(v))) {
     return (
-      "{ " +
-      entries.map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(", ") +
-      " }"
+      "{ " + entries.map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(", ") + " }"
     );
   }
-  const lines = entries.map(
-    ([k, v]) => pad1 + `${JSON.stringify(k)}: ${emit(v, indent + 1)}`,
-  );
+  const lines = entries.map(([k, v]) => pad1 + `${JSON.stringify(k)}: ${emit(v, indent + 1)}`);
   return "{\n" + lines.join(",\n") + "\n" + pad + "}";
 }
 

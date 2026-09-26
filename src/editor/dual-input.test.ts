@@ -9,10 +9,16 @@ import { playExtensions } from "./schema";
 
 const schema = getSchema(playExtensions);
 function state(cue = "IVO", dual = false) {
-  return EditorState.create({ schema, doc: schema.nodeFromJSON({ type: "doc", content: [
-    { type: "action", content: [{ type: "text", text: "A knock." }] },
-    { type: "character", attrs: { dual }, content: [{ type: "text", text: cue }] },
-  ] }) });
+  return EditorState.create({
+    schema,
+    doc: schema.nodeFromJSON({
+      type: "doc",
+      content: [
+        { type: "action", content: [{ type: "text", text: "A knock." }] },
+        { type: "character", attrs: { dual }, content: [{ type: "text", text: cue }] },
+      ],
+    }),
+  });
 }
 
 describe("typing a dual-dialogue cue", () => {

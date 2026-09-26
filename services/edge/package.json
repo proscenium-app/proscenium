@@ -5,6 +5,8 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "test": "bun test ./test",
+    "test:workerd": "node --test test/workerd.node.ts",
+    "test:live": "node --test test/workerd-live.node.ts",
     "typecheck": "tsc --noEmit",
     "dev": "wrangler dev --config wrangler.local.jsonc",
     "deploy": "node ../../scripts/edge-wrangler.mjs deploy"

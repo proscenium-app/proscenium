@@ -105,7 +105,11 @@ mod imp {
         }
         let renewed = stale.as_bool().then(|| bookmark_for_url(&url));
         let (bookmark, problem) = super::renewed_bookmark(bookmark, renewed);
-        Some(Scoped { path, bookmark: Some(bookmark), problem })
+        Some(Scoped {
+            path,
+            bookmark: Some(bookmark),
+            problem,
+        })
     }
 
     fn bookmark_for_url(url: &NSURL) -> Option<String> {
@@ -176,7 +180,13 @@ pub use imp::{bookmark, cloud_root, is_icloud_item, resolve};
 fn renewed_bookmark(previous: &str, renewed: Option<Option<String>>) -> (String, Option<String>) {
     match renewed {
         Some(Some(fresh)) => (fresh, None),
-        Some(None) => (previous.into(), Some("The folder opened, but its access could not be renewed for the next launch.".into())),
+        Some(None) => (
+            previous.into(),
+            Some(
+                "The folder opened, but its access could not be renewed for the next launch."
+                    .into(),
+            ),
+        ),
         None => (previous.into(), None),
     }
 }
@@ -184,10 +194,13 @@ fn renewed_bookmark(previous: &str, renewed: Option<Option<String>>) -> (String,
 #[cfg(test)]
 mod tests {
     #[test]
-    fn a7_12_failed_renewal_keeps_the_usable_grant_but_does_not_report_success() {
+    fn a_failed_renewal_keeps_the_usable_grant_but_does_not_report_success() {
         let (bookmark, problem) = super::renewed_bookmark("usable", Some(None));
         assert_eq!(bookmark, "usable");
         assert!(problem.is_some());
-        assert_eq!(super::renewed_bookmark("old", Some(Some("fresh".into()))), ("fresh".into(), None));
+        assert_eq!(
+            super::renewed_bookmark("old", Some(Some("fresh".into()))),
+            ("fresh".into(), None)
+        );
     }
 }

@@ -78,7 +78,12 @@ export function withoutComments(text, { rust = false } = {}) {
       }
       out += blank(text.slice(i, j));
       i = j;
-    } else if (rust && c === "r" && /^r#*"/.test(text.slice(i, i + 20)) && !/[A-Za-z0-9_]/.test(text[i - 1] ?? "")) {
+    } else if (
+      rust &&
+      c === "r" &&
+      /^r#*"/.test(text.slice(i, i + 20)) &&
+      !/[A-Za-z0-9_]/.test(text[i - 1] ?? "")
+    ) {
       const hashes = text.slice(i + 1).match(/^#*/)[0];
       const close = `"${hashes}`;
       const end = text.indexOf(close, i + 2 + hashes.length);

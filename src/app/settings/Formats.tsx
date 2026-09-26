@@ -51,7 +51,10 @@ export function FormatsSlot({
   const registry = useFormatRegistry();
   const { defaultFormat, formatOrder } = useSettings();
   const toast = useToast();
-  const rank = (id: string) => { const at = formatOrder.indexOf(id); return at < 0 ? formatOrder.length : at; };
+  const rank = (id: string) => {
+    const at = formatOrder.indexOf(id);
+    return at < 0 ? formatOrder.length : at;
+  };
   const list = [...registry.list()].sort((a, b) => rank(a.id) - rank(b.id));
   const [dragged, setDragged] = useState<string | null>(null);
   const move = (from: number, to: number) => {
@@ -70,7 +73,12 @@ export function FormatsSlot({
     try {
       picked = await formats.importFile();
     } catch (e) {
-      toast({ kind: "error", title: "The file could not be read.", detail: String(e), code: "E-FORMAT-READ" });
+      toast({
+        kind: "error",
+        title: "The file could not be read.",
+        detail: String(e),
+        code: "E-FORMAT-READ",
+      });
       return;
     }
     if (!picked) return;
@@ -95,7 +103,12 @@ export function FormatsSlot({
       await reloadFormats();
       toast({ kind: "ok", title: `Imported “${spec.name}”` });
     } catch (e) {
-      toast({ kind: "error", title: `“${spec.name}” could not be imported.`, detail: String(e), code: "E-FORMAT-IMPORT" });
+      toast({
+        kind: "error",
+        title: `“${spec.name}” could not be imported.`,
+        detail: String(e),
+        code: "E-FORMAT-IMPORT",
+      });
     }
   };
 
@@ -117,7 +130,13 @@ export function FormatsSlot({
               count={list.length}
               onMove={(to) => move(i, to)}
               onDragStart={() => setDragged(spec.id)}
-              onDrop={() => { move(list.findIndex((s) => s.id === dragged), i); setDragged(null); }}
+              onDrop={() => {
+                move(
+                  list.findIndex((s) => s.id === dragged),
+                  i,
+                );
+                setDragged(null);
+              }}
               onDragEnd={() => setDragged(null)}
               builtin={registry.isBuiltin(spec.id)}
               fileName={(() => {
@@ -135,14 +154,20 @@ export function FormatsSlot({
           ))}
         </ul>
         <div className="settings__actions">
-          <Button onClick={() => onOpenDesigner({ kind: "new", returnTo: "settings" })}>New Format…</Button>
+          <Button onClick={() => onOpenDesigner({ kind: "new", returnTo: "settings" })}>
+            New Format…
+          </Button>
           <Button onClick={() => void importFormat()}>Import Format…</Button>
           {canReveal && (
             <Button
               onClick={() =>
-                void ipc
-                  .openFormatsFolder()
-                  .catch(() => toast({ kind: "error", title: "The Formats folder could not be opened.", code: "E-FORMATS-FOLDER" }))
+                void ipc.openFormatsFolder().catch(() =>
+                  toast({
+                    kind: "error",
+                    title: "The Formats folder could not be opened.",
+                    code: "E-FORMATS-FOLDER",
+                  }),
+                )
               }
             >
               Open Formats Folder
@@ -160,7 +185,9 @@ export function FormatsSlot({
             menuWidth={260}
             value={newPlays}
             options={list.map((spec) => ({ value: spec.id, label: spec.name }))}
-            onChange={(id) => updateSettings({ defaultFormat: id === DEFAULT_FORMAT_ID ? null : id })}
+            onChange={(id) =>
+              updateSettings({ defaultFormat: id === DEFAULT_FORMAT_ID ? null : id })
+            }
           />
         </div>
         <Note>Existing plays keep their format.</Note>
@@ -208,7 +235,12 @@ function FormatRow(props: {
       const where = await formats.exportFile(`${spec.id}.json`, formatFileText(spec));
       if (where) toast({ kind: "ok", title: `Exported “${spec.name}”`, detail: where });
     } catch (e) {
-      toast({ kind: "error", title: `“${spec.name}” could not be exported.`, detail: String(e), code: "E-FORMAT-EXPORT" });
+      toast({
+        kind: "error",
+        title: `“${spec.name}” could not be exported.`,
+        detail: String(e),
+        code: "E-FORMAT-EXPORT",
+      });
     }
   };
 
@@ -237,28 +269,74 @@ function FormatRow(props: {
               .save(fileName, content)
               .then(() => reloadFormats())
               .catch((e) =>
-                toast({ kind: "error", title: `“${spec.name}” could not be restored.`, detail: String(e), code: "E-FORMAT-TRASH" }),
+                toast({
+                  kind: "error",
+                  title: `“${spec.name}” could not be restored.`,
+                  detail: String(e),
+                  code: "E-FORMAT-TRASH",
+                }),
               ),
         },
       });
     } catch (e) {
-      toast({ kind: "error", title: `“${spec.name}” could not be moved to the Trash.`, detail: String(e), code: "E-FORMAT-TRASH" });
+      toast({
+        kind: "error",
+        title: `“${spec.name}” could not be moved to the Trash.`,
+        detail: String(e),
+        code: "E-FORMAT-TRASH",
+      });
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <li className="formatlist__row" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); props.onDrop(); }}>
-      <span draggable aria-hidden="true" title="Drag to reorder" className="statuslist__grip"
-        onDragStart={(e) => { e.dataTransfer.setData("text/plain", spec.id); props.onDragStart(); }} onDragEnd={props.onDragEnd}>⠿</span>
+    <li
+      className="formatlist__row"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={(e) => {
+        e.preventDefault();
+        props.onDrop();
+      }}
+    >
+      <span
+        draggable
+        aria-hidden="true"
+        title="Drag to reorder"
+        className="statuslist__grip"
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/plain", spec.id);
+          props.onDragStart();
+        }}
+        onDragEnd={props.onDragEnd}
+      >
+        ⠿
+      </span>
       <span className="formatlist__name">{spec.name}</span>
       {props.position < 3 && <Chip tiny>In menu</Chip>}
-      {builtin ? <Chip tiny>Built-in</Chip> : <span className="formatlist__file mono">{fileName}</span>}
+      {builtin ? (
+        <Chip tiny>Built-in</Chip>
+      ) : (
+        <span className="formatlist__file mono">{fileName}</span>
+      )}
       {props.isDefault && <Chip tiny>New plays</Chip>}
       <span className="sheet__spacer" />
-      <IconButton size="small" label={`Move “${spec.name}” up`} disabled={props.position === 0} onClick={() => props.onMove(props.position - 1)}><ArrowUpIcon size={12} /></IconButton>
-      <IconButton size="small" label={`Move “${spec.name}” down`} disabled={props.position === props.count - 1} onClick={() => props.onMove(props.position + 1)}><ArrowDownIcon size={12} /></IconButton>
+      <IconButton
+        size="small"
+        label={`Move “${spec.name}” up`}
+        disabled={props.position === 0}
+        onClick={() => props.onMove(props.position - 1)}
+      >
+        <ArrowUpIcon size={12} />
+      </IconButton>
+      <IconButton
+        size="small"
+        label={`Move “${spec.name}” down`}
+        disabled={props.position === props.count - 1}
+        onClick={() => props.onMove(props.position + 1)}
+      >
+        <ArrowDownIcon size={12} />
+      </IconButton>
       <Button
         size="small"
         onClick={() =>
@@ -293,14 +371,24 @@ function FormatRow(props: {
               ? [
                   {
                     label: "Preview…",
-                    onSelect: () => props.onOpenDesigner({ kind: "edit", formatId: spec.id, returnTo: "settings" }),
+                    onSelect: () =>
+                      props.onOpenDesigner({
+                        kind: "edit",
+                        formatId: spec.id,
+                        returnTo: "settings",
+                      }),
                   },
                   { label: "Export…", onSelect: () => void exportFormat() },
                 ]
               : [
                   {
                     label: "Duplicate…",
-                    onSelect: () => props.onOpenDesigner({ kind: "duplicate", formatId: spec.id, returnTo: "settings" }),
+                    onSelect: () =>
+                      props.onOpenDesigner({
+                        kind: "duplicate",
+                        formatId: spec.id,
+                        returnTo: "settings",
+                      }),
                   },
                   { label: "Export…", onSelect: () => void exportFormat() },
                   { kind: "sep" },

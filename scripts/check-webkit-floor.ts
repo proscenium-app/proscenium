@@ -8,9 +8,9 @@
  * Proscenium with that release's Safari, and nothing in the toolchain says no
  * to a feature that engine lacks. The binding constraint when the floor was
  * chosen was `color-mix()` (Safari 16.2), threaded through the token system:
- * below it every colour built from it evaluates to nothing — the 2026-09-02
- * blank window in a different hat, arriving as a report nobody can reproduce
- * on a current Mac (docs/engineering/release-engineering.md#REL-8).
+ * below it every colour built from it evaluates to nothing — the blank window
+ * that once shipped, in a different hat, arriving as a report nobody can
+ * reproduce on a current Mac (docs/engineering/release-engineering.md#REL-8).
  *
  * What it reads is `dist/`, the bundle that ships, after esbuild has lowered
  * syntax and added prefixes for the same floor (vite.config.ts). What it reads
@@ -115,7 +115,11 @@ function supportedAtFloor(compat: Compat | undefined, form = ""): Verdict | null
       continue;
     }
     if (added !== true && cmp(parseVersion(added), FLOOR) > 0) {
-      if (since === null || since === "not supported" || cmp(parseVersion(added), parseVersion(since)) < 0) {
+      if (
+        since === null ||
+        since === "not supported" ||
+        cmp(parseVersion(added), parseVersion(since)) < 0
+      ) {
         since = added;
       }
       continue;
@@ -186,10 +190,27 @@ for (const [name, node] of Object.entries(at("css.properties")!)) {
 
 /** Grouped length units BCD files under one key. */
 const UNIT_GROUP: Record<string, string> = {
-  ...Object.fromEntries(["cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax"].map((u) => [u, "container_query_length_units"])),
-  ...Object.fromEntries(["dvh", "dvw", "dvi", "dvb", "dvmin", "dvmax"].map((u) => [u, "viewport_percentage_units_dynamic"])),
-  ...Object.fromEntries(["lvh", "lvw", "lvi", "lvb", "lvmin", "lvmax"].map((u) => [u, "viewport_percentage_units_large"])),
-  ...Object.fromEntries(["svh", "svw", "svi", "svb", "svmin", "svmax"].map((u) => [u, "viewport_percentage_units_small"])),
+  ...Object.fromEntries(
+    ["cqw", "cqh", "cqi", "cqb", "cqmin", "cqmax"].map((u) => [u, "container_query_length_units"]),
+  ),
+  ...Object.fromEntries(
+    ["dvh", "dvw", "dvi", "dvb", "dvmin", "dvmax"].map((u) => [
+      u,
+      "viewport_percentage_units_dynamic",
+    ]),
+  ),
+  ...Object.fromEntries(
+    ["lvh", "lvw", "lvi", "lvb", "lvmin", "lvmax"].map((u) => [
+      u,
+      "viewport_percentage_units_large",
+    ]),
+  ),
+  ...Object.fromEntries(
+    ["svh", "svw", "svi", "svb", "svmin", "svmax"].map((u) => [
+      u,
+      "viewport_percentage_units_small",
+    ]),
+  ),
 };
 
 type Located = { loc?: { start: { line: number; column: number } } | null };
@@ -198,11 +219,13 @@ const pos = (file: string, node: Located) =>
 
 /** The property's compat entry and the spelling in use. */
 function propertyCompat(property: string): { path: string; form: string } | null {
-  if (at(`css.properties.${property}`)?.__compat) return { path: `css.properties.${property}`, form: "" };
+  if (at(`css.properties.${property}`)?.__compat)
+    return { path: `css.properties.${property}`, form: "" };
   const prefix = property.match(PREFIX)?.[0];
   if (prefix) {
     const base = property.slice(prefix.length);
-    if (at(`css.properties.${base}`)?.__compat) return { path: `css.properties.${base}`, form: prefix };
+    if (at(`css.properties.${base}`)?.__compat)
+      return { path: `css.properties.${base}`, form: prefix };
   }
   const renamed = ALT_PROPERTY.get(property);
   return renamed ? { path: `css.properties.${renamed}`, form: property } : null;
@@ -221,7 +244,12 @@ function declarationVerdicts(decl: csstree.Declaration, file: string) {
       const name = node.name.toLowerCase();
       const sub = at(`${prop.path}.${name}`);
       if (/^[a-z-]+$/.test(name) && sub?.__compat) {
-        out.push({ path: `${prop.path}.${name}`, verdict: supportedAtFloor(sub.__compat), where, what: `${property}: ${name}` });
+        out.push({
+          path: `${prop.path}.${name}`,
+          verdict: supportedAtFloor(sub.__compat),
+          where,
+          what: `${property}: ${name}`,
+        });
       }
     } else if (node.type === "Function") {
       const name = node.name.toLowerCase();
@@ -239,7 +267,13 @@ function declarationVerdicts(decl: csstree.Declaration, file: string) {
       const unit = node.unit.toLowerCase();
       const key = UNIT_GROUP[unit] ?? unit;
       const path = `css.types.length.${key}`;
-      if (at(path)?.__compat) out.push({ path, verdict: supportedAtFloor(at(path)?.__compat), where, what: `${node.value}${unit}` });
+      if (at(path)?.__compat)
+        out.push({
+          path,
+          verdict: supportedAtFloor(at(path)?.__compat),
+          where,
+          what: `${node.value}${unit}`,
+        });
     }
   });
   return out;
@@ -263,23 +297,45 @@ function checkCss(css: string, file: string) {
               const base = feature.name.toLowerCase().replace(/^(min|max)-/, "");
               const fpath = `css.at-rules.media.${base}`;
               if (name === "media" && at(fpath)?.__compat) {
-                report(fpath, supportedAtFloor(at(fpath)?.__compat), pos(file, feature), `(${feature.name})`);
+                report(
+                  fpath,
+                  supportedAtFloor(at(fpath)?.__compat),
+                  pos(file, feature),
+                  `(${feature.name})`,
+                );
               }
             } else if (feature.type === "FeatureRange" && name === "media") {
-              report("css.at-rules.media.range_syntax", supportedAtFloor(at("css.at-rules.media.range_syntax")?.__compat), pos(file, feature), "media range syntax");
+              report(
+                "css.at-rules.media.range_syntax",
+                supportedAtFloor(at("css.at-rules.media.range_syntax")?.__compat),
+                pos(file, feature),
+                "media range syntax",
+              );
             }
           });
         }
       } else if (node.type === "PseudoClassSelector" || node.type === "PseudoElementSelector") {
         const name = node.name.toLowerCase();
         const path = `css.selectors.${name}`;
-        report(path, supportedAtFloor(at(path)?.__compat), pos(file, node), `${node.type === "PseudoElementSelector" ? "::" : ":"}${name}`);
+        report(
+          path,
+          supportedAtFloor(at(path)?.__compat),
+          pos(file, node),
+          `${node.type === "PseudoElementSelector" ? "::" : ":"}${name}`,
+        );
       } else if (node.type === "NestingSelector") {
-        report("css.selectors.nesting", supportedAtFloor(at("css.selectors.nesting")?.__compat), pos(file, node), "&");
+        report(
+          "css.selectors.nesting",
+          supportedAtFloor(at("css.selectors.nesting")?.__compat),
+          pos(file, node),
+          "&",
+        );
       } else if (node.type === "Block") {
         // Inside @supports the author already asked the engine; trust the answer.
         if (supports.length) return;
-        const decls = node.children.toArray().filter((c): c is csstree.Declaration => c.type === "Declaration");
+        const decls = node.children
+          .toArray()
+          .filter((c): c is csstree.Declaration => c.type === "Declaration");
         const byProperty = new Map<string, boolean>();
         const verdicts = decls.map((d) => ({ d, vs: declarationVerdicts(d, file) }));
         for (const { d, vs } of verdicts) {
@@ -293,7 +349,11 @@ function checkCss(css: string, file: string) {
           // enhancement in a fallback pair; the engine drops it and keeps the other.
           // Custom properties accept unknown tokens: a later assignment still
           // wins, then becomes invalid when var() is substituted.
-          if (!d.property.startsWith("--") && byProperty.get(base) && vs.some(({ verdict }) => verdict && !verdict.ok)) {
+          if (
+            !d.property.startsWith("--") &&
+            byProperty.get(base) &&
+            vs.some(({ verdict }) => verdict && !verdict.ok)
+          ) {
             if (VERBOSE) notes.push(`fallback ${d.property} (${pos(file, d)})`);
             continue;
           }
@@ -349,13 +409,19 @@ const NEWER_INSTANCE_NAMES = new Map<string, string>();
       else if (!newer.has(member)) newer.set(member, `javascript.builtins.${ctor}.${member}`);
     }
   }
-  for (const [name, path] of newer) if (!supportedNames.has(name)) NEWER_INSTANCE_NAMES.set(name, path);
+  for (const [name, path] of newer)
+    if (!supportedNames.has(name)) NEWER_INSTANCE_NAMES.set(name, path);
 }
 
 function checkJs(code: string, file: string) {
   let ast: acorn.Program;
   try {
-    ast = acorn.parse(code, { ecmaVersion: "latest", sourceType: "module", locations: true, allowHashBang: true });
+    ast = acorn.parse(code, {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      locations: true,
+      allowHashBang: true,
+    });
   } catch (e) {
     findings.push({ path: "syntax", since: "unparseable", where: file, what: String(e) });
     return;
@@ -365,7 +431,8 @@ function checkJs(code: string, file: string) {
   const nameOf = (n: acorn.Node | null | undefined): string | null => {
     if (!n) return null;
     if (n.type === "Identifier") return (n as acorn.Identifier).name;
-    if (n.type === "Literal" && typeof (n as acorn.Literal).value === "string") return (n as acorn.Literal).value as string;
+    if (n.type === "Literal" && typeof (n as acorn.Literal).value === "string")
+      return (n as acorn.Literal).value as string;
     if (n.type === "MemberExpression") return nameOf((n as acorn.MemberExpression).property);
     if (n.type === "ChainExpression") return nameOf((n as acorn.ChainExpression).expression);
     return null;
@@ -393,7 +460,11 @@ function checkJs(code: string, file: string) {
     if (node.type !== "MemberExpression") return null;
     const m = node as acorn.MemberExpression;
     const object = keyOf(m.object);
-    const member = m.computed ? (m.property.type === "Literal" ? nameOf(m.property) : null) : nameOf(m.property);
+    const member = m.computed
+      ? m.property.type === "Literal"
+        ? nameOf(m.property)
+        : null
+      : nameOf(m.property);
     return object && member ? object + "." + member : null;
   };
   const absent = (n: acorn.Node) =>
@@ -407,34 +478,50 @@ function checkJs(code: string, file: string) {
     }
     if (test.type === "LogicalExpression") {
       const t = test as acorn.LogicalExpression;
-      if (t.operator === "&&") return truth
-        ? proves(t.left, key, true) || proves(t.right, key, true)
-        : proves(t.left, key, false) && proves(t.right, key, false);
-      if (t.operator === "||") return truth
-        ? proves(t.left, key, true) && proves(t.right, key, true)
-        : proves(t.left, key, false) || proves(t.right, key, false);
+      if (t.operator === "&&")
+        return truth
+          ? proves(t.left, key, true) || proves(t.right, key, true)
+          : proves(t.left, key, false) && proves(t.right, key, false);
+      if (t.operator === "||")
+        return truth
+          ? proves(t.left, key, true) && proves(t.right, key, true)
+          : proves(t.left, key, false) || proves(t.right, key, false);
     }
     if (test.type !== "BinaryExpression") return false;
     const t = test as acorn.BinaryExpression;
-    if (t.operator === "in") return truth && t.left.type === "Literal" &&
-      keyOf(t.right) + "." + nameOf(t.left) === key;
+    if (t.operator === "in")
+      return truth && t.left.type === "Literal" && keyOf(t.right) + "." + nameOf(t.left) === key;
     if (!/^[!=]==?$/.test(t.operator)) return false;
     const equal = t.operator.startsWith("=") === truth;
-    for (const [a, b] of [[t.left, t.right], [t.right, t.left]]) {
+    for (const [a, b] of [
+      [t.left, t.right],
+      [t.right, t.left],
+    ]) {
       // `!== null` still admits undefined, so cannot protect a missing API.
       const onlyNull = b.type === "Literal" && (b as acorn.Literal).value === null;
       if (keyOf(a) === key && absent(b) && (!onlyNull || t.operator.length === 2)) return !equal;
-      if (a.type === "UnaryExpression" && (a as acorn.UnaryExpression).operator === "typeof" &&
-          keyOf((a as acorn.UnaryExpression).argument) === key && b.type === "Literal") {
+      if (
+        a.type === "UnaryExpression" &&
+        (a as acorn.UnaryExpression).operator === "typeof" &&
+        keyOf((a as acorn.UnaryExpression).argument) === key &&
+        b.type === "Literal"
+      ) {
         const kind = (b as acorn.Literal).value;
-        return kind === "undefined" ? !equal : equal && ["function", "object", "string", "number", "boolean", "symbol", "bigint"].includes(String(kind));
+        return kind === "undefined"
+          ? !equal
+          : equal &&
+              ["function", "object", "string", "number", "boolean", "symbol", "bigint"].includes(
+                String(kind),
+              );
       }
     }
     return false;
   };
   const guardedUse = (node: acorn.Node): boolean => {
-    const subject = node.type === "CallExpression" || node.type === "NewExpression"
-      ? (node as acorn.CallExpression).callee : node;
+    const subject =
+      node.type === "CallExpression" || node.type === "NewExpression"
+        ? (node as acorn.CallExpression).callee
+        : node;
     const key = keyOf(subject);
     if (!key) return false;
     if (node.type === "CallExpression" && (node as acorn.CallExpression).optional) return true;
@@ -442,34 +529,67 @@ function checkJs(code: string, file: string) {
     if (node.type === "MemberExpression" && parent) {
       // Reading a possibly absent property to test it is safe in itself. That
       // read says nothing about a later, unprotected call in the same file.
-      if (parent.type === "UnaryExpression" && (parent as acorn.UnaryExpression).operator === "typeof") return true;
-      if (parent.type === "BinaryExpression" && /^[!=]==?$/.test((parent as acorn.BinaryExpression).operator)) {
+      if (
+        parent.type === "UnaryExpression" &&
+        (parent as acorn.UnaryExpression).operator === "typeof"
+      )
+        return true;
+      if (
+        parent.type === "BinaryExpression" &&
+        /^[!=]==?$/.test((parent as acorn.BinaryExpression).operator)
+      ) {
         const p = parent as acorn.BinaryExpression;
         if (absent(p.left) || absent(p.right)) return true;
       }
-      if (parent.type === "CallExpression" && (parent as acorn.CallExpression).callee === node && (parent as acorn.CallExpression).optional) return true;
-      if (parent.type === "MemberExpression" && (parent as acorn.MemberExpression).object === node && (parent as acorn.MemberExpression).optional) return true;
+      if (
+        parent.type === "CallExpression" &&
+        (parent as acorn.CallExpression).callee === node &&
+        (parent as acorn.CallExpression).optional
+      )
+        return true;
+      if (
+        parent.type === "MemberExpression" &&
+        (parent as acorn.MemberExpression).object === node &&
+        (parent as acorn.MemberExpression).optional
+      )
+        return true;
       if (parent.type === "IfStatement" && (parent as acorn.IfStatement).test === node) return true;
-      if (parent.type === "ConditionalExpression" && (parent as acorn.ConditionalExpression).test === node) return true;
-      if (parent.type === "LogicalExpression" && (parent as acorn.LogicalExpression).left === node) return true;
+      if (
+        parent.type === "ConditionalExpression" &&
+        (parent as acorn.ConditionalExpression).test === node
+      )
+        return true;
+      if (parent.type === "LogicalExpression" && (parent as acorn.LogicalExpression).left === node)
+        return true;
     }
     let child = node;
     for (let p = parent; p; child = p, p = parents.get(p)) {
-      if (["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"].includes(p.type)) break;
+      if (["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"].includes(p.type))
+        break;
       if (p.type === "IfStatement" || p.type === "ConditionalExpression") {
         const t = p as acorn.IfStatement | acorn.ConditionalExpression;
         if (child === t.consequent && proves(t.test, key, true)) return true;
         if (child === t.alternate && proves(t.test, key, false)) return true;
       } else if (p.type === "LogicalExpression") {
         const t = p as acorn.LogicalExpression;
-        if (child === t.right && ((t.operator === "&&" && proves(t.left, key, true)) ||
-            (t.operator === "||" && proves(t.left, key, false)))) return true;
+        if (
+          child === t.right &&
+          ((t.operator === "&&" && proves(t.left, key, true)) ||
+            (t.operator === "||" && proves(t.left, key, false)))
+        )
+          return true;
       }
     }
     return false;
   };
 
-  const check = (path: string, compat: Compat | undefined, name: string, node: acorn.Node, what: string) => {
+  const check = (
+    path: string,
+    compat: Compat | undefined,
+    name: string,
+    node: acorn.Node,
+    what: string,
+  ) => {
     const verdict = supportedAtFloor(compat);
     if (!verdict || verdict.ok) return;
     if (guardedUse(node)) {
@@ -482,14 +602,24 @@ function checkJs(code: string, file: string) {
   walk.simple(ast, {
     MemberExpression(node) {
       const m = node as acorn.MemberExpression;
-      const member = m.computed ? (m.property.type === "Literal" ? String((m.property as acorn.Literal).value) : null) : nameOf(m.property);
+      const member = m.computed
+        ? m.property.type === "Literal"
+          ? String((m.property as acorn.Literal).value)
+          : null
+        : nameOf(m.property);
       if (!member) return;
       if (m.object.type === "Identifier") {
         const receiver = (m.object as acorn.Identifier).name;
         const builtin = BUILTINS[receiver];
         const staticCompat = (builtin?.[member] as Node | undefined)?.__compat;
         if (staticCompat && !isInstanceMember(staticCompat)) {
-          check(`javascript.builtins.${receiver}.${member}`, staticCompat, member, m, `${receiver}.${member}`);
+          check(
+            `javascript.builtins.${receiver}.${member}`,
+            staticCompat,
+            member,
+            m,
+            `${receiver}.${member}`,
+          );
         }
         const iface = API_RECEIVER[receiver];
         if (iface) {
@@ -497,7 +627,13 @@ function checkJs(code: string, file: string) {
           const statik = API[iface]?.[`${member}_static`] as Node | undefined;
           const entry = statik?.__compat ? statik : direct;
           if (entry?.__compat) {
-            check(`api.${iface}.${statik?.__compat ? `${member}_static` : member}`, entry.__compat, member, m, `${receiver}.${member}`);
+            check(
+              `api.${iface}.${statik?.__compat ? `${member}_static` : member}`,
+              entry.__compat,
+              member,
+              m,
+              `${receiver}.${member}`,
+            );
           }
         }
       }
@@ -507,7 +643,14 @@ function checkJs(code: string, file: string) {
       if (callee.type !== "Identifier") return;
       const name = (callee as acorn.Identifier).name;
       const entry = BUILTINS[name] ?? API[name];
-      if (entry?.__compat) check(BUILTINS[name] ? `javascript.builtins.${name}` : `api.${name}`, entry.__compat, name, node, `new ${name}`);
+      if (entry?.__compat)
+        check(
+          BUILTINS[name] ? `javascript.builtins.${name}` : `api.${name}`,
+          entry.__compat,
+          name,
+          node,
+          `new ${name}`,
+        );
     },
     CallExpression(node) {
       const c = node as acorn.CallExpression;
@@ -515,12 +658,19 @@ function checkJs(code: string, file: string) {
         const name = (c.callee as acorn.Identifier).name;
         const entry = (API[name] ?? API.Window?.[name]) as Node | undefined;
         if (/^[a-z]/.test(name) && entry?.__compat) {
-          check(API[name] ? `api.${name}` : `api.Window.${name}`, entry.__compat, name, c, `${name}()`);
+          check(
+            API[name] ? `api.${name}` : `api.Window.${name}`,
+            entry.__compat,
+            name,
+            c,
+            `${name}()`,
+          );
         }
       } else if (c.callee.type === "MemberExpression") {
         const name = nameOf((c.callee as acorn.MemberExpression).property);
         const path = name ? NEWER_INSTANCE_NAMES.get(name) : undefined;
-        if (name && path && !defined.has(name)) check(path, at(path)?.__compat, name, c, `.${name}()`);
+        if (name && path && !defined.has(name))
+          check(path, at(path)?.__compat, name, c, `.${name}()`);
       }
     },
   });
@@ -553,21 +703,66 @@ function canary() {
   // hide a false pass of the same API in another fixture.
   const fixtures = [
     ["unguarded method", "js", "Promise.withResolvers();", true],
-    ["unrelated function guard", "js", "function unusedGuard(){return typeof Promise.withResolvers;} Promise.withResolvers();", true],
+    [
+      "unrelated function guard",
+      "js",
+      "function unusedGuard(){return typeof Promise.withResolvers;} Promise.withResolvers();",
+      true,
+    ],
     ["different receiver guard", "js", "if (other.withResolvers) Promise.withResolvers();", true],
-    ["guard's absent branch", "js", "if (typeof Promise.withResolvers === 'undefined') Promise.withResolvers();", true],
-    ["strict null is not presence", "js", "if (Promise.withResolvers !== null) Promise.withResolvers();", true],
+    [
+      "guard's absent branch",
+      "js",
+      "if (typeof Promise.withResolvers === 'undefined') Promise.withResolvers();",
+      true,
+    ],
+    [
+      "strict null is not presence",
+      "js",
+      "if (Promise.withResolvers !== null) Promise.withResolvers();",
+      true,
+    ],
     ["optional use elsewhere", "js", "Promise.withResolvers?.(); Promise.withResolvers();", true],
-    ["guard cannot cross function", "js", "if (Promise.withResolvers) { callback = () => Promise.withResolvers(); }", true],
+    [
+      "guard cannot cross function",
+      "js",
+      "if (Promise.withResolvers) { callback = () => Promise.withResolvers(); }",
+      true,
+    ],
     ["call used as condition", "js", "if (Promise.withResolvers()) {}", true],
     ["direct colour function", "css", ".audit{color:light-dark(black,white)}", true],
-    ["custom property function", "css", ".audit{--ink:light-dark(black,white);color:var(--ink)}", true],
-    ["custom assignment is no fallback", "css", ".audit{--ink:black;--ink:light-dark(black,white);color:var(--ink)}", true],
-    ["local presence guard", "js", "if (typeof Promise.withResolvers === 'function') Promise.withResolvers();", false],
-    ["local else guard", "js", "if (typeof Promise.withResolvers === 'undefined') {} else Promise.withResolvers();", false],
+    [
+      "custom property function",
+      "css",
+      ".audit{--ink:light-dark(black,white);color:var(--ink)}",
+      true,
+    ],
+    [
+      "custom assignment is no fallback",
+      "css",
+      ".audit{--ink:black;--ink:light-dark(black,white);color:var(--ink)}",
+      true,
+    ],
+    [
+      "local presence guard",
+      "js",
+      "if (typeof Promise.withResolvers === 'function') Promise.withResolvers();",
+      false,
+    ],
+    [
+      "local else guard",
+      "js",
+      "if (typeof Promise.withResolvers === 'undefined') {} else Promise.withResolvers();",
+      false,
+    ],
     ["local logical guard", "js", "Promise.withResolvers && Promise.withResolvers();", false],
     ["local optional call", "js", "Promise.withResolvers?.();", false],
-    ["local nullish guard", "js", "if (Promise.withResolvers != null) Promise.withResolvers();", false],
+    [
+      "local nullish guard",
+      "js",
+      "if (Promise.withResolvers != null) Promise.withResolvers();",
+      false,
+    ],
     ["probe alone", "js", "function probe(){return typeof Promise.withResolvers;}", false],
     ["ordinary colour fallback", "css", ".audit{color:black;color:light-dark(black,white)}", false],
   ] as const;
@@ -576,7 +771,8 @@ function canary() {
     else checkJs(source, `canary-${label}.js`);
     const failed = findings.length > before;
     findings.length = before;
-    if (failed !== shouldFail) missed.push(`canary ${label}: expected ${shouldFail ? "rejection" : "acceptance"}`);
+    if (failed !== shouldFail)
+      missed.push(`canary ${label}: expected ${shouldFail ? "rejection" : "acceptance"}`);
   }
   if (missed.length) {
     console.error(
@@ -604,7 +800,9 @@ async function main() {
   canary();
 
   if (!existsSync(DIST)) {
-    console.error("check:webkit-floor: no dist/ — run `bun run check:webkit-floor`, which builds it first");
+    console.error(
+      "check:webkit-floor: no dist/ — run `bun run check:webkit-floor`, which builds it first",
+    );
     process.exit(1);
   }
   const files = readdirSync(DIST).filter((f) => f.endsWith(".css") || f.endsWith(".js"));
@@ -616,7 +814,8 @@ async function main() {
 
   if (VERBOSE) {
     for (const n of notes) console.log(`  ${n}`);
-    for (const [path, count] of allowedHits) console.log(`  allowed  ${path} ×${count} — ${ALLOWED[path]}`);
+    for (const [path, count] of allowedHits)
+      console.log(`  allowed  ${path} ×${count} — ${ALLOWED[path]}`);
   }
   for (const path of Object.keys(ALLOWED)) {
     if (!allowedHits.has(path)) {

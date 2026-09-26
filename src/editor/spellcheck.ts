@@ -320,7 +320,9 @@ export const Spellcheck = Extension.create({
               y: at.bottom,
               wordAt: { left: at.left, top: at.top },
             };
-            view.dispatch(now.tr.setMeta(spellcheckKey, { kind: "menu", menu } satisfies SpellMeta));
+            view.dispatch(
+              now.tr.setMeta(spellcheckKey, { kind: "menu", menu } satisfies SpellMeta),
+            );
           });
           return true;
         },

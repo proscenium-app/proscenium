@@ -45,7 +45,6 @@ import {
 import { Group, Note, SectionBody, SwitchRow, useAppInfo } from "./parts";
 import { updateSettings, useSettings } from "./store";
 
-
 /** What arrives on each track, in one sentence. */
 const TRACK_NOTES: Record<UpdateTrack, string> = {
   stable: "Each new release.",
@@ -98,7 +97,13 @@ function AlphaKey({ trackRow }: { trackRow: RefObject<HTMLDivElement | null> }) 
   }
   return (
     <div>
-      <form className="settings__actions" onSubmit={(e) => { e.preventDefault(); add(); }}>
+      <form
+        className="settings__actions"
+        onSubmit={(e) => {
+          e.preventDefault();
+          add();
+        }}
+      >
         <input
           ref={field}
           className="field"
@@ -116,8 +121,12 @@ function AlphaKey({ trackRow }: { trackRow: RefObject<HTMLDivElement | null> }) 
             setProblem("");
           }}
         />
-        <Button type="submit" disabled={!key.trim()}>Add Key</Button>
-        <Button type="button" onClick={close}>Cancel</Button>
+        <Button type="submit" disabled={!key.trim()}>
+          Add Key
+        </Button>
+        <Button type="button" onClick={close}>
+          Cancel
+        </Button>
       </form>
       {/* Mounted empty, so it is read when it fills (Writing's dictionary does the same). */}
       <p id="alpha-key-problem" className="settings__note settings__problem" aria-live="polite">
@@ -132,7 +141,10 @@ export function UpdatesSlot() {
   const { checkForUpdates, updateTrack, hasUpdateTrackKey } = useSettings();
   const trackRow = useRef<HTMLDivElement | null>(null);
   const intel = info?.arch === "x86_64";
-  const trackOptions = offeredTracks(info?.arch, updateTrack, hasUpdateTrackKey).map((value) => ({ value, label: TRACK_LABELS[value] }));
+  const trackOptions = offeredTracks(info?.arch, updateTrack, hasUpdateTrackKey).map((value) => ({
+    value,
+    label: TRACK_LABELS[value],
+  }));
   const alphaWithoutKey = updateTrack === "alpha" && !hasUpdateTrackKey && !intel;
   const state = useUpdateState();
   const version = info?.version ?? null;
@@ -147,7 +159,14 @@ export function UpdatesSlot() {
     announceUpdates(state, version);
   }, [state, version]);
 
-  const canCheck = !["unconfigured", "unavailable", "checking", "downloading", "ready", "installing"].includes(state.kind);
+  const canCheck = ![
+    "unconfigured",
+    "unavailable",
+    "checking",
+    "downloading",
+    "ready",
+    "installing",
+  ].includes(state.kind);
   const fromStore = state.kind === "unavailable";
   const local = fromStore && info?.channel === "local";
 
@@ -185,7 +204,8 @@ export function UpdatesSlot() {
           {alphaWithoutKey ? (
             <div className="settings__row">
               <span className="settings__note">
-                Alpha needs a key, and this copy doesn’t have one, so Proscenium isn’t checking for updates.
+                Alpha needs a key, and this copy doesn’t have one, so Proscenium isn’t checking for
+                updates.
               </span>
               <Button
                 size="small"
@@ -201,7 +221,9 @@ export function UpdatesSlot() {
           ) : (
             <Note>{intel ? INTEL_TRACK_NOTE : TRACK_NOTES[updateTrack]}</Note>
           )}
-          {slowerTrackNote(updateTrack, version) && <Note>{slowerTrackNote(updateTrack, version)}</Note>}
+          {slowerTrackNote(updateTrack, version) && (
+            <Note>{slowerTrackNote(updateTrack, version)}</Note>
+          )}
           {!hasUpdateTrackKey && !intel && <AlphaKey trackRow={trackRow} />}
         </Group>
       )}
@@ -209,7 +231,9 @@ export function UpdatesSlot() {
       <Group label="This version">
         <div className="settings__row">
           <span className="settings__rowlabel">
-            {local ? `Proscenium ${version}, built on this Mac. It doesn’t update itself.` : describeUpdates(state, version)}
+            {local
+              ? `Proscenium ${version}, built on this Mac. It doesn’t update itself.`
+              : describeUpdates(state, version)}
           </span>
           {fromStore ? null : state.kind === "ready" ? (
             <Button
@@ -244,7 +268,9 @@ export function UpdatesSlot() {
             type="button"
             role="link"
             className="settings__link"
-            onClick={() => void ipc.openReleaseNotes(state.kind === "ready" ? state.version : undefined)}
+            onClick={() =>
+              void ipc.openReleaseNotes(state.kind === "ready" ? state.version : undefined)
+            }
           >
             {state.kind === "ready" ? `What’s new in ${state.version}` : "Release notes"}
           </button>

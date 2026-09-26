@@ -25,9 +25,19 @@ import type { PlannedSheet } from "./plan";
  * A title page written as prose can't be taken apart safely, so an anonymous
  * copy prints the title alone in its place.
  */
-export function anonymousFrontMatter(fm: FrontMatter | null | undefined, fallbackTitle: string): FrontMatter | null {
+export function anonymousFrontMatter(
+  fm: FrontMatter | null | undefined,
+  fallbackTitle: string,
+): FrontMatter | null {
   if (!fm) return null;
-  const { authors: _authors, credit: _credit, contact: _contact, titlePage, _extra: _unprinted, ...rest } = fm;
+  const {
+    authors: _authors,
+    credit: _credit,
+    contact: _contact,
+    titlePage,
+    _extra: _unprinted,
+    ...rest
+  } = fm;
   const title = fm.title?.trim() ? fm.title : titlePage !== undefined ? fallbackTitle : fm.title;
   return { ...rest, ...(title ? { title } : {}) };
 }
@@ -45,7 +55,9 @@ const normalize = (text: string) => text.toLowerCase().replace(/\s+/g, " ").trim
 
 /** What would identify the writer: each author's name, and each contact line. */
 export function identityOf(fm: FrontMatter | null | undefined): string[] {
-  const found = [...(fm?.authors ?? []), ...(fm?.contact ?? [])].map(normalize).filter((text) => text.length >= 3);
+  const found = [...(fm?.authors ?? []), ...(fm?.contact ?? [])]
+    .map(normalize)
+    .filter((text) => text.length >= 3);
   return [...new Set(found)];
 }
 
@@ -53,15 +65,24 @@ function sheetText(sheet: PlannedSheet): string {
   if (sheet.kind === "front") return sheet.front.lines.map((line) => line.text).join(" ");
   const { header, footer, intro, lines } = sheet.page;
   return [
-    header?.left, header?.center, header?.right,
-    footer?.left, footer?.center, footer?.right,
+    header?.left,
+    header?.center,
+    header?.right,
+    footer?.left,
+    footer?.center,
+    footer?.right,
     ...(intro ?? []).map((line) => line.text),
     ...lines.map((line) => line.text),
-  ].filter(Boolean).join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 /** The sheets, by label, whose printed text still holds the name or a contact line. */
-export function sheetsNaming(sheets: readonly PlannedSheet[], identity: readonly string[]): string[] {
+export function sheetsNaming(
+  sheets: readonly PlannedSheet[],
+  identity: readonly string[],
+): string[] {
   if (!identity.length) return [];
   return sheets
     .filter((sheet) => {
@@ -74,7 +95,12 @@ export function sheetsNaming(sheets: readonly PlannedSheet[], identity: readonly
 
 /** "page 12", "page 12 and the characters page", "page 3, page 12, page 40 and 2 more". */
 export function sheetList(labels: readonly string[]): string {
-  const named = labels.map((label) => (label.startsWith("Page ") ? label.toLowerCase() : `the ${label.toLowerCase()}`));
-  if (named.length <= 3) return named.length < 2 ? (named[0] ?? "") : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
+  const named = labels.map((label) =>
+    label.startsWith("Page ") ? label.toLowerCase() : `the ${label.toLowerCase()}`,
+  );
+  if (named.length <= 3)
+    return named.length < 2
+      ? (named[0] ?? "")
+      : `${named.slice(0, -1).join(", ")} and ${named[named.length - 1]}`;
   return `${named.slice(0, 3).join(", ")} and ${named.length - 3} more`;
 }

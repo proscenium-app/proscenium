@@ -146,7 +146,9 @@ describe("a cue's extension is text in the editor (docs/engineering/fountain-mod
   });
 
   it("writes what the page shows: no doubled extension, no hidden one carried", () => {
-    const { frontMatter, doc } = parse("EDDA (V.O.)\nI kept the light.\n\nTOMAS (O.S.)\nOnly me.\n");
+    const { frontMatter, doc } = parse(
+      "EDDA (V.O.)\nI kept the light.\n\nTOMAS (O.S.)\nOnly me.\n",
+    );
     const page = toEditorDoc(doc);
     expect(blockText(page, 0)).toBe("EDDA (V.O.)");
     // The writer renames TOMAS and deletes his extension, on the page.
@@ -160,14 +162,27 @@ describe("a cue's extension is text in the editor (docs/engineering/fountain-mod
 
   it("round-trips every cue shape through the editor unchanged", () => {
     const text = [
-      "EDDA (V.O.)", "One.", "",
-      "HANS (on the radio)", "Two.", "",
-      "EDDA (V.O.) (CONT'D)", "Three.", "",
-      "BRICK", "Four.", "",
-      "STEEL (O.S.) ^", "Five.", "",
+      "EDDA (V.O.)",
+      "One.",
+      "",
+      "HANS (on the radio)",
+      "Two.",
+      "",
+      "EDDA (V.O.) (CONT'D)",
+      "Three.",
+      "",
+      "BRICK",
+      "Four.",
+      "",
+      "STEEL (O.S.) ^",
+      "Five.",
+      "",
     ].join("\n");
     const script = parse(text);
-    const through = serialize({ frontMatter: script.frontMatter, doc: fromEditorDoc(toEditorDoc(script.doc)) });
+    const through = serialize({
+      frontMatter: script.frontMatter,
+      doc: fromEditorDoc(toEditorDoc(script.doc)),
+    });
     expect(through).toBe(serialize(script));
     expect(through).toContain("HANS (on the radio)\n");
     expect(through).toContain("STEEL (O.S.) ^\n");

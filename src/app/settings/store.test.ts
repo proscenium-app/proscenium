@@ -18,7 +18,9 @@ import {
 } from "../../storage/settings-model";
 import { createSettingsStore } from "./store";
 
-function memoryStorage(seed: Record<string, string> = {}): KeyValueStorage & { data: Map<string, string> } {
+function memoryStorage(
+  seed: Record<string, string> = {},
+): KeyValueStorage & { data: Map<string, string> } {
   const data = new Map(Object.entries(seed));
   return {
     data,
@@ -64,7 +66,11 @@ describe("the settings store", () => {
     });
     const backend = fakeBackend({ ...DEFAULT_SETTINGS, accent: "velvet" });
     const painted: string[] = [];
-    const store = createSettingsStore({ backend, storage, onChange: (s) => painted.push(s.accent) });
+    const store = createSettingsStore({
+      backend,
+      storage,
+      onChange: (s) => painted.push(s.accent),
+    });
     expect(store.getSnapshot().accent).toBe("iris");
     expect(store.isLoaded()).toBe(false);
     await store.load();

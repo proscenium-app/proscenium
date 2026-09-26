@@ -65,7 +65,13 @@ export function GoToScene({
 
   const count = entries.filter((entry) => !("kind" in entry) || entry.kind === "item").length;
   useEffect(() => {
-    const timer = window.setTimeout(() => announce(count ? `${count} scene${count === 1 ? "" : "s"} found.` : "No scene matches that."), 200);
+    const timer = window.setTimeout(
+      () =>
+        announce(
+          count ? `${count} scene${count === 1 ? "" : "s"} found.` : "No scene matches that.",
+        ),
+      200,
+    );
     return () => window.clearTimeout(timer);
   }, [query, count]);
 
@@ -76,7 +82,12 @@ export function GoToScene({
       onClose={onClose}
       width={320}
       label="Scenes"
-      search={{ value: query, onChange: setQuery, label: "Filter scenes", className: "gotoscene__field" }}
+      search={{
+        value: query,
+        onChange: setQuery,
+        label: "Filter scenes",
+        className: "gotoscene__field",
+      }}
       className="menu--gotoscene"
     />
   );

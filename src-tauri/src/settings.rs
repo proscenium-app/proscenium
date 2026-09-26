@@ -58,7 +58,16 @@ pub const DEFAULT_SCENE_STATUSES: [&str; 4] = ["idea", "drafting", "revising", "
 
 /// The statuses a play can carry on the Plays screen, in order (docs/app/preferences-and-help/settings.md#SET-7).
 /// `settings-model.test.ts` reads this line, so the two lists cannot drift.
-pub const DEFAULT_PLAY_STATUSES: [&str; 8] = ["idea", "outlining", "drafting", "revising", "workshop", "submitted", "produced", "shelved"];
+pub const DEFAULT_PLAY_STATUSES: [&str; 8] = [
+    "idea",
+    "outlining",
+    "drafting",
+    "revising",
+    "workshop",
+    "submitted",
+    "produced",
+    "shelved",
+];
 /// Longer than any workflow word; past it, a status is a sentence.
 const MAX_STATUS_CHARS: usize = 40;
 /// More than a popup of statuses can be read down.
@@ -90,7 +99,7 @@ pub enum OpenAtLaunch {
     /// still in the Plays folder, or the Plays screen if that was what was
     /// open. The Plays screen was the default, so nobody's app changed on
     /// upgrade, until a writer wanted back the page that was open when the app
-    /// closed (2026-09-16).
+    /// closed.
     #[default]
     LastPlay,
 }
@@ -238,7 +247,9 @@ pub struct SettingsPatch {
 
 /// A present field as `Some`, so an explicit `null` (`Some(None)`) can mean
 /// "clear" while an absent one (`None`) still means "leave it".
-fn set_or_clear<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Option<Option<String>>, D::Error> {
+fn set_or_clear<'de, D: serde::Deserializer<'de>>(
+    de: D,
+) -> Result<Option<Option<String>>, D::Error> {
     Option::<String>::deserialize(de).map(Some)
 }
 
@@ -246,13 +257,18 @@ fn set_or_clear<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Option<Option
 fn valid_format_id(id: &str) -> bool {
     id.len() <= 64
         && id.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
-        && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
 /// A key as scripts/track-key.mjs makes it: 32 random bytes, base64url,
 /// unpadded. The Worker holds the same shape (services/edge/src/updates.ts).
 pub(crate) fn valid_track_key(key: &str) -> bool {
-    key.len() == 43 && key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    key.len() == 43
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
 /// Words to teach and to forget. Removals apply after additions, so a word in
@@ -306,8 +322,15 @@ fn valid_status(status: &str) -> bool {
 /// A stored list, read softly: what is usable survives, in order, once each.
 fn read_statuses(items: &[Value]) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
-    for status in items.iter().filter_map(Value::as_str).filter(|s| valid_status(s)) {
-        if !out.iter().any(|kept| kept.to_lowercase() == status.to_lowercase()) {
+    for status in items
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|s| valid_status(s))
+    {
+        if !out
+            .iter()
+            .any(|kept| kept.to_lowercase() == status.to_lowercase())
+        {
             out.push(status.to_string());
         }
     }
@@ -350,18 +373,44 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
     let flag = |key: &str| obj.get(key).and_then(Value::as_bool);
     Settings {
         accent,
-        appearance: obj.get("appearance").and_then(Value::as_str).filter(|s| ["system", "light", "dark"].contains(s)).unwrap_or("system").to_string(),
-        format_order: obj.get("formatOrder").and_then(Value::as_array).map(|items| {
-            let mut ids = Vec::new();
-            for id in items.iter().filter_map(Value::as_str).filter(|id| valid_format_id(id)) {
-                if !ids.iter().any(|s| s == id) && ids.len() < 256 { ids.push(id.to_string()); }
-            }
-            ids
-        }).unwrap_or_default(),
-        scene_statuses: obj.get("sceneStatuses").and_then(Value::as_array).map(|items| read_statuses(items))
-            .unwrap_or_else(|| DEFAULT_SCENE_STATUSES.iter().map(|s| s.to_string()).collect()),
-        interface_text_size: obj.get("interfaceTextSize").and_then(Value::as_u64)
-            .filter(|n| (100..=200).contains(n)).unwrap_or(100) as u16,
+        appearance: obj
+            .get("appearance")
+            .and_then(Value::as_str)
+            .filter(|s| ["system", "light", "dark"].contains(s))
+            .unwrap_or("system")
+            .to_string(),
+        format_order: obj
+            .get("formatOrder")
+            .and_then(Value::as_array)
+            .map(|items| {
+                let mut ids = Vec::new();
+                for id in items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .filter(|id| valid_format_id(id))
+                {
+                    if !ids.iter().any(|s| s == id) && ids.len() < 256 {
+                        ids.push(id.to_string());
+                    }
+                }
+                ids
+            })
+            .unwrap_or_default(),
+        scene_statuses: obj
+            .get("sceneStatuses")
+            .and_then(Value::as_array)
+            .map(|items| read_statuses(items))
+            .unwrap_or_else(|| {
+                DEFAULT_SCENE_STATUSES
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            }),
+        interface_text_size: obj
+            .get("interfaceTextSize")
+            .and_then(Value::as_u64)
+            .filter(|n| (100..=200).contains(n))
+            .unwrap_or(100) as u16,
         running_time_strip: flag("runningTimeStrip").unwrap_or(true),
         spellcheck: flag("spellcheck").unwrap_or(true),
         learned_words: obj
@@ -379,7 +428,12 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
             .get(PLAY_STATUSES)
             .and_then(Value::as_array)
             .map(|items| read_statuses(items))
-            .unwrap_or_else(|| DEFAULT_PLAY_STATUSES.iter().map(|s| s.to_string()).collect()),
+            .unwrap_or_else(|| {
+                DEFAULT_PLAY_STATUSES
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect()
+            }),
         show_progress: flag("showProgress").unwrap_or(true),
         open_at_launch: obj
             .get("openAtLaunch")
@@ -393,10 +447,16 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
             .map(str::to_string),
         check_for_updates: flag("checkForUpdates").unwrap_or(true),
         update_track: effective_track(
-            obj.get("updateTrack").cloned().and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default(),
+            obj.get("updateTrack")
+                .cloned()
+                .and_then(|v| serde_json::from_value(v).ok())
+                .unwrap_or_default(),
             INTEL,
         ),
-        has_update_track_key: obj.get(UPDATE_TRACK_KEY).and_then(Value::as_str).is_some_and(valid_track_key),
+        has_update_track_key: obj
+            .get(UPDATE_TRACK_KEY)
+            .and_then(Value::as_str)
+            .is_some_and(valid_track_key),
         default_format: obj
             .get(DEFAULT_FORMAT)
             .and_then(Value::as_str)
@@ -411,15 +471,27 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
 /// all or nothing, so one bad value cannot leave half a change on disk. Types
 /// are already checked — serde refused a patch whose `spellcheck` is a string.
 fn validate(patch: &SettingsPatch) -> Result<(), String> {
-    if patch.appearance.as_ref().is_some_and(|s| !["system", "light", "dark"].contains(&s.as_str())) {
+    if patch
+        .appearance
+        .as_ref()
+        .is_some_and(|s| !["system", "light", "dark"].contains(&s.as_str()))
+    {
         return Err("Unknown appearance".into());
     }
     if let Some(ids) = &patch.format_order {
-        if ids.len() > 256 || ids.iter().enumerate().any(|(i, id)| !valid_format_id(id) || ids[..i].contains(id)) {
+        if ids.len() > 256
+            || ids
+                .iter()
+                .enumerate()
+                .any(|(i, id)| !valid_format_id(id) || ids[..i].contains(id))
+        {
             return Err("Invalid format order".into());
         }
     }
-    if patch.interface_text_size.is_some_and(|n| !(100..=200).contains(&n)) {
+    if patch
+        .interface_text_size
+        .is_some_and(|n| !(100..=200).contains(&n))
+    {
         return Err("interfaceTextSize must be a whole percentage from 100 to 200".into());
     }
     if let Some(accent) = &patch.accent {
@@ -427,7 +499,10 @@ fn validate(patch: &SettingsPatch) -> Result<(), String> {
             return Err(format!("\"{accent}\" is not an accent"));
         }
     }
-    for list in [&patch.play_statuses, &patch.scene_statuses].into_iter().flatten() {
+    for list in [&patch.play_statuses, &patch.scene_statuses]
+        .into_iter()
+        .flatten()
+    {
         if list.len() > MAX_STATUSES {
             return Err(format!("at most {MAX_STATUSES} statuses"));
         }
@@ -435,7 +510,10 @@ fn validate(patch: &SettingsPatch) -> Result<(), String> {
             if !valid_status(status) {
                 return Err(format!("\"{status}\" is not a status"));
             }
-            if list[..i].iter().any(|earlier| earlier.to_lowercase() == status.to_lowercase()) {
+            if list[..i]
+                .iter()
+                .any(|earlier| earlier.to_lowercase() == status.to_lowercase())
+            {
                 return Err(format!("\"{status}\" is in the list twice"));
             }
         }
@@ -445,10 +523,17 @@ fn validate(patch: &SettingsPatch) -> Result<(), String> {
             return Err(format!("\"{id}\" is not a play"));
         }
     }
-    if patch.update_track_key.as_deref().is_some_and(|key| !valid_track_key(key)) {
+    if patch
+        .update_track_key
+        .as_deref()
+        .is_some_and(|key| !valid_track_key(key))
+    {
         return Err("That is not a key".into());
     }
-    if patch.update_track.is_some_and(|t| effective_track(t, INTEL) != t) {
+    if patch
+        .update_track
+        .is_some_and(|t| effective_track(t, INTEL) != t)
+    {
         return Err("An Intel Mac takes stable releases only".into());
     }
     if let Some(Some(id)) = &patch.default_format {
@@ -477,7 +562,10 @@ fn same_word(a: &str, b: &str) -> bool {
 /// name exactly as it was.
 fn apply(obj: &mut Map<String, Value>, mut patch: SettingsPatch) -> Result<(), String> {
     let words = patch.learned_words.take();
-    for (key, value) in [(DEFAULT_FORMAT, patch.default_format.take()), (LAST_PLAY, patch.last_play.take())] {
+    for (key, value) in [
+        (DEFAULT_FORMAT, patch.default_format.take()),
+        (LAST_PLAY, patch.last_play.take()),
+    ] {
         match value {
             Some(Some(value)) => {
                 obj.insert(key.to_string(), Value::String(value));
@@ -525,7 +613,9 @@ fn modify_at<T>(
     path: &Path,
     change: impl FnOnce(&mut Map<String, Value>) -> Result<T, String>,
 ) -> Result<T, String> {
-    let _guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let _guard = WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let (mut obj, unreadable) = match fs::read(path) {
         Ok(bytes) => match serde_json::from_slice::<Value>(&bytes) {
             Ok(Value::Object(map)) => (map, false),
@@ -554,10 +644,21 @@ fn update_at(path: &Path, patch: SettingsPatch) -> Result<Settings, String> {
 
 fn remember_vault_at(path: &Path, vault: String, bookmark: Option<String>) -> Result<(), String> {
     modify_at(path, |obj| {
-        let stored_path = obj.get(LAST_VAULT).and_then(Value::as_str).map(str::to_string);
-        let stored_bookmark =
-            obj.get(LAST_VAULT_BOOKMARK).and_then(Value::as_str).map(str::to_string);
-        match bookmark_to_keep(stored_path.as_deref(), stored_bookmark, &vault, bookmark, grant_reaches) {
+        let stored_path = obj
+            .get(LAST_VAULT)
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        let stored_bookmark = obj
+            .get(LAST_VAULT_BOOKMARK)
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        match bookmark_to_keep(
+            stored_path.as_deref(),
+            stored_bookmark,
+            &vault,
+            bookmark,
+            grant_reaches,
+        ) {
             Some(keep) => {
                 obj.insert(LAST_VAULT_BOOKMARK.to_string(), Value::String(keep));
             }
@@ -573,7 +674,9 @@ fn remember_vault_at(path: &Path, vault: String, bookmark: Option<String>) -> Re
 /// The settings as stored, for Rust-side readers (the updater's switch, the
 /// analytics switch). The command form is `get_settings`.
 pub fn current(app: &AppHandle) -> Settings {
-    let (obj, unreadable) = settings_path(app).map(|p| read_object_or_unreadable(&p)).unwrap_or_default();
+    let (obj, unreadable) = settings_path(app)
+        .map(|p| read_object_or_unreadable(&p))
+        .unwrap_or_default();
     let mut settings = from_object(&obj);
     // Consent that cannot be read is not consent: a writer who switched
     // reports off, and whose settings file then broke, would otherwise launch
@@ -588,7 +691,10 @@ pub fn current(app: &AppHandle) -> Settings {
 /// when this copy holds none.
 pub fn update_track_key(app: &AppHandle) -> Option<String> {
     let obj = read_object(&settings_path(app)?);
-    obj.get(UPDATE_TRACK_KEY).and_then(Value::as_str).filter(|k| valid_track_key(k)).map(str::to_string)
+    obj.get(UPDATE_TRACK_KEY)
+        .and_then(Value::as_str)
+        .filter(|k| valid_track_key(k))
+        .map(str::to_string)
 }
 
 /// Every preference, with its default where the writer has not chosen.
@@ -611,7 +717,10 @@ pub async fn update_settings(app: AppHandle, patch: SettingsPatch) -> Result<Set
     #[cfg(all(desktop, feature = "updater"))]
     let track_before = patch.update_track.map(|_| current(&app).update_track);
     #[cfg(all(desktop, feature = "updater"))]
-    let key_changed = patch.update_track_key.as_ref().is_some_and(|key| update_track_key(&app).as_ref() != Some(key));
+    let key_changed = patch
+        .update_track_key
+        .as_ref()
+        .is_some_and(|key| update_track_key(&app).as_ref() != Some(key));
     let settings = update_at(&path, patch)?;
     // The reports switch acts the moment it moves (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3).
     crate::telemetry::settings_changed(&app, &settings);
@@ -636,7 +745,9 @@ pub async fn get_last_vault(app: AppHandle) -> Option<String> {
 /// The stored path, for Rust-side callers (the command form is `get_last_vault`).
 pub fn last_vault_path(app: &AppHandle) -> Option<String> {
     let obj = read_object(&settings_path(app)?);
-    obj.get(LAST_VAULT).and_then(Value::as_str).map(str::to_string)
+    obj.get(LAST_VAULT)
+        .and_then(Value::as_str)
+        .map(str::to_string)
 }
 
 /// The stored bookmark for the last vault, if one was needed.
@@ -659,10 +770,18 @@ pub fn last_vault_bookmark(app: &AppHandle) -> Option<String> {
 /// `vault_reopen_last` opens this folder inside the one that grant reopens. The
 /// page calls this only once the folder has listed.
 #[tauri::command]
-pub async fn set_last_vault(app: AppHandle, authority: tauri::State<'_, crate::authority::Authority>, handle: String) -> Result<(), String> {
+pub async fn set_last_vault(
+    app: AppHandle,
+    authority: tauri::State<'_, crate::authority::Authority>,
+    handle: String,
+) -> Result<(), String> {
     let path = authority.resolve(&handle)?.to_string_lossy().into_owned();
     #[cfg(not(target_os = "macos"))]
-    let bookmark = bookmark_below(last_vault_path(&app).as_deref(), &path, crate::scope::bookmark);
+    let bookmark = bookmark_below(
+        last_vault_path(&app).as_deref(),
+        &path,
+        crate::scope::bookmark,
+    );
     #[cfg(target_os = "macos")]
     let bookmark = crate::scope::bookmark(&path);
     #[cfg(target_os = "macos")]
@@ -730,7 +849,11 @@ pub fn reopen_path(bookmarked: String, stored: Option<String>) -> String {
 /// iCloud Drive, or a play's folder opened from Finder. A folder inside the
 /// bookmarked one is different: the grant reaches it, and `reopen_path` opens
 /// it there.
-pub fn remember_vault(app: &AppHandle, path: String, bookmark: Option<String>) -> Result<(), String> {
+pub fn remember_vault(
+    app: &AppHandle,
+    path: String,
+    bookmark: Option<String>,
+) -> Result<(), String> {
     let file = settings_path(app).ok_or("The settings folder could not be located")?;
     remember_vault_at(&file, path, bookmark).map_err(|e| e.to_string())
 }
@@ -834,18 +957,26 @@ pub async fn open_license() -> Result<(), String> {
 #[tauri::command]
 pub async fn open_support() -> Result<(), String> {
     #[cfg(desktop)]
-    { os_open(crate::telemetry::allowlist::SUPPORT) }
+    {
+        os_open(crate::telemetry::allowlist::SUPPORT)
+    }
     #[cfg(mobile)]
-    { Err("this platform cannot open a browser from here".to_string()) }
+    {
+        Err("this platform cannot open a browser from here".to_string())
+    }
 }
 
 /// The complete public field-and-reason table, in the writer's browser.
 #[tauri::command]
 pub async fn open_privacy() -> Result<(), String> {
     #[cfg(desktop)]
-    { os_open(crate::telemetry::allowlist::PRIVACY) }
+    {
+        os_open(crate::telemetry::allowlist::PRIVACY)
+    }
     #[cfg(mobile)]
-    { Err("this platform cannot open a browser from here".to_string()) }
+    {
+        Err("this platform cannot open a browser from here".to_string())
+    }
 }
 
 /// Version and architecture for Settings › About.
@@ -871,7 +1002,10 @@ struct BufferState {
 }
 
 fn buffer_state_file(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("buffer-state.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("buffer-state.json"))
 }
 
 pub fn write_buffer_state(app: &AppHandle, dirty: bool) -> Result<(), String> {

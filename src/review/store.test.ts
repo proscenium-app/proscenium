@@ -51,9 +51,16 @@ describe("the Changes ledger", () => {
     const a = openChanges("PLAY-A");
     await a.writeBaseline("shared.md", "Play A before");
     let release!: () => void;
-    const blocked = new Promise<void>((done) => { release = done; });
+    const blocked = new Promise<void>((done) => {
+      release = done;
+    });
     delayRead = () => blocked;
-    const recording = recordExternalChange(a, { path: "shared.md", after: "Play A after", afterHash: "a", nowIso: "t" });
+    const recording = recordExternalChange(a, {
+      path: "shared.md",
+      after: "Play A after",
+      afterHash: "a",
+      nowIso: "t",
+    });
     const b = openChanges("PLAY-B");
     await b.writeBaseline("shared.md", "Play B before");
     delayRead = null;
@@ -96,8 +103,12 @@ describe("the Changes ledger", () => {
 });
 
 describe("recording a change", () => {
-  const look = (path: string, after: string, nowIso = "2026-09-16T12:55:37Z") =>
-    ({ path, after, afterHash: `sha256:${after.length}`, nowIso });
+  const look = (path: string, after: string, nowIso = "2026-09-16T12:55:37Z") => ({
+    path,
+    after,
+    afterHash: `sha256:${after.length}`,
+    nowIso,
+  });
 
   // The +0 −0 rows: the watcher's start-up scan reports every file, and coming
   // back to the app re-reads every open one. Neither is a change.
@@ -105,7 +116,12 @@ describe("recording a change", () => {
     const store = openChanges("LOOKED-AT");
     await store.writeBaseline("v2.fountain", "INT. KITCHEN - NIGHT\n\nCLAY\nStay.\n");
     written.length = 0;
-    expect(await recordExternalChange(store, look("v2.fountain", "INT. KITCHEN - NIGHT\n\nCLAY\nStay.\n"))).toBeNull();
+    expect(
+      await recordExternalChange(
+        store,
+        look("v2.fountain", "INT. KITCHEN - NIGHT\n\nCLAY\nStay.\n"),
+      ),
+    ).toBeNull();
     expect(await store.readLedger()).toEqual([]);
     expect(written).toEqual([]);
   });
@@ -116,7 +132,10 @@ describe("recording a change", () => {
     expect(await store.readLedger()).toEqual([]);
     expect(await store.readBaseline("Characters/clay.md")).toBe("# Clay\n");
 
-    const changed = await recordExternalChange(store, look("Characters/clay.md", "# Clay\n\nThe older brother.\n"));
+    const changed = await recordExternalChange(
+      store,
+      look("Characters/clay.md", "# Clay\n\nThe older brother.\n"),
+    );
     if (!changed) throw new Error("a real change went unrecorded");
     expect(changed.revertable).toBe(true);
     expect(changed.stats).toEqual({ added: 2, removed: 0 });
@@ -130,7 +149,9 @@ describe("recording a change", () => {
     await store.writeBaseline("v2.fountain", "what the writer saw\n");
     failRead = (rel) => rel.startsWith("changes/baseline/");
     try {
-      await expect(recordExternalChange(store, look("v2.fountain", "what arrived\n"))).rejects.toThrow();
+      await expect(
+        recordExternalChange(store, look("v2.fountain", "what arrived\n")),
+      ).rejects.toThrow();
     } finally {
       failRead = null;
     }
@@ -140,14 +161,22 @@ describe("recording a change", () => {
 
   it("rows recorded before the bytes were compared, with nothing added or removed, are dropped", async () => {
     const store = openChanges("OLD-ROWS");
-    const row = (id: string, revertable: boolean, added: number, removed: number): LedgerEntry =>
-      ({ ...entry(id), revertable, stats: { added, removed } });
-    files.set("OLD-ROWS/changes/ledger.jsonl", [
-      row("LOOKED-AT", true, 0, 0),
-      row("REAL", true, 0, 3),
-      // No before to compare with: it cannot be told apart from a real change, so it stays.
-      row("NO-BASELINE", false, 0, 0),
-    ].map((e) => JSON.stringify(e)).join("\n") + "\n");
+    const row = (id: string, revertable: boolean, added: number, removed: number): LedgerEntry => ({
+      ...entry(id),
+      revertable,
+      stats: { added, removed },
+    });
+    files.set(
+      "OLD-ROWS/changes/ledger.jsonl",
+      [
+        row("LOOKED-AT", true, 0, 0),
+        row("REAL", true, 0, 3),
+        // No before to compare with: it cannot be told apart from a real change, so it stays.
+        row("NO-BASELINE", false, 0, 0),
+      ]
+        .map((e) => JSON.stringify(e))
+        .join("\n") + "\n",
+    );
 
     expect((await store.readLedger()).map((e) => e.id)).toEqual(["REAL", "NO-BASELINE"]);
     await store.setStatus("REAL", "kept");

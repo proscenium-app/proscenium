@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Deep links into Settings: `openSettings("privacy")` from the Welcome notice
- * (T4), `openSettings("formats")` from the document menu, a bare
+ * Deep links into Settings: `openSettings("privacy")` from the Welcome notice,
+ * `openSettings("formats")` from the document menu, a bare
  * `openSettings()` from ⌘, and the menu bar.
  *
  * A plain function rather than a prop, because the places that open Settings

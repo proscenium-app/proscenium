@@ -125,12 +125,8 @@ export function findMatches(
     let at = hay.indexOf(needle);
     while (at !== -1) {
       const end = at + needle.length;
-      const spansBreak = needle.includes("\n")
-        ? false
-        : hay.slice(at, end).includes("\n");
-      const wordOk =
-        !opts.wholeWord ||
-        (!isWordChar(raw[at - 1]) && !isWordChar(raw[end]));
+      const spansBreak = needle.includes("\n") ? false : hay.slice(at, end).includes("\n");
+      const wordOk = !opts.wholeWord || (!isWordChar(raw[at - 1]) && !isWordChar(raw[end]));
       if (!spansBreak && wordOk) {
         let inNote = false;
         for (let i = at; i < end && !inNote; i++) inNote = block.chars[i].inNote === true;
@@ -163,7 +159,7 @@ export function matchAtOrAfter(matches: readonly FindMatch[], pos: number): numb
 export function stepIndex(index: number, count: number, delta: number): number {
   if (count === 0) return -1;
   if (index < 0) return delta > 0 ? 0 : count - 1;
-  return ((index + delta) % count + count) % count;
+  return (((index + delta) % count) + count) % count;
 }
 
 /** Why a replace will not touch a match, or null when it may. */

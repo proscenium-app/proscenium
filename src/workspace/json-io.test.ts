@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "bun:test";
-import {
-  PLAY_TMPL,
-  parseJson,
-  stringifyCanonical,
-  type KeyTemplate,
-} from "./json-io";
+import { PLAY_TMPL, parseJson, stringifyCanonical, type KeyTemplate } from "./json-io";
 
 describe("canonical JSON emitter", () => {
   it("keeps all-primitive objects/arrays inline, nests the rest", () => {
@@ -125,9 +120,7 @@ describe("canonical JSON emitter", () => {
     };
     const out = stringifyCanonical(built, PLAY_TMPL);
     expect(out).toContain('"scenes": [');
-    expect(out).toContain(
-      '{ "color": "cream", "status": "draft", "label": "", "boardNote": "" }',
-    );
+    expect(out).toContain('{ "color": "cream", "status": "draft", "label": "", "boardNote": "" }');
     expect(out).toContain('{ "ordinal": 0, "headingHash": "abc", "embeddedId": null }');
     // `orphans` is declared after `scenes` in the schema, and follows it here.
     expect(out.indexOf('"scenes"')).toBeLessThan(out.indexOf('"orphans"'));

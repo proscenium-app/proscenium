@@ -14,7 +14,13 @@ const schema = getSchema(PROSE_EXTENSIONS);
 const stateOf = (markdown: string) =>
   EditorState.create({ schema, doc: schema.nodeFromJSON(toDoc(markdown)) });
 const characterBody = split(
-  renderTemplate({ type: "character", template: "prompts", id: "01TEST", title: "New Character", created: "2026-09-16T00:00:00Z" }),
+  renderTemplate({
+    type: "character",
+    template: "prompts",
+    id: "01TEST",
+    title: "New Character",
+    created: "2026-09-16T00:00:00Z",
+  }),
 ).body;
 
 describe("the first line of a new page (docs/app/preferences-and-help/accessibility.md#A11Y-4)", () => {

@@ -16,14 +16,22 @@ impl FileIdentity {
         {
             use std::os::unix::fs::MetadataExt;
             let meta = std::fs::symlink_metadata(path)?;
-            Ok(Self { device: meta.dev(), inode: meta.ino() })
+            Ok(Self {
+                device: meta.dev(),
+                inode: meta.ino(),
+            })
         }
         #[cfg(not(unix))]
         {
             let _ = path;
-            Err(std::io::Error::new(std::io::ErrorKind::Unsupported, "file identity unavailable on this host"))
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "file identity unavailable on this host",
+            ))
         }
     }
 
-    pub fn key(&self) -> String { format!("{:x}-{:x}", self.device, self.inode) }
+    pub fn key(&self) -> String {
+        format!("{:x}-{:x}", self.device, self.inode)
+    }
 }

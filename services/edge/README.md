@@ -16,6 +16,14 @@ runs its own entry, so it cannot see how production wires the routes'
 dependencies. `bunx wrangler deploy --dry-run` bundles the production entry
 without contacting an account or deploying anything.
 
+`bun run test:workerd` (under Node, since Miniflare is a Node library) runs
+that bundle in workerd itself, with a GitHub stand-in as its only way out, and
+asks the stable routes. Beside it runs the entry of the first deploy, which
+handed fetch over as `{ fetch }`: workerd refuses the call, and that must
+answer 500, the Worker's own fault, never GitHub's 502
+(docs/engineering/services-and-feedback.md#SERV-266). The pipeline runs both
+suites on every Worker change.
+
 The complete transport rehearsal uses no public repository, account or secret:
 
 1. From the repository root, `node scripts/release.mjs --rehearse`. This builds
@@ -116,7 +124,17 @@ and [Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/
 
 ## Status
 
-**2026-09-26, later, second cause found, not yet deployed:** with fetch fixed
+**2026-09-26, both causes fixed in production:** Worker version
+`38abf52f`, deployed from `751256f` (the fetch fix, the `User-Agent`, and Intel
+taking stable releases alone). Checked from outside: a stable check from 0.9.0
+answers 200 with 1.0.0 on Apple silicon and on Intel, its archive on this
+Worker's download route; an Intel check on beta answers the stable manifest;
+Apple silicon's beta check answers 204; alpha without the key is a bare 404;
+1.0.0's `.sig` downloads. The local rehearsal could not have caught either
+cause: its entry wraps `fetch`, and its GitHub stand-in on loopback accepts any
+request. `test/index.test.ts` now holds the production entry to the first.
+
+**2026-09-26, later, second cause found:** with fetch fixed
 and deployed (version `8c010c8e`, from `4112ae3`) and 1.0.0 published with a
 valid `latest.json`, every stable check and download through the Worker still
 answered 502. The same bundle answers 200 on all three routes in local workerd

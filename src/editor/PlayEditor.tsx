@@ -132,7 +132,8 @@ function useElementAnnouncer(editor: Editor | null) {
       timer = window.setTimeout(() => {
         // A comment composer may have taken focus during this delay. Its
         // Save/Cancel result must not be replaced by stale caret speech.
-        if (editor.view.hasFocus() && editor.state.selection.$from.parent.type.name === kind) announce(label);
+        if (editor.view.hasFocus() && editor.state.selection.$from.parent.type.name === kind)
+          announce(label);
       }, 250);
     };
     const onFocus = () => {
@@ -289,7 +290,10 @@ export function PlayEditor({
    * for the session (the module caches it across editors too). A failure is
    * silence: no dictionary means no underlines, never a dialog over the page.
    */
-  const [loadedDictionary, setLoadedDictionary] = useState<{ language: string; lexicon: Lexicon | null } | null>(null);
+  const [loadedDictionary, setLoadedDictionary] = useState<{
+    language: string;
+    lexicon: Lexicon | null;
+  } | null>(null);
   const lexicon = loadedDictionary?.language === language ? loadedDictionary.lexicon : null;
   useEffect(() => {
     if (!spellcheck) return;
@@ -368,7 +372,7 @@ export function PlayEditor({
       {/* `zoom` (not transform) so scroll extents track the visual size. */}
       <div
         className={`play-page${paginated ? " is-paginated" : ""}`}
-        style={{zoom,"--page-chrome-zoom":1/zoom} as CSSProperties}
+        style={{ zoom, "--page-chrome-zoom": 1 / zoom } as CSSProperties}
       >
         <EditorContent editor={editor} />
       </div>

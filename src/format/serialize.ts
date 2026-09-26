@@ -32,7 +32,8 @@ const ELEMENT_FIELD_ORDER = Object.keys(DEFAULT_ELEMENT) as (keyof ElementFormat
 function headerFooter(hf: HeaderFooterSpec): Record<string, unknown> {
   const content: Record<string, string> = {};
   for (const slot of ["left", "center", "right"] as const) {
-    if (hf.content[slot] !== undefined && hf.content[slot] !== "") content[slot] = hf.content[slot]!;
+    if (hf.content[slot] !== undefined && hf.content[slot] !== "")
+      content[slot] = hf.content[slot]!;
   }
   return { content, position: hf.position, suppressOnFirstPage: hf.suppressOnFirstPage };
 }
@@ -51,7 +52,9 @@ export function formatFileObject(spec: FormatSpec): Record<string, unknown> {
   const elements: Record<string, unknown> = {};
   const required = new Set<string>(REQUIRED_FORMAT_ELEMENTS);
   for (const key of FORMAT_ELEMENT_KEYS) {
-    const preset = (OPTIONAL_FORMAT_ELEMENT_PRESETS as Partial<Record<string, Partial<ElementFormat>>>)[key];
+    const preset = (
+      OPTIONAL_FORMAT_ELEMENT_PRESETS as Partial<Record<string, Partial<ElementFormat>>>
+    )[key];
     const delta = elementDelta(spec.elements[key], { ...DEFAULT_ELEMENT, ...preset });
     if (required.has(key) || Object.keys(delta).length > 0) elements[key] = delta;
   }

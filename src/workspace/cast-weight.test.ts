@@ -94,16 +94,22 @@ describe("computeWeights", () => {
   });
 
   test("strips a cue extension so MARA (O.S.) is MARA", () => {
-    const w = computeWeights(
-      doc(scene(1), cue("MARA (O.S.)"), line("a"), cue("MARA"), line("b")),
-    );
+    const w = computeWeights(doc(scene(1), cue("MARA (O.S.)"), line("a"), cue("MARA"), line("b")));
     expect([...w.keys()]).toEqual(["MARA"]);
     expect(w.get("MARA")!.cues).toBe(2);
   });
 
   test("an extension typed with no space is still MARA (docs/engineering/fountain-model.md#EDIT-125)", () => {
     const w = computeWeights(
-      doc(scene(1), cue("MARA(V.O.)"), line("a"), cue("MARA (V.O.) (CONT'D)"), line("b"), cue("MARA"), line("c")),
+      doc(
+        scene(1),
+        cue("MARA(V.O.)"),
+        line("a"),
+        cue("MARA (V.O.) (CONT'D)"),
+        line("b"),
+        cue("MARA"),
+        line("c"),
+      ),
     );
     expect([...w.keys()]).toEqual(["MARA"]);
     expect(w.get("MARA")!.cues).toBe(3);
@@ -111,7 +117,14 @@ describe("computeWeights", () => {
 
   test("falls back to scene headings when the play has no scene sections", () => {
     const w = computeWeights(
-      doc(b("sceneHeading", "A kitchen"), cue("MARA"), line("a"), b("sceneHeading", "A pier"), cue("MARA"), line("b")),
+      doc(
+        b("sceneHeading", "A kitchen"),
+        cue("MARA"),
+        line("a"),
+        b("sceneHeading", "A pier"),
+        cue("MARA"),
+        line("b"),
+      ),
     );
     expect(w.get("MARA")!.scenes).toBe(2);
   });

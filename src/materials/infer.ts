@@ -21,9 +21,7 @@ import type { BinderItemType } from "../workspace/play-file";
 import { SCHEMAS, normalizeType } from "./schema";
 
 /** Directory name → the type whose conventional home it is. */
-const BY_DIR = new Map<string, BinderItemType>(
-  SCHEMAS.map((s) => [s.dir.toLowerCase(), s.type]),
-);
+const BY_DIR = new Map<string, BinderItemType>(SCHEMAS.map((s) => [s.dir.toLowerCase(), s.type]));
 
 function dirOf(path: string): string {
   const i = path.lastIndexOf("/");

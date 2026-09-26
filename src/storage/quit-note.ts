@@ -14,7 +14,13 @@
  * The note names files, never holds their words, and is read forgivingly: a
  * note nobody can read is no note (docs/app/keeping-work/storage-and-file-format.md#STOR-107).
  */
-import { isSaveRefusal, saveProblem, type SaveProblem, type SaveRefusal, type SaveSubject } from "./save-failure";
+import {
+  isSaveRefusal,
+  saveProblem,
+  type SaveProblem,
+  type SaveRefusal,
+  type SaveSubject,
+} from "./save-failure";
 
 /** The note's name in the play's app data (`plays/<playId>/`). */
 export const KEPT_AT_QUIT = "kept-at-quit.json";
@@ -46,7 +52,14 @@ export function decodeKeptAtQuit(raw: string): KeptAtQuit[] {
   if (!Array.isArray(list)) return [];
   return list.flatMap((entry: unknown): KeptAtQuit[] => {
     const e = entry as Partial<Record<keyof KeptAtQuit, unknown>> | null;
-    if (!e || typeof e.name !== "string" || !e.name || typeof e.kind !== "string" || !KINDS.has(e.kind)) return [];
+    if (
+      !e ||
+      typeof e.name !== "string" ||
+      !e.name ||
+      typeof e.kind !== "string" ||
+      !KINDS.has(e.kind)
+    )
+      return [];
     return [
       {
         kind: e.kind as KeptAtQuit["kind"],

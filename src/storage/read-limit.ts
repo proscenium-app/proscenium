@@ -3,9 +3,12 @@
 
 /** Keep in step with vault/read_limit.rs. Applies before importing or parsing. */
 export const MAX_DOCUMENT_BYTES = 16 * 1024 * 1024;
-export const DOCUMENT_SIZE_MESSAGE = "This file is larger than Proscenium's 16 MiB document limit. Its original has not been changed.";
+export const DOCUMENT_SIZE_MESSAGE =
+  "This file is larger than Proscenium's 16 MiB document limit. Its original has not been changed.";
 export class DocumentSizeError extends Error {
-  constructor() { super(DOCUMENT_SIZE_MESSAGE); }
+  constructor() {
+    super(DOCUMENT_SIZE_MESSAGE);
+  }
 }
 export function assertDocumentSize(bytes: number): void {
   if (bytes > MAX_DOCUMENT_BYTES) throw new DocumentSizeError();

@@ -60,7 +60,10 @@ pub fn detect(path: &Path, env: &Environment) -> Vec<String> {
         add("icloud".into());
     }
 
-    if dropbox_roots(&env.home).iter().any(|root| path.starts_with(root)) {
+    if dropbox_roots(&env.home)
+        .iter()
+        .any(|root| path.starts_with(root))
+    {
         add("dropbox".into());
     }
 
@@ -105,7 +108,10 @@ mod tests {
     use super::*;
 
     fn env(home: &Path, icloud: &'static dyn Fn(&Path) -> bool) -> Environment<'static> {
-        Environment { home: home.to_path_buf(), is_icloud_item: icloud }
+        Environment {
+            home: home.to_path_buf(),
+            is_icloud_item: icloud,
+        }
     }
 
     fn mkdir(p: &Path) -> PathBuf {
@@ -142,7 +148,12 @@ mod tests {
             ("GoogleDrive-writer@example.com", "google-drive"),
             ("Box-Box", "box"),
         ] {
-            let plays = mkdir(&home.join("Library/CloudStorage").join(segment).join("Plays"));
+            let plays = mkdir(
+                &home
+                    .join("Library/CloudStorage")
+                    .join(segment)
+                    .join("Plays"),
+            );
             // Even when the platform calls its items ubiquitous, it is not iCloud.
             assert_eq!(detect(&plays, &env(&home, &|_| true)), vec![id.to_string()]);
         }
@@ -157,7 +168,10 @@ mod tests {
         std::fs::create_dir_all(home.join(".dropbox")).unwrap();
         std::fs::write(
             home.join(".dropbox/info.json"),
-            format!(r#"{{"personal":{{"path":"{}","host":1}}}}"#, dropbox.display()),
+            format!(
+                r#"{{"personal":{{"path":"{}","host":1}}}}"#,
+                dropbox.display()
+            ),
         )
         .unwrap();
         assert_eq!(detect(&plays, &env(&home, &|_| false)), vec!["dropbox"]);
@@ -182,6 +196,9 @@ mod tests {
         let share = mkdir(&home.join("Library/Mobile Documents/com~apple~CloudDocs/Shared"));
         std::fs::create_dir(share.join(".stfolder")).unwrap();
         let plays = mkdir(&share.join("Plays"));
-        assert_eq!(detect(&plays, &env(&home, &|_| false)), vec!["icloud", "syncthing"]);
+        assert_eq!(
+            detect(&plays, &env(&home, &|_| false)),
+            vec!["icloud", "syncthing"]
+        );
     }
 }

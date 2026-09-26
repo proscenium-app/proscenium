@@ -2,23 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import type { InlineNode, MarkType } from "../fountain/model";
-import {
-  plain,
-  paragraphText,
-  styleKind,
-  type ImportDocument,
-  type Paragraph,
-} from "./model";
-import {
-  attr,
-  child,
-  children,
-  decode,
-  descendants,
-  xml,
-  zipParts,
-  type Element,
-} from "./xml";
+import { plain, paragraphText, styleKind, type ImportDocument, type Paragraph } from "./model";
+import { attr, child, children, decode, descendants, xml, zipParts, type Element } from "./xml";
 
 export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
   const parts = zipParts(
@@ -37,12 +22,8 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
       "This is not a readable Word document. Password-protected files need an unprotected copy.",
     );
   const root = xml(decode(parts["word/document.xml"]));
-  if (root.localName !== "document")
-    throw new Error("This file does not contain a Word document.");
-  const styles = new Map<
-    string,
-    { name: string; base: string; marks: MarkType[] }
-  >();
+  if (root.localName !== "document") throw new Error("This file does not contain a Word document.");
+  const styles = new Map<string, { name: string; base: string; marks: MarkType[] }>();
   const marks = (r: Element | undefined): MarkType[] => {
     if (!r) return [];
     const enabled = (key: string) => {
@@ -56,10 +37,7 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
     ];
   };
   if (parts["word/styles.xml"])
-    for (const s of descendants(
-      xml(decode(parts["word/styles.xml"])),
-      "style",
-    )) {
+    for (const s of descendants(xml(decode(parts["word/styles.xml"])), "style")) {
       styles.set(attr(s, "styleId"), {
         name: attr(child(s, "name"), "val"),
         base: attr(child(s, "basedOn"), "val"),
@@ -72,26 +50,17 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
     visited.add(id);
     return [...new Set([...inherited(s.base, visited), ...s.marks])];
   };
-  const inheritedKind = (
-    id: string,
-    visited = new Set<string>(),
-  ): Paragraph["kind"] => {
+  const inheritedKind = (id: string, visited = new Set<string>()): Paragraph["kind"] => {
     if (!id || visited.has(id)) return undefined;
     visited.add(id);
     const s = styles.get(id);
-    return (
-      styleKind(s?.name ?? id) ??
-      (s?.base ? inheritedKind(s.base, visited) : undefined)
-    );
+    return styleKind(s?.name ?? id) ?? (s?.base ? inheritedKind(s.base, visited) : undefined);
   };
   const paragraphs = (body: Element): Paragraph[] =>
     descendants(body, "p")
       .filter((p) => {
         for (let at = p.parentNode; at && at !== body; at = at.parentNode)
-          if (
-            (at as Element).localName === "del" ||
-            (at as Element).localName === "moveFrom"
-          )
+          if ((at as Element).localName === "del" || (at as Element).localName === "moveFrom")
             return false;
         return true;
       })
@@ -99,12 +68,7 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
         const styleId = attr(child(child(p, "pPr") ?? p, "pStyle"), "val");
         const content: InlineNode[] = [];
         const walk = (node: Element, current: MarkType[]) => {
-          if (
-            ["del", "moveFrom", "instrText", "pPr", "rPr"].includes(
-              node.localName ?? "",
-            )
-          )
-            return;
+          if (["del", "moveFrom", "instrText", "pPr", "rPr"].includes(node.localName ?? "")) return;
           // Nested text-box paragraphs are returned separately, in document order.
           if (node !== p && node.localName === "p") return;
           let active = current;
@@ -123,10 +87,7 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
               ["u", "underline"],
             ] as const) {
               const flag = props && child(props, tag);
-              if (
-                flag &&
-                ["0", "false", "off", "none"].includes(attr(flag, "val"))
-              )
+              if (flag && ["0", "false", "off", "none"].includes(attr(flag, "val")))
                 active = active.filter((m) => m !== mark);
             }
           }
@@ -142,12 +103,9 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
             content.push({
               type: "text",
               text: value,
-              ...(active.length
-                ? { marks: active.map((type) => ({ type })) }
-                : {}),
+              ...(active.length ? { marks: active.map((type) => ({ type })) } : {}),
             });
-          if (node.localName !== "t")
-            for (const c of children(node)) walk(c, active);
+          if (node.localName !== "t") for (const c of children(node)) walk(c, active);
         };
         walk(p, inherited(styleId));
         return {
@@ -176,11 +134,7 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
     result.notices.push(
       "Images and drawings stay in the original file. Text in text boxes is included where available.",
     );
-  if (
-    ["del", "ins", "moveFrom", "moveTo"].some(
-      (n) => descendants(body, n).length,
-    )
-  )
+  if (["del", "ins", "moveFrom", "moveTo"].some((n) => descendants(body, n).length))
     result.notices.push(
       "The current text is imported: insertions included, tracked deletions omitted. Revision history stays in the original.",
     );
@@ -217,20 +171,12 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
 export function readOdt(name: string, bytes: Uint8Array): ImportDocument {
   const parts = zipParts(bytes, new Set(["content.xml", "styles.xml"]));
   if (!parts["content.xml"])
-    throw new Error(
-      "This is not a readable OpenDocument text file. Export an unprotected copy.",
-    );
+    throw new Error("This is not a readable OpenDocument text file. Export an unprotected copy.");
   const root = xml(decode(parts["content.xml"]));
   const body = descendants(root, "text")[0];
   if (!body) throw new Error("This OpenDocument file has no text body.");
-  const styles = new Map<
-    string,
-    { name: string; base: string; marks: MarkType[] }
-  >();
-  for (const source of [
-    parts["styles.xml"] ? xml(decode(parts["styles.xml"])) : null,
-    root,
-  ]) {
+  const styles = new Map<string, { name: string; base: string; marks: MarkType[] }>();
+  for (const source of [parts["styles.xml"] ? xml(decode(parts["styles.xml"])) : null, root]) {
     if (!source) continue;
     for (const s of descendants(source, "style")) {
       const props = child(s, "text-properties");
@@ -240,18 +186,14 @@ export function readOdt(name: string, bytes: Uint8Array): ImportDocument {
         marks: [
           ...(attr(props, "font-weight") === "bold" ? ["strong" as const] : []),
           ...(attr(props, "font-style") === "italic" ? ["em" as const] : []),
-          ...(attr(props, "text-underline-style") &&
-          attr(props, "text-underline-style") !== "none"
+          ...(attr(props, "text-underline-style") && attr(props, "text-underline-style") !== "none"
             ? ["underline" as const]
             : []),
         ],
       });
     }
   }
-  const styleInfo = (
-    id: string,
-    seen = new Set<string>(),
-  ): { name: string; marks: MarkType[] } => {
+  const styleInfo = (id: string, seen = new Set<string>()): { name: string; marks: MarkType[] } => {
     const s = styles.get(id);
     if (!s || seen.has(id)) return { name: id || "Unstyled", marks: [] };
     seen.add(id);
@@ -270,12 +212,7 @@ export function readOdt(name: string, bytes: Uint8Array): ImportDocument {
       "Page layout, images, headers and footers stay in the original. Tables are read in row order; notes are included as text.",
     ],
   };
-  const walk = (
-    p: Element,
-    node: Element,
-    active: MarkType[],
-    content: InlineNode[],
-  ) => {
+  const walk = (p: Element, node: Element, active: MarkType[], content: InlineNode[]) => {
     for (let n = node.firstChild; n; n = n.nextSibling) {
       if (n.nodeType === 3) {
         if (n.nodeValue)
@@ -294,18 +231,11 @@ export function readOdt(name: string, bytes: Uint8Array): ImportDocument {
           : e.localName === "line-break"
             ? "\n"
             : e.localName === "s"
-              ? " ".repeat(
-                  Math.min(1000, Math.max(1, Number(attr(e, "c")) || 1)),
-                )
+              ? " ".repeat(Math.min(1000, Math.max(1, Number(attr(e, "c")) || 1)))
               : null;
       if (special !== null) content.push(...plain(special));
       else
-        walk(
-          p,
-          e,
-          [...new Set([...active, ...styleInfo(attr(e, "style-name")).marks])],
-          content,
-        );
+        walk(p, e, [...new Set([...active, ...styleInfo(attr(e, "style-name")).marks])], content);
     }
   };
   // Select outer paragraphs only: a note can itself contain paragraphs.

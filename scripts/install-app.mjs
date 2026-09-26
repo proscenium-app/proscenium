@@ -28,7 +28,9 @@ const argv = process.argv.slice(2);
 const opt = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined);
 const SIGNED = opt("--signed");
 const TRACK = opt("--track");
-const BUILT = SIGNED ? resolve(SIGNED) : join(repo, "src-tauri/target/release/bundle/macos/Proscenium.app");
+const BUILT = SIGNED
+  ? resolve(SIGNED)
+  : join(repo, "src-tauri/target/release/bundle/macos/Proscenium.app");
 const DEST = "/Applications/Proscenium.app";
 
 if (TRACK !== undefined && !["stable", "beta", "alpha"].includes(TRACK)) {
@@ -36,7 +38,9 @@ if (TRACK !== undefined && !["stable", "beta", "alpha"].includes(TRACK)) {
   process.exit(1);
 }
 if (TRACK !== undefined && !SIGNED) {
-  console.error("install-app: --track is for a signed build; a local build has no updater, because one that could update would swap itself for a published copy at its next check");
+  console.error(
+    "install-app: --track is for a signed build; a local build has no updater, because one that could update would swap itself for a published copy at its next check",
+  );
   process.exit(1);
 }
 
@@ -52,13 +56,23 @@ if (!existsSync(BUILT)) {
 // A signed build is taken only as Apple and its signature say: notarized
 // Developer ID, every file sealed.
 if (SIGNED) {
-  if (spawnSync("codesign", ["--verify", "--deep", "--strict", BUILT], { stdio: "inherit" }).status !== 0) {
+  if (
+    spawnSync("codesign", ["--verify", "--deep", "--strict", BUILT], { stdio: "inherit" })
+      .status !== 0
+  ) {
     console.error(`install-app: ${BUILT} is not intact as signed — not installing it.`);
     process.exit(1);
   }
-  const verdict = spawnSync("spctl", ["--assess", "--type", "execute", "--verbose=4", BUILT], { encoding: "utf8" });
-  if (verdict.status !== 0 || !`${verdict.stdout}${verdict.stderr}`.includes("source=Notarized Developer ID")) {
-    console.error(`install-app: Gatekeeper does not accept ${BUILT} as notarized — not installing it.`);
+  const verdict = spawnSync("spctl", ["--assess", "--type", "execute", "--verbose=4", BUILT], {
+    encoding: "utf8",
+  });
+  if (
+    verdict.status !== 0 ||
+    !`${verdict.stdout}${verdict.stderr}`.includes("source=Notarized Developer ID")
+  ) {
+    console.error(
+      `install-app: Gatekeeper does not accept ${BUILT} as notarized — not installing it.`,
+    );
     process.exit(1);
   }
 }
@@ -162,22 +176,31 @@ if (!SIGNED) run("codesign", ["--force", "--deep", "--sign", "-", BUILT]);
 
 // --- the track, while nothing is running to rewrite settings.json ---
 if (TRACK) {
-  const settings = join(process.env.HOME ?? "", "Library/Application Support/org.habiby.proscenium/settings.json");
+  const settings = join(
+    process.env.HOME ?? "",
+    "Library/Application Support/org.habiby.proscenium/settings.json",
+  );
   let values = {};
   if (existsSync(settings)) {
     try {
       values = JSON.parse(readFileSync(settings, "utf8"));
     } catch {
-      console.error(`install-app: ${settings} does not read as JSON — not touching it, and not installing.`);
+      console.error(
+        `install-app: ${settings} does not read as JSON — not touching it, and not installing.`,
+      );
       process.exit(1);
     }
     if (values === null || typeof values !== "object" || Array.isArray(values)) {
-      console.error(`install-app: ${settings} is not a settings object — not touching it, and not installing.`);
+      console.error(
+        `install-app: ${settings} is not a settings object — not touching it, and not installing.`,
+      );
       process.exit(1);
     }
   }
   const next = `${settings}.install-app`;
-  writeFileSync(next, `${JSON.stringify({ ...values, updateTrack: TRACK }, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(next, `${JSON.stringify({ ...values, updateTrack: TRACK }, null, 2)}\n`, {
+    mode: 0o600,
+  });
   renameSync(next, settings);
   console.log(`install-app: updates come from the ${TRACK} track`);
 }

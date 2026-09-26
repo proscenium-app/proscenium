@@ -6,10 +6,10 @@
  * docs/app/keeping-work/storage-and-file-format.md#STOR-D13, "Blur, hide, tab close, and quit flush immediately").
  *
  * Every quit — ⌘Q, the Dock, logging out, the window's close button — now asks
- * this page first and waits for the answer. It used to ask nothing: on
- * 2026-09-13 a scratch build lost words typed a moment before quitting, in a
- * document and in the script, and a document's words whose file was locked in
- * Finder, with the toast still saying they were in the window.
+ * this page first and waits for the answer. It used to ask nothing, and a
+ * quit lost words typed a moment before it, in a document and in the script,
+ * and a document's words whose file was locked in Finder, with the toast still
+ * saying they were in the window.
  *
  * The workspace settles (`settleForQuit`): what can land lands, and the rest is
  * kept where the next launch finds it — a script's words in its recovery
@@ -81,15 +81,17 @@ export class QuitAnswerer {
   async request(id: number): Promise<void> {
     void this.channel.heard(id).catch(() => {});
     this.wanted = true;
-    const settling = this.queue.then(() => this.settle()).then(
-      (settled) => (this.last = settled),
-      (): QuitSettled => {
-        // A settle that threw kept nothing anybody knows of: hold the quit.
-        const unknown: QuitSettled = { lost: [], problem: null, leave: async () => {} };
-        UNKNOWN.add(unknown);
-        return unknown;
-      },
-    );
+    const settling = this.queue
+      .then(() => this.settle())
+      .then(
+        (settled) => (this.last = settled),
+        (): QuitSettled => {
+          // A settle that threw kept nothing anybody knows of: hold the quit.
+          const unknown: QuitSettled = { lost: [], problem: null, leave: async () => {} };
+          UNKNOWN.add(unknown);
+          return unknown;
+        },
+      );
     this.queue = settling;
     const late = Symbol("late");
     const first = await Promise.race([settling, this.sleep(this.within).then(() => late)]);
@@ -157,7 +159,9 @@ export function quitHoldWords(hold: QuitHold): { title: string; body: string } {
   }
   const names = hold.lost.map((name) => `“${name}”`).join(", ");
   return {
-    title: names ? `What was typed in ${names} couldn't be saved or kept.` : "What was typed couldn't be saved or kept.",
+    title: names
+      ? `What was typed in ${names} couldn't be saved or kept.`
+      : "What was typed couldn't be saved or kept.",
     body: hold.problem
       ? `${hold.problem.title} ${hold.problem.detail}`
       : "If Proscenium quits now, what was typed is lost.",

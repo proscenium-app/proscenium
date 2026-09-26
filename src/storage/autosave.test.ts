@@ -23,9 +23,7 @@ class FakeClock implements TimerHost {
   advance(ms: number) {
     const end = this.t + ms;
     for (;;) {
-      const due = this.timers
-        .filter((x) => x.at <= end)
-        .sort((a, b) => a.at - b.at)[0];
+      const due = this.timers.filter((x) => x.at <= end).sort((a, b) => a.at - b.at)[0];
       if (!due) break;
       this.timers = this.timers.filter((x) => x.id !== due.id);
       this.t = due.at;

@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Version compare (HistoryPanel): the line-diff renderer, pointed at two
    snapshots. */
 .historypanel__pane {
@@ -26,4 +25,3 @@
   min-height: 0;
   overflow: auto;
 }
-

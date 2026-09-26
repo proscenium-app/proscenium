@@ -22,7 +22,12 @@ export interface BannerAction {
 }
 
 export function BannerActions({ label, actions }: { label: string; actions: BannerAction[] }) {
-  const [stop, setStop] = useState(() => Math.max(0, actions.findIndex((a) => a.primary)));
+  const [stop, setStop] = useState(() =>
+    Math.max(
+      0,
+      actions.findIndex((a) => a.primary),
+    ),
+  );
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLSpanElement>) => {
@@ -32,7 +37,11 @@ export function BannerActions({ label, actions }: { label: string; actions: Bann
     e.preventDefault();
     const n = actions.length;
     const to =
-      e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (at + (e.key === "ArrowLeft" ? -1 : 1) + n) % n;
+      e.key === "Home"
+        ? 0
+        : e.key === "End"
+          ? n - 1
+          : (at + (e.key === "ArrowLeft" ? -1 : 1) + n) % n;
     setStop(to);
     buttons.current[to]?.focus();
   };

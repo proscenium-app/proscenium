@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /*
  * ── The format designer (src/app/formats/) ────────────────────────────────
  *
@@ -242,4 +241,3 @@ label.designer__switchrow {
 .field.is-invalid {
   border-color: var(--bad);
 }
-

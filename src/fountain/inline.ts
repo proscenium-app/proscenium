@@ -67,7 +67,7 @@ function tokenizeInline(raw: string): Atom[] {
       while (raw[i + n] === "*") n += 1;
       flush();
       const take = Math.min(n, 3);
-      atoms.push({ kind: "delim", delim: ("*".repeat(take) as Delim) });
+      atoms.push({ kind: "delim", delim: "*".repeat(take) as Delim });
       // Any extra stars beyond 3 are literal.
       if (n > 3) buf += "*".repeat(n - 3);
       i += n;
@@ -218,9 +218,7 @@ export function serializeInline(nodes: InlineNode[]): string {
 
 function noteInner(note: NoteNode): string {
   if (!note.content) return "";
-  return note.content
-    .map((n) => (n.type === "text" ? n.text : ""))
-    .join("");
+  return note.content.map((n) => (n.type === "text" ? n.text : "")).join("");
 }
 
 /** Plain text of an inline run, dropping notes and marks (for synopsis caches). */

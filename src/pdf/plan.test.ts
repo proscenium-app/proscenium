@@ -5,7 +5,13 @@ import { describe, expect, it } from "bun:test";
 
 import { builtinFormats } from "../format";
 
-import { paginateFrontMatter, type FrontMatterPage, type LayoutPage, type LayoutResult, type StyleRun } from "../layout";
+import {
+  paginateFrontMatter,
+  type FrontMatterPage,
+  type LayoutPage,
+  type LayoutResult,
+  type StyleRun,
+} from "../layout";
 import {
   defaultFrontSheets,
   formatPageRange,
@@ -121,22 +127,34 @@ describe("frontSheetsFor", () => {
   const spec = builtinFormats()[0];
   it("lists the sheets the renderer will draw, in stage order", () => {
     expect(
-      frontSheetsFor({
-        title: "Tideline",
-        characters: [{ name: "Mara" }],
-        setting: "A kitchen.",
-      }, spec),
+      frontSheetsFor(
+        {
+          title: "Tideline",
+          characters: [{ name: "Mara" }],
+          setting: "A kitchen.",
+        },
+        spec,
+      ),
     ).toEqual(["title", "characters", "setting"]);
     expect(frontSheetsFor({ title: "Tideline" }, spec)).toEqual(["title"]);
-    expect(frontSheetsFor({ title: "Tideline", time: "Winter." }, spec)).toEqual(["title", "setting"]);
+    expect(frontSheetsFor({ title: "Tideline", time: "Winter." }, spec)).toEqual([
+      "title",
+      "setting",
+    ]);
     expect(frontSheetsFor(null, spec)).toEqual([]);
   });
 });
 
 describe("front sheet choice", () => {
   const spec = builtinFormats()[0];
-  const cast = Array.from({ length: 40 }, (_, i) => ({ name: `Actor ${i + 1}`, description: "a person in this play" }));
-  const long = paginateFrontMatter({ title: "Tideline", characters: cast, setting: "A kitchen." }, spec);
+  const cast = Array.from({ length: 40 }, (_, i) => ({
+    name: `Actor ${i + 1}`,
+    description: "a person in this play",
+  }));
+  const long = paginateFrontMatter(
+    { title: "Tideline", characters: cast, setting: "A kitchen." },
+    spec,
+  );
 
   it("names each kind once, however many sheets it runs to", () => {
     expect(long.filter((page) => page.kind === "characters").length).toBeGreaterThan(1);
@@ -149,14 +167,20 @@ describe("front sheet choice", () => {
     expect(castOnly.length).toBe(long.filter((page) => page.kind === "characters").length);
     expect(castOnly.every((page) => page.kind === "characters")).toBe(true);
     // The order is the play's, not the order the ticks were given in.
-    expect(frontKindsOf(selectFrontMatter(long, ["setting", "title"]))).toEqual(["title", "setting"]);
+    expect(frontKindsOf(selectFrontMatter(long, ["setting", "title"]))).toEqual([
+      "title",
+      "setting",
+    ]);
     expect(selectFrontMatter(long, null)).toEqual(long);
     expect(selectFrontMatter(long, [])).toEqual([]);
   });
 
   it("starts a script from page 1 with every sheet, and an excerpt or sides with none", () => {
     const all = ["title", "characters"] as const;
-    expect(defaultFrontSheets(all, { sides: false, startsAtPageOne: true })).toEqual(["title", "characters"]);
+    expect(defaultFrontSheets(all, { sides: false, startsAtPageOne: true })).toEqual([
+      "title",
+      "characters",
+    ]);
     expect(defaultFrontSheets(all, { sides: false, startsAtPageOne: false })).toEqual([]);
     expect(defaultFrontSheets(all, { sides: true, startsAtPageOne: true })).toEqual([]);
   });
@@ -170,9 +194,16 @@ describe("planSheets", () => {
   ];
 
   it("lays the file out as front sheets then pages, and chooses only what is going", () => {
-    const plan = planSheets({ front, layout: layoutOf(20), frontKinds: ["title"], pages: [12, 13] });
+    const plan = planSheets({
+      front,
+      layout: layoutOf(20),
+      frontKinds: ["title"],
+      pages: [12, 13],
+    });
     expect(plan.all.map((s) => s.key)).toEqual([
-      "front-0", "front-1", "front-2",
+      "front-0",
+      "front-1",
+      "front-2",
       ...Array.from({ length: 20 }, (_, i) => `page-${i + 1}`),
     ]);
     expect(plan.chosen.map((s) => s.label)).toEqual(["Title page", "Page 12", "Page 13"]);
@@ -180,7 +211,12 @@ describe("planSheets", () => {
   });
 
   it("numbers a kind's sheets only when it runs to more than one", () => {
-    const plan = planSheets({ front, layout: layoutOf(1), frontKinds: ["title", "characters"], pages: [1] });
+    const plan = planSheets({
+      front,
+      layout: layoutOf(1),
+      frontKinds: ["title", "characters"],
+      pages: [1],
+    });
     expect(plan.chosen.map((s) => [s.label, s.short])).toEqual([
       ["Title page", "Title"],
       ["Characters page 1", "Characters 1"],
@@ -198,7 +234,12 @@ describe("planSheets", () => {
 
 describe("pagerText", () => {
   const plan = (frontKinds: ("title" | "characters")[], pages: number[], total = 10) =>
-    planSheets({ front: [{ kind: "title", lines: [] }], layout: layoutOf(total), frontKinds, pages }).chosen;
+    planSheets({
+      front: [{ kind: "title", lines: [] }],
+      layout: layoutOf(total),
+      frontKinds,
+      pages,
+    }).chosen;
 
   it("reads as the plain page count while the file is the script from page 1", () => {
     expect(pagerText(plan([], [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), 6)).toBe("Page 7 of 10");
@@ -218,7 +259,8 @@ describe("pagerText", () => {
 
 describe("resolveFocus", () => {
   const layout = layoutOf(10);
-  const withPages = (pages: number[] | null) => planSheets({ front: [], layout, frontKinds: [], pages });
+  const withPages = (pages: number[] | null) =>
+    planSheets({ front: [], layout, frontKinds: [], pages });
 
   it("stays on the sheet being read while it is still going, wherever it moved to", () => {
     expect(resolveFocus(withPages([4, 5, 6]), "page-5")).toBe(1);
@@ -271,10 +313,11 @@ describe("styleSegments", () => {
   });
 
   it("keeps inline emphasis underneath an element-wide underline", () => {
-    const segs = styleSegments("Scene One", [
-      run(0, 9, { underline: true }),
-      run(6, 9, { bold: true, italic: true }),
-    ], base);
+    const segs = styleSegments(
+      "Scene One",
+      [run(0, 9, { underline: true }), run(6, 9, { bold: true, italic: true })],
+      base,
+    );
     expect(segs).toEqual([
       { text: "Scene ", start: 0, bold: false, italic: false, underline: true },
       { text: "One", start: 6, bold: true, italic: true, underline: true },

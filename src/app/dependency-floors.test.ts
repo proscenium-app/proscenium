@@ -13,10 +13,13 @@ function atLeast(actual: string, minimum: string): boolean {
   return true;
 }
 
-test("A1 dependency triage: Tiptap stays aligned on a patched release", () => {
+test("Tiptap stays aligned on a patched release, with one copy of each ProseMirror package", () => {
   const raw = readFileSync(new URL("../../bun.lock", import.meta.url), "utf8");
-  const lock = ts.parseConfigFileTextToJson("bun.lock", raw).config as { packages: Record<string, [string, ...unknown[]]> };
-  const versions = Object.entries(lock.packages).filter(([name]) => name.startsWith("@tiptap/"))
+  const lock = ts.parseConfigFileTextToJson("bun.lock", raw).config as {
+    packages: Record<string, [string, ...unknown[]]>;
+  };
+  const versions = Object.entries(lock.packages)
+    .filter(([name]) => name.startsWith("@tiptap/"))
     .map(([, value]) => value[0].split("@").pop()!);
   expect(versions.length).toBeGreaterThan(5);
   expect(new Set(versions).size).toBe(1);
@@ -24,15 +27,23 @@ test("A1 dependency triage: Tiptap stays aligned on a patched release", () => {
   // ProseMirror compares its node/fragment classes by identity. A nested old
   // copy can crash editing even when the Tiptap versions themselves match.
   for (const name of ["prosemirror-model", "prosemirror-view"]) {
-    const copies = Object.keys(lock.packages).filter((key) => key === name || key.endsWith(`/${name}`));
+    const copies = Object.keys(lock.packages).filter(
+      (key) => key === name || key.endsWith(`/${name}`),
+    );
     expect(copies).toEqual([name]);
   }
 });
 
-test("A1 dependency triage: every locked Rust dependency is above the reviewed advisory floor", () => {
+test("every locked Rust dependency is above its advisory floor", () => {
   const lock = readFileSync(new URL("../../src-tauri/Cargo.lock", import.meta.url), "utf8");
-  for (const [name, minimum] of [["rustls", "0.23.45"], ["quick-xml", "0.41.0"], ["anyhow", "1.0.103"]]) {
-    const versions = [...lock.matchAll(new RegExp(`name = "${name}"\\nversion = "([^"]+)"`, "g"))].map((m) => m[1]);
+  for (const [name, minimum] of [
+    ["rustls", "0.23.45"],
+    ["quick-xml", "0.41.0"],
+    ["anyhow", "1.0.103"],
+  ]) {
+    const versions = [
+      ...lock.matchAll(new RegExp(`name = "${name}"\\nversion = "([^"]+)"`, "g")),
+    ].map((m) => m[1]);
     expect(versions.length).toBeGreaterThan(0);
     for (const version of versions) expect(atLeast(version, minimum)).toBe(true);
   }

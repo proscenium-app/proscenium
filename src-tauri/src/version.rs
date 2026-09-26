@@ -19,15 +19,21 @@ pub const KEY: &str = "ProsceniumVersion";
 /// This copy's whole version.
 pub fn whole<R: Runtime>(app: &AppHandle<R>) -> String {
     let package = app.package_info().version.to_string();
-    bundle_version().filter(|v| belongs_to(v, &package)).unwrap_or(package)
+    bundle_version()
+        .filter(|v| belongs_to(v, &package))
+        .unwrap_or(package)
 }
 
 /// A track version of this package: `X.Y.Z-alpha.N` or `X.Y.Z-beta.N`, with the
 /// package's own `X.Y.Z`. Anything else in the key is ignored rather than
 /// trusted, because the version decides what the updater will install.
 pub fn belongs_to(version: &str, package: &str) -> bool {
-    let Some((base, pre)) = version.split_once('-') else { return false };
-    let Some((track, n)) = pre.split_once('.') else { return false };
+    let Some((base, pre)) = version.split_once('-') else {
+        return false;
+    };
+    let Some((track, n)) = pre.split_once('.') else {
+        return false;
+    };
     base == package
         && matches!(track, "alpha" | "beta")
         && !n.is_empty()

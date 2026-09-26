@@ -39,7 +39,14 @@ function spec(footer?: unknown): FormatSpec {
 
 const PLAY: Doc = {
   type: "doc",
-  content: [{ type: "action", content: [{ type: "text", text: Array.from({ length: 80 }, (_, i) => `beat ${i}`).join("\n") }] }],
+  content: [
+    {
+      type: "action",
+      content: [
+        { type: "text", text: Array.from({ length: 80 }, (_, i) => `beat ${i}`).join("\n") },
+      ],
+    },
+  ],
 };
 
 /** Every text baseline drawn on each page, in points above the bottom edge. */
@@ -53,7 +60,9 @@ async function baselines(s: FormatSpec): Promise<number[][]> {
     const text = parts
       .map((ref) => pdf.context.lookup(ref))
       .map((stream) =>
-        stream instanceof PDFRawStream ? new TextDecoder().decode(decodePDFRawStream(stream).decode()) : "",
+        stream instanceof PDFRawStream
+          ? new TextDecoder().decode(decodePDFRawStream(stream).decode())
+          : "",
       )
       .join("\n");
     return [...text.matchAll(/1 0 0 1 [-\d.]+ ([-\d.]+) Tm/g)].map((m) => Number(m[1]));
@@ -81,7 +90,9 @@ describe("the PDF footer", () => {
   });
 
   it("leaves page one alone when the format says so", async () => {
-    const suppressed = await baselines(spec({ content: { center: "{page}" }, position: 0.5, suppressOnFirstPage: true }));
+    const suppressed = await baselines(
+      spec({ content: { center: "{page}" }, position: 0.5, suppressOnFirstPage: true }),
+    );
     const without = await baselines(spec());
     expect(suppressed[0].length).toBe(without[0].length);
     expect(suppressed[1].length).toBe(without[1].length + 1);

@@ -71,7 +71,14 @@ export function useWorkspacePanes({
   closeMaterial,
 }: Pick<
   Workspace,
-  "root" | "binder" | "scriptTitle" | "openMaterials" | "selectItem" | "view" | "setView" | "closeMaterial"
+  | "root"
+  | "binder"
+  | "scriptTitle"
+  | "openMaterials"
+  | "selectItem"
+  | "view"
+  | "setView"
+  | "closeMaterial"
 >) {
   // The pane tree, loaded per play and persisted on change (use-panes.ts).
   const panes = usePanes(root);
@@ -192,7 +199,10 @@ export function useWorkspacePanes({
     };
   }, []);
 
-  const labelFor = useCallback((surface: Surface) => labelForSurface(surface, binder, scriptTitle), [binder, scriptTitle]);
+  const labelFor = useCallback(
+    (surface: Surface) => labelForSurface(surface, binder, scriptTitle),
+    [binder, scriptTitle],
+  );
 
   /** The toolbar "+": everything the focused pane is not already holding. */
   const toolbarAddable = useMemo(() => {

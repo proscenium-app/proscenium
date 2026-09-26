@@ -110,7 +110,11 @@ function startingPoint(
       return { draft: unsaved(spec, ""), fileName: null, locked: false };
     }
     case "new":
-      return { draft: unsaved(fallback, unusedName("New Format", registry)), fileName: null, locked: false };
+      return {
+        draft: unsaved(fallback, unusedName("New Format", registry)),
+        fileName: null,
+        locked: false,
+      };
     case "imported":
       return { draft: unsaved(request.spec, request.spec.name), fileName: null, locked: false };
   }
@@ -143,7 +147,8 @@ function summarize(el: ElementDraft): string {
   if (el.textTransform === "uppercase") bits.push("caps");
   const style = FONT_STYLES.find((s) => s.value === el.fontStyle);
   if (style && el.fontStyle !== "regular") bits.push(style.label.toLowerCase());
-  if (Number(el.spacingBefore) > 0) bits.push(`${el.spacingBefore} ${Number(el.spacingBefore) === 1 ? "line" : "lines"} before`);
+  if (Number(el.spacingBefore) > 0)
+    bits.push(`${el.spacingBefore} ${Number(el.spacingBefore) === 1 ? "line" : "lines"} before`);
   return bits.join(" · ");
 }
 
@@ -171,7 +176,12 @@ export function FormatDesigner(props: {
   const size = useWindowSize();
 
   const check = useMemo(() => checkDraft(draft), [draft]);
-  const [lastGood, setLastGood] = useState<FormatSpec>(() => check.spec ?? checkDraft({ ...draft, name: "Untitled Format" }).spec ?? registry.resolve(null).spec);
+  const [lastGood, setLastGood] = useState<FormatSpec>(
+    () =>
+      check.spec ??
+      checkDraft({ ...draft, name: "Untitled Format" }).spec ??
+      registry.resolve(null).spec,
+  );
   useEffect(() => {
     if (check.spec) setLastGood(check.spec);
   }, [check.spec]);
@@ -260,7 +270,9 @@ export function FormatDesigner(props: {
       // A file the registry skipped (it could not be read) is still a file.
       const existing = await formats.listUser().catch(() => []);
       if (existing.some((f) => f.fileName === fileName)) {
-        return ask(`A file called ${fileName} is already in the Formats folder. Choose another name.`);
+        return ask(
+          `A file called ${fileName} is already in the Formats folder. Choose another name.`,
+        );
       }
     }
     setSaving(true);
@@ -274,7 +286,12 @@ export function FormatDesigner(props: {
       toast({ kind: "ok", title: `Saved “${name}”` });
       formatSaved();
     } catch (e) {
-      toast({ kind: "error", title: `“${name}” could not be saved.`, detail: String(e), code: "E-FORMAT-SAVE" });
+      toast({
+        kind: "error",
+        title: `“${name}” could not be saved.`,
+        detail: String(e),
+        code: "E-FORMAT-SAVE",
+      });
     } finally {
       setSaving(false);
     }
@@ -288,7 +305,8 @@ export function FormatDesigner(props: {
   // ⌘S where the webview sees it (browser dev; the menu bar takes it natively).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "s") return;
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "s")
+        return;
       e.preventDefault();
       e.stopPropagation();
       if (promptRef.current === null) void saveRef.current();
@@ -366,7 +384,7 @@ export function FormatDesigner(props: {
     <>
       <Sheet
         title={draft.name.trim() || "Untitled Format"}
-        subtitle={locked ? "Built-in format" : saved.fileName ?? "New format"}
+        subtitle={locked ? "Built-in format" : (saved.fileName ?? "New format")}
         width={Math.min(1400, size.width - 32)}
         height={size.height - 56}
         onClose={requestClose}
@@ -538,7 +556,9 @@ export function FormatDesigner(props: {
                   const el = draft.elements[key];
                   const open = openElement === key;
                   const label = ELEMENT_LABELS[key];
-                  const hasError = [...check.errors.keys()].some((p) => p.startsWith(`elements.${key}.`));
+                  const hasError = [...check.errors.keys()].some((p) =>
+                    p.startsWith(`elements.${key}.`),
+                  );
                   const set = (change: (e: ElementDraft) => void) =>
                     edit((d) => change(d.elements[key]));
                   return (
@@ -559,7 +579,12 @@ export function FormatDesigner(props: {
                         </span>
                       </button>
                       {open && (
-                        <div id={`dz-el-${key}`} className="designer__elementfields" role="group" aria-label={label}>
+                        <div
+                          id={`dz-el-${key}`}
+                          className="designer__elementfields"
+                          role="group"
+                          aria-label={label}
+                        >
                           <div className="designer__grid">
                             <NumberField
                               id={`dz-${key}-indent`}
@@ -614,7 +639,9 @@ export function FormatDesigner(props: {
                             <Switch
                               on={el.textTransform === "uppercase"}
                               label={`${label}: capitals`}
-                              onChange={(on) => set((e) => void (e.textTransform = on ? "uppercase" : "none"))}
+                              onChange={(on) =>
+                                set((e) => void (e.textTransform = on ? "uppercase" : "none"))
+                              }
                             />
                           </label>
                           <div className="designer__switchrow">
@@ -684,7 +711,8 @@ export function FormatDesigner(props: {
                 />
               </label>
               <p className="designer__note">
-                The fewest lines of a speech or of action that a page break can leave on either side.
+                The fewest lines of a speech or of action that a page break can leave on either
+                side.
               </p>
               <div className="designer__grid">
                 <NumberField
@@ -760,11 +788,20 @@ export function FormatDesigner(props: {
               {props.play && playDoc && (
                 <label className="designer__switchrow designer__switchrow--inline">
                   <span>Preview with This Play</span>
-                  <Switch on={previewPlay} label="Preview with This Play" onChange={setPreviewPlay} />
+                  <Switch
+                    on={previewPlay}
+                    label="Preview with This Play"
+                    onChange={setPreviewPlay}
+                  />
                 </label>
               )}
             </div>
-            <DesignerPreview layout={layout} spec={previewSpec} moved={moves.lines} source={source.label} />
+            <DesignerPreview
+              layout={layout}
+              spec={previewSpec}
+              moved={moves.lines}
+              source={source.label}
+            />
           </div>
         </div>
       </Sheet>
@@ -782,7 +819,9 @@ export function FormatDesigner(props: {
         <Alert
           title={`Discard your changes to “${draft.name.trim() || "Untitled Format"}”?`}
           body={`You changed ${listInWords(changedParts(saved.draft, draft))}. ${
-            saved.fileName ? "The saved format stays as it was." : "The format has never been saved, so none of it will be kept."
+            saved.fileName
+              ? "The saved format stays as it was."
+              : "The format has never been saved, so none of it will be kept."
           }`}
           confirmLabel="Discard Changes"
           cancelLabel="Keep Editing"

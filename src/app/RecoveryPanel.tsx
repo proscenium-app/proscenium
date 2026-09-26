@@ -101,8 +101,8 @@ export function RecoveryPanel({
     >
       <div className="recoverypanel">
         <p className="recoverypanel__lede">
-          Proscenium closed before these changes were saved. Recover puts them back into the
-          script; what the script says now is kept in Versions first.
+          Proscenium closed before these changes were saved. Recover puts them back into the script;
+          what the script says now is kept in Versions first.
           <span className="diffview__stats">
             +{diff.added} −{diff.removed}
           </span>

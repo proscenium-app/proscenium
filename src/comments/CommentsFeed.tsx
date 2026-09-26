@@ -110,7 +110,11 @@ export function CommentsFeed({
 
   const saveEdit = (id: string) => {
     const entry = commentsState(editor.state)?.entries.find((entry) => entry.id === id);
-    if (!entry) { setEditingId(null); complete("Comment is no longer here", null); return; }
+    if (!entry) {
+      setEditingId(null);
+      complete("Comment is no longer here", null);
+      return;
+    }
     const pos = entry.pos;
     const node = noteAt(editor, pos);
     const text = draft.replace(/\n{2,}/g, "\n").trim(); // a note holds no blank lines

@@ -99,8 +99,18 @@ export const STYLE_NAME: Record<StyleKey, string> = {
 };
 
 const ELEMENT_ORDER: readonly ElementStyleKey[] = [
-  "act", "scene", "sceneHeading", "action", "character", "parenthetical",
-  "dialogue", "transition", "lyric", "centered", "synopsis", "boneyard",
+  "act",
+  "scene",
+  "sceneHeading",
+  "action",
+  "character",
+  "parenthetical",
+  "dialogue",
+  "transition",
+  "lyric",
+  "centered",
+  "synopsis",
+  "boneyard",
 ];
 
 /** What Return starts after each element, the way a writer moves through a scene. */
@@ -164,9 +174,20 @@ function faces(style: ElementFontStyle): { bold: boolean; italic: boolean } {
 }
 
 const PLAIN = {
-  leftIn: 0, rightIn: 0, align: "left" as ElementAlign, caps: false, underline: false, trackingPt: 0,
-  spaceBeforeRows: 0, keepWithNext: false, keepTogether: true, pageBreakBefore: false,
-  orphans: 0, widows: 0, outlineLevel: null, furniture: false,
+  leftIn: 0,
+  rightIn: 0,
+  align: "left" as ElementAlign,
+  caps: false,
+  underline: false,
+  trackingPt: 0,
+  spaceBeforeRows: 0,
+  keepWithNext: false,
+  keepTogether: true,
+  pageBreakBefore: false,
+  orphans: 0,
+  widows: 0,
+  outlineLevel: null,
+  furniture: false,
 };
 
 /** An element's style: its format entry, in a word processor's terms. */
@@ -195,8 +216,16 @@ function elementStyle(spec: FormatSpec, key: ElementStyleKey): ParagraphStyle {
     keepWithNext: el.keepWithNext,
     keepTogether: !splits,
     pageBreakBefore: el.startsNewPage,
-    orphans: splits ? (key === "dialogue" ? rules.minDialogueLinesBeforeBreak : rules.minActionLinesEitherSide) : 0,
-    widows: splits ? (key === "dialogue" ? rules.minDialogueLinesAfterBreak : rules.minActionLinesEitherSide) : 0,
+    orphans: splits
+      ? key === "dialogue"
+        ? rules.minDialogueLinesBeforeBreak
+        : rules.minActionLinesEitherSide
+      : 0,
+    widows: splits
+      ? key === "dialogue"
+        ? rules.minDialogueLinesAfterBreak
+        : rules.minActionLinesEitherSide
+      : 0,
     outlineLevel: key === "act" ? 1 : key === "scene" ? 2 : key === "sceneHeading" ? 3 : null,
     next: NEXT[key],
     furniture: false,
@@ -207,17 +236,40 @@ function elementStyle(spec: FormatSpec, key: ElementStyleKey): ParagraphStyle {
 export function documentStyles(spec: FormatSpec): ParagraphStyle[] {
   const policy = spec.frontMatter;
   const front = (key: StyleKey, style: ElementFontStyle, keepWithNext = false): ParagraphStyle => ({
-    ...PLAIN, key, name: STYLE_NAME[key], ...faces(style), keepWithNext, next: NEXT[key],
+    ...PLAIN,
+    key,
+    name: STYLE_NAME[key],
+    ...faces(style),
+    keepWithNext,
+    next: NEXT[key],
   });
   return [
-    ...ELEMENT_ORDER.filter((key) => spec.elements[key]?.print).map((key) => elementStyle(spec, key)),
+    ...ELEMENT_ORDER.filter((key) => spec.elements[key]?.print).map((key) =>
+      elementStyle(spec, key),
+    ),
     front("title", policy.titleFontStyle),
     front("titlePage", policy.bodyFontStyle),
     front("openingHeading", policy.headingFontStyle, true),
     front("openingText", policy.bodyFontStyle),
     front("castList", policy.bodyFontStyle),
-    { ...PLAIN, key: "header", name: STYLE_NAME.header, bold: false, italic: false, next: "header", furniture: true },
-    { ...PLAIN, key: "footer", name: STYLE_NAME.footer, bold: false, italic: false, next: "footer", furniture: true },
+    {
+      ...PLAIN,
+      key: "header",
+      name: STYLE_NAME.header,
+      bold: false,
+      italic: false,
+      next: "header",
+      furniture: true,
+    },
+    {
+      ...PLAIN,
+      key: "footer",
+      name: STYLE_NAME.footer,
+      bold: false,
+      italic: false,
+      next: "footer",
+      furniture: true,
+    },
   ];
 }
 
@@ -327,13 +379,15 @@ function usesPosition(hf: HeaderFooterSpec): boolean {
 }
 
 /** A header or footer's slots where a section begins, or null when it prints nothing. */
-function furnitureAt(
-  hf: HeaderFooterSpec,
-  at: PagePosition,
-  meta: LayoutMeta,
-): Furniture | null {
+function furnitureAt(hf: HeaderFooterSpec, at: PagePosition, meta: LayoutMeta): Furniture | null {
   const values = {
-    ...slotValues({ pageNumber: 0, at, title: meta.title, author: meta.author, draftDate: meta.frontMatter?.draftDate }),
+    ...slotValues({
+      pageNumber: 0,
+      at,
+      title: meta.title,
+      author: meta.author,
+      draftDate: meta.frontMatter?.draftDate,
+    }),
     page: PAGE_MARK,
   };
   const out = {} as Furniture;
@@ -364,7 +418,9 @@ function isDialogueLike(type: BlockType): boolean {
  * paginator pairs them with: a `^` cue's speech is the right half, and the cue
  * and speech just before it the left.
  */
-function dualSides(blocks: readonly LayoutBlock[]): Map<number, { pair: number; side: "left" | "right" }> {
+function dualSides(
+  blocks: readonly LayoutBlock[],
+): Map<number, { pair: number; side: "left" | "right" }> {
   const sides = new Map<number, { pair: number; side: "left" | "right" }>();
   const chainEnd = (from: number) => {
     let end = from + 1;
@@ -380,7 +436,10 @@ function dualSides(blocks: readonly LayoutBlock[]): Map<number, { pair: number; 
       if (cue?.type === "character" && cue.dual) {
         const rightEnd = chainEnd(leftEnd);
         for (let k = i; k < rightEnd; k++) {
-          sides.set(blocks[k].sourceIndex, { pair: block.sourceIndex, side: k < leftEnd ? "left" : "right" });
+          sides.set(blocks[k].sourceIndex, {
+            pair: block.sourceIndex,
+            side: k < leftEnd ? "left" : "right",
+          });
         }
         i = rightEnd;
         continue;
@@ -398,7 +457,14 @@ function inlinesOf(text: string, runs: readonly StyleRun[]): WpInline[] {
     for (const part of seg.text.split(/(\n|\t)/)) {
       if (part === "\n") out.push({ kind: "break" });
       else if (part === "\t") out.push({ kind: "tab" });
-      else if (part) out.push({ kind: "text", text: part, bold: seg.bold, italic: seg.italic, underline: seg.underline });
+      else if (part)
+        out.push({
+          kind: "text",
+          text: part,
+          bold: seg.bold,
+          italic: seg.italic,
+          underline: seg.underline,
+        });
     }
   }
   return out;
@@ -407,7 +473,11 @@ function inlinesOf(text: string, runs: readonly StyleRun[]): WpInline[] {
 function clipRuns(runs: readonly StyleRun[], start: number, end: number): StyleRun[] {
   return runs
     .filter((run) => run.end > start && run.start < end)
-    .map((run) => ({ ...run, start: Math.max(run.start, start) - start, end: Math.min(run.end, end) - start }));
+    .map((run) => ({
+      ...run,
+      start: Math.max(run.start, start) - start,
+      end: Math.min(run.end, end) - start,
+    }));
 }
 
 function frontStyle(kind: FrontSheet, line: FrontMatterLine): StyleKey {
@@ -425,7 +495,9 @@ function frontStyle(kind: FrontSheet, line: FrontMatterLine): StyleKey {
  * sheet the engine continued onto is the word processor's to break, so the
  * paragraph that opens it keeps the gap the format gives it after another.
  */
-function frontParagraphs(pages: readonly { kind: FrontSheet; lines: readonly FrontMatterLine[] }[]): WpParagraph[] {
+function frontParagraphs(
+  pages: readonly { kind: FrontSheet; lines: readonly FrontMatterLine[] }[],
+): WpParagraph[] {
   const out: WpParagraph[] = [];
   let kind: FrontSheet | null = null;
   for (const page of pages) {
@@ -434,7 +506,8 @@ function frontParagraphs(pages: readonly { kind: FrontSheet; lines: readonly Fro
     let lastRow: number | null = null;
     for (const line of page.lines) {
       if (line.source) {
-        const gap = lastRow !== null ? line.row - lastRow - 1 : newKind ? line.row : line.source.gapRows;
+        const gap =
+          lastRow !== null ? line.row - lastRow - 1 : newKind ? line.row : line.source.gapRows;
         out.push({
           kind: "p",
           style: frontStyle(page.kind, line),
@@ -475,7 +548,9 @@ export function buildDocument(input: WpInput): WpDocument {
 
   // The words as typed: the engine's uppercase keeps every string's length,
   // so its line offsets index this text too.
-  const plain = new Map(blocksFromDoc(doc, plainSpec(spec)).map((block) => [block.sourceIndex, block]));
+  const plain = new Map(
+    blocksFromDoc(doc, plainSpec(spec)).map((block) => [block.sourceIndex, block]),
+  );
   const print = new Map(printed.map((block) => [block.sourceIndex, block]));
   for (const [index, block] of print) {
     if (plain.get(index)?.text.length !== block.text.length) {
@@ -483,7 +558,9 @@ export function buildDocument(input: WpInput): WpDocument {
     }
   }
   const sides = dualSides(printed);
-  const breaks = printed.filter((block) => block.type === "pageBreak").map((block) => block.sourceIndex);
+  const breaks = printed
+    .filter((block) => block.type === "pageBreak")
+    .map((block) => block.sourceIndex);
 
   // Where each heading leaves the play, from the paginator's own numbering.
   const numbers = numberHeadings(printed);
@@ -501,11 +578,19 @@ export function buildDocument(input: WpInput): WpDocument {
 
   const followsHeadings = usesPosition(spec.header) || usesPosition(spec.footer);
   const sections: WpSection[] = [];
-  const furnish = (section: Omit<WpSection, "header" | "footer">): WpSection => ({ ...section, header: null, footer: null });
+  const furnish = (section: Omit<WpSection, "header" | "footer">): WpSection => ({
+    ...section,
+    header: null,
+    footer: null,
+  });
 
-  const front = frontParagraphs(selectFrontMatter(paginateFrontMatter(frontMatter, spec), input.frontSheets));
+  const front = frontParagraphs(
+    selectFrontMatter(paginateFrontMatter(frontMatter, spec), input.frontSheets),
+  );
   if (front.length) {
-    sections.push(furnish({ kind: "front", begins: "document", at: { ...START_POSITION }, items: front }));
+    sections.push(
+      furnish({ kind: "front", begins: "document", at: { ...START_POSITION }, items: front }),
+    );
   }
 
   for (const run of runsOf(chosen)) {
@@ -536,7 +621,14 @@ export function buildDocument(input: WpInput): WpDocument {
       kind: "script",
       begins: sections.length ? "page" : "document",
       firstPageNumber: firstPage,
-      ...(firstPage === 1 ? { bareFirstPage: { header: spec.header.suppressOnFirstPage, footer: spec.footer.suppressOnFirstPage } } : {}),
+      ...(firstPage === 1
+        ? {
+            bareFirstPage: {
+              header: spec.header.suppressOnFirstPage,
+              footer: spec.footer.suppressOnFirstPage,
+            },
+          }
+        : {}),
       at: before(firstIndex),
       items: [],
     });
@@ -547,23 +639,38 @@ export function buildDocument(input: WpInput): WpDocument {
     let content = false;
 
     // The inline opening, on the first script page of a format that has one.
-    const intro = run.filter((page) => page.intro?.length).map((page) => ({ kind: "title" as const, lines: page.intro! }));
+    const intro = run
+      .filter((page) => page.intro?.length)
+      .map((page) => ({ kind: "title" as const, lines: page.intro! }));
     section.items.push(...frontParagraphs(intro));
 
     const opening = section.items.length > 0;
-    let prev: { type: BlockType | null; after: number } | null =
-      opening ? { type: null, after: spec.frontMatter.inlineGapRows } : null;
+    let prev: { type: BlockType | null; after: number } | null = opening
+      ? { type: null, after: spec.frontMatter.inlineGapRows }
+      : null;
     let breakPending = false;
 
-    const paragraph = (type: BlockType, text: string, runs: readonly StyleRun[]): WpParagraph | null => {
+    const paragraph = (
+      type: BlockType,
+      text: string,
+      runs: readonly StyleRun[],
+    ): WpParagraph | null => {
       const trimmed = text.replace(/ +$/, "");
       if (!trimmed.trim()) return null;
-      return { kind: "p", style: type as ElementStyleKey, inlines: inlinesOf(trimmed, clipRuns(runs, 0, trimmed.length)) };
+      return {
+        kind: "p",
+        style: type as ElementStyleKey,
+        inlines: inlinesOf(trimmed, clipRuns(runs, 0, trimmed.length)),
+      };
     };
     const spanParagraph = (sourceIndex: number): WpParagraph | null => {
       const block = plain.get(sourceIndex)!;
       const span = spans.get(sourceIndex)!;
-      return paragraph(block.type, block.text.slice(span.start, span.end), clipRuns(block.runs, span.start, span.end));
+      return paragraph(
+        block.type,
+        block.text.slice(span.start, span.end),
+        clipRuns(block.runs, span.start, span.end),
+      );
     };
     /**
      * The engine's gap above an element, and whether a page starts with it.
@@ -631,7 +738,11 @@ export function buildDocument(input: WpInput): WpDocument {
             if (!p) continue;
             const type = p.style as BlockType;
             const el = spec.elements[type];
-            const inner = !chain ? gap : chain.type === type && el.tightStack ? 0 : Math.max(chain.after, el.spacingBefore);
+            const inner = !chain
+              ? gap
+              : chain.type === type && el.tightStack
+                ? 0
+                : Math.max(chain.after, el.spacingBefore);
             settle(p, inner, null);
             p.inCell = true;
             out.push(p);
@@ -642,7 +753,12 @@ export function buildDocument(input: WpInput): WpDocument {
         const left = cell(halves.left);
         const right = cell(halves.right);
         if (!left.length && !right.length) continue;
-        section.items.push({ kind: "dual", left, right, ...(prev && newPage ? { pageBreakBefore: true } : {}) });
+        section.items.push({
+          kind: "dual",
+          left,
+          right,
+          ...(prev && newPage ? { pageBreakBefore: true } : {}),
+        });
         const tail = (indexes: number[]) => {
           const last = indexes[indexes.length - 1];
           return last === undefined ? 0 : spec.elements[plain.get(last)!.type].spacingAfter;
@@ -660,7 +776,12 @@ export function buildDocument(input: WpInput): WpDocument {
         const { newPage } = place(type);
         const opensPage = prev ? newPage : true;
         if (content) {
-          section = furnish({ kind: "script", begins: opensPage ? "page" : "continuous", at: after.get(index)!, items: [] });
+          section = furnish({
+            kind: "script",
+            begins: opensPage ? "page" : "continuous",
+            at: after.get(index)!,
+            items: [],
+          });
           sections.push(section);
           content = false;
         } else {
@@ -712,7 +833,12 @@ export function furniturePositions(spec: FormatSpec): { headerIn: number; footer
 const POINTS_PER_INCH = 72;
 
 /** Where a dual pair's two cells sit: the first cell's width holds the gutter as padding. */
-export function dualColumns(spec: FormatSpec): { leftIn: number; leftWidthIn: number; gutterIn: number; rightWidthIn: number } {
+export function dualColumns(spec: FormatSpec): {
+  leftIn: number;
+  leftWidthIn: number;
+  gutterIn: number;
+  rightWidthIn: number;
+} {
   const duo = dualColumnsIn(spec);
   return {
     leftIn: duo.left.leftIn,

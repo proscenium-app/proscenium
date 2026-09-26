@@ -52,29 +52,55 @@ describe("binder reconciliation (docs/app/keeping-work/storage-and-file-format.m
   it("a relocated typed document retains its embedded id and metadata", () => {
     const id = "01KYFQCPRAN26GEJ79GA4HQAVM";
     const document = { ...leaf(id, "Characters/Old.md", "character"), custom: "kept" };
-    const r = reconcile([folder("old", "Characters", [document])], [dir("Notes"), file("Notes/New.md")],
-      () => "character", mintFactory(), true, () => id);
+    const r = reconcile(
+      [folder("old", "Characters", [document])],
+      [dir("Notes"), file("Notes/New.md")],
+      () => "character",
+      mintFactory(),
+      true,
+      () => id,
+    );
     expect(r.removed).toEqual([]);
     expect(r.updated).toEqual([id]);
-    expect(r.binder.find((b) => b.path === "Notes")?.children).toEqual([{ ...document, path: "Notes/New.md" }]);
+    expect(r.binder.find((b) => b.path === "Notes")?.children).toEqual([
+      { ...document, path: "Notes/New.md" },
+    ]);
     expect(r.binder[0].children).toEqual([]);
   });
 
   it("a known legacy document id survives relocation too", () => {
-    const r = reconcile([leaf("legacy-sheet", "Old.md", "character")], [file("New.md")],
-      () => "character", mintFactory(), true, () => "legacy-sheet");
+    const r = reconcile(
+      [leaf("legacy-sheet", "Old.md", "character")],
+      [file("New.md")],
+      () => "character",
+      mintFactory(),
+      true,
+      () => "legacy-sheet",
+    );
     expect(r.binder).toEqual([leaf("legacy-sheet", "New.md", "character")]);
     expect(r.added).toEqual([]);
   });
 
   it("duplicated embedded ids do not steal an existing document's identity", () => {
     const id = "01KYFQCPRAN26GEJ79GA4HQAVM";
-    const r = reconcile([leaf(id, "Old.md", "character")], [file("Old.md"), file("Copy.md")],
-      () => "character", mintFactory(), true, () => id);
+    const r = reconcile(
+      [leaf(id, "Old.md", "character")],
+      [file("Old.md"), file("Copy.md")],
+      () => "character",
+      mintFactory(),
+      true,
+      () => id,
+    );
     expect(r.binder.find((b) => b.path === "Old.md")?.id).toBe(id);
     expect(r.binder.find((b) => b.path === "Copy.md")?.id).not.toBe(id);
-    const copies = reconcile([], [file("Copy.md"), file("Another.md")],
-      () => "character", mintFactory(), true, () => id);
+    const copies = reconcile(
+      [],
+      [file("Copy.md"), file("Another.md")],
+      () => "character",
+      mintFactory(),
+      true,
+      () => id,
+    );
     expect(new Set(copies.binder.map((b) => b.id)).size).toBe(2);
     expect(copies.binder.every((b) => b.id !== id)).toBe(true);
   });
@@ -90,8 +116,14 @@ describe("binder reconciliation (docs/app/keeping-work/storage-and-file-format.m
 
   it("an incomplete walk cannot relocate a possibly still-present identity", () => {
     const id = "01KYFQCPRAN26GEJ79GA4HQAVM";
-    const r = reconcile([leaf(id, "Old.md", "character")], [file("New.md")],
-      () => "character", mintFactory(), false, () => id);
+    const r = reconcile(
+      [leaf(id, "Old.md", "character")],
+      [file("New.md")],
+      () => "character",
+      mintFactory(),
+      false,
+      () => id,
+    );
     expect(r.binder.find((b) => b.path === "Old.md")?.id).toBe(id);
     expect(r.binder.find((b) => b.path === "New.md")?.id).not.toBe(id);
   });

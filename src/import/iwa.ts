@@ -94,8 +94,7 @@ export function unsnappy(src: Uint8Array, budget: Budget): Uint8Array {
     } else {
       if (i + 4 > src.length) throw new Error(DAMAGED);
       n = 1 + (tag >> 2);
-      offset =
-        (src[i] | (src[i + 1] << 8) | (src[i + 2] << 16) | (src[i + 3] << 24)) >>> 0;
+      offset = (src[i] | (src[i + 1] << 8) | (src[i + 2] << 16) | (src[i + 3] << 24)) >>> 0;
       i += 4;
     }
     if (offset === 0 || offset > o || o + n > length) throw new Error(DAMAGED);
@@ -181,8 +180,7 @@ export function iwaObjects(files: Uint8Array[]): Map<number, IwaObject> {
         const fields = message(info);
         const type = fields.get(1)?.[0];
         const length = fields.get(3)?.[0];
-        if (typeof type !== "number" || typeof length !== "number")
-          throw new Error(DAMAGED);
+        if (typeof type !== "number" || typeof length !== "number") throw new Error(DAMAGED);
         if (at.i + length > stream.length) throw new Error(DAMAGED);
         if (first && !objects.has(id)) {
           if (objects.size >= MAX_OBJECTS)

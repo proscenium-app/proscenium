@@ -11,13 +11,20 @@ it("docs/app/keeping-work/storage-and-file-format.md#STOR-117: another session c
   // production, so absent ownership reproduces the same overwrite/delete.
   const disk = new Map<string, string>();
   const io: RecoveryIO = {
-    write: async (p, s, text, owner = "legacy") => { disk.set(`${p}/${s}/${owner}`, text); },
-    remove: async (p, s, owner = "legacy") => { disk.delete(`${p}/${s}/${owner}`); },
+    write: async (p, s, text, owner = "legacy") => {
+      disk.set(`${p}/${s}/${owner}`, text);
+    },
+    remove: async (p, s, owner = "legacy") => {
+      disk.delete(`${p}/${s}/${owner}`);
+    },
   };
-  const a = new RecoverySnapshots(io), b = new RecoverySnapshots(io);
+  const a = new RecoverySnapshots(io),
+    b = new RecoverySnapshots(io);
   const target = { playId: "P", scriptId: "S", path: "A.fountain" };
-  a.attach(target, () => "A UNSAVED"); b.attach(target, () => "B UNSAVED");
-  expect(await a.writeNow()).toBe(true); expect(await b.writeNow()).toBe(true);
+  a.attach(target, () => "A UNSAVED");
+  b.attach(target, () => "B UNSAVED");
+  expect(await a.writeNow()).toBe(true);
+  expect(await b.writeNow()).toBe(true);
   expect(disk.size).toBe(2);
   await b.saved();
   expect(await a.writeNow()).toBe(true);
@@ -25,11 +32,18 @@ it("docs/app/keeping-work/storage-and-file-format.md#STOR-117: another session c
 });
 
 it("docs/app/keeping-work/storage-and-file-format.md#STOR-117: retiring an only-copy snapshot gives continued typing another owner", async () => {
-  const disk = new Map<string, string>(), released: string[] = [];
+  const disk = new Map<string, string>(),
+    released: string[] = [];
   const rec = new RecoverySnapshots({
-    write: async (_p, _s, text, owner) => { disk.set(owner, text); },
-    remove: async (_p, _s, owner) => { disk.delete(owner); },
-    release: async (_p, _s, owner) => { released.push(owner); },
+    write: async (_p, _s, text, owner) => {
+      disk.set(owner, text);
+    },
+    remove: async (_p, _s, owner) => {
+      disk.delete(owner);
+    },
+    release: async (_p, _s, owner) => {
+      released.push(owner);
+    },
   });
   let text = "ORIGINAL UNSAVED WORDS";
   rec.attach({ playId: "P", scriptId: "S", path: "A.fountain" }, () => text);
@@ -40,7 +54,9 @@ it("docs/app/keeping-work/storage-and-file-format.md#STOR-117: retiring an only-
   expect(await rec.writeNow()).toBe(true);
   await rec.saved();
   expect(released).toEqual([originalOwner]);
-  expect([...disk.values()].map((raw) => decodeSnapshot(raw)?.content)).toEqual(["ORIGINAL UNSAVED WORDS"]);
+  expect([...disk.values()].map((raw) => decodeSnapshot(raw)?.content)).toEqual([
+    "ORIGINAL UNSAVED WORDS",
+  ]);
 });
 
 /** A clock that only moves when the test says so. */
@@ -266,8 +282,12 @@ describe("recovery snapshots: when the words land", () => {
     const t = fakeTimers();
     const files = new Map([["legacy", "owed to the writer"]]);
     const io: RecoveryIO = {
-      write: async (_p, _s, text, owner) => { files.set(owner, text); },
-      remove: async (_p, _s, owner) => { files.delete(owner); },
+      write: async (_p, _s, text, owner) => {
+        files.set(owner, text);
+      },
+      remove: async (_p, _s, owner) => {
+        files.delete(owner);
+      },
     };
     const rec = new RecoverySnapshots(io, t.host);
     rec.attach(TARGET, () => "newer typing");

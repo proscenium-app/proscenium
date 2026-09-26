@@ -27,7 +27,9 @@ fn decode_export(base64: &str) -> Result<Vec<u8>, String> {
         return Err("the export is too large (maximum 256 MB)".into());
     }
     let bytes = B64.decode(base64.as_bytes()).map_err(estr)?;
-    if bytes.len() > MAX_EXPORT_BYTES { return Err("the export is too large (maximum 256 MB)".into()); }
+    if bytes.len() > MAX_EXPORT_BYTES {
+        return Err("the export is too large (maximum 256 MB)".into());
+    }
     Ok(bytes)
 }
 
@@ -53,17 +55,34 @@ fn export_kind(kind: &str) -> Result<ExportKind, String> {
         "odt" => ("Export .odt", ".odt", "odt", "Script.odt"),
         _ => return Err(format!("cannot export a {kind:?} file")),
     };
-    Ok(ExportKind { title, filter, extension, fallback })
+    Ok(ExportKind {
+        title,
+        filter,
+        extension,
+        fallback,
+    })
 }
 
 #[tauri::command]
 #[cfg(desktop)]
-pub async fn save_export(app: AppHandle, suggested_name: String, base64: String, kind: String) -> Result<Option<String>, String> {
-    let ExportKind { title, filter, extension, fallback } = export_kind(&kind)?;
+pub async fn save_export(
+    app: AppHandle,
+    suggested_name: String,
+    base64: String,
+    kind: String,
+) -> Result<Option<String>, String> {
+    let ExportKind {
+        title,
+        filter,
+        extension,
+        fallback,
+    } = export_kind(&kind)?;
     let bytes = decode_export(&base64)?;
     // The page can suggest only a leaf name. The destination is the
     // native panel's answer inside this command, never a caller-supplied path.
-    let name = PathBuf::from(suggested_name).file_name().map(|n| n.to_string_lossy().into_owned())
+    let name = PathBuf::from(suggested_name)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| fallback.into());
     // A self-test answers the one panel it cannot drive, as it does the folder
     // picker's: the file is written for real, where the run keeps its evidence
@@ -74,15 +93,26 @@ pub async fn save_export(app: AppHandle, suggested_name: String, base64: String,
         return deliver(&bytes, Some(target));
     }
     let picked = tauri::async_runtime::spawn_blocking(move || {
-        app.dialog().file().set_title(title).set_file_name(name)
-            .add_filter(filter, &[extension]).blocking_save_file()
-    }).await.map_err(estr)?;
+        app.dialog()
+            .file()
+            .set_title(title)
+            .set_file_name(name)
+            .add_filter(filter, &[extension])
+            .blocking_save_file()
+    })
+    .await
+    .map_err(estr)?;
     deliver(&bytes, picked.and_then(|p| p.into_path().ok()))
 }
 
 #[tauri::command]
 #[cfg(mobile)]
-pub async fn save_export(_app: AppHandle, _suggested_name: String, _base64: String, _kind: String) -> Result<Option<String>, String> {
+pub async fn save_export(
+    _app: AppHandle,
+    _suggested_name: String,
+    _base64: String,
+    _kind: String,
+) -> Result<Option<String>, String> {
     Err("this platform cannot save an export yet".into())
 }
 
@@ -91,7 +121,11 @@ pub async fn save_export(_app: AppHandle, _suggested_name: String, _base64: Stri
 /// panel's, and the operation keeps the document alive until it ends.
 #[tauri::command]
 #[cfg(target_os = "macos")]
-pub async fn print_export(window: tauri::WebviewWindow, job_title: String, base64: String) -> Result<(), String> {
+pub async fn print_export(
+    window: tauri::WebviewWindow,
+    job_title: String,
+    base64: String,
+) -> Result<(), String> {
     let bytes = decode_export(&base64)?;
     let (tx, rx) = std::sync::mpsc::channel();
     // AppKit, so on the main thread, with the NSWindow the panel attaches to.
@@ -189,7 +223,9 @@ mod print {
 }
 
 fn deliver(bytes: &[u8], selected: Option<PathBuf>) -> Result<Option<String>, String> {
-    let Some(target) = selected else { return Ok(None) };
+    let Some(target) = selected else {
+        return Ok(None);
+    };
     if target.parent().is_none() || target.file_name().is_none() {
         return Err("export path has no parent directory or file name".to_string());
     }
@@ -209,7 +245,12 @@ mod tests {
     fn names_the_panel_for_each_kind_and_refuses_others() {
         assert_eq!(
             export_kind("pdf").unwrap(),
-            ExportKind { title: "Export PDF", filter: "PDF", extension: "pdf", fallback: "Script.pdf" }
+            ExportKind {
+                title: "Export PDF",
+                filter: "PDF",
+                extension: "pdf",
+                fallback: "Script.pdf"
+            }
         );
         assert_eq!(export_kind("docx").unwrap().extension, "docx");
         assert_eq!(export_kind("odt").unwrap().title, "Export .odt");
@@ -245,7 +286,13 @@ mod tests {
         for offset in offsets {
             out.extend(format!("{offset:010} 00000 n \n").as_bytes());
         }
-        out.extend(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
+        out.extend(
+            format!(
+                "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+                objects.len() + 1
+            )
+            .as_bytes(),
+        );
         out
     }
 
@@ -266,7 +313,7 @@ mod tests {
     }
 
     #[test]
-    fn a1_03_cancelled_export_writes_nothing_and_only_the_panel_target_is_replaced() {
+    fn a_cancelled_export_writes_nothing_and_only_the_panel_target_is_replaced() {
         let dir = tempfile::tempdir().unwrap();
         let outside = dir.path().join("unpicked.pdf");
         let selected = dir.path().join("selected.pdf");
@@ -274,7 +321,10 @@ mod tests {
         std::fs::write(&selected, b"old export").unwrap();
         assert_eq!(deliver(b"new export", None).unwrap(), None);
         assert_eq!(std::fs::read(&selected).unwrap(), b"old export");
-        assert_eq!(deliver(b"new export", Some(selected.clone())).unwrap(), Some(selected.to_string_lossy().into_owned()));
+        assert_eq!(
+            deliver(b"new export", Some(selected.clone())).unwrap(),
+            Some(selected.to_string_lossy().into_owned())
+        );
         assert_eq!(std::fs::read(&selected).unwrap(), b"new export");
         assert_eq!(std::fs::read(&outside).unwrap(), b"private");
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2);

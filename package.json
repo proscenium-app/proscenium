@@ -29,7 +29,10 @@
     "build:universal": "bun run icon && node scripts/build-app.mjs --universal --dmg",
     "build:selftest": "bun run icon && node scripts/build-app.mjs --universal --selftest",
     "check:docs": "bun test ./scripts/check-docs.test.ts && bun scripts/check-docs.ts",
-    "gates": "node scripts/gates.mjs"
+    "gates": "node scripts/gates.mjs",
+    "lint": "biome lint .",
+    "format": "biome format --write . && cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check": "biome format . && cargo fmt --manifest-path src-tauri/Cargo.toml -- --check"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
@@ -53,6 +56,7 @@
     "prosemirror-view": "1.42.3"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.14",
     "@mdn/browser-compat-data": "^8.1.1",
     "@tauri-apps/cli": "^2",
     "@types/bun": "latest",

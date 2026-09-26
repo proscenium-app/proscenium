@@ -20,7 +20,15 @@
  * before committing it: it is what VoiceOver is now told.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+  mkdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,16 +44,26 @@ if (!run || !/^\d+$/.test(run)) {
 
 const scratch = mkdtempSync(join(tmpdir(), "proscenium-aria-"));
 try {
-  execFileSync("gh", ["run", "download", run, "-R", REPO, "-n", "selftest-evidence", "-D", scratch], { stdio: "inherit" });
+  execFileSync(
+    "gh",
+    ["run", "download", run, "-R", REPO, "-n", "selftest-evidence", "-D", scratch],
+    { stdio: "inherit" },
+  );
   const from = join(scratch, "native", "aria");
   if (!existsSync(from)) {
-    console.error(`run ${run} kept no native trees (native/aria/ is missing from its selftest-evidence)`);
+    console.error(
+      `run ${run} kept no native trees (native/aria/ is missing from its selftest-evidence)`,
+    );
     process.exit(1);
   }
   const report = JSON.parse(readFileSync(join(scratch, "native", "report.json"), "utf8"));
-  const unfinished = (report.passes ?? []).some((p) => p.unfinished || p.interrupted) || (report.passes ?? []).length < 2;
+  const unfinished =
+    (report.passes ?? []).some((p) => p.unfinished || p.interrupted) ||
+    (report.passes ?? []).length < 2;
   if (unfinished) {
-    console.error(`run ${run}'s native pass did not finish both schemes: its trees are not the whole set`);
+    console.error(
+      `run ${run}'s native pass did not finish both schemes: its trees are not the whole set`,
+    );
     process.exit(1);
   }
   const to = join(ROOT, "scripts", "aria", "native");
@@ -63,12 +81,17 @@ try {
   const wanted = new Map();
   for (const [name, { light, dark }] of trees) {
     wanted.set(`${name}.yml`, light ?? dark);
-    if (light !== undefined && dark !== undefined && dark !== light) wanted.set(`${name}.dark.yml`, dark);
+    if (light !== undefined && dark !== undefined && dark !== light)
+      wanted.set(`${name}.dark.yml`, dark);
   }
   const present = existsSync(to) ? readdirSync(to).filter((f) => f.endsWith(".yml")) : [];
-  const changed = [...wanted.keys()].filter((f) => !present.includes(f) || readFileSync(join(to, f), "utf8") !== wanted.get(f));
+  const changed = [...wanted.keys()].filter(
+    (f) => !present.includes(f) || readFileSync(join(to, f), "utf8") !== wanted.get(f),
+  );
   const gone = present.filter((f) => !wanted.has(f));
-  console.log(`${trees.size} surfaces in run ${run}: ${changed.length} files new or changed, ${gone.length} no longer read`);
+  console.log(
+    `${trees.size} surfaces in run ${run}: ${changed.length} files new or changed, ${gone.length} no longer read`,
+  );
   for (const f of changed) console.log(`  ${present.includes(f) ? "changed" : "new    "}  ${f}`);
   for (const f of gone) console.log(`  gone     ${f}`);
   if (dry) process.exit(0);

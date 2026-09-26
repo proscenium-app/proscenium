@@ -1,0 +1,84 @@
+// SPDX-FileCopyrightText: 2026 Habiby LLC
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// Biome formats and lints the TypeScript, the scripts, the stylesheets and the
+// Worker (docs/engineering/release-engineering.md#REL-99). `bun run format`
+// writes; `bun run format:check` and `bun run lint` are gates, in `bun run
+// gates`, the pipeline and the public CI. rustfmt does the same for Rust.
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+  "files": {
+    "includes": [
+      "src/**",
+      "scripts/**",
+      "services/edge/src/**",
+      "services/edge/test/**",
+      "public-repo/**",
+      "*.ts",
+      "*.json",
+      // Recorded accessibility trees and the pipeline's evidence: data, held as recorded.
+      "!scripts/aria/**",
+      "!scripts/ci-triage.fixtures/**",
+      "!**/fixtures/**",
+      // Evaluated as a function body inside the app's Web Inspector: its top-level
+      // `return` is right there and a parse error here.
+      "!scripts/selftest/ax-walk.js"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "trailingCommas": "all",
+      "semicolons": "always"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      // The recommended rules that the tree did not meet when the gate went in
+      // are warnings until each is met, one rule per landing, so the gate holds
+      // every rule that is already clean and no rule is quietly turned off. The
+      // accessibility rules change what a screen reader is told, so each of those
+      // landings re-records the surfaces it changes (scripts/aria/) and is
+      // reviewed like code. Counts when the gate went in are in the commit that
+      // added it; a rule goes back to "error" in the landing that clears it.
+      "a11y": {
+        "noAutofocus": "warn",
+        "noLabelWithoutControl": "warn",
+        "noNoninteractiveTabindex": "warn",
+        "noStaticElementInteractions": "warn",
+        "noSvgWithoutTitle": "warn",
+        "useAriaPropsForRole": "warn",
+        "useAriaPropsSupportedByRole": "warn",
+        "useButtonType": "warn",
+        "useFocusableInteractive": "warn",
+        "useKeyWithClickEvents": "warn",
+        "useSemanticElements": "warn"
+      },
+      "correctness": {
+        // Every dependency list in the tree is deliberate and says why in its
+        // comment; a mechanical fix changes when effects run.
+        "useExhaustiveDependencies": "warn"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "warn",
+        "noAssignInExpressions": "warn",
+        "noControlCharactersInRegex": "warn",
+        "noImplicitAnyLet": "warn",
+        "noRedeclare": "warn",
+        "noShadowRestrictedNames": "warn",
+        "noShorthandPropertyOverrides": "warn",
+        "useIterableCallbackReturn": "warn"
+      }
+    }
+  },
+  "assist": { "enabled": false }
+}

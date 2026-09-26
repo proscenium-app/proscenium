@@ -75,9 +75,7 @@ export function stackCards(cards: CardBox[], opts: StackOptions = {}): number[] 
   } else {
     for (let i = 0; i < n; i++) {
       tops[i] =
-        i === 0
-          ? cards[i].want
-          : Math.max(cards[i].want, tops[i - 1] + cards[i - 1].height + gap);
+        i === 0 ? cards[i].want : Math.max(cards[i].want, tops[i - 1] + cards[i - 1].height + gap);
     }
   }
 

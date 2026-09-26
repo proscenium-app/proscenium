@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* ------------------------------------------------------------------ */
 /* Touch tap targets                                                  */
 /* ------------------------------------------------------------------ */
@@ -13,7 +12,7 @@
 @media (pointer: coarse) {
   .btn,
   .viewswitch__btn,
-    .binder__row,
+  .binder__row,
   .binder__pinned,
   .binder__add,
   .playrow--play .playrow__title,
@@ -43,4 +42,3 @@
     align-items: center;
   }
 }
-

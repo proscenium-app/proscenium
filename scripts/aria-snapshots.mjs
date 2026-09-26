@@ -93,29 +93,45 @@ const MONTH = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?";
  * ("Jun 18, 2026, 5:10 PM" in Chromium, "… at 5:10 PM" in WebKit).
  */
 export function normalize(text) {
-  return savedCopies(openSurfaces(sortRows(text))
-    .replace(new RegExp(`\\b${MONTH} \\d{1,2}, \\d{4}(?:,| at) \\d{1,2}:\\d{2}(?::\\d{2})?\\s?[AP]M\\b`, "g"), "<date and time>")
-    .replace(new RegExp(`\\b${MONTH} \\d{1,2}, \\d{4}\\b`, "g"), "<date>")
-    // A saved copy's short date (9/25/2026) is the day the checks ran.
-    .replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, "<date>")
-    .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s?[AP]M\b/g, "<time>")
-    .replace(/(?:\/private)?\/var\/folders\/[^\s"':]*?\/proscenium-selftest-\d+\/plays-(?:light|dark)/g, "<plays folder>")
-    .replace(/plays-(?:light|dark)\b/g, "<plays folder name>")
-    // Anything else under the self-test's temporary home: the build host's
-    // temp folder and the run's pid are not the app's.
-    .replace(/(?:\/private)?\/var\/folders\/[^\s"']*?\/proscenium-selftest-\d+\//g, "<self-test home>/")
-    .replace(/\b\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?\b/g, "<version>")
-    .replace(/\b[0-9A-HJKMNP-TV-Z]{26}\b/g, "<id>")
-    .replace(/\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b/g, "<timestamp>")
-    // The page map names the scene the pane is scrolled to, which is where the
-    // last check left it, not what the surface is.
-    .replace(/On screen: [^"'\n]*/g, "On screen: <scene>")
-    // How many changes wait in Changes, which is what the checks before left.
-    .replace(/\b\d+ pending\b/g, "<n> pending")
-    // Where the autosave is, which is how long ago the last check typed.
-    .replace(/^(\s*- text: )(?:Saved(?: · <time>)?|Saving…|Editing…)$/gm, "$1<save status>")
-    .replace(/[ \t]+$/gm, ""))
-    .trimEnd();
+  return savedCopies(
+    openSurfaces(sortRows(text))
+      .replace(
+        new RegExp(
+          `\\b${MONTH} \\d{1,2}, \\d{4}(?:,| at) \\d{1,2}:\\d{2}(?::\\d{2})?\\s?[AP]M\\b`,
+          "g",
+        ),
+        "<date and time>",
+      )
+      .replace(new RegExp(`\\b${MONTH} \\d{1,2}, \\d{4}\\b`, "g"), "<date>")
+      // A saved copy's short date (9/25/2026) is the day the checks ran.
+      .replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, "<date>")
+      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s?[AP]M\b/g, "<time>")
+      .replace(
+        /(?:\/private)?\/var\/folders\/[^\s"':]*?\/proscenium-selftest-\d+\/plays-(?:light|dark)/g,
+        "<plays folder>",
+      )
+      .replace(/plays-(?:light|dark)\b/g, "<plays folder name>")
+      // Anything else under the self-test's temporary home: the build host's
+      // temp folder and the run's pid are not the app's.
+      .replace(
+        /(?:\/private)?\/var\/folders\/[^\s"']*?\/proscenium-selftest-\d+\//g,
+        "<self-test home>/",
+      )
+      .replace(/\b\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?\b/g, "<version>")
+      .replace(/\b[0-9A-HJKMNP-TV-Z]{26}\b/g, "<id>")
+      .replace(
+        /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b/g,
+        "<timestamp>",
+      )
+      // The page map names the scene the pane is scrolled to, which is where the
+      // last check left it, not what the surface is.
+      .replace(/On screen: [^"'\n]*/g, "On screen: <scene>")
+      // How many changes wait in Changes, which is what the checks before left.
+      .replace(/\b\d+ pending\b/g, "<n> pending")
+      // Where the autosave is, which is how long ago the last check typed.
+      .replace(/^(\s*- text: )(?:Saved(?: · <time>)?|Saving…|Editing…)$/gm, "$1<save status>")
+      .replace(/[ \t]+$/gm, ""),
+  ).trimEnd();
 }
 
 /**
@@ -135,9 +151,14 @@ function openSurfaces(text) {
     if (!/^\s*- '?(?:list|group) "Open in this pane"'?:?$/.test(line)) continue;
     const indent = depth(line);
     let item = null;
-    const keep = (block) => { if (block && block.some((l) => l.includes("[current"))) out.push(...block); };
+    const keep = (block) => {
+      if (block && block.some((l) => l.includes("[current"))) out.push(...block);
+    };
     while (i < lines.length && lines[i].trim() && depth(lines[i]) > indent) {
-      if (depth(lines[i]) === indent + 2) { keep(item); item = []; }
+      if (depth(lines[i]) === indent + 2) {
+        keep(item);
+        item = [];
+      }
       item?.push(lines[i++]);
     }
     keep(item);
@@ -238,7 +259,8 @@ function sortRows(text) {
     const rows = [];
     while (i < lines.length && isRow(lines[i]) && depth(lines[i]) === indent) {
       const block = [lines[i++]];
-      while (i < lines.length && lines[i].trim() && depth(lines[i]) > indent) block.push(lines[i++]);
+      while (i < lines.length && lines[i].trim() && depth(lines[i]) > indent)
+        block.push(lines[i++]);
       rows.push(block.join("\n"));
     }
     out.push(...rows.sort());
@@ -288,8 +310,10 @@ export function renderWebKitTree(tree) {
     const s = node.states ?? {};
     if (s.headingLevel) states.push(`level=${s.headingLevel}`);
     if (s.hierarchyLevel && role === "treeitem") states.push(`level=${s.hierarchyLevel}`);
-    if (s.checked !== undefined && s.checked !== false) states.push(s.checked === "mixed" ? "checked=mixed" : "checked");
-    if (s.pressed !== undefined && s.pressed !== false) states.push(s.pressed === "mixed" ? "pressed=mixed" : "pressed");
+    if (s.checked !== undefined && s.checked !== false)
+      states.push(s.checked === "mixed" ? "checked=mixed" : "checked");
+    if (s.pressed !== undefined && s.pressed !== false)
+      states.push(s.pressed === "mixed" ? "pressed=mixed" : "pressed");
     if (s.expanded === true) states.push("expanded");
     if (s.selected) states.push("selected");
     if (s.disabled) states.push("disabled");
@@ -298,7 +322,8 @@ export function renderWebKitTree(tree) {
     if (s.invalid && s.invalid !== "false") states.push("invalid");
     if (s.current && s.current !== "false") states.push(`current=${s.current}`);
     if (s.isPopUpButton) states.push("haspopup");
-    if (s.liveRegionStatus && s.liveRegionStatus !== "off") states.push(`live=${s.liveRegionStatus}`);
+    if (s.liveRegionStatus && s.liveRegionStatus !== "off")
+      states.push(`live=${s.liveRegionStatus}`);
     if (states.length) line += ` [${states.join("] [")}]`;
     const spoken = s.liveRegionStatus && s.liveRegionStatus !== "off";
     if (spoken || role === "textbox" || role === "searchfield") {

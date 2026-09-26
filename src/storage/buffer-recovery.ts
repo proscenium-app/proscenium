@@ -2,10 +2,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import type { TimerHost } from "./autosave";
-import { RecoverySnapshots, RECOVERY_INTERVAL_MS, type RecoveryIO, type RecoveryTarget } from "./recovery";
+import {
+  RecoverySnapshots,
+  RECOVERY_INTERVAL_MS,
+  type RecoveryIO,
+  type RecoveryTarget,
+} from "./recovery";
 
-export interface RecoveryBuffer extends RecoveryTarget { key: string; content: string }
-interface Entry { snapshot: RecoverySnapshots; target: RecoveryTarget; content: string }
+export interface RecoveryBuffer extends RecoveryTarget {
+  key: string;
+  content: string;
+}
+interface Entry {
+  snapshot: RecoverySnapshots;
+  target: RecoveryTarget;
+  content: string;
+}
 const timers: TimerHost = {
   set: (fn, ms) => setTimeout(fn, ms) as unknown as number,
   clear: (id) => clearTimeout(id),
@@ -18,7 +30,11 @@ export class BufferRecovery {
   private entries = new Map<string, Entry>();
   private timer: number | null = null;
   private queue: Promise<unknown> = Promise.resolve();
-  constructor(private io: RecoveryIO, private capture: () => RecoveryBuffer[], private clock: TimerHost = timers) {}
+  constructor(
+    private io: RecoveryIO,
+    private capture: () => RecoveryBuffer[],
+    private clock: TimerHost = timers,
+  ) {}
 
   start(): void {
     if (this.timer !== null) return;
@@ -38,7 +54,10 @@ export class BufferRecovery {
         if (seen.has(buffer.key)) throw new Error("duplicate recovery buffer key");
         seen.add(buffer.key);
         let entry = this.entries.get(buffer.key);
-        if (entry && (entry.target.playId !== buffer.playId || entry.target.scriptId !== buffer.scriptId)) {
+        if (
+          entry &&
+          (entry.target.playId !== buffer.playId || entry.target.scriptId !== buffer.scriptId)
+        ) {
           entry.snapshot.detach();
           await entry.snapshot.settle();
           entry = undefined;
@@ -88,5 +107,7 @@ export class BufferRecovery {
     return this.detach();
   }
 
-  async settle(): Promise<void> { await this.queue; }
+  async settle(): Promise<void> {
+    await this.queue;
+  }
 }

@@ -66,10 +66,15 @@ import type { ExportFileType } from "../storage/ipc";
 export type ExportAction = "export" | "print";
 
 /** How each file type is named where the writer chooses it: by extension, but PDF. */
-export const EXPORT_TYPE_LABEL: Record<ExportFileType, string> = { pdf: "PDF", docx: ".docx", odt: ".odt" };
+export const EXPORT_TYPE_LABEL: Record<ExportFileType, string> = {
+  pdf: "PDF",
+  docx: ".docx",
+  odt: ".odt",
+};
 
 /** Said beside the buttons, and announced, when the file is for a word processor. */
-export const WORD_PROCESSOR_HINT = "A word processor sets its own page breaks, so they can differ from this preview.";
+export const WORD_PROCESSOR_HINT =
+  "A word processor sets its own page breaks, so they can differ from this preview.";
 
 export interface ExportPanelProps {
   scriptTitle: string;
@@ -81,7 +86,7 @@ export interface ExportPanelProps {
   /** The front sheets the writer chose; null until they choose, which follows the default. */
   frontChoice: FrontSheet[] | null;
   onFrontChoice: (kinds: FrontSheet[]) => void;
-  /** Speakers who can have sides (backlog P5), heaviest part first. */
+  /** Speakers who can have sides, heaviest part first. */
   characters: string[];
   /** Non-null when the layout is one character's sides rather than the play. */
   sidesFor: string | null;
@@ -137,9 +142,9 @@ export function ExportPanel(props: ExportPanelProps) {
   const [range, setRange] = useState("");
   const [language, setLanguage] = useState(props.language);
   const languageCode = canonicalLanguage(language);
-  const languageHelp = props.languageError ?? (!languageCode
-    ? "Enter a language code, such as en-US or fr."
-    : describeLanguage(language));
+  const languageHelp =
+    props.languageError ??
+    (!languageCode ? "Enter a language code, such as en-US or fr." : describeLanguage(language));
   useAnnouncedStatus(!languageCode || props.languageError ? languageHelp : null);
 
   const selection = useMemo(() => parsePageRange(range, total), [range, total]);
@@ -185,15 +190,30 @@ export function ExportPanel(props: ExportPanelProps) {
   useAnnouncedStatus(props.anonymous && naming.length ? anonymousHelp : null);
 
   useEffect(() => {
-    publishExportFacts({open:true,range:!!range.trim() && !selection.error,rangeError:!!range.trim() && !!selection.error,opening:props.frontChoice !== null,preview:plan.chosen.length>0});
-  }, [range,selection.error,props.frontChoice,plan.chosen.length]);
+    publishExportFacts({
+      open: true,
+      range: !!range.trim() && !selection.error,
+      rangeError: !!range.trim() && !!selection.error,
+      opening: props.frontChoice !== null,
+      preview: plan.chosen.length > 0,
+    });
+  }, [range, selection.error, props.frontChoice, plan.chosen.length]);
   useEffect(() => () => publishExportFacts(CLOSED_EXPORT), []);
   useEffect(() => {
-    tutorialActions.set("export-range",() => setRange("1"));
-    tutorialActions.set("export-opening",() => onFrontChoice(frontKinds.includes("title") ? frontKinds.filter(k=>k!=="title") : [...frontKinds,"title"]));
-    tutorialActions.set("export-preview",() => {});
-    return () => {for(const id of ["export-range","export-opening","export-preview"]) tutorialActions.delete(id);};
-  }, [onFrontChoice,frontKinds]);
+    tutorialActions.set("export-range", () => setRange("1"));
+    tutorialActions.set("export-opening", () =>
+      onFrontChoice(
+        frontKinds.includes("title")
+          ? frontKinds.filter((k) => k !== "title")
+          : [...frontKinds, "title"],
+      ),
+    );
+    tutorialActions.set("export-preview", () => {});
+    return () => {
+      for (const id of ["export-range", "export-opening", "export-preview"])
+        tutorialActions.delete(id);
+    };
+  }, [onFrontChoice, frontKinds]);
 
   /**
    * The sheet being read, by key, so it survives the set changing around it:
@@ -277,8 +297,7 @@ export function ExportPanel(props: ExportPanelProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [props.onClose]);
 
-  const canExport =
-    !!languageCode && !selection.error && selection.pages.length > 0 && !props.busy;
+  const canExport = !!languageCode && !selection.error && selection.pages.length > 0 && !props.busy;
   const send = (action: ExportAction) =>
     props.onExport({
       pages: selection.all ? null : selection.pages,
@@ -348,7 +367,9 @@ export function ExportPanel(props: ExportPanelProps) {
   // summary is what is announced.
   const forWordProcessor = props.fileType !== "pdf";
   const openedOn = useRef(props.fileType);
-  useAnnouncedStatus(forWordProcessor && props.fileType !== openedOn.current ? WORD_PROCESSOR_HINT : null);
+  useAnnouncedStatus(
+    forWordProcessor && props.fileType !== openedOn.current ? WORD_PROCESSOR_HINT : null,
+  );
   const typeLabel = EXPORT_TYPE_LABEL[props.fileType];
 
   const exportButton = (
@@ -457,7 +478,12 @@ export function ExportPanel(props: ExportPanelProps) {
             {available.length > 0 ? (
               /* Any export can carry them — a cover and a cast list in front
                  of an excerpt, or of an actor's sides. */
-              <div className="exportpanel__front" data-tutorial="export-opening" role="group" aria-labelledby="export-front-label">
+              <div
+                className="exportpanel__front"
+                data-tutorial="export-opening"
+                role="group"
+                aria-labelledby="export-front-label"
+              >
                 <span className="exportpanel__optlabel" id="export-front-label">
                   Include
                 </span>
@@ -505,11 +531,19 @@ export function ExportPanel(props: ExportPanelProps) {
             </div>
             <label className="exportpanel__language">
               <span>Language</span>
-              <input className="field mono" aria-label="Play language" value={language}
-                aria-invalid={!languageCode} aria-describedby="export-language-help"
-                disabled={!!props.busy} maxLength={100}
-                onChange={(e) => setLanguage(e.target.value)} />
-              <span className="sheet__hint" id="export-language-help">{languageHelp}</span>
+              <input
+                className="field mono"
+                aria-label="Play language"
+                value={language}
+                aria-invalid={!languageCode}
+                aria-describedby="export-language-help"
+                disabled={!!props.busy}
+                maxLength={100}
+                onChange={(e) => setLanguage(e.target.value)}
+              />
+              <span className="sheet__hint" id="export-language-help">
+                {languageHelp}
+              </span>
             </label>
           </div>
           <span className="sheet__spacer" />
@@ -715,10 +749,7 @@ function PreviewScroller(props: {
         >
           ◀
         </button>
-        <span
-          className={`exportpanel__pagernow${props.note ? " is-note" : ""}`}
-          aria-live="polite"
-        >
+        <span className={`exportpanel__pagernow${props.note ? " is-note" : ""}`} aria-live="polite">
           {props.note ?? pagerText(sheets, focused)}
         </span>
         <button
@@ -836,31 +867,43 @@ function MarginSlots(props: { slots: NonNullable<LayoutPage["header"]>; classNam
  * or above a sketch's dialogue on its numbered opening page.
  */
 function FrontLines({ lines, spec }: { lines: FrontMatterLine[]; spec: FormatSpec }) {
-  return <>
-    {lines.map((line, i) =>
-      line.text ? (
-        <span
-          key={i}
-          className="exportpanel__line"
-          style={{
-            top: `calc(${line.row} * var(--fmt-line))`,
-            left: `${inchesToCh(spec, line.xIn)}ch`,
-            fontWeight:
-              line.fontStyle === "bold" || line.fontStyle === "bold-italic" ? 700 : undefined,
-            fontStyle:
-              line.fontStyle === "italic" || line.fontStyle === "bold-italic"
-                ? "italic"
-                : undefined,
-          }}
-        >
-          {styleSegments(line.text, line.runs ?? [], {
-            bold: line.fontStyle === "bold" || line.fontStyle === "bold-italic",
-            italic: line.fontStyle === "italic" || line.fontStyle === "bold-italic",
-          }).map((seg, j) => <span key={j} style={{ fontWeight: seg.bold ? 700 : 400, fontStyle: seg.italic ? "italic" : "normal" }}>{seg.text}</span>)}
-        </span>
-      ) : null,
-    )}
-  </>;
+  return (
+    <>
+      {lines.map((line, i) =>
+        line.text ? (
+          <span
+            key={i}
+            className="exportpanel__line"
+            style={{
+              top: `calc(${line.row} * var(--fmt-line))`,
+              left: `${inchesToCh(spec, line.xIn)}ch`,
+              fontWeight:
+                line.fontStyle === "bold" || line.fontStyle === "bold-italic" ? 700 : undefined,
+              fontStyle:
+                line.fontStyle === "italic" || line.fontStyle === "bold-italic"
+                  ? "italic"
+                  : undefined,
+            }}
+          >
+            {styleSegments(line.text, line.runs ?? [], {
+              bold: line.fontStyle === "bold" || line.fontStyle === "bold-italic",
+              italic: line.fontStyle === "italic" || line.fontStyle === "bold-italic",
+            }).map((seg, j) => (
+              <span
+                key={j}
+                style={{
+                  fontWeight: seg.bold ? 700 : 400,
+                  fontStyle: seg.italic ? "italic" : "normal",
+                }}
+              >
+                {seg.text}
+              </span>
+            ))}
+          </span>
+        ) : null,
+      )}
+    </>
+  );
 }
 
 function FrontPreviewPage(props: { page: FrontMatterPage; spec: FormatSpec; scale: number }) {

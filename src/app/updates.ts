@@ -52,13 +52,23 @@ function subscribe(listener: () => void) {
 
 /** The updater's state, kept current by one app-wide subscription. */
 export function useUpdateState(): UpdateState {
-  return useSyncExternalStore(subscribe, () => current, () => current);
+  return useSyncExternalStore(
+    subscribe,
+    () => current,
+    () => current,
+  );
 }
 
 /** Check Now, and the menu's "Check for Updates…". */
 export async function checkForUpdatesNow(): Promise<void> {
   start();
-  if (current.kind === "checking" || current.kind === "downloading" || current.kind === "ready" || current.kind === "installing") return;
+  if (
+    current.kind === "checking" ||
+    current.kind === "downloading" ||
+    current.kind === "ready" ||
+    current.kind === "installing"
+  )
+    return;
   publish({ kind: "checking" });
   publish(await updates.check());
 }
@@ -68,8 +78,11 @@ export async function checkForUpdatesNow(): Promise<void> {
  * settle a quit waits on: what can land lands, and words that
  * could be kept nowhere hold the restart, as they hold a quit.
  */
-let settleEdits: () => Promise<{ lost: string[]; leave: () => Promise<void> } | void> = async () => {};
-let confirmSaved: () => Promise<void> = async () => { throw new Error("The workspace has not confirmed its save state."); };
+let settleEdits: () => Promise<{ lost: string[]; leave: () => Promise<void> } | void> =
+  async () => {};
+let confirmSaved: () => Promise<void> = async () => {
+  throw new Error("The workspace has not confirmed its save state.");
+};
 const restart = new UpdateRestart();
 
 /**
@@ -77,7 +90,12 @@ const restart = new UpdateRestart();
  * happen, with why: a successful restart never returns to the page.
  */
 export function restartToUpdate(): Promise<RestartResult> {
-  return restart.run({ lock: lockForUpdate, settle: settleEdits, confirmSaved, restart: updates.restart });
+  return restart.run({
+    lock: lockForUpdate,
+    settle: settleEdits,
+    confirmSaved,
+    restart: updates.restart,
+  });
 }
 
 /** A sentence for a restart that did not happen. */
@@ -115,7 +133,12 @@ export function useUpdateNotices(settle: typeof settleEdits, confirm: typeof con
         label: "Restart to Update",
         run: () =>
           void restartToUpdate().then((result) => {
-            toast({ kind: "error", title: "Proscenium didn’t restart", detail: restartProblem(result), code: "E-UPDATE-RESTART" });
+            toast({
+              kind: "error",
+              title: "Proscenium didn’t restart",
+              detail: restartProblem(result),
+              code: "E-UPDATE-RESTART",
+            });
           }),
       },
     });
@@ -147,8 +170,10 @@ export function describeUpdates(state: UpdateState, version: string | null): str
     case "installing":
       return `Installing Proscenium ${state.version}…`;
     case "failed":
-      if (state.reason === "offline") return `Couldn’t connect to check for updates. Tried ${when(state.checkedAt)}.`;
-      if (state.reason === "noKey") return `${self}. Alpha needs a key, so this copy didn’t check for updates.`;
+      if (state.reason === "offline")
+        return `Couldn’t connect to check for updates. Tried ${when(state.checkedAt)}.`;
+      if (state.reason === "noKey")
+        return `${self}. Alpha needs a key, so this copy didn’t check for updates.`;
       if (state.reason === "signature") {
         return "An update failed Proscenium’s security check and was discarded. Nothing was installed.";
       }
@@ -157,7 +182,11 @@ export function describeUpdates(state: UpdateState, version: string | null): str
 }
 
 /** Each track's name, as Settings › Updates shows it. */
-export const TRACK_LABELS: Record<UpdateTrack, string> = { stable: "Stable", beta: "Beta", alpha: "Alpha" };
+export const TRACK_LABELS: Record<UpdateTrack, string> = {
+  stable: "Stable",
+  beta: "Beta",
+  alpha: "Alpha",
+};
 
 /**
  * The tracks Settings › Updates offers. Alpha only to a copy that holds its key
@@ -167,13 +196,18 @@ export const TRACK_LABELS: Record<UpdateTrack, string> = { stable: "Stable", bet
  * built for Apple silicon only, and the app follows stable there whatever was
  * stored.
  */
-export function offeredTracks(arch: string | null | undefined, current: UpdateTrack, hasKey: boolean): UpdateTrack[] {
+export function offeredTracks(
+  arch: string | null | undefined,
+  current: UpdateTrack,
+  hasKey: boolean,
+): UpdateTrack[] {
   if (arch === "x86_64") return ["stable"];
   return UPDATE_TRACKS.filter((t) => t !== "alpha" || hasKey || current === "alpha");
 }
 
 /** What an Intel Mac is told in place of a track's sentence. */
-export const INTEL_TRACK_NOTE = "Each new release. Test versions are made for Macs with Apple silicon only.";
+export const INTEL_TRACK_NOTE =
+  "Each new release. Test versions are made for Macs with Apple silicon only.";
 
 /** Slowest first: a track's versions sort below the faster tracks' of the same release. */
 const SPEED: Record<UpdateTrack, number> = { stable: 0, beta: 1, alpha: 2 };

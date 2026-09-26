@@ -23,21 +23,28 @@ import { EXAMPLE } from "./lessons";
 import { nameLike } from "./coach";
 
 const empty = (n: PMNode | null | undefined) => !!n && n.isTextblock && n.content.size === 0;
-const endOf = (state: EditorState, index: number) => (blockPos(state, index) ?? 0) + 1 + state.doc.child(index).content.size;
+const endOf = (state: EditorState, index: number) =>
+  (blockPos(state, index) ?? 0) + 1 + state.doc.child(index).content.size;
 const last = (state: EditorState) => state.doc.childCount - 1;
 function lastCue(state: EditorState): number | null {
-  for (let i = last(state); i >= 0; i--) {const n = state.doc.child(i); if (n.type.name === "character" && n.textContent.trim()) return i;}
+  for (let i = last(state); i >= 0; i--) {
+    const n = state.doc.child(i);
+    if (n.type.name === "character" && n.textContent.trim()) return i;
+  }
   return null;
 }
-const block = (state: EditorState, type: string, text = "") => state.schema.nodes[type].create(null, text ? state.schema.text(text) : null);
-const caretAt = (tr: Transaction, pos: number) => tr.setSelection(TextSelection.create(tr.doc, pos));
+const block = (state: EditorState, type: string, text = "") =>
+  state.schema.nodes[type].create(null, text ? state.schema.text(text) : null);
+const caretAt = (tr: Transaction, pos: number) =>
+  tr.setSelection(TextSelection.create(tr.doc, pos));
 
 /** An empty line at the end of the script, with the cursor in it. */
 export function endLineTr(state: EditorState, type = "action"): Transaction {
   const tr = state.tr;
   const end = state.doc.lastChild;
   if (empty(end) && (end!.type.name === type || end!.type.name === "action")) {
-    if (end!.type.name !== type) tr.setNodeMarkup(blockPos(state, last(state))!, state.schema.nodes[type]);
+    if (end!.type.name !== type)
+      tr.setNodeMarkup(blockPos(state, last(state))!, state.schema.nodes[type]);
     return caretAt(tr, state.doc.content.size - 1);
   }
   tr.insert(state.doc.content.size, block(state, type));
@@ -63,7 +70,11 @@ export function nameTr(state: EditorState, name: string): Transaction {
   const endText = end.textContent.trim();
   const tr = state.tr;
   let at: number;
-  if (end.isTextblock && (end.type.name === "action" || end.type.name === "character") && (!endText || nameLike(endText))) {
+  if (
+    end.isTextblock &&
+    (end.type.name === "action" || end.type.name === "character") &&
+    (!endText || nameLike(endText))
+  ) {
     at = blockPos(state, last(state))!;
     const text = (endText || name).toUpperCase();
     tr.replaceWith(at, at + end.nodeSize, block(state, "character", text));
@@ -92,18 +103,26 @@ export function speakTr(state: EditorState, text: string, finish: boolean): Tran
 
 /** The bundled exchange, after everything else, for a lesson that needs a speech to work on. */
 export function exchangeTr(state: EditorState): Transaction {
-  const nodes = [block(state, "character", EXAMPLE.first), block(state, "dialogue", EXAMPLE.line),
-    block(state, "character", EXAMPLE.second), block(state, "dialogue", EXAMPLE.reply)];
+  const nodes = [
+    block(state, "character", EXAMPLE.first),
+    block(state, "dialogue", EXAMPLE.line),
+    block(state, "character", EXAMPLE.second),
+    block(state, "dialogue", EXAMPLE.reply),
+  ];
   const end = state.doc.lastChild;
   const tr = state.tr;
-  if (empty(end)) tr.replaceWith(blockPos(state, last(state))!, state.doc.content.size, Fragment.from(nodes));
+  if (empty(end))
+    tr.replaceWith(blockPos(state, last(state))!, state.doc.content.size, Fragment.from(nodes));
   else tr.insert(state.doc.content.size, Fragment.from(nodes));
   return caretAt(tr, tr.doc.content.size - 1);
 }
 
 /** The first spoken line's block index, or null. */
 function firstSpeech(state: EditorState): number | null {
-  for (let i = 0; i < state.doc.childCount; i++) {const n = state.doc.child(i); if (n.type.name === "dialogue" && n.textContent.trim()) return i;}
+  for (let i = 0; i < state.doc.childCount; i++) {
+    const n = state.doc.child(i);
+    if (n.type.name === "dialogue" && n.textContent.trim()) return i;
+  }
   return null;
 }
 /** Show Me for emphasis: the first word of the first speech, in bold. */
@@ -121,7 +140,10 @@ export function lineBreakTr(state: EditorState): Transaction | null {
   const i = firstSpeech(state);
   if (i === null) return null;
   const end = endOf(state, i);
-  const tr = state.tr.insert(end, [state.schema.nodes[LINE_BREAK].create(), state.schema.text(EXAMPLE.more)]);
+  const tr = state.tr.insert(end, [
+    state.schema.nodes[LINE_BREAK].create(),
+    state.schema.text(EXAMPLE.more),
+  ]);
   return caretAt(tr, end + 1 + EXAMPLE.more.length);
 }
 /** Show Me for Page Break: one after the last line, so a scene added next starts on a fresh page. */
@@ -140,7 +162,11 @@ export function cueFixTr(state: EditorState, index: number): Transaction | null 
   const at = blockPos(state, index);
   if (at === null) return null;
   const node = state.doc.child(index);
-  const tr = state.tr.replaceWith(at, at + node.nodeSize, block(state, "character", node.textContent.trim().toUpperCase()));
+  const tr = state.tr.replaceWith(
+    at,
+    at + node.nodeSize,
+    block(state, "character", node.textContent.trim().toUpperCase()),
+  );
   const after = at + tr.doc.nodeAt(at)!.nodeSize;
   const next = after < tr.doc.content.size ? tr.doc.nodeAt(after) : null;
   if (empty(next)) tr.setNodeMarkup(after, state.schema.nodes.dialogue);

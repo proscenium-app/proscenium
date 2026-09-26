@@ -39,7 +39,13 @@ function harness(settle: () => Promise<QuitSettled>) {
 function outcome(lost: string[] = [], log?: string[]): QuitSettled {
   return {
     lost,
-    problem: lost.length ? saveProblem("disk-full", { kind: "document", name: lost[0], folder: "Characters" }, "quitting") : null,
+    problem: lost.length
+      ? saveProblem(
+          "disk-full",
+          { kind: "document", name: lost[0], folder: "Characters" },
+          "quitting",
+        )
+      : null,
     leave: async () => void log?.push("note left"),
   };
 }
@@ -160,7 +166,11 @@ describe("answering a quit", () => {
 
 describe("the quit alert's words", () => {
   it("names what would be lost, why, and what would let it save", () => {
-    const problem = saveProblem("disk-full", { kind: "document", name: "Mara", folder: "Characters" }, "quitting");
+    const problem = saveProblem(
+      "disk-full",
+      { kind: "document", name: "Mara", folder: "Characters" },
+      "quitting",
+    );
     expect(quitHoldWords({ kind: "not-kept", lost: ["Mara", "Outline notes"], problem })).toEqual({
       title: "What was typed in “Mara”, “Outline notes” couldn't be saved or kept.",
       body: "The disk is full. If Proscenium quits now, what was typed is lost. “Mara” will save once there is room on the disk.",
@@ -169,12 +179,19 @@ describe("the quit alert's words", () => {
       title: "What was typed couldn't be saved or kept.",
       body: "If Proscenium quits now, what was typed is lost.",
     });
-    expect(quitHoldWords({ kind: "still-saving" }).title).toBe("Proscenium is still saving what was typed.");
+    expect(quitHoldWords({ kind: "still-saving" }).title).toBe(
+      "Proscenium is still saving what was typed.",
+    );
   });
 
   it("never uses the words a writer is not shown (docs/app/keeping-work/storage-and-file-format.md#STOR-D1)", () => {
-    const internal = /vault|workspace|project|manifest|material|conflict|sync|snapshot|collision|buffer|settle|IPC/i;
-    const problem = saveProblem("locked", { kind: "outline", name: "Outline", folder: "The Tide" }, "quitting");
+    const internal =
+      /vault|workspace|project|manifest|material|conflict|sync|snapshot|collision|buffer|settle|IPC/i;
+    const problem = saveProblem(
+      "locked",
+      { kind: "outline", name: "Outline", folder: "The Tide" },
+      "quitting",
+    );
     const holds: QuitHold[] = [
       { kind: "still-saving" },
       { kind: "not-kept", lost: ["Outline notes"], problem },

@@ -48,7 +48,9 @@ export function sameSceneOutline(a: Doc, b: Doc): boolean {
   const outline = (doc: Doc) =>
     doc.content
       .filter((n) => n.type === "scene" || n.type === "sceneHeading" || n.type === "act")
-      .map((n) => `${n.type}:${(n.content ?? []).map((c) => ("text" in c ? c.text : "")).join("")}`);
+      .map(
+        (n) => `${n.type}:${(n.content ?? []).map((c) => ("text" in c ? c.text : "")).join("")}`,
+      );
   const x = outline(a);
   const y = outline(b);
   return x.length === y.length && x.every((line, i) => line === y[i]);

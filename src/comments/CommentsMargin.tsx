@@ -128,7 +128,8 @@ export function CommentsMargin({
     // term is independent of the reserve, so applying the reserve can't move
     // the answer. The text column is the floor: a card never covers a word.
     const rightDesk = (desk + reserve) / 2;
-    const paper = page.getBoundingClientRect().right - editor.view.dom.getBoundingClientRect().right;
+    const paper =
+      page.getBoundingClientRect().right - editor.view.dom.getBoundingClientRect().right;
     const width = Math.min(COLUMN_PX, rightDesk + Math.max(0, paper - GAP_PX));
     const show = width >= MIN_COLUMN_PX && list.length > 0;
     const next: Geometry = show
@@ -210,7 +211,7 @@ export function CommentsMargin({
 
   // Placement needs the rendered heights, so it happens after paint: the
   // cards go up at their anchors and the stack settles them.
-  const placed = entries.filter((e) => wants.has(e.pos));  // measured this pass
+  const placed = entries.filter((e) => wants.has(e.pos)); // measured this pass
   useLayoutEffect(() => {
     if (!geom.show) {
       setTops((prev) => (prev.size ? new Map() : prev));
@@ -263,7 +264,11 @@ export function CommentsMargin({
 
   const saveEdit = (id: string) => {
     const entry = commentsState(editor.state)?.entries.find((entry) => entry.id === id);
-    if (!entry) { setEditingId(null); complete("Comment is no longer here", null); return; }
+    if (!entry) {
+      setEditingId(null);
+      complete("Comment is no longer here", null);
+      return;
+    }
     const pos = entry.pos;
     const node = noteAt(pos);
     const text = draft.replace(/\n{2,}/g, "\n").trim(); // a note holds no blank lines

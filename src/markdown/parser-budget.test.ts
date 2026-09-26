@@ -6,7 +6,13 @@ import { parseBlocks, parseSpans } from "./parse";
 import { fdxToFountain } from "../fountain/fdx";
 
 test("docs/app/keeping-work/storage-and-file-format.md#STOR-33: unmatched Markdown runs and brackets finish within 250ms", () => {
-  for (const source of ["hello " + "`".repeat(40_000) + "a", "[".repeat(40_000), "*a ".repeat(40_000), "[a](x".repeat(40_000), "[a](x".repeat(40_000) + ' "title")']) {
+  for (const source of [
+    "hello " + "`".repeat(40_000) + "a",
+    "[".repeat(40_000),
+    "*a ".repeat(40_000),
+    "[a](x".repeat(40_000),
+    "[a](x".repeat(40_000) + ' "title")',
+  ]) {
     const started = performance.now();
     const spans = parseSpans(source);
     expect(performance.now() - started).toBeLessThan(250);
@@ -25,7 +31,10 @@ test("docs/app/keeping-work/storage-and-file-format.md#STOR-33: a table cannot a
 });
 
 test("docs/app/keeping-work/storage-and-file-format.md#STOR-33: malformed block delimiters and heading suffixes also have bounded work", () => {
-  for (const source of ["# heading" + " ".repeat(40_000) + "x", "a|b\n|---|" + " ".repeat(40_000) + "x"]) {
+  for (const source of [
+    "# heading" + " ".repeat(40_000) + "x",
+    "a|b\n|---|" + " ".repeat(40_000) + "x",
+  ]) {
     const started = performance.now();
     expect(parseBlocks(source).length).toBeGreaterThan(0);
     expect(performance.now() - started).toBeLessThan(250);

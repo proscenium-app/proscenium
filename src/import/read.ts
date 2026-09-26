@@ -4,12 +4,7 @@
 import { parseInline } from "../fountain";
 import { assertDocumentSize, assertDocumentText } from "../storage/read-limit";
 import { extension, guidance, isPagesName } from "./formats";
-import {
-  fountainDocument,
-  plain,
-  type ImportDocument,
-  type Paragraph,
-} from "./model";
+import { fountainDocument, plain, type ImportDocument, type Paragraph } from "./model";
 import { readDocx, readOdt } from "./office";
 import { readPages } from "./pages";
 import { readRtf } from "./rtf";
@@ -19,8 +14,7 @@ import { styleKind } from "./model";
 
 function readFdx(name: string, text: string): ImportDocument {
   const root = xml(text);
-  if (root.localName !== "FinalDraft")
-    throw new Error("This is not a Final Draft script.");
+  if (root.localName !== "FinalDraft") throw new Error("This is not a Final Draft script.");
   const body = child(root, "Content");
   if (!body) throw new Error("This Final Draft file has no script content.");
   const readParagraph = (p: import("./xml").Element): Paragraph => {
@@ -64,17 +58,13 @@ function readFdx(name: string, text: string): ImportDocument {
         if (line.kind === "character" && ++cue > 1) line.attrs = { dual: true };
         paragraphs.push(line);
       }
-    } else
-      for (const p of descendants(e, "Paragraph"))
-        paragraphs.push(readParagraph(p));
+    } else for (const p of descendants(e, "Paragraph")) paragraphs.push(readParagraph(p));
   }
   const titlePage = child(root, "TitlePage");
   const titles = titlePage
     ? descendants(titlePage, "Paragraph")
         .map(readParagraph)
-        .map((p) =>
-          p.content.map((n) => (n.type === "text" ? n.text : "")).join(""),
-        )
+        .map((p) => p.content.map((n) => (n.type === "text" ? n.text : "")).join(""))
         .filter((t) => t.trim())
     : [];
   const notices = [
@@ -105,8 +95,7 @@ export function readDocument(name: string, bytes: Uint8Array): ImportDocument {
   if (ext === "docx") result = readDocx(name, bytes);
   else if (ext === "odt") result = readOdt(name, bytes);
   else if (isPagesName(name)) result = readPages(name, bytes);
-  else if (ext === "rtf")
-    result = readRtf(name, new TextDecoder("windows-1252").decode(bytes));
+  else if (ext === "rtf") result = readRtf(name, new TextDecoder("windows-1252").decode(bytes));
   else {
     const sourceText = decode(bytes);
     const text = sourceText.replace(/\r\n?/g, "\n");
@@ -116,8 +105,7 @@ export function readDocument(name: string, bytes: Uint8Array): ImportDocument {
         "This appears to be a binary file. Choose a Word, Pages, RTF, OpenDocument or script export.",
       );
     if (ext === "fdx") result = readFdx(name, text);
-    else if (ext === "fountain" || ext === "spmd")
-      result = fountainDocument(name, sourceText);
+    else if (ext === "fountain" || ext === "spmd") result = fountainDocument(name, sourceText);
     else if (ext === "txt" || ext === "md")
       result = {
         name,
@@ -139,9 +127,7 @@ export function readDocument(name: string, bytes: Uint8Array): ImportDocument {
         "Choose a .docx, .pages, .odt, .rtf, .txt, .md, .fountain or .fdx file. The source-app guide below explains how to export one.",
       );
   }
-  result.paragraphs = result.paragraphs.filter(
-    (p) => p.kind === "pageBreak" || p.content.length,
-  );
+  result.paragraphs = result.paragraphs.filter((p) => p.kind === "pageBreak" || p.content.length);
   if (!result.paragraphs.length)
     throw new Error(
       "No editable text was found. This may be an empty document or an image-only file.",

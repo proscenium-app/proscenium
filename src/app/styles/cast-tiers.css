@@ -1,7 +1,6 @@
 /* SPDX-FileCopyrightText: 2026 Habiby LLC
  * SPDX-License-Identifier: AGPL-3.0-or-later */
 
-
 /* Cast tiers: principals / supporting / mentioned -------------------------- */
 .castgroup__head {
   display: flex;
@@ -18,7 +17,7 @@
 .castgroup:first-of-type .castgroup__head {
   border-top: none;
 }
-@media all{
+@media all {
   :where(:root[data-theme="dark"]) .castgroup__head {
     color: var(--ink-2);
   }
@@ -56,4 +55,3 @@
   color: var(--ink);
   border-color: var(--accent);
 }
-

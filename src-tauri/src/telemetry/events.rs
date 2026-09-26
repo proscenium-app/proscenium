@@ -168,7 +168,12 @@ pub struct Version(String);
 impl Version {
     pub fn parse(v: &str) -> Option<Self> {
         let parts: Vec<&str> = v.split('.').collect();
-        let digits = |p: &&str| !p.is_empty() && p.len() <= 4 && (p.len() == 1 || !p.starts_with('0')) && p.bytes().all(|b| b.is_ascii_digit());
+        let digits = |p: &&str| {
+            !p.is_empty()
+                && p.len() <= 4
+                && (p.len() == 1 || !p.starts_with('0'))
+                && p.bytes().all(|b| b.is_ascii_digit())
+        };
         (parts.len() == 3 && parts.iter().all(digits)).then(|| Version(v.to_string()))
     }
 
@@ -297,7 +302,10 @@ impl Event {
             Event::PlayOpened { plays } => vec![("plays", plays.as_str().into())],
             Event::SurfaceShown { surface } => vec![("surface", surface.as_str().into())],
             Event::PdfExported { kind, format } => {
-                vec![("kind", kind.as_str().into()), ("format", format.as_str().into())]
+                vec![
+                    ("kind", kind.as_str().into()),
+                    ("format", format.as_str().into()),
+                ]
             }
             Event::FormatSaved => vec![],
             Event::UpdateInstalled { from, to } => {
@@ -320,22 +328,36 @@ impl Event {
 pub enum PageEvent {
     /// A play opened, with the Plays folder's count — bucketed here, before
     /// anything is queued.
-    PlayOpened { plays_in_folder: u32 },
-    SurfaceShown { surface: Surface },
+    PlayOpened {
+        plays_in_folder: u32,
+    },
+    SurfaceShown {
+        surface: Surface,
+    },
     /// `format`: a built-in id, or `user`.
-    PdfExported { kind: ExportKind, format: String },
+    PdfExported {
+        kind: ExportKind,
+        format: String,
+    },
     /// Braces, not a unit variant: serde lets a unit variant carry any fields.
     FormatSaved {},
     /// Also kept in the local log of error codes, whatever the switch says.
-    ErrorShown { code: ErrorCode },
+    ErrorShown {
+        code: ErrorCode,
+    },
 }
 
 impl From<PageEvent> for Event {
     fn from(page: PageEvent) -> Self {
         match page {
-            PageEvent::PlayOpened { plays_in_folder } => Event::PlayOpened { plays: PlaysBucket::of(plays_in_folder) },
+            PageEvent::PlayOpened { plays_in_folder } => Event::PlayOpened {
+                plays: PlaysBucket::of(plays_in_folder),
+            },
             PageEvent::SurfaceShown { surface } => Event::SurfaceShown { surface },
-            PageEvent::PdfExported { kind, format } => Event::PdfExported { kind, format: FormatRef::from_page(&format) },
+            PageEvent::PdfExported { kind, format } => Event::PdfExported {
+                kind,
+                format: FormatRef::from_page(&format),
+            },
             PageEvent::FormatSaved {} => Event::FormatSaved,
             PageEvent::ErrorShown { code } => Event::ErrorShown { code },
         }
@@ -350,12 +372,24 @@ mod tests {
     fn one_of_each() -> Vec<Event> {
         vec![
             Event::AppLaunched,
-            Event::PlayOpened { plays: PlaysBucket::of(3) },
-            Event::SurfaceShown { surface: Surface::FormatDesigner },
-            Event::PdfExported { kind: ExportKind::Sides, format: FormatRef::User },
+            Event::PlayOpened {
+                plays: PlaysBucket::of(3),
+            },
+            Event::SurfaceShown {
+                surface: Surface::FormatDesigner,
+            },
+            Event::PdfExported {
+                kind: ExportKind::Sides,
+                format: FormatRef::User,
+            },
             Event::FormatSaved,
-            Event::UpdateInstalled { from: Version::parse("0.9.1").unwrap(), to: Version::parse("1.0.0").unwrap() },
-            Event::ErrorShown { code: ErrorCode::ExportFont },
+            Event::UpdateInstalled {
+                from: Version::parse("0.9.1").unwrap(),
+                to: Version::parse("1.0.0").unwrap(),
+            },
+            Event::ErrorShown {
+                code: ErrorCode::ExportFont,
+            },
         ]
     }
 
@@ -398,14 +432,22 @@ mod tests {
     #[test]
     fn the_spec_lists_the_same_events() {
         let spec = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/app/keeping-work/privacy-and-telemetry.md"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../docs/app/keeping-work/privacy-and-telemetry.md"),
         )
         .unwrap();
         let listed: BTreeSet<String> = spec
             .lines()
-            .filter_map(|line| line.trim_start().strip_prefix("| `")?.split('`').next().map(str::to_string))
+            .filter_map(|line| {
+                line.trim_start()
+                    .strip_prefix("| `")?
+                    .split('`')
+                    .next()
+                    .map(str::to_string)
+            })
             .collect();
-        let shipped: BTreeSet<String> = one_of_each().iter().map(|e| e.name().to_string()).collect();
+        let shipped: BTreeSet<String> =
+            one_of_each().iter().map(|e| e.name().to_string()).collect();
         assert_eq!(listed, shipped);
     }
 
@@ -413,8 +455,12 @@ mod tests {
     fn worker_choices_and_the_public_table_match_the_native_contract() {
         use serde_json::{json, Value};
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
-        let worker: Value = serde_json::from_str(&std::fs::read_to_string(root.join("services/edge/events.json")).unwrap()).unwrap();
-        let mut formats: Vec<_> = BUILT_IN_FORMATS.iter().map(|s| s.to_string()).collect(); formats.push("user".into());
+        let worker: Value = serde_json::from_str(
+            &std::fs::read_to_string(root.join("services/edge/events.json")).unwrap(),
+        )
+        .unwrap();
+        let mut formats: Vec<_> = BUILT_IN_FORMATS.iter().map(|s| s.to_string()).collect();
+        formats.push("user".into());
         let expected = json!({
             "app_launched": {},
             "play_opened": {"plays": ([PlaysBucket::One, PlaysBucket::TwoToFive, PlaysBucket::SixToTwenty, PlaysBucket::TwentyOneOrMore].map(PlaysBucket::as_str))},
@@ -427,21 +473,34 @@ mod tests {
         for event in one_of_each() {
             let name = event.name();
             assert_eq!(worker[name]["props"], expected[name], "{name}");
-            let why = worker[name]["why"].as_str().expect("every event needs its reason");
+            let why = worker[name]["why"]
+                .as_str()
+                .expect("every event needs its reason");
             assert!(!why.trim().is_empty());
-            let spec = std::fs::read_to_string(root.join("docs/app/keeping-work/privacy-and-telemetry.md")).unwrap();
+            let spec = std::fs::read_to_string(
+                root.join("docs/app/keeping-work/privacy-and-telemetry.md"),
+            )
+            .unwrap();
             let public = spec.split("<a id=\"PRIV-D7\"></a>").nth(1).unwrap();
-            let row = public.lines().find(|line| line.starts_with(&format!("| `{name}` |"))).expect("event appears in public table");
+            let row = public
+                .lines()
+                .find(|line| line.starts_with(&format!("| `{name}` |")))
+                .expect("event appears in public table");
             assert!(row.contains(why), "public reason for {name}");
             for (key, choices) in worker[name]["props"].as_object().unwrap() {
                 assert!(row.contains(&format!("`{key}`")));
                 for choice in choices.as_array().unwrap() {
                     let value = choice.as_str().unwrap();
-                    if value != "$released-version" { assert!(row.contains(&format!("`{value}`")), "{name}/{key}/{value}"); }
+                    if value != "$released-version" {
+                        assert!(row.contains(&format!("`{value}`")), "{name}/{key}/{value}");
+                    }
                 }
             }
         }
-        let kinds: Vec<String> = serde_json::from_str(&std::fs::read_to_string(root.join("services/edge/crash-kinds.json")).unwrap()).unwrap();
+        let kinds: Vec<String> = serde_json::from_str(
+            &std::fs::read_to_string(root.join("services/edge/crash-kinds.json")).unwrap(),
+        )
+        .unwrap();
         assert_eq!(kinds, super::super::crash::ERROR_NAMES);
     }
 
@@ -459,17 +518,30 @@ mod tests {
         let parse = |json: &str| serde_json::from_str::<PageEvent>(json);
         assert_eq!(
             Event::from(parse(r#"{"name":"play_opened","playsInFolder":7}"#).unwrap()),
-            Event::PlayOpened { plays: PlaysBucket::SixToTwenty }
+            Event::PlayOpened {
+                plays: PlaysBucket::SixToTwenty
+            }
         );
-        assert_eq!(Event::from(parse(r#"{"name":"format_saved"}"#).unwrap()), Event::FormatSaved);
+        assert_eq!(
+            Event::from(parse(r#"{"name":"format_saved"}"#).unwrap()),
+            Event::FormatSaved
+        );
         assert_eq!(
             Event::from(parse(r#"{"name":"error_shown","code":"E-SAVE"}"#).unwrap()),
-            Event::ErrorShown { code: ErrorCode::Save }
+            Event::ErrorShown {
+                code: ErrorCode::Save
+            }
         );
         // A writer's own format goes as `user`, whatever it is called.
         assert_eq!(
-            Event::from(parse(r#"{"name":"pdf_exported","kind":"range","format":"hamlet-house-style"}"#).unwrap()),
-            Event::PdfExported { kind: ExportKind::Range, format: FormatRef::User }
+            Event::from(
+                parse(r#"{"name":"pdf_exported","kind":"range","format":"hamlet-house-style"}"#)
+                    .unwrap()
+            ),
+            Event::PdfExported {
+                kind: ExportKind::Range,
+                format: FormatRef::User
+            }
         );
         for refused in [
             r#"{"name":"play_opened","playsInFolder":3,"title":"Hamlet"}"#,
@@ -495,7 +567,8 @@ mod tests {
                 (path.extension()? == "json").then_some(path)
             })
             .map(|path| {
-                let spec: serde_json::Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+                let spec: serde_json::Value =
+                    serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
                 spec["id"].as_str().unwrap().to_string()
             })
             .collect();
@@ -510,7 +583,13 @@ mod tests {
         let mut seen = BTreeSet::new();
         for code in ErrorCode::ALL {
             let s = code.as_str();
-            assert!(s.starts_with("E-") && s[2..].split('-').all(|w| !w.is_empty() && w.bytes().all(|b| b.is_ascii_uppercase())), "{s}");
+            assert!(
+                s.starts_with("E-")
+                    && s[2..]
+                        .split('-')
+                        .all(|w| !w.is_empty() && w.bytes().all(|b| b.is_ascii_uppercase())),
+                "{s}"
+            );
             assert!(seen.insert(s), "{s} twice");
             assert_eq!(ErrorCode::parse(s), Some(*code));
             assert_eq!(serde_json::to_value(code).unwrap(), serde_json::json!(s));
@@ -520,9 +599,15 @@ mod tests {
     #[test]
     fn versions_are_digits_only() {
         assert!(Version::parse("1.0.0").is_some());
-        for bad in ["", "1.0", "1.0.0-rc.1", "v1.0.0", "1.0.0 ", "/Users/a/1.0.0"] {
+        for bad in [
+            "",
+            "1.0",
+            "1.0.0-rc.1",
+            "v1.0.0",
+            "1.0.0 ",
+            "/Users/a/1.0.0",
+        ] {
             assert!(Version::parse(bad).is_none(), "{bad:?}");
         }
     }
-
 }

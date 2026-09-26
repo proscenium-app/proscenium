@@ -2,13 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "bun:test";
-import {
-  classifyOpened,
-  inPlaysFolder,
-  isInside,
-  samePath,
-  type OpenedFacts,
-} from "./open-route";
+import { classifyOpened, inPlaysFolder, isInside, samePath, type OpenedFacts } from "./open-route";
 
 const PLAYS = "/Users/w/Library/Mobile Documents/com~apple~CloudDocs/Plays";
 const TIDE = `${PLAYS}/The Tide`;
@@ -93,7 +87,9 @@ describe("what a file opened from Finder is", () => {
   });
 
   it("a hidden play-file lookalike is not a play", () => {
-    const route = classifyOpened(facts(`${TIDE}/.The Tide.proscenium.1a2b.tmp`, { playDirs: tidePlay }));
+    const route = classifyOpened(
+      facts(`${TIDE}/.The Tide.proscenium.1a2b.tmp`, { playDirs: tidePlay }),
+    );
     expect(route.kind).toBe("unknown");
   });
 
@@ -104,7 +100,9 @@ describe("what a file opened from Finder is", () => {
       const kept = classifyOpened(facts(`${TIDE}/Originals/Draft.${ext}`, { playDirs: tidePlay }));
       expect(kept.kind === "document-import" && kept.inPlay?.playDir).toBe(TIDE);
     }
-    expect(classifyOpened(facts("/Users/w/Downloads/Draft.scriv", { isDir: true })).kind).toBe("document-import");
+    expect(classifyOpened(facts("/Users/w/Downloads/Draft.scriv", { isDir: true })).kind).toBe(
+      "document-import",
+    );
   });
 });
 

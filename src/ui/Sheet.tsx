@@ -115,7 +115,7 @@ function useModalKeys(onClose: () => void, onDefault?: () => void, onCommandEnte
           /* Left to the browser, which may leave the panel: see onFocusIn. When
              it leaves for <body>, as WebKit does past the last text field, no
              focusin fires at all, so look again once the key has landed. The
-             native self-test found that one on 2026-09-13. */
+             native self-test found that one. */
           const way = e.shiftKey ? "back" : "forward";
           tabbing = way;
           requestAnimationFrame(() => {
@@ -190,10 +190,7 @@ export function Sheet({
       }}
     >
       <div className="modal-scrim__windowbar" data-tauri-drag-region="deep" aria-hidden="true" />
-      <div
-        className={`sheet${floating ? " sheet--floating" : ""}`}
-        style={{ width, height }}
-      >
+      <div className={`sheet${floating ? " sheet--floating" : ""}`} style={{ width, height }}>
         {/* Tauri listens at document. Let the event reach it; the scrim's
             target check already prevents clicks inside from dismissing us. */}
         <div className="sheet__head" data-tauri-drag-region="deep">
@@ -270,9 +267,7 @@ export function Alert({
       }}
     >
       <div className="modal-scrim__windowbar" data-tauri-drag-region="deep" aria-hidden="true" />
-      <div
-        className="alert"
-      >
+      <div className="alert">
         <span className="alert__icon" aria-hidden="true">
           <AppMarkIcon size={52} />
         </span>

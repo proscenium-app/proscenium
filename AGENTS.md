@@ -20,6 +20,8 @@ CLAUDE.md holds the single line `@AGENTS.md`, so every agent reads this one file
 bun test ./src                                # unit tests (./src: a bare `src` is a name filter
                                               # that scans the whole checkout)
 bun run typecheck                             # tsc --noEmit
+bun run lint                                  # Biome's recommended rules (biome.jsonc says which are still warnings)
+bun run format:check                          # Biome's and rustfmt's formatting; `bun run format` writes it
 bun run check:layout                          # no physical layout constants outside formats/
 bun run check:design                          # chrome type/radius/gap on the scale, no undefined tokens
 bun run check:spdx                            # every source file carries its SPDX header

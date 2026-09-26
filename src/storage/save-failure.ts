@@ -5,13 +5,13 @@
  * When the disk refuses a save (docs/app/keeping-work/storage-and-file-format.md#STOR-D9, "When the disk refuses a write").
  *
  * A write that threw used to reach the writer as the operating system's own
- * words. A script locked in Finder read "Operation not permitted (os error 1)"
- * (2026-09-13, the installed app), with nothing about the words, which were
- * safe, and nothing to do about it. This reads what went wrong from what the
+ * words. A script locked in Finder read "Operation not permitted (os error 1)",
+ * with nothing about the words, which were safe, and nothing to do about it.
+ * This reads what went wrong from what the
  * vault said, and says it in the writer's vocabulary (docs/app/keeping-work/storage-and-file-format.md#STOR-D1). It says the words
  * are still here, and what would let the save go through.
  *
- * The OS's words stay out of sight. T4's diagnostics keep a code for each
+ * The OS's words stay out of sight. The diagnostics keep a code for each
  * refusal (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D5), never the text, which can name a path.
  */
 import type { ErrorCode } from "../diagnostics/error-codes";
@@ -137,14 +137,18 @@ const WORDING: Readonly<Record<SaveRefusal, Wording>> = {
   "no-permission": {
     code: "E-SAVE-PERMISSION",
     title: (_, folder) => `You don't have permission to change the folder ${folder}.`,
-    saving: (name) => `${name} will save once you can make changes in that folder (Get Info › Sharing & Permissions).`,
-    change: () => "Once you can make changes in that folder (Get Info › Sharing & Permissions), try again.",
+    saving: (name) =>
+      `${name} will save once you can make changes in that folder (Get Info › Sharing & Permissions).`,
+    change: () =>
+      "Once you can make changes in that folder (Get Info › Sharing & Permissions), try again.",
   },
   "not-allowed": {
     code: "E-SAVE-NOT-ALLOWED",
     title: (name) => `macOS isn't letting Proscenium save ${name}.`,
-    saving: () => "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
-    change: () => "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
+    saving: () =>
+      "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
+    change: () =>
+      "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
   },
   "disk-full": {
     code: "E-SAVE-DISK-FULL",

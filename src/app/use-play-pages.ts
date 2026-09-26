@@ -21,7 +21,10 @@ import { playPages, type PlayPages, type VaultPlay } from "../workspace";
 const breathe = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 /** Each play's pages by its folder, as they come in; a play not in the map yet is still being counted. */
-export function usePlayPages(plays: readonly VaultPlay[], enabled: boolean): ReadonlyMap<string, PlayPages> {
+export function usePlayPages(
+  plays: readonly VaultPlay[],
+  enabled: boolean,
+): ReadonlyMap<string, PlayPages> {
   const [pages, setPages] = useState<ReadonlyMap<string, PlayPages>>(() => new Map());
   const [formats, setFormats] = useState(0);
   useEffect(() => subscribeFormats(() => setFormats((n) => n + 1)), []);
@@ -49,7 +52,9 @@ export function usePlayPages(plays: readonly VaultPlay[], enabled: boolean): Rea
       // The cells changed with no focus on them. Said once a pass, and only for
       // a pass that paginated something: a count read back is no news.
       if (live && counted > 0) {
-        announce(counted === 1 ? "Pages counted for 1 play." : `Pages counted for ${counted} plays.`);
+        announce(
+          counted === 1 ? "Pages counted for 1 play." : `Pages counted for ${counted} plays.`,
+        );
       }
     })();
     return () => {

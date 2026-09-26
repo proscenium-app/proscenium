@@ -59,11 +59,7 @@ describe("computeAppearances", () => {
   it("falls back to sceneHeading boundaries and a Sc N label", () => {
     const doc: Doc = {
       type: "doc",
-      content: [
-        b("sceneHeading", "A kitchen."),
-        b("character", "MARA"),
-        b("dialogue", "Hi."),
-      ],
+      content: [b("sceneHeading", "A kitchen."), b("character", "MARA"), b("dialogue", "Hi.")],
     };
     const app = computeAppearances(doc, []); // no cards → synthesized label
     expect(app.get("MARA")).toEqual([{ ordinal: 0, label: "Sc 1" }]);

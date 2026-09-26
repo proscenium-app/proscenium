@@ -51,9 +51,7 @@ describe("the ellipsis floor", () => {
     expect(ellipsisTr(state)).toBeNull();
     // …and the transaction it produces is itself clean, which is what makes the
     // plugin terminate: appendTransaction re-runs and finds nothing.
-    const once = normalized([
-      { type: "action", content: [{ type: "text", text: "…" }] },
-    ]);
+    const once = normalized([{ type: "action", content: [{ type: "text", text: "…" }] }]);
     expect(ellipsisTr(once)).toBeNull();
   });
 

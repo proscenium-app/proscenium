@@ -21,7 +21,12 @@
  * `src/app/settings/store.ts`, which keeps `data-accent` in step). This file
  * only has to get the FIRST frame right, before any of that has run.
  */
-import { readMirror, browserStorage, type AccentId, type Appearance } from "../storage/settings-model";
+import {
+  readMirror,
+  browserStorage,
+  type AccentId,
+  type Appearance,
+} from "../storage/settings-model";
 import { applySystemAccent, rememberedSystemAccent } from "./system-accent";
 
 export type { AccentId };
@@ -66,7 +71,9 @@ export function applyStoredAccent(): void {
 
 export function applyAppearance(appearance: Appearance): void {
   if (typeof document === "undefined") return;
-  const dark = appearance === "dark" || (appearance === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const dark =
+    appearance === "dark" ||
+    (appearance === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.dataset.appearance = appearance;
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.style.colorScheme = dark ? "dark" : "light";

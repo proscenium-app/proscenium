@@ -21,8 +21,16 @@ import type { SceneCard } from "./card-reconcile";
 import { useFieldDraft } from "./field-draft";
 import { useSceneStatusOptions } from "../app/settings/scene-statuses";
 import type { Card } from "./play-file";
-import { ArrowUpIcon, ArrowDownIcon, IconButton, announce, BoardIcon, PlusIcon, PopupButton, WarnIcon } from "../ui";
-
+import {
+  ArrowUpIcon,
+  ArrowDownIcon,
+  IconButton,
+  announce,
+  BoardIcon,
+  PlusIcon,
+  PopupButton,
+  WarnIcon,
+} from "../ui";
 
 export interface CorkboardProps {
   cards: SceneCard[];
@@ -63,8 +71,8 @@ export function CorkboardView({
           </span>
           <p className="emptysurface__title">No scenes yet</p>
           <p className="emptysurface__body">
-            A card is a scene: making one here writes it into the script, and
-            typing <span className="mono">## Scene</span> there makes one here.
+            A card is a scene: making one here writes it into the script, and typing{" "}
+            <span className="mono">## Scene</span> there makes one here.
           </p>
           {onAddScene && (
             <button type="button" className="btn btn--primary" onClick={onAddScene}>
@@ -102,8 +110,22 @@ export function CorkboardView({
         isDragging={dragOrd === rec.anchor.ordinal}
         onDragStart={() => setDragOrd(rec.anchor.ordinal)}
         onDragEnd={() => setDragOrd(null)}
-        onEarlier={index > 0 ? () => { onReorder(rec.anchor.ordinal, ordered[index - 1].anchor.ordinal); announce("Scene moved earlier"); } : undefined}
-        onLater={index < ordered.length - 1 ? () => { onReorder(rec.anchor.ordinal, ordered[index + 1].anchor.ordinal); announce("Scene moved later"); } : undefined}
+        onEarlier={
+          index > 0
+            ? () => {
+                onReorder(rec.anchor.ordinal, ordered[index - 1].anchor.ordinal);
+                announce("Scene moved earlier");
+              }
+            : undefined
+        }
+        onLater={
+          index < ordered.length - 1
+            ? () => {
+                onReorder(rec.anchor.ordinal, ordered[index + 1].anchor.ordinal);
+                announce("Scene moved later");
+              }
+            : undefined
+        }
         onDropHere={() => {
           if (dragOrd !== null && dragOrd !== rec.anchor.ordinal) {
             onReorder(dragOrd, rec.anchor.ordinal);
@@ -123,7 +145,13 @@ export function CorkboardView({
   // the play — the tile sits where the scene it makes will be.
   if (onAddScene) {
     rows.push(
-      <button key="new-scene" type="button" className="card card--new" data-tutorial="new-scene" onClick={onAddScene}>
+      <button
+        key="new-scene"
+        type="button"
+        className="card card--new"
+        data-tutorial="new-scene"
+        onClick={onAddScene}
+      >
         <span className="card--new__glyph" aria-hidden="true">
           <PlusIcon size={16} />
         </span>
@@ -176,7 +204,6 @@ function SceneCard({
   // shows here, unless the writer is typing in it (field-draft.ts).
   const note = useFieldDraft(rec.card.boardNote ?? "");
 
-
   return (
     <div
       className={`card card--${rec.card.color}${isDragging ? " is-dragging" : ""}${changed ? " is-changed" : ""}`}
@@ -190,7 +217,19 @@ function SceneCard({
       }}
     >
       <div className="card__head">
-        <span className="card__drag" title="Drag to move scene" draggable onDragStart={(e) => { onDragStart(); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", rec.id); }} onDragEnd={onDragEnd}><span aria-hidden="true">⠿</span></span>
+        <span
+          className="card__drag"
+          title="Drag to move scene"
+          draggable
+          onDragStart={(e) => {
+            onDragStart();
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", rec.id);
+          }}
+          onDragEnd={onDragEnd}
+        >
+          <span aria-hidden="true">⠿</span>
+        </span>
         <button
           id={headingId}
           className="card__heading"
@@ -244,12 +283,21 @@ function SceneCard({
           }}
         />
 
-
-      {/* The swatch row left the card (docs/engineering/design-system.md#UI-D103). Seven circles on every card is
+        {/* The swatch row left the card (docs/engineering/design-system.md#UI-D103). Seven circles on every card is
           seven decisions the writer is not making, and the hue lives one click
           away in the inspector's Scene tab beside the rest of this card's data.
           What stays is the hue itself, as the 3px rule along the card's top. */}
-      <input aria-label={`Label — ${sceneName}`} className="card__label" value={label.draft} placeholder="Label" onChange={(e) => label.change(e.target.value)} onBlur={() => { const next = label.take(); if (next !== null) onSetCard({ label: next }); }} />
+        <input
+          aria-label={`Label — ${sceneName}`}
+          className="card__label"
+          value={label.draft}
+          placeholder="Label"
+          onChange={(e) => label.change(e.target.value)}
+          onBlur={() => {
+            const next = label.take();
+            if (next !== null) onSetCard({ label: next });
+          }}
+        />
       </details>
       <div className="card__foot">
         <PopupButton
@@ -267,8 +315,17 @@ function SceneCard({
           </span>
         )}
         <span className="card__footspacer" />
-        <IconButton data-tutorial={onEarlier ? "scene-move" : undefined} label={`Move earlier — ${sceneName}`} disabled={!onEarlier} onClick={onEarlier}><ArrowUpIcon size={13} /></IconButton>
-        <IconButton label={`Move later — ${sceneName}`} disabled={!onLater} onClick={onLater}><ArrowDownIcon size={13} /></IconButton>
+        <IconButton
+          data-tutorial={onEarlier ? "scene-move" : undefined}
+          label={`Move earlier — ${sceneName}`}
+          disabled={!onEarlier}
+          onClick={onEarlier}
+        >
+          <ArrowUpIcon size={13} />
+        </IconButton>
+        <IconButton label={`Move later — ${sceneName}`} disabled={!onLater} onClick={onLater}>
+          <ArrowDownIcon size={13} />
+        </IconButton>
       </div>
     </div>
   );

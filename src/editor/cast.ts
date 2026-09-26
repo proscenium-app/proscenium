@@ -78,9 +78,7 @@ export function cuesFromDoc(doc: Doc): string[] {
   const out: string[] = [];
   for (const block of doc.content ?? []) {
     if (block.type !== "character") continue;
-    const text = (block.content ?? [])
-      .map((n) => (n.type === "text" ? n.text : ""))
-      .join("");
+    const text = (block.content ?? []).map((n) => (n.type === "text" ? n.text : "")).join("");
     const name = cuePrefix(text).toUpperCase();
     if (name) out.push(name);
   }

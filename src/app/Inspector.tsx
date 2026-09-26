@@ -9,7 +9,7 @@
  * **Comments**. Comments used to be a pane in the split
  * tree and can still be — the ⤢ button moves the active tab into a pane of its
  * own, so the split-anywhere model survives having a default home. That is the
- * trade the audit's Q3 asked about, taken in the direction that keeps both: a
+ * trade an audit asked about, taken in the direction that keeps both: a
  * rail by default, a pane on request.
  */
 import type { ReactNode } from "react";

@@ -144,9 +144,7 @@ export function normalize(node: PaneNode | null): PaneNode | null {
     return active === node.active ? node : { ...node, active };
   }
 
-  const children = node.children
-    .map((c) => normalize(c))
-    .filter((c): c is PaneNode => c !== null);
+  const children = node.children.map((c) => normalize(c)).filter((c): c is PaneNode => c !== null);
 
   if (children.length === 0) return null;
   // A split of one is not a split. Collapsing here is what stops closed panes
@@ -187,11 +185,7 @@ function mapTree(node: PaneNode, fn: (n: PaneNode) => PaneNode): PaneNode {
  * it, otherwise appending a tab. A singleton surface already open ANYWHERE is
  * focused where it is instead of being opened again.
  */
-export function openSurface(
-  tree: PaneNode,
-  leafId: string,
-  surface: Surface,
-): PaneNode {
+export function openSurface(tree: PaneNode, leafId: string, surface: Surface): PaneNode {
   if (SINGLETON.includes(surface.kind)) {
     const existing = leafWithSurface(tree, surface);
     if (existing) return focusSurface(tree, surface);
@@ -428,9 +422,10 @@ export function reviveTree(raw: unknown): PaneNode | null {
       ? r.children.map(reviveTree).filter((c): c is PaneNode => c !== null)
       : [];
     if (children.length === 0) return null;
-    const sizes = Array.isArray(r.sizes) && r.sizes.every((n) => typeof n === "number")
-      ? (r.sizes as number[])
-      : undefined;
+    const sizes =
+      Array.isArray(r.sizes) && r.sizes.every((n) => typeof n === "number")
+        ? (r.sizes as number[])
+        : undefined;
     const dir: Direction = r.dir === "col" ? "col" : "row";
     return normalize(split(dir, children, sizes?.slice(0, children.length)));
   }
@@ -463,7 +458,9 @@ export function pruneMissingMaterials(tree: PaneNode, liveIds: Set<string>): Pan
   const next = mapTree(tree, (n) => {
     if (n.type !== "leaf") return n;
     const tabs = n.tabs.filter((t) => t.kind !== "material" || liveIds.has(t.id));
-    return tabs.length === n.tabs.length ? n : { ...n, tabs, active: Math.min(n.active, tabs.length - 1) };
+    return tabs.length === n.tabs.length
+      ? n
+      : { ...n, tabs, active: Math.min(n.active, tabs.length - 1) };
   });
   return normalize(next);
 }

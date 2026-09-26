@@ -19,54 +19,99 @@ import { blockPos, decorationsFor } from "./ghost";
 import * as edits from "./perform";
 
 const schema = getSchema(playExtensions);
-const stateOf = (fountain: string) => EditorState.create({schema, doc: schema.nodeFromJSON(toEditorDoc(ensureNonEmpty(parse(fountain).doc)))});
-const apply = (s: EditorState, tr: Transaction | null) => {expect(tr).not.toBeNull(); return s.apply(tr!);};
+const stateOf = (fountain: string) =>
+  EditorState.create({
+    schema,
+    doc: schema.nodeFromJSON(toEditorDoc(ensureNonEmpty(parse(fountain).doc))),
+  });
+const apply = (s: EditorState, tr: Transaction | null) => {
+  expect(tr).not.toBeNull();
+  return s.apply(tr!);
+};
 const model = (s: EditorState) => fromEditorDoc(s.doc.toJSON() as Doc);
 const facts = (s: EditorState): Facts => ({
-  script: readScript(model(s), s.selection.$head.depth >= 1 ? s.selection.$head.index(0) : null, !s.selection.empty ? s.selection.$from.parent.type.name : null),
-  view: "script", saved: true, unsaved: false, format: "stage-us-modern", cards: [], front: {charactersPage: "", characters: [], openingNotes: ""},
-  documents: [], material: null, export: {open: false, range: false, rangeError: false, opening: false, preview: false},
-  ui: {menu: [], elementMenu: false, sheet: null, focus: null, focusText: "", fields: {}},
+  script: readScript(
+    model(s),
+    s.selection.$head.depth >= 1 ? s.selection.$head.index(0) : null,
+    !s.selection.empty ? s.selection.$from.parent.type.name : null,
+  ),
+  view: "script",
+  saved: true,
+  unsaved: false,
+  format: "stage-us-modern",
+  cards: [],
+  front: { charactersPage: "", characters: [], openingNotes: "" },
+  documents: [],
+  material: null,
+  export: { open: false, range: false, rangeError: false, opening: false, preview: false },
+  ui: { menu: [], elementMenu: false, sheet: null, focus: null, focusText: "", fields: {} },
 });
-const text = (s: EditorState) => serialize({doc: model(s), frontMatter: {}});
+const text = (s: EditorState) => serialize({ doc: model(s), frontMatter: {} });
 /** Every word the writer had is still there (a cue may have been capitalised). */
-const words = (s: EditorState) => new Set(model(s).content.flatMap(b => (b.content ?? []).flatMap(t => "text" in t ? t.text.toUpperCase().split(/[\s\n]+/).filter(Boolean) : [])));
-const keeps = (before: EditorState, after: EditorState) => {for (const w of words(before)) expect(words(after).has(w)).toBe(true);};
+const words = (s: EditorState) =>
+  new Set(
+    model(s).content.flatMap((b) =>
+      (b.content ?? []).flatMap((t) =>
+        "text" in t
+          ? t.text
+              .toUpperCase()
+              .split(/[\s\n]+/)
+              .filter(Boolean)
+          : [],
+      ),
+    ),
+  );
+const keeps = (before: EditorState, after: EditorState) => {
+  for (const w of words(before)) expect(words(after).has(w)).toBe(true);
+};
 const caretType = (s: EditorState) => s.selection.$head.parent.type.name;
 
 /** Show Me for one step: its edit, then the coach's verdict against the step's own start. */
-function show(s: EditorState, task: Task, edit: (s: EditorState) => Transaction | null): {s: EditorState; before: Baseline} {
+function show(
+  s: EditorState,
+  task: Task,
+  edit: (s: EditorState) => Transaction | null,
+): { s: EditorState; before: Baseline } {
   const before = measure(facts(s));
   expect(coach(task, facts(s), before).tone).not.toBe("done");
   const next = apply(s, edit(s));
   keeps(s, next);
   expect(coach(task, facts(next), before).tone).toBe("done");
-  return {s: next, before};
+  return { s: next, before };
 }
 
 describe("one practice play, written by the whole course", () => {
   test("the first lesson's four results, each recognised, each where the last one left off", () => {
     let s = apply(stateOf(COURSE_SEED), edits.endLineTr(stateOf(COURSE_SEED)));
     expect(caretType(s)).toBe("action");
-    expect(coach("speaker", facts(s), measure(facts(s))).ghost).toEqual({index: 1, text: "MARA", key: "Return"});
-    s = show(s, "speaker", st => edits.nameTr(st, EXAMPLE.first)).s;
+    expect(coach("speaker", facts(s), measure(facts(s))).ghost).toEqual({
+      index: 1,
+      text: "MARA",
+      key: "Return",
+    });
+    s = show(s, "speaker", (st) => edits.nameTr(st, EXAMPLE.first)).s;
     expect(caretType(s)).toBe("dialogue");
-    s = show(s, "line", st => edits.speakTr(st, EXAMPLE.line, true)).s;
+    s = show(s, "line", (st) => edits.speakTr(st, EXAMPLE.line, true)).s;
     expect(caretType(s)).toBe("action");
     // The next step starts where this one ended: on the empty line, pointing at the menu.
-    expect(coach("speaker-two", facts(s), measure(facts(s))).target).toEqual({kind: "ui", id: "line-type"});
-    s = show(s, "speaker-two", st => edits.nameTr(st, EXAMPLE.second)).s;
-    s = show(s, "reply", st => edits.speakTr(st, EXAMPLE.reply, false)).s;
+    expect(coach("speaker-two", facts(s), measure(facts(s))).target).toEqual({
+      kind: "ui",
+      id: "line-type",
+    });
+    s = show(s, "speaker-two", (st) => edits.nameTr(st, EXAMPLE.second)).s;
+    s = show(s, "reply", (st) => edits.speakTr(st, EXAMPLE.reply, false)).s;
     expect(text(s)).toContain("MARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.");
   });
 
   test("the second lesson formats that same exchange, and a page break goes after it", () => {
-    let s = stateOf(COURSE_SEED + "MARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.\n");
+    let s = stateOf(
+      COURSE_SEED + "MARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.\n",
+    );
     s = show(s, "emphasis", edits.emphasisTr).s;
     expect(text(s)).toContain("**You're** early.");
     s = show(s, "line-break", edits.lineBreakTr).s;
     expect(text(s)).toContain("You're** early.\nCome in.");
-    const {s: paged} = show(s, "page-break", edits.pageBreakAtEndTr);
+    const { s: paged } = show(s, "page-break", edits.pageBreakAtEndTr);
     expect(paged.doc.child(paged.doc.childCount - 2).type.name).toBe("pageBreak");
     expect(caretType(paged)).toBe("action");
     expect(text(paged)).toContain("I was hoping you wouldn't notice.\n\n===");
@@ -75,7 +120,9 @@ describe("one practice play, written by the whole course", () => {
   test("a lesson opened first gets the exchange it needs, after what is there", () => {
     const fresh = apply(stateOf(COURSE_SEED), edits.endLineTr(stateOf(COURSE_SEED)));
     const s = apply(fresh, edits.exchangeTr(fresh));
-    expect(text(s)).toContain("## SCENE 1\n\nMARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.");
+    expect(text(s)).toContain(
+      "## SCENE 1\n\nMARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.",
+    );
     const written = stateOf(COURSE_SEED + "The door opens.\n");
     const more = apply(written, edits.exchangeTr(written));
     keeps(written, more);
@@ -129,7 +176,7 @@ describe("fixes the guide offers", () => {
     const s = stateOf(COURSE_SEED + "mara\n");
     const split = apply(s, edits.endLineTr(s));
     const mistake = coach("speaker", facts(split), start);
-    expect(mistake.fix).toEqual({id: "cue", label: "Make It a Name", index: 1});
+    expect(mistake.fix).toEqual({ id: "cue", label: "Make It a Name", index: 1 });
     const fixed = apply(split, edits.cueFixTr(split, 1));
     keeps(split, fixed);
     expect(text(fixed)).toContain("MARA\n");
@@ -149,25 +196,25 @@ describe("fixes the guide offers", () => {
 describe("the lit line and its suggestion", () => {
   test("a line decoration on the block, and the suggestion at its end", () => {
     const s = stateOf(COURSE_SEED + "MA\n");
-    const set = decorationsFor(s, {line: 1, ghost: {index: 1, text: "RA", key: "Return"}});
+    const set = decorationsFor(s, { line: 1, ghost: { index: 1, text: "RA", key: "Return" } });
     const found = set.find();
     expect(found.length).toBe(2);
     const at = blockPos(s, 1)!;
-    const line = found.find(d => d.from === at)!;
+    const line = found.find((d) => d.from === at)!;
     expect(line.to).toBe(at + s.doc.child(1).nodeSize);
-    const widget = found.find(d => d.from === d.to)!;
+    const widget = found.find((d) => d.from === d.to)!;
     expect(widget.from).toBe(at + 1 + s.doc.child(1).content.size);
-    expect((widget.spec as {key: string}).key).toBe("tutorial-ghost:RA:Return");
+    expect((widget.spec as { key: string }).key).toBe("tutorial-ghost:RA:Return");
   });
   test("nothing drawn for a line that does not exist, or with nothing to show", () => {
     const s = stateOf(COURSE_SEED);
-    expect(decorationsFor(s, {line: 40, ghost: {index: 40, text: "X"}}).find().length).toBe(0);
-    expect(decorationsFor(s, {line: null, ghost: {index: 0, text: ""}}).find().length).toBe(0);
+    expect(decorationsFor(s, { line: 40, ghost: { index: 40, text: "X" } }).find().length).toBe(0);
+    expect(decorationsFor(s, { line: null, ghost: { index: 0, text: "" } }).find().length).toBe(0);
     expect(blockPos(s, -1)).toBeNull();
   });
   test("decorations never change the document or its words", () => {
     const s = stateOf(COURSE_SEED + "MA\n");
-    decorationsFor(s, {line: 1, ghost: {index: 1, text: "RA", key: "Return"}});
+    decorationsFor(s, { line: 1, ghost: { index: 1, text: "RA", key: "Return" } });
     expect(text(s)).toContain("MA\n");
     expect(text(s)).not.toContain("MARA");
   });

@@ -39,8 +39,8 @@ pub struct PendingOpens {
 impl PendingOpens {
     /// Queue paths from an open event, and remember them as readable.
     pub fn push(&self, paths: Vec<PathBuf>) {
-        let mut granted = self.granted.lock().unwrap();
-        let mut queue = self.queue.lock().unwrap();
+        let mut granted = self.granted.lock().unwrap_or_else(|p| p.into_inner());
+        let mut queue = self.queue.lock().unwrap_or_else(|p| p.into_inner());
         for path in paths {
             granted.insert(path.clone());
             if !queue.contains(&path) {
@@ -51,21 +51,30 @@ impl PendingOpens {
 
     /// Everything queued since the last take, in the order it arrived.
     pub fn take(&self) -> Vec<PathBuf> {
-        std::mem::take(&mut *self.queue.lock().unwrap())
+        std::mem::take(&mut *self.queue.lock().unwrap_or_else(|p| p.into_inner()))
     }
 
     pub fn is_granted(&self, path: &Path) -> bool {
-        self.granted.lock().unwrap().contains(path)
+        self.granted
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .contains(path)
     }
 
     /// `dir` holds (or is) a path that was opened from Finder — a folder the
     /// app may ask about, because the writer's own open named something in it.
     pub fn is_around_granted(&self, dir: &Path) -> bool {
         let dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
-        self.granted.lock().unwrap().iter().any(|path| {
-            path.starts_with(&dir)
-                || path.canonicalize().is_ok_and(|canonical| canonical.starts_with(&dir))
-        })
+        self.granted
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .iter()
+            .any(|path| {
+                path.starts_with(&dir)
+                    || path
+                        .canonicalize()
+                        .is_ok_and(|canonical| canonical.starts_with(&dir))
+            })
     }
 }
 
@@ -111,7 +120,10 @@ const MAX_ANCESTORS: usize = 32;
 /// exactly, and never a hidden file, so a file Finder calls a play is one the
 /// Plays screen lists.
 fn is_play_file_name(name: &str) -> bool {
-    !name.starts_with('.') && Path::new(name).extension().is_some_and(|ext| ext == "proscenium")
+    !name.starts_with('.')
+        && Path::new(name)
+            .extension()
+            .is_some_and(|ext| ext == "proscenium")
 }
 
 /// The play files directly in `dir`, or `None` when it cannot be listed.
@@ -170,8 +182,10 @@ pub fn never_a_play(dir: &Path, home: &Path) -> bool {
     let Ok(rel) = dir.strip_prefix(home) else {
         return false;
     };
-    let parts: Vec<String> =
-        rel.components().map(|c| c.as_os_str().to_string_lossy().to_string()).collect();
+    let parts: Vec<String> = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().to_string())
+        .collect();
     let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
     matches!(
         parts.as_slice(),
@@ -217,12 +231,20 @@ pub fn facts(path: &Path, home: &Path) -> OpenedFacts {
     let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
     let exists = canonical.exists();
     let is_dir = canonical.is_dir();
-    let mut play_dirs =
-        play_dirs_from(if is_dir { Some(canonical.as_path()) } else { canonical.parent() }, home);
+    let mut play_dirs = play_dirs_from(
+        if is_dir {
+            Some(canonical.as_path())
+        } else {
+            canonical.parent()
+        },
+        home,
+    );
 
     // The opened file is itself a play file, so its folder holds one whether or
     // not that folder can be listed — and under whatever name the file has now.
-    let name = canonical.file_name().map(|n| n.to_string_lossy().to_string());
+    let name = canonical
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string());
     if let (true, false, Some(name), Some(parent)) = (exists, is_dir, name, canonical.parent()) {
         if is_play_file_name(&name) && !never_a_play(parent, home) {
             let parent_dir = parent.to_string_lossy().to_string();
@@ -233,7 +255,13 @@ pub fn facts(path: &Path, home: &Path) -> OpenedFacts {
                         nearest.play_files.sort();
                     }
                 }
-                _ => play_dirs.insert(0, PlayDir { dir: parent_dir, play_files: vec![name] }),
+                _ => play_dirs.insert(
+                    0,
+                    PlayDir {
+                        dir: parent_dir,
+                        play_files: vec![name],
+                    },
+                ),
             }
         }
     }
@@ -285,7 +313,10 @@ mod tests {
         // Delivered twice (Finder retrying), queued once.
         pending.push(vec![a.clone()]);
         assert_eq!(pending.take(), vec![a.clone(), b.clone()]);
-        assert!(pending.take().is_empty(), "a second take hands nothing over again");
+        assert!(
+            pending.take().is_empty(),
+            "a second take hands nothing over again"
+        );
         // …but both stay readable for as long as the app runs.
         assert!(pending.is_granted(&a) && pending.is_granted(&b));
         assert!(!pending.is_granted(Path::new("/etc/passwd")));
@@ -340,17 +371,28 @@ mod tests {
         let f = facts(&play, Path::new(NO_HOME));
         assert!(f.is_dir);
         assert_eq!(f.play_dirs[0].dir, play.to_string_lossy());
-        assert_eq!(f.play_dirs[0].play_files, vec!["Lear.proscenium".to_string()]);
+        assert_eq!(
+            f.play_dirs[0].play_files,
+            vec!["Lear.proscenium".to_string()]
+        );
     }
 
     #[test]
     fn facts_for_a_loose_file_have_no_play_and_a_missing_file_says_so() {
         let tmp = tempfile::tempdir().unwrap();
-        let loose = tmp.path().canonicalize().unwrap().join("Downloads/Hamlet.fdx");
+        let loose = tmp
+            .path()
+            .canonicalize()
+            .unwrap()
+            .join("Downloads/Hamlet.fdx");
         touch(&loose);
         let f = facts(&loose, Path::new(NO_HOME));
         assert!(f.exists);
-        assert!(f.play_dirs.is_empty(), "no play above a loose file: {:?}", f.play_dirs);
+        assert!(
+            f.play_dirs.is_empty(),
+            "no play above a loose file: {:?}",
+            f.play_dirs
+        );
 
         let gone = facts(&tmp.path().join("gone.fountain"), Path::new(NO_HOME));
         assert!(!gone.exists);
@@ -368,12 +410,18 @@ mod tests {
         let script = play.join("Lear.fountain");
         touch(&script);
         let _unlisted = Unlisted::new(&play);
-        assert!(std::fs::read_dir(&play).is_err(), "the test folder should refuse a listing");
+        assert!(
+            std::fs::read_dir(&play).is_err(),
+            "the test folder should refuse a listing"
+        );
 
         let f = facts(&script, Path::new(NO_HOME));
         assert_eq!(f.play_dirs.len(), 1, "{:?}", f.play_dirs);
         assert_eq!(f.play_dirs[0].dir, play.to_string_lossy());
-        assert_eq!(f.play_dirs[0].play_files, vec!["Lear.proscenium".to_string()]);
+        assert_eq!(
+            f.play_dirs[0].play_files,
+            vec!["Lear.proscenium".to_string()]
+        );
     }
 
     #[test]
@@ -406,8 +454,14 @@ mod tests {
         touch(&loose);
         touch(&home.join("home.proscenium"));
 
-        assert!(facts(&loose, &home).play_dirs.is_empty(), "a loose script stays loose");
-        assert!(facts(&stray, &home).play_dirs.is_empty(), "Documents is never a play");
+        assert!(
+            facts(&loose, &home).play_dirs.is_empty(),
+            "a loose script stays loose"
+        );
+        assert!(
+            facts(&stray, &home).play_dirs.is_empty(),
+            "Documents is never a play"
+        );
 
         // A real play below it is still found, and the walk stops there.
         let play = home.join("Documents/Plays/Tide");
@@ -434,7 +488,10 @@ mod tests {
             "/Users/writer/Library/Mobile Documents/com~apple~CloudDocs/Documents",
             "/Users/writer/Library/CloudStorage/Dropbox",
         ] {
-            assert!(never_a_play(Path::new(dir), home), "{dir} should never be a play");
+            assert!(
+                never_a_play(Path::new(dir), home),
+                "{dir} should never be a play"
+            );
         }
         for dir in [
             "/Users/writer/Documents/Plays",

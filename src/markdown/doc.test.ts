@@ -155,7 +155,7 @@ describe("escaping — what a writer types stays what they typed", () => {
     expect(round("read snake_case_name please")).toBe("read snake_case_name please\n");
   });
 
-  // Both of these were found by round-tripping the live vault, not by taste.
+  // Both of these were found by round-tripping a real vault, not by taste.
   test("a fill-in-the-blank rule of underscores is not bold", () => {
     const src = 'Finish it: "If I say the true thing, then ______."';
     expect(toDoc(src).content![0]!.content).toEqual([{ type: "text", text: src }]);
@@ -296,7 +296,8 @@ test("paragraph alignment survives editing without showing its storage marker", 
 });
 
 test("the character appearance marker survives edits as an invisible node", () => {
-  const marker = "<!-- proscenium:managed — regenerated from the script; edits here are overwritten -->";
+  const marker =
+    "<!-- proscenium:managed — regenerated from the script; edits here are overwritten -->";
   const source = `## Appearances\n\n${marker}\n- Scene 1\n\n## Notes\n\nMy words.\n`;
   assertStable(source);
   expect(toDoc(source).content?.filter((node) => node.type === "managedMarker")).toHaveLength(1);
@@ -304,7 +305,10 @@ test("the character appearance marker survives edits as an invisible node", () =
 });
 
 test("an empty aligned paragraph never leaks an alignment marker into the page", () => {
-  const text = toMarkdown({ type: "doc", content: [{ type: "paragraph", attrs: { textAlign: "center" } }] });
+  const text = toMarkdown({
+    type: "doc",
+    content: [{ type: "paragraph", attrs: { textAlign: "center" } }],
+  });
   expect(text).toBe("");
   expect(toDoc(text).content).toEqual([{ type: "paragraph" }]);
 });

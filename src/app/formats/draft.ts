@@ -146,9 +146,18 @@ export function draftFromSpec(spec: FormatSpec): FormatDraft {
     name: spec.name,
     page: {
       size: spec.page.size,
-      margins: { left: text(m.left), top: text(m.top), right: text(m.right), bottom: text(m.bottom) },
+      margins: {
+        left: text(m.left),
+        top: text(m.top),
+        right: text(m.right),
+        bottom: text(m.bottom),
+      },
     },
-    type: { family: spec.type.family, size: text(spec.type.size), lineHeight: text(spec.type.lineHeight) },
+    type: {
+      family: spec.type.family,
+      size: text(spec.type.size),
+      lineHeight: text(spec.type.lineHeight),
+    },
     header: slotsFromSpec(spec.header),
     footer: slotsFromSpec(spec.footer),
     elements,
@@ -176,7 +185,8 @@ function num(value: string): number | string {
 
 function slotsToRaw(slots: SlotsDraft): Record<string, unknown> {
   const content: Record<string, string> = {};
-  for (const slot of ["left", "center", "right"] as const) if (slots[slot]) content[slot] = slots[slot];
+  for (const slot of ["left", "center", "right"] as const)
+    if (slots[slot]) content[slot] = slots[slot];
   return { content, position: num(slots.position), suppressOnFirstPage: slots.suppressOnFirstPage };
 }
 
@@ -215,7 +225,11 @@ export function draftToRaw(draft: FormatDraft): Record<string, unknown> {
       size: draft.page.size,
       margins: { left: num(m.left), top: num(m.top), right: num(m.right), bottom: num(m.bottom) },
     },
-    type: { family: draft.type.family, size: num(draft.type.size), lineHeight: num(draft.type.lineHeight) },
+    type: {
+      family: draft.type.family,
+      size: num(draft.type.size),
+      lineHeight: num(draft.type.lineHeight),
+    },
     header: slotsToRaw(draft.header),
     footer: slotsToRaw(draft.footer),
     elements,
@@ -241,9 +255,12 @@ function plain(message: string): string {
   const min = message.match(/^must be ≥ ([\d.]+)/);
   if (min) return `Enter ${min[1]} or more.`;
   const token = message.match(/^unknown token (\{[^}]*\})/);
-  if (token) return `${token[1]} can’t be printed. Use Insert to add a page, act or scene number, the title, author or draft date.`;
-  if (/left \+ right margins/.test(message)) return "The left and right margins leave no room for text.";
-  if (/top \+ bottom margins/.test(message)) return "The top and bottom margins leave no room for text.";
+  if (token)
+    return `${token[1]} can’t be printed. Use Insert to add a page, act or scene number, the title, author or draft date.`;
+  if (/left \+ right margins/.test(message))
+    return "The left and right margins leave no room for text.";
+  if (/top \+ bottom margins/.test(message))
+    return "The top and bottom margins leave no room for text.";
   return message.charAt(0).toUpperCase() + message.slice(1);
 }
 

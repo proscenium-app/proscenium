@@ -255,7 +255,9 @@ class AutocompleteView {
     );
     this.activation.link(`${this.dom.id}-${encodeURIComponent(name)}`);
     placeAtCaret(this.dom, this.view);
-    this.dom.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    this.dom
+      .querySelector<HTMLElement>('[aria-selected="true"]')
+      ?.scrollIntoView({ block: "nearest" });
   }
 
   destroy() {

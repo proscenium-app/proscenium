@@ -20,7 +20,14 @@
  * splits with min-lines, acts and pageBreak elements force new pages.
  */
 import { trailingExtension } from "../fountain/cue";
-import { enterHeading, fillSlot, numberHeadings, slotValues, START_POSITION, type PagePosition } from "./furniture";
+import {
+  enterHeading,
+  fillSlot,
+  numberHeadings,
+  slotValues,
+  START_POSITION,
+  type PagePosition,
+} from "./furniture";
 import { openingParagraphs } from "./opening-prose";
 import type { BlockNode, BlockType, Doc, FrontMatter } from "../fountain/model";
 import { charAdvanceIn, charsPerLine } from "../format/metrics";
@@ -67,12 +74,18 @@ export interface FrontMatterPage {
 /** The same character grid and wrapping policy as the script body. Front
  * sheets have their own spacing from the format, remain unnumbered, and may
  * continue across any number of pages. Renderers only draw these positions. */
-export function paginateFrontMatter(fm: FrontMatter | null | undefined, spec: FormatSpec): FrontMatterPage[] {
+export function paginateFrontMatter(
+  fm: FrontMatter | null | undefined,
+  spec: FormatSpec,
+): FrontMatterPage[] {
   return spec.frontMatter.placement === "inline" ? [] : layoutFrontMatter(fm, spec);
 }
 
 /** Both placements share wrapping, overflow and the source-independent grid. */
-function layoutFrontMatter(fm: FrontMatter | null | undefined, spec: FormatSpec): FrontMatterPage[] {
+function layoutFrontMatter(
+  fm: FrontMatter | null | undefined,
+  spec: FormatSpec,
+): FrontMatterPage[] {
   if (!fm) return [];
   const policy = spec.frontMatter;
   const width = textBlockWidthIn(spec);
@@ -86,16 +99,26 @@ function layoutFrontMatter(fm: FrontMatter | null | undefined, spec: FormatSpec)
     pages.push(current);
     row = Math.min(capacity - 1, Math.max(0, at));
   };
-  const linesFor = (text: string) => wrapText(text, cpl).map((line) => text.slice(line.start, line.end).replace(/ +$/, ""));
-  const paragraph = (text: string, id: string, role: FrontMatterLine["role"] = "paragraph",
-    align: ElementAlign = "left", fontStyle = policy.bodyFontStyle, gap = 0, keepWithNext = false, runs: StyleRun[] = []) => {
+  const linesFor = (text: string) =>
+    wrapText(text, cpl).map((line) => text.slice(line.start, line.end).replace(/ +$/, ""));
+  const paragraph = (
+    text: string,
+    id: string,
+    role: FrontMatterLine["role"] = "paragraph",
+    align: ElementAlign = "left",
+    fontStyle = policy.bodyFontStyle,
+    gap = 0,
+    keepWithNext = false,
+    runs: StyleRun[] = [],
+  ) => {
     if (!text.trim()) return;
     const lines = linesFor(text);
     const top = Math.min(capacity - 1, policy.sectionTopRows);
     const want = lines.length + (keepWithNext ? policy.headingGapRows + 1 : 0);
     // A short entry travels whole; an entry larger than a page splits. Never
     // create an empty sheet just to honor an impossible oversized gap.
-    if (current.lines.length && row + gap + want > capacity && want <= capacity - top) start(current.kind);
+    if (current.lines.length && row + gap + want > capacity && want <= capacity - top)
+      start(current.kind);
     else if (current.lines.length) row += gap;
     let first = true;
     for (const wrapped of wrapText(text, cpl)) {
@@ -103,12 +126,27 @@ function layoutFrontMatter(fm: FrontMatter | null | undefined, spec: FormatSpec)
       if (row + 1 > capacity && current.lines.length) start(current.kind);
       row = Math.min(row, capacity - 1);
       const textWidth = lineText.length * charAdvanceIn(spec);
-      const xIn = align === "center" ? Math.max(0, (width - textWidth) / 2)
-        : align === "right" ? Math.max(0, width - textWidth) : 0;
-      const clipped = runs.filter((r) => r.end > wrapped.start && r.start < wrapped.start + lineText.length)
-        .map((r) => ({ ...r, start: Math.max(0, r.start - wrapped.start), end: Math.min(lineText.length, r.end - wrapped.start) }));
+      const xIn =
+        align === "center"
+          ? Math.max(0, (width - textWidth) / 2)
+          : align === "right"
+            ? Math.max(0, width - textWidth)
+            : 0;
+      const clipped = runs
+        .filter((r) => r.end > wrapped.start && r.start < wrapped.start + lineText.length)
+        .map((r) => ({
+          ...r,
+          start: Math.max(0, r.start - wrapped.start),
+          end: Math.min(lineText.length, r.end - wrapped.start),
+        }));
       current.lines.push({
-        text: lineText, row, xIn, fontStyle, align, paragraphId: id, role,
+        text: lineText,
+        row,
+        xIn,
+        fontStyle,
+        align,
+        paragraphId: id,
+        role,
         ...(clipped.length ? { runs: clipped } : {}),
         ...(first ? { source: { text, runs, gapRows: gap } } : {}),
       });
@@ -118,74 +156,177 @@ function layoutFrontMatter(fm: FrontMatter | null | undefined, spec: FormatSpec)
   };
   const prose = (value: string, kind: FrontSheetKind, separate: boolean) => {
     if (!value.trim()) return;
-    if (separate) start(kind, kind === "title"
-      ? (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) / linePitchIn(spec)
-      : policy.sectionTopRows);
+    if (separate)
+      start(
+        kind,
+        kind === "title"
+          ? (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) /
+              linePitchIn(spec)
+          : policy.sectionTopRows,
+      );
     for (const [i, p] of openingParagraphs(value).entries()) {
-      paragraph(p.text, `${kind}-prose-${i}`, p.heading ? "heading" : "paragraph", p.align,
+      paragraph(
+        p.text,
+        `${kind}-prose-${i}`,
+        p.heading ? "heading" : "paragraph",
+        p.align,
         p.heading ? policy.headingFontStyle : policy.bodyFontStyle,
-        i ? policy.fieldGapRows : 0, p.heading, p.runs);
+        i ? policy.fieldGapRows : 0,
+        p.heading,
+        p.runs,
+      );
     }
   };
   if (policy.placement === "inline") {
     start("title");
     if (fm.titlePage !== undefined) prose(fm.titlePage, "title", false);
     else {
-    paragraph(fm.title?.toUpperCase() ?? "", "title", "heading", "left", policy.titleFontStyle);
-    const credit = fm.credit ?? (fm.authors?.length ? "by" : "");
-    paragraph([credit, fm.authors?.join(", ")].filter(Boolean).join(" "), "authors", "paragraph", "left", policy.bodyFontStyle, policy.titleGapRows);
-    paragraph(fm.draftDate ?? "", "draft-date");
-    for (const [i, text] of (fm.contact ?? []).entries()) paragraph(text, `contact-${i}`);
+      paragraph(fm.title?.toUpperCase() ?? "", "title", "heading", "left", policy.titleFontStyle);
+      const credit = fm.credit ?? (fm.authors?.length ? "by" : "");
+      paragraph(
+        [credit, fm.authors?.join(", ")].filter(Boolean).join(" "),
+        "authors",
+        "paragraph",
+        "left",
+        policy.bodyFontStyle,
+        policy.titleGapRows,
+      );
+      paragraph(fm.draftDate ?? "", "draft-date");
+      for (const [i, text] of (fm.contact ?? []).entries()) paragraph(text, `contact-${i}`);
     }
-    if (fm.openingNotesBeforeCharacters && fm.openingNotes !== undefined) prose(fm.openingNotes, "setting", false);
+    if (fm.openingNotesBeforeCharacters && fm.openingNotes !== undefined)
+      prose(fm.openingNotes, "setting", false);
     if (fm.charactersPage !== undefined) prose(fm.charactersPage, "characters", false);
     else if (fm.characters?.length) {
-      const cast = fm.characters.map((c) => c.description ? `${c.name} (${c.description})` : c.name).join(", ");
-      paragraph(`Characters: ${cast}`, "characters", "paragraph", "left", policy.bodyFontStyle, policy.fieldGapRows);
+      const cast = fm.characters
+        .map((c) => (c.description ? `${c.name} (${c.description})` : c.name))
+        .join(", ");
+      paragraph(
+        `Characters: ${cast}`,
+        "characters",
+        "paragraph",
+        "left",
+        policy.bodyFontStyle,
+        policy.fieldGapRows,
+      );
     }
-    if (fm.openingNotes !== undefined) { if (!fm.openingNotesBeforeCharacters) prose(fm.openingNotes, "setting", false); }
-    else for (const [label, value] of [["Setting", fm.setting], ["Time", fm.time], ["Place", fm.place]] as const) {
-      if (value?.trim()) paragraph(`${label}: ${value}`, label);
-    }
+    if (fm.openingNotes !== undefined) {
+      if (!fm.openingNotesBeforeCharacters) prose(fm.openingNotes, "setting", false);
+    } else
+      for (const [label, value] of [
+        ["Setting", fm.setting],
+        ["Time", fm.time],
+        ["Place", fm.place],
+      ] as const) {
+        if (value?.trim()) paragraph(`${label}: ${value}`, label);
+      }
     return pages.filter((page) => page.lines.length);
   }
   if (fm.titlePage !== undefined) prose(fm.titlePage, "title", true);
   else if (fm.title?.trim()) {
-    const titleTop = (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) / linePitchIn(spec);
+    const titleTop =
+      (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) /
+      linePitchIn(spec);
     start("title", titleTop);
     paragraph(fm.title.toUpperCase(), "title", "heading", "center", policy.titleFontStyle);
-    paragraph(fm.credit ?? (fm.authors?.length ? "by" : ""), "credit", "paragraph", "center", policy.bodyFontStyle, policy.titleGapRows);
-    paragraph(fm.authors?.join(", ") ?? "", "authors", "paragraph", "center", policy.bodyFontStyle, policy.titleGapRows);
+    paragraph(
+      fm.credit ?? (fm.authors?.length ? "by" : ""),
+      "credit",
+      "paragraph",
+      "center",
+      policy.bodyFontStyle,
+      policy.titleGapRows,
+    );
+    paragraph(
+      fm.authors?.join(", ") ?? "",
+      "authors",
+      "paragraph",
+      "center",
+      policy.bodyFontStyle,
+      policy.titleGapRows,
+    );
     const contact: { text: string; id: string; gap: number }[] = [];
     let blanks = 0;
     (fm.contact ?? []).forEach((text, i) => {
-      if (text.trim()) { contact.push({ text, id: `contact-${i}`, gap: blanks }); blanks = 0; }
-      else blanks++;
+      if (text.trim()) {
+        contact.push({ text, id: `contact-${i}`, gap: blanks });
+        blanks = 0;
+      } else blanks++;
     });
-    if (fm.draftDate) contact.push({ text: fm.draftDate, id: "draft-date", gap: contact.length ? blanks + policy.fieldGapRows : 0 });
-    const height = contact.reduce((sum, item) => sum + (item.text.trim() ? linesFor(item.text).length : 0) + item.gap, 0);
+    if (fm.draftDate)
+      contact.push({
+        text: fm.draftDate,
+        id: "draft-date",
+        gap: contact.length ? blanks + policy.fieldGapRows : 0,
+      });
+    const height = contact.reduce(
+      (sum, item) => sum + (item.text.trim() ? linesFor(item.text).length : 0) + item.gap,
+      0,
+    );
     if (height) {
-      row = Math.max(row + policy.titleContactGapRows, capacity - policy.contactBottomRows - height);
-      for (const item of contact) paragraph(item.text, item.id, "paragraph", policy.contactAlign, policy.bodyFontStyle, item.gap);
+      row = Math.max(
+        row + policy.titleContactGapRows,
+        capacity - policy.contactBottomRows - height,
+      );
+      for (const item of contact)
+        paragraph(
+          item.text,
+          item.id,
+          "paragraph",
+          policy.contactAlign,
+          policy.bodyFontStyle,
+          item.gap,
+        );
     }
   }
-  if (fm.openingNotesBeforeCharacters && fm.openingNotes !== undefined) prose(fm.openingNotes, "setting", true);
+  if (fm.openingNotesBeforeCharacters && fm.openingNotes !== undefined)
+    prose(fm.openingNotes, "setting", true);
   if (fm.charactersPage !== undefined) prose(fm.charactersPage, "characters", true);
   else if (fm.characters?.length) {
     start("characters");
-    paragraph("CHARACTERS", "characters-heading", "heading", "center", policy.headingFontStyle, 0, true);
+    paragraph(
+      "CHARACTERS",
+      "characters-heading",
+      "heading",
+      "center",
+      policy.headingFontStyle,
+      0,
+      true,
+    );
     fm.characters.forEach((character, i) => {
-      const text = character.description ? `${character.name.toUpperCase()} — ${character.description}` : character.name.toUpperCase();
-      paragraph(text, `cast-${i}`, "cast", "left", policy.bodyFontStyle, i ? policy.castGapRows : policy.headingGapRows);
+      const text = character.description
+        ? `${character.name.toUpperCase()} — ${character.description}`
+        : character.name.toUpperCase();
+      paragraph(
+        text,
+        `cast-${i}`,
+        "cast",
+        "left",
+        policy.bodyFontStyle,
+        i ? policy.castGapRows : policy.headingGapRows,
+      );
     });
   }
-  const fields = [["SETTING", fm.setting], ["TIME", fm.time], ["PLACE", fm.place]] as const;
-  if (fm.openingNotes !== undefined) { if (!fm.openingNotesBeforeCharacters) prose(fm.openingNotes, "setting", true); }
-  else if (fields.some(([, value]) => value?.trim())) {
+  const fields = [
+    ["SETTING", fm.setting],
+    ["TIME", fm.time],
+    ["PLACE", fm.place],
+  ] as const;
+  if (fm.openingNotes !== undefined) {
+    if (!fm.openingNotesBeforeCharacters) prose(fm.openingNotes, "setting", true);
+  } else if (fields.some(([, value]) => value?.trim())) {
     start("setting");
     for (const [label, value] of fields) {
       if (!value?.trim()) continue;
-      paragraph(label, `${label}-heading`, "heading", "left", policy.headingFontStyle, policy.fieldGapRows, true);
+      paragraph(
+        label,
+        `${label}-heading`,
+        "heading",
+        "left",
+        policy.headingFontStyle,
+        policy.fieldGapRows,
+        true,
+      );
       paragraph(value, label, "paragraph", "left", policy.bodyFontStyle);
     }
   }
@@ -388,7 +529,8 @@ export function buildLayoutBlock(args: {
     for (const seg of srcMap) seg.printStart += 1;
   }
   text += el.suffix;
-  if (el.underline) runs.push({ start: 0, end: text.length, bold: false, italic: false, underline: true });
+  if (el.underline)
+    runs.push({ start: 0, end: text.length, bold: false, italic: false, underline: true });
 
   const block: LayoutBlock = { type, sourceIndex, text, runs, srcMap, cueName };
   if (type === "character" && args.dual) block.dual = true;
@@ -591,7 +733,8 @@ function isDialogueLike(type: BlockType): boolean {
 export function besidePairs(blocks: LayoutBlock[], spec: FormatSpec): Set<number> {
   const paired = new Set<number>();
   for (let i = 0; i < blocks.length - 1; i++) {
-    const block = blocks[i], next = blocks[i + 1];
+    const block = blocks[i],
+      next = blocks[i + 1];
     if (!spec.elements[block.type].besideNext || block.dual || next.dual) continue;
     // A dual pair has its own two columns; neither cue borrows the full-page
     // speech column (including the sequential fallback for an oversized pair).
@@ -600,8 +743,15 @@ export function besidePairs(blocks: LayoutBlock[], spec: FormatSpec): Set<number
       while (end < blocks.length && isDialogueLike(blocks[end].type)) end++;
       if (blocks[end]?.type === "character" && blocks[end].dual) continue;
     }
-    if (!(block.type === "character" && isDialogueLike(next.type) || block.type === "act" && next.type === "scene")) continue;
-    const col = elementColumnIn(spec, block.type), after = elementColumnIn(spec, next.type);
+    if (
+      !(
+        (block.type === "character" && isDialogueLike(next.type)) ||
+        (block.type === "act" && next.type === "scene")
+      )
+    )
+      continue;
+    const col = elementColumnIn(spec, block.type),
+      after = elementColumnIn(spec, next.type);
     if (col.leftIn + col.widthIn <= after.leftIn + 1e-9) paired.add(block.sourceIndex);
   }
   return paired;
@@ -621,11 +771,26 @@ export function runInPairs(blocks: LayoutBlock[], spec: FormatSpec): Set<number>
     for (let k = Math.max(0, start); k < end; k++) dual.add(blocks[k].sourceIndex);
   }
   for (let i = 0; i < blocks.length - 1; i++) {
-    const block = blocks[i], next = blocks[i + 1];
-    if (block.type !== "parenthetical" || next.type !== "dialogue" || !spec.elements.parenthetical.runInNext || dual.has(block.sourceIndex)) continue;
+    const block = blocks[i],
+      next = blocks[i + 1];
+    if (
+      block.type !== "parenthetical" ||
+      next.type !== "dialogue" ||
+      !spec.elements.parenthetical.runInNext ||
+      dual.has(block.sourceIndex)
+    )
+      continue;
     const col = elementColumnIn(spec, "dialogue");
-    if (elementColumnIn(spec, "parenthetical").leftIn !== col.leftIn || spec.elements.parenthetical.letterSpacing !== spec.elements.dialogue.letterSpacing) continue;
-    if (!block.text.includes("\n") && block.text.length + 1 < charsPerLine(spec, col.widthIn, spec.elements.dialogue.letterSpacing)) result.add(block.sourceIndex);
+    if (
+      elementColumnIn(spec, "parenthetical").leftIn !== col.leftIn ||
+      spec.elements.parenthetical.letterSpacing !== spec.elements.dialogue.letterSpacing
+    )
+      continue;
+    if (
+      !block.text.includes("\n") &&
+      block.text.length + 1 < charsPerLine(spec, col.widthIn, spec.elements.dialogue.letterSpacing)
+    )
+      result.add(block.sourceIndex);
   }
   return result;
 }
@@ -678,16 +843,28 @@ export function paginate(
   const rules = spec.pagination;
   const paired = besidePairs(blocks, spec);
   const runIns = runInPairs(blocks, spec);
-  const firstLineInsets = new Map(blocks.flatMap((block, index) => runIns.has(block.sourceIndex)
-    ? [[blocks[index + 1].sourceIndex, block.text.length + 1] as const] : []));
-  const besideBodies = new Set(blocks.filter((_, index) => index > 0 && paired.has(blocks[index - 1].sourceIndex)).map((block) => block.sourceIndex));
+  const firstLineInsets = new Map(
+    blocks.flatMap((block, index) =>
+      runIns.has(block.sourceIndex)
+        ? [[blocks[index + 1].sourceIndex, block.text.length + 1] as const]
+        : [],
+    ),
+  );
+  const besideBodies = new Set(
+    blocks
+      .filter((_, index) => index > 0 && paired.has(blocks[index - 1].sourceIndex))
+      .map((block) => block.sourceIndex),
+  );
 
   const prepareFull = (block: LayoutBlock): Prepared => {
     const col = elementColumnIn(spec, block.type, !besideBodies.has(block.sourceIndex));
     const cpl = charsPerLine(spec, col.widthIn, spec.elements[block.type].letterSpacing);
     const firstLineInset = firstLineInsets.get(block.sourceIndex) ?? 0;
-    const lines = firstLineInset ? wrapText(" ".repeat(firstLineInset) + block.text, cpl)
-      .map((line) => ({ start: Math.max(0, line.start - firstLineInset), end: Math.max(0, line.end - firstLineInset) }))
+    const lines = firstLineInset
+      ? wrapText(" ".repeat(firstLineInset) + block.text, cpl).map((line) => ({
+          start: Math.max(0, line.start - firstLineInset),
+          end: Math.max(0, line.end - firstLineInset),
+        }))
       : wrapText(block.text, cpl);
     return {
       block,
@@ -701,10 +878,7 @@ export function paginate(
       firstLineInset,
     };
   };
-  const prepareHalf = (
-    block: LayoutBlock,
-    half: { leftIn: number; widthIn: number },
-  ): Prepared => {
+  const prepareHalf = (block: LayoutBlock, half: { leftIn: number; widthIn: number }): Prepared => {
     const cpl = charsPerLine(spec, half.widthIn, spec.elements[block.type].letterSpacing);
     return {
       block,
@@ -777,7 +951,8 @@ export function paginate(
   function lineXIn(entry: Prepared, text: string): number {
     const trimmed = text.replace(/ +$/, "");
     const wIn = trimmed.length * charAdvanceIn(spec, entry.el.letterSpacing);
-    if (entry.el.align === "center") return entry.colLeftIn + Math.max(0, (entry.colWidthIn - wIn) / 2);
+    if (entry.el.align === "center")
+      return entry.colLeftIn + Math.max(0, (entry.colWidthIn - wIn) / 2);
     if (entry.el.align === "right") return entry.colLeftIn + Math.max(0, entry.colWidthIn - wIn);
     return entry.colLeftIn;
   }
@@ -821,7 +996,10 @@ export function paginate(
   function placeLines(build: PageBuild, entry: Prepared, count: number, gapRows: number): void {
     emitContd(build);
     const previous = build.placed[build.placed.length - 1];
-    const atRow = previous?.prepared.besideNext && entry.fromLine === 0 ? previous.atRow : build.rowsUsed + gapRows;
+    const atRow =
+      previous?.prepared.besideNext && entry.fromLine === 0
+        ? previous.atRow
+        : build.rowsUsed + gapRows;
     const { block } = entry;
     for (let i = 0; i < count; i++) {
       const wrapped = entry.lines[entry.fromLine + i];
@@ -835,7 +1013,11 @@ export function paginate(
         text,
         runs: clipRuns(block, wrapped),
         row: atRow + i,
-        xIn: lineXIn(entry, text) + (entry.fromLine + i === 0 ? (entry.firstLineInset ?? 0) * charAdvanceIn(spec, entry.el.letterSpacing) : 0),
+        xIn:
+          lineXIn(entry, text) +
+          (entry.fromLine + i === 0
+            ? (entry.firstLineInset ?? 0) * charAdvanceIn(spec, entry.el.letterSpacing)
+            : 0),
       });
     }
     build.rowsUsed = Math.max(build.rowsUsed, atRow + count);
@@ -843,12 +1025,7 @@ export function paginate(
   }
 
   /** Both halves of a dual pair from the same base row; the taller side wins. */
-  function placeDual(
-    build: PageBuild,
-    unit: DualUnit,
-    gapRows: number,
-    unitRows: number,
-  ): void {
+  function placeDual(build: PageBuild, unit: DualUnit, gapRows: number, unitRows: number): void {
     emitContd(build);
     const base = build.rowsUsed + gapRows;
     let emitted = 0;
@@ -911,7 +1088,9 @@ export function paginate(
    */
   function placedHeading(block: LayoutBlock): void {
     current = enterHeading(current, block, headingNumbers.get(block.sourceIndex) ?? null);
-    const headingsOnly = page.lines.every((line) => line.kind === "text" && (line.type === "act" || line.type === "scene"));
+    const headingsOnly = page.lines.every(
+      (line) => line.kind === "text" && (line.type === "act" || line.type === "scene"),
+    );
     if (headingsOnly && !page.pendingContd) page.at = { ...current };
   }
 
@@ -942,9 +1121,7 @@ export function paginate(
     const header = resolveSlots(spec.header, pageNumber, build);
     const footer = resolveSlots(spec.footer, pageNumber, build);
     const trailingAfter =
-      build.placed.length > 0
-        ? build.placed[build.placed.length - 1].prepared.el.spacingAfter
-        : 0;
+      build.placed.length > 0 ? build.placed[build.placed.length - 1].prepared.el.spacingAfter : 0;
     pages.push({
       pageNumber,
       header,
@@ -973,7 +1150,11 @@ export function paginate(
     }
     // Recompute the trailing spacing context for the block now at the end.
     const tail = build.placed[build.placed.length - 1];
-    lastAfter = tail ? tail.prepared.el.spacingAfter : build.intro?.length ? spec.frontMatter.inlineGapRows : 0;
+    lastAfter = tail
+      ? tail.prepared.el.spacingAfter
+      : build.intro?.length
+        ? spec.frontMatter.inlineGapRows
+        : 0;
     lastType = tail ? tail.prepared.block.type : null;
     return popped;
   }
@@ -995,8 +1176,7 @@ export function paginate(
       const unitRows = Math.max(chainRows(item.left), chainRows(item.right));
       const pageEmpty = page.rowsUsed === 0 && page.lines.length === 0;
       const contdRow = page.pendingContd ? 1 : 0;
-      const gap =
-        pageEmpty || page.pendingContd ? 0 : Math.max(lastAfter, first.el.spacingBefore);
+      const gap = pageEmpty || page.pendingContd ? 0 : Math.max(lastAfter, first.el.spacingBefore);
       const avail = maxRows - page.rowsUsed - contdRow - gap;
       if (unitRows <= avail) {
         placeDual(page, item, gap, unitRows);
@@ -1033,7 +1213,8 @@ export function paginate(
     }
 
     const beside = entry.fromLine === 0 && page.placed[page.placed.length - 1]?.prepared.besideNext;
-    const afterAct = block.type === "scene" && page.placed[page.placed.length - 1]?.prepared.block.type === "act";
+    const afterAct =
+      block.type === "scene" && page.placed[page.placed.length - 1]?.prepared.block.type === "act";
     if (el.startsNewPage && !beside && !afterAct && page.lines.length > 0) {
       closePage(page, { sourceIndex: block.sourceIndex, srcOffset: null, contd: null });
     }
@@ -1061,9 +1242,12 @@ export function paginate(
     }
 
     // Doesn't fit whole. Try a legal split.
-    const splittable = block.type === "dialogue" || block.type === "action" || block.type === "lyric";
+    const splittable =
+      block.type === "dialogue" || block.type === "action" || block.type === "lyric";
     const minBefore =
-      block.type === "dialogue" ? rules.minDialogueLinesBeforeBreak : rules.minActionLinesEitherSide;
+      block.type === "dialogue"
+        ? rules.minDialogueLinesBeforeBreak
+        : rules.minActionLinesEitherSide;
     const minAfter =
       block.type === "dialogue" ? rules.minDialogueLinesAfterBreak : rules.minActionLinesEitherSide;
     // A continuation chunk has already satisfied the "before" minimum on an

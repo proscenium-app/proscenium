@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, test } from "bun:test";
-import { PAGE_FOCUS_RETRY_MS, PAGE_FOCUS_WAIT_MS, createPageFocus, type PageTarget } from "./page-focus";
+import {
+  PAGE_FOCUS_RETRY_MS,
+  PAGE_FOCUS_WAIT_MS,
+  createPageFocus,
+  type PageTarget,
+} from "./page-focus";
 
 /** A clock and a task queue the test runs by hand. */
 function harness() {

@@ -198,20 +198,13 @@ export function insertNoteStep({ tr, state, dispatch }: CommandProps): boolean {
   const placeholder = "comment";
   const pos = tr.selection.from;
   tr.insert(pos, noteType.create(null, state.schema.text(placeholder)));
-  tr.setSelection(
-    TextSelection.create(tr.doc, pos + 1, pos + 1 + placeholder.length),
-  );
+  tr.setSelection(TextSelection.create(tr.doc, pos + 1, pos + 1 + placeholder.length));
   return true;
 }
 
 /** The leader menu's `n`: insert a comment and land inside it. */
 export function insertNote(editor: Editor): boolean {
-  return editor
-    .chain()
-    .focus()
-    .command(insertNoteStep)
-    .scrollIntoView()
-    .run();
+  return editor.chain().focus().command(insertNoteStep).scrollIntoView().run();
 }
 
 /**

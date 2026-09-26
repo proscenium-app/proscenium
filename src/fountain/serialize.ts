@@ -56,8 +56,7 @@ function serializeBlock(block: BlockNode): string {
     }
     case "action": {
       // A lone block note serializes as `[[ … ]]`, never force-prefixed.
-      const onlyNote =
-        block.content?.length === 1 && block.content[0].type === "note";
+      const onlyNote = block.content?.length === 1 && block.content[0].type === "note";
       if (onlyNote) return text;
       return actionNeedsForce(text) ? `!${text}` : text;
     }

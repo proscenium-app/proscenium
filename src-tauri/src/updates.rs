@@ -47,14 +47,14 @@ use tauri_plugin_updater::{Error as UpdaterError, Update, UpdaterExt};
 use crate::settings::{self, UpdateTrack};
 
 mod download;
+#[cfg(target_os = "macos")]
+mod install;
 #[cfg(all(test, target_os = "macos"))]
 #[path = "updates/tests/rehearsal.rs"]
 mod rehearsal;
 #[cfg(all(test, target_os = "macos"))]
 #[path = "updates/tests/update_path.rs"]
 mod update_path;
-#[cfg(target_os = "macos")]
-mod install;
 
 /// The header alpha's key travels in, beside `Proscenium-OS`; the Worker reads
 /// the same name (services/edge/src/updates.ts).
@@ -89,28 +89,55 @@ fn endpoints_for(configured: &[&str], track: UpdateTrack, version: &str) -> Opti
     let (own, rest) = configured.split_first()?;
     let own = own.replace("{{current_version}}", version);
     let segment = match track {
-        UpdateTrack::Stable => return Some(std::iter::once(own).chain(rest.iter().map(|s| s.to_string())).collect()),
+        UpdateTrack::Stable => {
+            return Some(
+                std::iter::once(own)
+                    .chain(rest.iter().map(|s| s.to_string()))
+                    .collect(),
+            )
+        }
         UpdateTrack::Beta => "beta",
         UpdateTrack::Alpha => "alpha",
     };
-    own.contains("/v1/{{target}}/").then(|| vec![own.replacen("/v1/", &format!("/v1/{segment}/"), 1)])
+    own.contains("/v1/{{target}}/")
+        .then(|| vec![own.replacen("/v1/", &format!("/v1/{segment}/"), 1)])
 }
 
 /// What the writer can be told about updates, as the page receives it.
 #[derive(Debug, Clone, Serialize, PartialEq)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum UpdateState {
     /// Nothing asked yet this launch.
     Idle,
     /// A build that cannot verify an update, and so never looks for one.
     Unconfigured,
     Checking,
-    UpToDate { checked_at: u64 },
-    Downloading { version: String, received: u64, total: Option<u64> },
+    UpToDate {
+        checked_at: u64,
+    },
+    Downloading {
+        version: String,
+        received: u64,
+        total: Option<u64>,
+    },
     /// Downloaded and verified: it installs when the writer restarts.
-    Ready { version: String, notes: Option<String>, published_at: Option<i64> },
-    Installing { version: String },
-    Failed { reason: FailReason, message: String, checked_at: u64 },
+    Ready {
+        version: String,
+        notes: Option<String>,
+        published_at: Option<i64>,
+    },
+    Installing {
+        version: String,
+    },
+    Failed {
+        reason: FailReason,
+        message: String,
+        checked_at: u64,
+    },
 }
 
 /// Why a check failed, in the kinds the page words differently.
@@ -155,7 +182,11 @@ fn configured(app: &AppHandle) -> bool {
 }
 
 fn publish(app: &AppHandle, state: UpdateState) -> UpdateState {
-    app.state::<Updates>().0.lock().unwrap_or_else(|p| p.into_inner()).state = state.clone();
+    app.state::<Updates>()
+        .0
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .state = state.clone();
     let _ = app.emit(EVENT_STATE, state.clone());
     state
 }
@@ -182,7 +213,7 @@ pub fn setup(app: &AppHandle) {
                 .state::<Updates>()
                 .0
                 .lock()
-                .unwrap()
+                .unwrap_or_else(|p| p.into_inner())
                 .last_check
                 .map_or(true, |t| t.elapsed().map_or(true, |e| e >= every));
             if due && settings.check_for_updates {
@@ -242,29 +273,43 @@ pub async fn check(app: &AppHandle) -> UpdateState {
         }
     };
     let state = match outcome {
-        Ok(None) => UpdateState::UpToDate { checked_at: now_ms() },
+        Ok(None) => UpdateState::UpToDate {
+            checked_at: now_ms(),
+        },
         Ok(Some((update, bytes))) => {
             let state = UpdateState::Ready {
                 version: update.version.clone(),
                 notes: update.body.clone(),
                 published_at: update.date.map(|d| d.unix_timestamp() * 1000),
             };
-            app.state::<Updates>().0.lock().unwrap_or_else(|p| p.into_inner()).ready = Some((update, Arc::new(bytes)));
+            app.state::<Updates>()
+                .0
+                .lock()
+                .unwrap_or_else(|p| p.into_inner())
+                .ready = Some((update, Arc::new(bytes)));
             state
         }
         Err(e) => {
             let reason = match &e {
                 UpdaterError::Io(io) if io.to_string() == NO_KEY => FailReason::NoKey,
                 UpdaterError::Reqwest(_) | UpdaterError::Network(_) => FailReason::Offline,
-                UpdaterError::Minisign(_) | UpdaterError::Base64(_) | UpdaterError::SignatureUtf8(_) => {
-                    FailReason::Signature
-                }
+                UpdaterError::Minisign(_)
+                | UpdaterError::Base64(_)
+                | UpdaterError::SignatureUtf8(_) => FailReason::Signature,
                 _ => FailReason::Other,
             };
-            UpdateState::Failed { reason, message: e.to_string(), checked_at: now_ms() }
+            UpdateState::Failed {
+                reason,
+                message: e.to_string(),
+                checked_at: now_ms(),
+            }
         }
     };
-    app.state::<Updates>().0.lock().unwrap_or_else(|p| p.into_inner()).busy = false;
+    app.state::<Updates>()
+        .0
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .busy = false;
     publish(app, state)
 }
 
@@ -280,14 +325,22 @@ const NO_KEY: &str = "Alpha needs a key, and this copy has none";
 
 /// The key a check on `track` sends: alpha's, and only on alpha, because a
 /// stable check's second endpoint is GitHub. Alpha without one is not asked.
-fn key_for(track: UpdateTrack, stored: impl FnOnce() -> Option<String>) -> std::io::Result<Option<String>> {
+fn key_for(
+    track: UpdateTrack,
+    stored: impl FnOnce() -> Option<String>,
+) -> std::io::Result<Option<String>> {
     match track {
-        UpdateTrack::Alpha => stored().map(Some).ok_or_else(|| std::io::Error::other(NO_KEY)),
+        UpdateTrack::Alpha => stored()
+            .map(Some)
+            .ok_or_else(|| std::io::Error::other(NO_KEY)),
         UpdateTrack::Beta | UpdateTrack::Stable => Ok(None),
     }
 }
 
-async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Vec<u8>)>, UpdaterError> {
+async fn fetch(
+    app: &AppHandle,
+    track: UpdateTrack,
+) -> Result<Option<(Update, Vec<u8>)>, UpdaterError> {
     // A self-test run asks no update service:
     // the pipeline's runs are not copies in use, and what a track publishes
     // must not change what a check sees.
@@ -299,8 +352,14 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
     }
     let key = key_for(track, || settings::update_track_key(app))?;
     let config = app.config();
-    let updater_config = config.plugins.0.get("updater").ok_or_else(|| std::io::Error::other("No updater configuration"))?;
-    let configured = updater_config.get("endpoints").and_then(|v| v.as_array())
+    let updater_config = config
+        .plugins
+        .0
+        .get("updater")
+        .ok_or_else(|| std::io::Error::other("No updater configuration"))?;
+    let configured = updater_config
+        .get("endpoints")
+        .and_then(|v| v.as_array())
         .and_then(|list| list.iter().map(|v| v.as_str()).collect::<Option<Vec<_>>>())
         .ok_or_else(|| std::io::Error::other("No update endpoints"))?;
     let this = crate::version::whole(app);
@@ -313,11 +372,26 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
     if !endpoints.iter().all(download::allowed) {
         return Err(std::io::Error::other("The update endpoint is not permitted").into());
     }
-    let os = crate::telemetry::operating_system().1.split('.').take(2).collect::<Vec<_>>().join(".");
-    let pubkey = updater_config.get("pubkey").and_then(|v| v.as_str()).unwrap_or("");
+    let os = crate::telemetry::operating_system()
+        .1
+        .split('.')
+        .take(2)
+        .collect::<Vec<_>>()
+        .join(".");
+    let pubkey = updater_config
+        .get("pubkey")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let mut last = Instant::now();
     take_offer(
-        app, &endpoints, &os, key.as_deref(), &this, pubkey, &config.identifier, &Allowlisted,
+        app,
+        &endpoints,
+        &os,
+        key.as_deref(),
+        &this,
+        pubkey,
+        &config.identifier,
+        &Allowlisted,
         || {
             #[cfg(target_os = "macos")]
             install::preflight(&install::running_bundle()?)?;
@@ -327,7 +401,14 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
             // A progress event per network chunk would be hundreds a second.
             if received == 0 || last.elapsed() >= Duration::from_millis(250) {
                 last = Instant::now();
-                publish(app, UpdateState::Downloading { version: offered.to_string(), received, total });
+                publish(
+                    app,
+                    UpdateState::Downloading {
+                        version: offered.to_string(),
+                        received,
+                        total,
+                    },
+                );
             }
         },
     )
@@ -339,13 +420,23 @@ async fn fetch(app: &AppHandle, track: UpdateTrack) -> Result<Option<(Update, Ve
 /// over loopback, which the allowlist rightly refuses. It is the only part of
 /// [`take_offer`] a test replaces.
 trait Transport {
-    async fn archive(&self, update: &Update, pubkey: &str, progress: impl FnMut(usize, Option<u64>)) -> Result<Vec<u8>, UpdaterError>;
+    async fn archive(
+        &self,
+        update: &Update,
+        pubkey: &str,
+        progress: impl FnMut(usize, Option<u64>),
+    ) -> Result<Vec<u8>, UpdaterError>;
 }
 
 struct Allowlisted;
 
 impl Transport for Allowlisted {
-    async fn archive(&self, update: &Update, pubkey: &str, progress: impl FnMut(usize, Option<u64>)) -> Result<Vec<u8>, UpdaterError> {
+    async fn archive(
+        &self,
+        update: &Update,
+        pubkey: &str,
+        progress: impl FnMut(usize, Option<u64>),
+    ) -> Result<Vec<u8>, UpdaterError> {
         download::archive(update, pubkey, progress).await
     }
 }
@@ -403,29 +494,51 @@ async fn take_offer<R: tauri::Runtime>(
 /// answer can never silently select a GitHub download (or vice versa).
 /// The update's headers carry on to its download (download.rs), so alpha's
 /// key reaches alpha's archive and nothing else does.
-async fn metadata<R: tauri::Runtime>(app: &AppHandle<R>, endpoints: &[reqwest::Url], os: &str, key: Option<&str>, current: &semver::Version) -> Result<Option<Update>, UpdaterError> {
+async fn metadata<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    endpoints: &[reqwest::Url],
+    os: &str,
+    key: Option<&str>,
+    current: &semver::Version,
+) -> Result<Option<Update>, UpdaterError> {
     let mut failure = None;
     for endpoint in endpoints {
         // Newer than the whole version this copy answers to: the plugin knows
         // only the package's, `X.Y.Z`, which every alpha of it sorts below.
         let current = current.clone();
-        let mut builder = app.updater_builder().endpoints(vec![endpoint.clone()])?.timeout(CHECK_TIMEOUT)
+        let mut builder = app
+            .updater_builder()
+            .endpoints(vec![endpoint.clone()])?
+            .timeout(CHECK_TIMEOUT)
             .header("Proscenium-OS", os)?;
         if let Some(key) = key {
             builder = builder.header(TRACK_KEY_HEADER, key)?;
         }
         let keyed = key.is_some();
         let result = builder
-            .configure_client(move |client| client.user_agent("").redirect(download::redirects_for(keyed)))
+            .configure_client(move |client| {
+                client
+                    .user_agent("")
+                    .redirect(download::redirects_for(keyed))
+            })
             .version_comparator(move |_, remote| remote.version > current)
-            .build()?.check().await;
+            .build()?
+            .check()
+            .await;
         match result {
             Ok(Some(update)) => {
                 let origin_matches = if endpoint.host_str() == Some("updates.proscenium.ink") {
                     update.download_url.host_str() == endpoint.host_str()
-                } else { update.download_url.host_str() != Some("updates.proscenium.ink") };
-                if origin_matches { return Ok(Some(update)); }
-                failure = Some(std::io::Error::other("The archive does not belong to its update endpoint").into());
+                } else {
+                    update.download_url.host_str() != Some("updates.proscenium.ink")
+                };
+                if origin_matches {
+                    return Ok(Some(update));
+                }
+                failure = Some(
+                    std::io::Error::other("The archive does not belong to its update endpoint")
+                        .into(),
+                );
             }
             Ok(None) => return Ok(None),
             Err(error) => failure = Some(error),
@@ -436,7 +549,12 @@ async fn metadata<R: tauri::Runtime>(app: &AppHandle<R>, endpoints: &[reqwest::U
 
 #[tauri::command]
 pub async fn update_state(app: AppHandle) -> UpdateState {
-    app.state::<Updates>().0.lock().unwrap_or_else(|p| p.into_inner()).state.clone()
+    app.state::<Updates>()
+        .0
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .state
+        .clone()
 }
 
 /// Check Now, and the menu's "Check for Updates…": at once, whatever the switch says.
@@ -483,7 +601,12 @@ pub async fn update_restart(app: AppHandle) -> Result<RestartOutcome, String> {
     let Some((update, bytes)) = pending else {
         return Ok(RestartOutcome::NotReady);
     };
-    publish(&app, UpdateState::Installing { version: update.version.clone() });
+    publish(
+        &app,
+        UpdateState::Installing {
+            version: update.version.clone(),
+        },
+    );
     let installed = tauri::async_runtime::spawn_blocking({
         let update = update.clone();
         let bytes = bytes.clone();
@@ -491,9 +614,21 @@ pub async fn update_restart(app: AppHandle) -> Result<RestartOutcome, String> {
         let current = crate::version::whole(&app);
         move || {
             #[cfg(target_os = "macos")]
-            { install::install(&install::running_bundle()?, &bytes, &id, &update.version, &current).map_err(UpdaterError::from) }
+            {
+                install::install(
+                    &install::running_bundle()?,
+                    &bytes,
+                    &id,
+                    &update.version,
+                    &current,
+                )
+                .map_err(UpdaterError::from)
+            }
             #[cfg(not(target_os = "macos"))]
-            { let _ = (id, current); update.install(bytes.as_slice()) }
+            {
+                let _ = (id, current);
+                update.install(bytes.as_slice())
+            }
         }
     })
     .await
@@ -503,10 +638,13 @@ pub async fn update_restart(app: AppHandle) -> Result<RestartOutcome, String> {
         // Still downloaded and verified: the writer can try again.
         let updates = app.state::<Updates>();
         let mut inner = updates.0.lock().unwrap_or_else(|p| p.into_inner());
+        let state = UpdateState::Ready {
+            version: update.version.clone(),
+            notes: update.body.clone(),
+            published_at: update.date.map(|d| d.unix_timestamp() * 1000),
+        };
         inner.ready = Some((update, bytes));
         inner.busy = false;
-        let (update, _) = inner.ready.as_ref().expect("restored above");
-        let state = UpdateState::Ready { version: update.version.clone(), notes: update.body.clone(), published_at: update.date.map(|d| d.unix_timestamp() * 1000) };
         drop(inner);
         publish(&app, state);
         return Err(e);
@@ -524,13 +662,19 @@ pub async fn update_release_notes(version: Option<String>) -> Result<(), String>
         Some(v) => return Err(format!("\"{v}\" is not a version")),
         None => RELEASES.to_string(),
     };
-    std::process::Command::new("open").arg(url).spawn().map_err(|e| e.to_string())?;
+    std::process::Command::new("open")
+        .arg(url)
+        .spawn()
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
 fn is_version(v: &str) -> bool {
     let parts: Vec<&str> = v.split('.').collect();
-    parts.len() == 3 && parts.iter().all(|p| !p.is_empty() && p.len() <= 6 && p.bytes().all(|b| b.is_ascii_digit()))
+    parts.len() == 3
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.len() <= 6 && p.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// The unsaved-work beacon (`buffer-state.json`, settings.rs): the page writes
@@ -544,9 +688,12 @@ fn unsaved_edits(app: &AppHandle) -> bool {
 }
 
 fn unsafe_beacon(bytes: &[u8]) -> bool {
-    serde_json::from_slice::<serde_json::Value>(bytes).ok()
+    serde_json::from_slice::<serde_json::Value>(bytes)
+        .ok()
         .and_then(|beacon| {
-            if beacon.get("pid").and_then(|p| p.as_u64()) != Some(std::process::id() as u64) { return None; }
+            if beacon.get("pid").and_then(|p| p.as_u64()) != Some(std::process::id() as u64) {
+                return None;
+            }
             beacon.get("dirty").and_then(|d| d.as_bool())
         })
         .unwrap_or(true)
@@ -557,11 +704,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a7_01_an_unknown_or_torn_beacon_is_unsafe() {
-        for bytes in [b"".as_slice(), b"{", b"{}", br#"{"dirty":null}"#, br#"{"dirty":true}"#, br#"{"dirty":false}"#, br#"{"dirty":false,"pid":0}"#] {
+    fn an_unknown_or_torn_beacon_is_unsafe() {
+        for bytes in [
+            b"".as_slice(),
+            b"{",
+            b"{}",
+            br#"{"dirty":null}"#,
+            br#"{"dirty":true}"#,
+            br#"{"dirty":false}"#,
+            br#"{"dirty":false,"pid":0}"#,
+        ] {
             assert!(unsafe_beacon(bytes));
         }
-        assert!(!unsafe_beacon(&serde_json::to_vec(&serde_json::json!({ "dirty": false, "pid": std::process::id() })).unwrap()));
+        assert!(!unsafe_beacon(
+            &serde_json::to_vec(&serde_json::json!({ "dirty": false, "pid": std::process::id() }))
+                .unwrap()
+        ));
     }
 
     const CONFIGURED: [&str; 2] = [
@@ -580,11 +738,17 @@ mod tests {
         );
         assert_eq!(
             endpoints_for(&CONFIGURED, UpdateTrack::Alpha, "1.0.1-alpha.57").unwrap(),
-            vec!["https://updates.proscenium.ink/v1/alpha/{{target}}/{{arch}}/1.0.1-alpha.57".to_string()]
+            vec![
+                "https://updates.proscenium.ink/v1/alpha/{{target}}/{{arch}}/1.0.1-alpha.57"
+                    .to_string()
+            ]
         );
         assert_eq!(
             endpoints_for(&CONFIGURED, UpdateTrack::Beta, "1.0.1-beta.2").unwrap(),
-            vec!["https://updates.proscenium.ink/v1/beta/{{target}}/{{arch}}/1.0.1-beta.2".to_string()]
+            vec![
+                "https://updates.proscenium.ink/v1/beta/{{target}}/{{arch}}/1.0.1-beta.2"
+                    .to_string()
+            ]
         );
         // A copy that left alpha for stable still says what it is running.
         assert_eq!(
@@ -594,11 +758,21 @@ mod tests {
         // Each address is one the download rules allow.
         for track in [UpdateTrack::Stable, UpdateTrack::Beta, UpdateTrack::Alpha] {
             for address in endpoints_for(&CONFIGURED, track, "1.0.1-alpha.57").unwrap() {
-                assert!(download::allowed(&reqwest::Url::parse(&address).unwrap()), "{address}");
+                assert!(
+                    download::allowed(&reqwest::Url::parse(&address).unwrap()),
+                    "{address}"
+                );
             }
         }
         assert_eq!(endpoints_for(&[], UpdateTrack::Stable, "1.0.0"), None);
-        assert_eq!(endpoints_for(&["https://example.invalid/latest.json"], UpdateTrack::Alpha, "1.0.0"), None);
+        assert_eq!(
+            endpoints_for(
+                &["https://example.invalid/latest.json"],
+                UpdateTrack::Alpha,
+                "1.0.0"
+            ),
+            None
+        );
     }
 
     #[test]
@@ -606,7 +780,10 @@ mod tests {
         let key = || Some("k".repeat(43));
         assert_eq!(key_for(UpdateTrack::Alpha, key).unwrap(), key());
         for track in [UpdateTrack::Stable, UpdateTrack::Beta] {
-            assert_eq!(key_for(track, || panic!("{track:?} read the key")).unwrap(), None);
+            assert_eq!(
+                key_for(track, || panic!("{track:?} read the key")).unwrap(),
+                None
+            );
         }
         let missing = key_for(UpdateTrack::Alpha, || None).unwrap_err();
         // The check's failure names why, so the page can offer Stable.
@@ -615,7 +792,10 @@ mod tests {
             _ => FailReason::Other,
         };
         assert_eq!(reason, FailReason::NoKey);
-        assert_eq!(serde_json::to_value(FailReason::NoKey).unwrap(), serde_json::json!("noKey"));
+        assert_eq!(
+            serde_json::to_value(FailReason::NoKey).unwrap(),
+            serde_json::json!("noKey")
+        );
     }
 
     #[test]
@@ -638,19 +818,36 @@ mod tests {
     fn release_notes_take_only_a_version() {
         assert!(is_version("0.9.1"));
         assert!(is_version("1.0.0"));
-        for bad in ["", "1.0", "1.0.0.0", "v1.0.0", "1.0.0-rc.1", "1..0", "1.0.0/../../x", "1.0.0 --x"] {
+        for bad in [
+            "",
+            "1.0",
+            "1.0.0.0",
+            "v1.0.0",
+            "1.0.0-rc.1",
+            "1..0",
+            "1.0.0/../../x",
+            "1.0.0 --x",
+        ] {
             assert!(!is_version(bad), "{bad:?} passed");
         }
     }
 
     #[test]
     fn state_serializes_as_the_page_reads_it() {
-        let ready = UpdateState::Ready { version: "0.9.1".into(), notes: None, published_at: Some(1) };
+        let ready = UpdateState::Ready {
+            version: "0.9.1".into(),
+            notes: None,
+            published_at: Some(1),
+        };
         assert_eq!(
             serde_json::to_value(ready).unwrap(),
             serde_json::json!({ "kind": "ready", "version": "0.9.1", "notes": null, "publishedAt": 1 })
         );
-        let failed = UpdateState::Failed { reason: FailReason::Offline, message: "m".into(), checked_at: 2 };
+        let failed = UpdateState::Failed {
+            reason: FailReason::Offline,
+            message: "m".into(),
+            checked_at: 2,
+        };
         assert_eq!(
             serde_json::to_value(failed).unwrap(),
             serde_json::json!({ "kind": "failed", "reason": "offline", "message": "m", "checkedAt": 2 })

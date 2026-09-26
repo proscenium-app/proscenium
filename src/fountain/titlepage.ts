@@ -34,7 +34,10 @@ const RECOGNIZED = new Set([
   "time",
   "place",
   "characters",
-  "title page text", "characters page text", "opening notes", "opening notes first",
+  "title page text",
+  "characters page text",
+  "opening notes",
+  "opening notes first",
 ]);
 
 interface Entry {
@@ -122,11 +125,14 @@ function mapEntries(entries: Entry[]): FrontMatter {
           if (e.key === "title page text") fm.titlePage = value;
           else if (e.key === "characters page text") fm.charactersPage = value;
           else fm.openingNotes = value;
-        } catch { extra[e.display] = joined; }
+        } catch {
+          extra[e.display] = joined;
+        }
         break;
       }
       case "opening notes first":
-        if (joined === "true" || joined === "false") fm.openingNotesBeforeCharacters = joined === "true";
+        if (joined === "true" || joined === "false")
+          fm.openingNotesBeforeCharacters = joined === "true";
         else extra[e.display] = joined;
         break;
       default:
@@ -210,10 +216,14 @@ export function serializeTitlePage(fm: FrontMatter): string {
       out.push(field(key, splitLines(value), splitLines(value).length > 1));
     }
   }
-  if (fm.titlePage !== undefined) out.push(field("Title Page Text", [JSON.stringify(fm.titlePage)], false));
-  if (fm.charactersPage !== undefined) out.push(field("Characters Page Text", [JSON.stringify(fm.charactersPage)], false));
-  if (fm.openingNotes !== undefined) out.push(field("Opening Notes", [JSON.stringify(fm.openingNotes)], false));
-  if (fm.openingNotesBeforeCharacters !== undefined) out.push(field("Opening Notes First", [String(fm.openingNotesBeforeCharacters)], false));
+  if (fm.titlePage !== undefined)
+    out.push(field("Title Page Text", [JSON.stringify(fm.titlePage)], false));
+  if (fm.charactersPage !== undefined)
+    out.push(field("Characters Page Text", [JSON.stringify(fm.charactersPage)], false));
+  if (fm.openingNotes !== undefined)
+    out.push(field("Opening Notes", [JSON.stringify(fm.openingNotes)], false));
+  if (fm.openingNotesBeforeCharacters !== undefined)
+    out.push(field("Opening Notes First", [String(fm.openingNotesBeforeCharacters)], false));
 
   return out.join("\n");
 }

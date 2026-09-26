@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Settings (⌘,) — one sheet, sections down the left (settings-and-format-
- * designer.md, Part A).
+ * Settings (⌘,) — one sheet, sections down the left
+ * (docs/app/preferences-and-help/settings.md#SET-D100, Part A).
  *
- * It was one scrolling column of four groups. Privacy, updates and formats are
- * each on their way in from their own thread, and seven groups in a column is
- * a column nobody finds anything in, so the sheet is sectioned the way a Mac
+ * It was one scrolling column of four groups. Privacy, updates and formats
+ * each add a group of their own, and seven groups in a column is a column
+ * nobody finds anything in, so the sheet is sectioned the way a Mac
  * Settings window is: a list of sections, and the one that is chosen.
  *
  * **The section list is a vertical tablist: one Tab stop, arrows inside it**
@@ -74,7 +74,7 @@ export function SettingsSheet(props: SettingsSheetProps) {
     if (panel.current) panel.current.scrollTop = 0;
   }, [section]);
 
-  /* A panel with nothing to operate — a slot still waiting for its thread —
+  /* A panel with nothing to operate — a section with no controls yet —
      takes a Tab stop, so its words can be reached and scrolled by keyboard.
      Asked after every render, because a slot fills in without this sheet
      knowing. */
@@ -171,8 +171,19 @@ export function SettingsSheet(props: SettingsSheetProps) {
           )}
           {section === "privacy" && <PrivacySlot />}
           {section === "updates" && <UpdatesSlot />}
-          {section === "shortcuts" && <SectionBody title="Keyboard Shortcuts"><ShortcutList /></SectionBody>}
-          {section === "help" && <HelpContent onOpen={() => {onClose();requestAnimationFrame(() => window.dispatchEvent(new Event("proscenium:help")));}} />}
+          {section === "shortcuts" && (
+            <SectionBody title="Keyboard Shortcuts">
+              <ShortcutList />
+            </SectionBody>
+          )}
+          {section === "help" && (
+            <HelpContent
+              onOpen={() => {
+                onClose();
+                requestAnimationFrame(() => window.dispatchEvent(new Event("proscenium:help")));
+              }}
+            />
+          )}
           {section === "about" && <About plays={props.plays} />}
         </div>
       </div>

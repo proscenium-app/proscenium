@@ -84,6 +84,33 @@ This reference covers owned endpoints, service behavior, protection and operatio
     the update archive and its `.sig`.
   - <a id="SERV-22"></a> **SERV-22** When GitHub cannot be reached, answer 502. The updater then tries its
     second endpoint.
+  - <a id="SERV-267"></a> **SERV-267** **The stable route is proven against GitHub itself before every
+    release, never only against a stand-in.** `services/edge/test/workerd-live.node.ts`
+    (`bun run test:live`) runs the bundle `wrangler deploy` uploads in workerd
+    with the network as its only way out, asks the stable check for the newest
+    release as the oldest admitted version would and the download of that
+    release's signature file, and passes only when the answers are GitHub's
+    own, read directly beside it: the version, date and signatures of
+    `latest.json`, the download route as each file's address, and the bytes of
+    the file. A tagged release runs it before it builds, and the release
+    procedure runs it by hand before the tag
+    (docs/engineering/release-engineering.md#SHIP-D107). It is not the
+    pipeline's every-push step, which keeps the stand-in so a push never waits
+    on GitHub. From the first deploy to the day of the 1.0.0 release the route's
+    two faults, a request GitHub refuses for want of a `User-Agent` and a fetch
+    workerd refuses as another object's method, hid behind the loopback
+    stand-in the rehearsal used, and every stable check answered 502 for eight days.
+  - <a id="SERV-266"></a> **SERV-266** Only a release's source failing answers 502: GitHub or a track's
+    R2 objects unreachable, timed out, refusing, or answering something that
+    does not validate. A failure of the Worker's own part (a call it makes
+    wrongly, a missing binding, D1 or the cache failing) answers 500, empty like
+    every refusal. The updater tries its second endpoint on either. A monitor
+    that also asks GitHub directly can then tell the service's fault from
+    GitHub's without the Worker saying why: for eight days after the first
+    deploy every stable check threw inside the Worker, and its 502 read as the
+    GitHub release that did not exist yet. The deployed bundle runs in workerd
+    in the edge tests (`bun run test:workerd`), so a fault only the runtime
+    raises fails there first.
   - <a id="SERV-249"></a> **SERV-249** For `alpha` and `beta`, count each check the same way, then answer
     with the track's manifest from R2, cached at the edge for a minute. Downloads come
     from the same bucket, only of a version on the track's list and only its own
@@ -453,7 +480,9 @@ issue edits or autonomous repairs. Feedback is untrusted plain text.
 
 - **Daily at 07:15 America/New_York:** service proof, yesterday's complete UTC
   counts, the feedback list pull and volume checks. Notify the maintainer the same day
-  about failures. Stay quiet when healthy and unchanged.
+  about failures, by email. Stay quiet when healthy and unchanged. The morning
+  summary then lists every open incident first, every day until it clears, and
+  says so when this check has not run in 30 hours.
 - **Monday at 07:30 America/New_York:** one weekly summary to the maintainer's existing
   private destination. Use the preceding seven complete UTC days and the
   preceding seven for comparison. Label those dates. Never send to a writer.
@@ -469,12 +498,17 @@ Check HTTPS and exact allowed redirects using the app's transport rules.
 The two checks and one archive request enter the public totals; label these
 known monitor requests rather than presenting all requests as distinct copies.
 
-Before launch there is no GitHub repository. Keep the comparison/archive job in
-an explicit prelaunch state until the maintainer's launch transition supplies that public
-release. A missing upstream then is recorded as not yet available, not a fake
-successful release check. Once enabled, a 502, version mismatch, broken
-signature or unexpected redirect is actionable. Do not silently fall back when
-checking the health of the primary service.
+GitHub's own `latest.json`, read directly, decides whose fault an answer is. A
+502 while GitHub serves the release, or any 500, is the service's
+(docs/engineering/services-and-feedback.md#SERV-266); GitHub's manifest missing
+means the published release is incomplete and both of the app's endpoints fail;
+a 400 means the monitor's version fell off the admission list. Each, and a
+version mismatch, a broken signature or an unexpected redirect, is actionable.
+Do not silently fall back when checking the health of the primary service.
+There is no prelaunch state any more: before launch one recorded every 502 as
+"not yet available" until the maintainer switched it off, and after the first
+deploy the service's own fault answered that same 502 for eight days, unseen.
+A mode that silences an alarm must never wait for a person to end it.
 
 A failed network check gets one retry within five minutes. A bad signature
 alerts immediately. Repeated failure goes to the existing failure bus and
@@ -495,6 +529,7 @@ Dates are UTC `YYYY-MM-DD`, with start inclusive and end exclusive.
 |---|---|---|
 | `update-use.sql` | start, end | Checks by version, macOS, chip and day; approximate copies in use |
 | `downloads.sql` | start, end | Release download requests, not completed installations |
+| `launches-by-version.sql` | start, end | Launches per version and channel: how many copies run the newest release. Released versions only; a track build sends no usage counts |
 | `feature-share.sql` | start, end | Event/property counts and actions per 100 launches, by channel |
 | `daily-volume.sql` | start, end | Daily usage, update and feedback totals for comparisons |
 | `feedback-counts.sql` | start, end | Messages per day; no message text |

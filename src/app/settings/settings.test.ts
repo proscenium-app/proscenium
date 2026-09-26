@@ -42,8 +42,18 @@ describe("the section list", () => {
 });
 
 const PLAYS: VaultPlay[] = [
-  { dir: "The Lighthouse", title: "The Lighthouse", id: "01HLIGHTHOUSE", file: "The Lighthouse.proscenium" },
-  { dir: "The Weight of Water", title: "The Weight of Water", id: "01HWEIGHT", file: "The Weight of Water.proscenium" },
+  {
+    dir: "The Lighthouse",
+    title: "The Lighthouse",
+    id: "01HLIGHTHOUSE",
+    file: "The Lighthouse.proscenium",
+  },
+  {
+    dir: "The Weight of Water",
+    title: "The Weight of Water",
+    id: "01HWEIGHT",
+    file: "The Weight of Water.proscenium",
+  },
 ];
 const BASE = "/Users/writer/Plays";
 
@@ -101,7 +111,13 @@ describe("where a launch stands", () => {
     settingsLoaded: false,
     launchVault: undefined,
   };
-  const reopened = { ...start, root: BASE, vaultRoot: BASE, settingsLoaded: true, launchVault: BASE };
+  const reopened = {
+    ...start,
+    root: BASE,
+    vaultRoot: BASE,
+    settingsLoaded: true,
+    launchVault: BASE,
+  };
 
   it("waits while the folder reopens — the Welcome screen is not where it ends", () => {
     expect(launchStep(start)).toBe("waiting");
@@ -124,12 +140,16 @@ describe("where a launch stands", () => {
   });
 
   it("has arrived at the Welcome screen when no folder came back", () => {
-    expect(launchStep({ ...start, booted: true, settingsLoaded: true, launchVault: null })).toBe("arrived");
+    expect(launchStep({ ...start, booted: true, settingsLoaded: true, launchVault: null })).toBe(
+      "arrived",
+    );
     expect(launchStep({ ...start, booted: true })).toBe("arrived");
   });
 
   it("has arrived when a play is open already", () => {
-    expect(launchStep({ ...reopened, root: `${BASE}/The Weight of Water`, playOpen: true })).toBe("arrived");
+    expect(launchStep({ ...reopened, root: `${BASE}/The Weight of Water`, playOpen: true })).toBe(
+      "arrived",
+    );
     expect(launchStep({ ...start, practicing: true })).toBe("arrived");
   });
 });
@@ -140,16 +160,25 @@ describe("where the writer left off", () => {
       left: "01HWEIGHT",
       lastPlay: "01HWEIGHT",
     });
-    expect(leftOff({ open: "01HWEIGHT", left: "01HWEIGHT", mode: "workspace", lastPlay: "01HWEIGHT" })).toEqual({
+    expect(
+      leftOff({ open: "01HWEIGHT", left: "01HWEIGHT", mode: "workspace", lastPlay: "01HWEIGHT" }),
+    ).toEqual({
       left: "01HWEIGHT",
     });
   });
 
   it("is the Plays screen once the writer goes back to it — not a moment before", () => {
     // The Plays folder reopens a render before the Plays screen shows.
-    const between = leftOff({ open: null, left: "01HWEIGHT", mode: "workspace", lastPlay: "01HWEIGHT" });
+    const between = leftOff({
+      open: null,
+      left: "01HWEIGHT",
+      mode: "workspace",
+      lastPlay: "01HWEIGHT",
+    });
     expect(between).toEqual({ left: "01HWEIGHT" });
-    expect(leftOff({ open: null, left: between.left, mode: "picker", lastPlay: "01HWEIGHT" })).toEqual({
+    expect(
+      leftOff({ open: null, left: between.left, mode: "picker", lastPlay: "01HWEIGHT" }),
+    ).toEqual({
       left: null,
       lastPlay: null,
     });
@@ -157,6 +186,8 @@ describe("where the writer left off", () => {
 
   it("is left alone at launch, before any play has been open", () => {
     // A launch reopens the Plays folder first, holding the play to go back to.
-    expect(leftOff({ open: null, left: null, mode: "picker", lastPlay: "01HWEIGHT" })).toEqual({ left: null });
+    expect(leftOff({ open: null, left: null, mode: "picker", lastPlay: "01HWEIGHT" })).toEqual({
+      left: null,
+    });
   });
 });

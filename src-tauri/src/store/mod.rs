@@ -33,9 +33,9 @@ use tauri::{AppHandle, Manager};
 
 pub mod recovery;
 pub mod versions;
-pub use versions::VersionEntry;
 /// The vault's atomic writer, which app data uses too (vault::write_atomic).
 pub(crate) use crate::vault::write_atomic;
+pub use versions::VersionEntry;
 
 #[cfg(test)]
 mod tests;

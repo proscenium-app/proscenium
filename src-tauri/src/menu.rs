@@ -18,9 +18,7 @@
 //! predefined so the OS wires them itself — a hand-rolled Copy is a Copy that
 //! does not work in a native text field.
 
-use tauri::menu::{
-    AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder,
-};
+use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Runtime};
 
 /// The event a menu item raises. One channel, one payload: the item's id.
@@ -67,7 +65,9 @@ const SCRIPT: &[Item] = &[
     ("", "", None),
     ("spelling-next", "Next Misspelling", Some("CmdOrCtrl+;")),
     ("", "", None),
-    ("title-page", "Edit Title Page…", None),
+    // The same words as the script-name menu in the page (src/app/Toolbar.tsx):
+    // one sheet, one name. The menu bar said Edit Title Page… for it.
+    ("title-page", "Edit Opening Pages…", None),
 ];
 
 const VIEW: &[Item] = &[
@@ -117,11 +117,7 @@ const HELP: &[Item] = &[
 ];
 
 /// Build one submenu from a table, turning `("", "", None)` into a separator.
-fn build<R: Runtime>(
-    app: &AppHandle<R>,
-    title: &str,
-    items: &[Item],
-) -> tauri::Result<Submenu<R>> {
+fn build<R: Runtime>(app: &AppHandle<R>, title: &str, items: &[Item]) -> tauri::Result<Submenu<R>> {
     let mut b = SubmenuBuilder::new(app, title);
     for (id, label, accel) in items {
         if id.is_empty() {
@@ -196,4 +192,33 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 /// Forward the item's id to the webview. Nothing is decided here.
 pub fn on_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
     let _ = app.emit(EVENT_MENU_ACTION, id.to_string());
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One sheet, one name: the script-name menu in the page calls the sheet
+    /// for the title page, the characters page and the opening notes "Edit
+    /// Opening Pages…" (src/app/Toolbar.tsx, held by src/app/menu-names.test.ts),
+    /// and the menu bar says the same.
+    #[test]
+    fn the_opening_pages_sheet_has_one_name() {
+        let (_, label, _) = SCRIPT
+            .iter()
+            .find(|(id, _, _)| *id == "title-page")
+            .expect("the Script menu opens the opening pages sheet");
+        assert_eq!(*label, "Edit Opening Pages…");
+    }
+
+    /// The File menu's New Play… carries ⌘N, which the Plays screen's own
+    /// New Play menu shows beside Blank Play: the page answers the item.
+    #[test]
+    fn new_play_is_command_n() {
+        let (_, _, accel) = FILE
+            .iter()
+            .find(|(id, _, _)| *id == "new-play")
+            .expect("the File menu has New Play…");
+        assert_eq!(*accel, Some("CmdOrCtrl+N"));
+    }
 }

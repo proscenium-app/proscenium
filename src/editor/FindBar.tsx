@@ -102,9 +102,13 @@ export function FindBar({ editor }: { editor: Editor }) {
     };
   }, [find.open]);
 
-  useAnnouncedStatus(find.open && find.query
-    ? find.total === 0 ? "No matches in the script." : `Match ${find.current} of ${find.total}.`
-    : null);
+  useAnnouncedStatus(
+    find.open && find.query
+      ? find.total === 0
+        ? "No matches in the script."
+        : `Match ${find.current} of ${find.total}.`
+      : null,
+  );
 
   if (!find.open) return null;
 
@@ -124,11 +128,7 @@ export function FindBar({ editor }: { editor: Editor }) {
   };
 
   const count =
-    find.total === 0
-      ? find.query
-        ? "No matches"
-        : ""
-      : `${find.current} / ${find.total}`;
+    find.total === 0 ? (find.query ? "No matches" : "") : `${find.current} / ${find.total}`;
   const leftAlone = leftAloneNote(find.cueMatches, find.noteMatches);
   const replaceTitle =
     find.currentHeldBack === "cue"
@@ -154,9 +154,7 @@ export function FindBar({ editor }: { editor: Editor }) {
           onChange={(e) => editor.commands.setFindQuery(e.target.value)}
           onKeyDown={onKeyDown}
         />
-        <span
-          className={`findbar__count${find.query && find.total === 0 ? " is-empty" : ""}`}
-        >
+        <span className={`findbar__count${find.query && find.total === 0 ? " is-empty" : ""}`}>
           {count}
         </span>
         {/* A joined pair: two keys of one control, radius at the ends only. */}

@@ -25,7 +25,13 @@
  */
 import axe from "axe-core";
 import { AUDIT_TAGS, recordAudit, runAxe, selected, smokeChecks } from "../smoke-checks.mjs";
-import { SurfaceNames, firstDifference, forSurface, normalize as normalizeTree, renderWebKitTree } from "../aria-snapshots.mjs";
+import {
+  SurfaceNames,
+  firstDifference,
+  forSurface,
+  normalize as normalizeTree,
+  renderWebKitTree,
+} from "../aria-snapshots.mjs";
 
 // WKWebView can retain local preferences between process launches even though
 // the Rust test vault and home are fresh. Reset once per session, before React
@@ -35,7 +41,9 @@ try {
     localStorage.clear();
     sessionStorage.setItem("selftest:fresh", "1");
   }
-} catch { /* storage may be unavailable; the checks will report the state */ }
+} catch {
+  /* storage may be unavailable; the checks will report the state */
+}
 
 const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -64,7 +72,8 @@ function frameRate() {
   return new Promise((resolve) => {
     let n = 0;
     const start = performance.now();
-    const tick = () => (performance.now() - start < 1000 ? (n++, requestAnimationFrame(tick)) : resolve(n));
+    const tick = () =>
+      performance.now() - start < 1000 ? (n++, requestAnimationFrame(tick)) : resolve(n);
     requestAnimationFrame(tick);
     setTimeout(() => resolve(n), 1500);
   });
@@ -77,10 +86,14 @@ const consoleErrors = [];
 {
   const original = console.error.bind(console);
   console.error = (...args) => {
-    consoleErrors.push(args.map((a) => (a instanceof Error ? a.stack ?? a.message : String(a))).join(" "));
+    consoleErrors.push(
+      args.map((a) => (a instanceof Error ? (a.stack ?? a.message) : String(a))).join(" "),
+    );
     original(...args);
   };
-  window.addEventListener("error", (e) => consoleErrors.push(`${e.message} (${e.filename}:${e.lineno})`));
+  window.addEventListener("error", (e) =>
+    consoleErrors.push(`${e.message} (${e.filename}:${e.lineno})`),
+  );
   window.addEventListener("unhandledrejection", (e) =>
     consoleErrors.push(`Unhandled rejection: ${e.reason?.stack ?? e.reason}`),
   );
@@ -93,11 +106,16 @@ function log(line) {
 
 // --- the Page adapter --------------------------------------------------------
 
-const normalize = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+const normalize = (s) =>
+  String(s ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 
 function textMatches(el, want) {
   const text = normalize(el.innerText ?? el.textContent);
-  return want instanceof RegExp ? want.test(text) : text.toLowerCase().includes(normalize(want).toLowerCase());
+  return want instanceof RegExp
+    ? want.test(text)
+    : text.toLowerCase().includes(normalize(want).toLowerCase());
 }
 
 /** Playwright's definition: a non-empty box, and not visibility: hidden. */
@@ -125,7 +143,8 @@ async function until(what, test, timeout = ACTION_TIMEOUT) {
   for (;;) {
     const value = test();
     if (value) return value;
-    if (performance.now() > deadline) throw new TimeoutError(`timed out after ${timeout}ms ${what}`);
+    if (performance.now() > deadline)
+      throw new TimeoutError(`timed out after ${timeout}ms ${what}`);
     await sleep(25);
   }
 }
@@ -135,10 +154,16 @@ function hasRole(el, role) {
   const explicit = el.getAttribute("role");
   if (explicit) return explicit.split(/\s+/)[0] === role;
   if (role === "button") {
-    return el.tagName === "BUTTON" || (el.tagName === "INPUT" && /^(button|submit|reset)$/.test(el.type));
+    return (
+      el.tagName === "BUTTON" || (el.tagName === "INPUT" && /^(button|submit|reset)$/.test(el.type))
+    );
   }
   if (role === "textbox") {
-    return el.tagName === "TEXTAREA" || (el.tagName === "INPUT" && /^(text|email|tel|url|password)$/.test(el.type)) || el.isContentEditable;
+    return (
+      el.tagName === "TEXTAREA" ||
+      (el.tagName === "INPUT" && /^(text|email|tel|url|password)$/.test(el.type)) ||
+      el.isContentEditable
+    );
   }
   if (role === "checkbox") return el.tagName === "INPUT" && el.type === "checkbox";
   if (role === "radio") return el.tagName === "INPUT" && el.type === "radio";
@@ -152,8 +177,15 @@ function accessibleName(el) {
   const label = el.getAttribute("aria-label");
   if (label) return normalize(label);
   const by = el.getAttribute("aria-labelledby");
-  if (by) return normalize(by.split(/\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" "));
-  if (el.labels?.length) return normalize([...el.labels].map(label => label.textContent).join(" "));
+  if (by)
+    return normalize(
+      by
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" "),
+    );
+  if (el.labels?.length)
+    return normalize([...el.labels].map((label) => label.textContent).join(" "));
   return normalize(el.innerText ?? el.textContent);
 }
 
@@ -161,7 +193,9 @@ function accessibleName(el) {
 function nameMatches(name, want, exact = false) {
   if (want == null) return true;
   if (want instanceof RegExp) return want.test(name);
-  return exact ? name === normalize(want) : name.toLowerCase().includes(normalize(want).toLowerCase());
+  return exact
+    ? name === normalize(want)
+    : name.toLowerCase().includes(normalize(want).toLowerCase());
 }
 
 /** Outside the accessibility tree, as getByRole treats it unless includeHidden. */
@@ -188,7 +222,10 @@ function byRole(scope, role, { name, exact = false, includeHidden = false } = {}
   return () =>
     within(scope, "*")().filter(
       // Cheapest first: the style walk runs only for elements that already match.
-      (el) => hasRole(el, role) && nameMatches(accessibleName(el), name, exact) && (includeHidden || !ariaHidden(el)),
+      (el) =>
+        hasRole(el, role) &&
+        nameMatches(accessibleName(el), name, exact) &&
+        (includeHidden || !ariaHidden(el)),
     );
 }
 
@@ -247,20 +284,30 @@ class Locator {
   }
 
   nth(index) {
-    return new Locator(() => {
-      const all = this.query();
-      const el = index < 0 ? all[all.length + index] : all[index];
-      return el ? [el] : [];
-    }, `${this.describe} >> nth=${index}`, true);
+    return new Locator(
+      () => {
+        const all = this.query();
+        const el = index < 0 ? all[all.length + index] : all[index];
+        return el ? [el] : [];
+      },
+      `${this.describe} >> nth=${index}`,
+      true,
+    );
   }
 
   locator(selector, { hasText } = {}) {
     const inner = within(this.query, selector);
-    return new Locator(() => (hasText == null ? inner() : inner().filter((el) => textMatches(el, hasText))), `${this.describe} >> "${selector}"`);
+    return new Locator(
+      () => (hasText == null ? inner() : inner().filter((el) => textMatches(el, hasText))),
+      `${this.describe} >> "${selector}"`,
+    );
   }
 
   getByRole(role, options = {}) {
-    return new Locator(byRole(this.query, role, options), `${this.describe} >> role=${role}${options.name ? ` name=${options.name}` : ""}`);
+    return new Locator(
+      byRole(this.query, role, options),
+      `${this.describe} >> role=${role}${options.name ? ` name=${options.name}` : ""}`,
+    );
   }
 
   getByLabel(text, options = {}) {
@@ -385,7 +432,9 @@ class Locator {
 
   /** Resolve to one element, waiting for it. */
   async element({ visible = false } = {}) {
-    return until(`waiting for ${this.describe}${visible ? " to be visible" : ""}`, () => this.pick({ visible }));
+    return until(`waiting for ${this.describe}${visible ? " to be visible" : ""}`, () =>
+      this.pick({ visible }),
+    );
   }
 
   async click() {
@@ -442,7 +491,9 @@ class Locator {
       }
       if (performance.now() > deadline) {
         if (!el.isConnected || !isVisible(el)) {
-          throw new TimeoutError(`timed out after ${ACTION_TIMEOUT}ms waiting for ${this.describe} to be visible`);
+          throw new TimeoutError(
+            `timed out after ${ACTION_TIMEOUT}ms waiting for ${this.describe} to be visible`,
+          );
         }
         if (isDisabled(el)) throw new TimeoutError(`${this.describe}: still disabled`);
         const what = hit ? `<${hit.tagName.toLowerCase()} class="${hit.className}">` : "nothing";
@@ -461,17 +512,27 @@ class Locator {
   async fill(value) {
     const el = await this.element({ visible: true });
     // Editable, as Playwright waits for: enabled and not read-only.
-    await until(`waiting for ${this.describe} to be editable`, () => !isDisabled(el) && !el.readOnly);
+    await until(
+      `waiting for ${this.describe} to be editable`,
+      () => !isDisabled(el) && !el.readOnly,
+    );
     el.focus();
     if (el.isContentEditable) {
       el.textContent = value;
-      el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+      el.dispatchEvent(
+        new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }),
+      );
       await frame();
       return;
     }
     // The element's own class's setter, which is what React listens behind.
-    const proto = [HTMLTextAreaElement, HTMLSelectElement, HTMLInputElement].find((Kind) => el instanceof Kind)?.prototype;
-    if (!proto) throw new Error(`${this.describe}: fill() needs an input, a textarea, a select or an editable element`);
+    const proto = [HTMLTextAreaElement, HTMLSelectElement, HTMLInputElement].find(
+      (Kind) => el instanceof Kind,
+    )?.prototype;
+    if (!proto)
+      throw new Error(
+        `${this.describe}: fill() needs an input, a textarea, a select or an editable element`,
+      );
     Object.getOwnPropertyDescriptor(proto, "value").set.call(el, value);
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -507,9 +568,49 @@ class Locator {
 // macOS virtual key codes (Carbon's kVK_*) and the characters AppKit puts on
 // the NSEvent. WebKit derives `key` and `code` from these, so they have to be
 // the real ones.
-const LETTERS = { a: 0, s: 1, d: 2, f: 3, h: 4, g: 5, z: 6, x: 7, c: 8, v: 9, b: 11, q: 12, w: 13, e: 14, r: 15, y: 16, t: 17, o: 31, u: 32, i: 34, p: 35, l: 37, j: 38, k: 40, n: 45, m: 46 };
+const LETTERS = {
+  a: 0,
+  s: 1,
+  d: 2,
+  f: 3,
+  h: 4,
+  g: 5,
+  z: 6,
+  x: 7,
+  c: 8,
+  v: 9,
+  b: 11,
+  q: 12,
+  w: 13,
+  e: 14,
+  r: 15,
+  y: 16,
+  t: 17,
+  o: 31,
+  u: 32,
+  i: 34,
+  p: 35,
+  l: 37,
+  j: 38,
+  k: 40,
+  n: 45,
+  m: 46,
+};
 const DIGITS = { 1: 18, 2: 19, 3: 20, 4: 21, 6: 22, 5: 23, 9: 25, 7: 26, 8: 28, 0: 29 };
-const PUNCT = { " ": 49, ",": 43, ".": 47, "/": 44, ";": 41, "'": 39, "[": 33, "]": 30, "\\": 42, "-": 27, "=": 24, "`": 50 };
+const PUNCT = {
+  " ": 49,
+  ",": 43,
+  ".": 47,
+  "/": 44,
+  ";": 41,
+  "'": 39,
+  "[": 33,
+  "]": 30,
+  "\\": 42,
+  "-": 27,
+  "=": 24,
+  "`": 50,
+};
 const FN = 0x800000;
 const NUMPAD = 0x200000;
 const NAMED = {
@@ -539,7 +640,19 @@ const NAMED = {
   Equal: { code: 24, chars: "=" },
 };
 const MODIFIER = { Shift: 0x20000, Control: 0x40000, Alt: 0x80000, Meta: 0x100000 };
-const SHIFTED = { ",": "<", ".": ">", "/": "?", ";": ":", "'": '"', "[": "{", "]": "}", "\\": "|", "-": "_", "=": "+", "`": "~" };
+const SHIFTED = {
+  ",": "<",
+  ".": ">",
+  "/": "?",
+  ";": ":",
+  "'": '"',
+  "[": "{",
+  "]": "}",
+  "\\": "|",
+  "-": "_",
+  "=": "+",
+  "`": "~",
+};
 
 /** "Meta+Shift+KeyJ" → the NSEvent fields for that chord. */
 function chord(combo) {
@@ -551,7 +664,9 @@ function chord(combo) {
     flags |= MODIFIER[m];
   }
   let key;
-  const letter = name.match(/^Key([A-Z])$/)?.[1]?.toLowerCase() ?? (/^[a-z]$/i.test(name) ? name.toLowerCase() : null);
+  const letter =
+    name.match(/^Key([A-Z])$/)?.[1]?.toLowerCase() ??
+    (/^[a-z]$/i.test(name) ? name.toLowerCase() : null);
   const digit = name.match(/^Digit(\d)$/)?.[1] ?? (/^\d$/.test(name) ? name : null);
   if (letter) key = { code: LETTERS[letter], chars: letter };
   else if (digit) key = { code: DIGITS[digit], chars: digit };
@@ -566,9 +681,15 @@ function chord(combo) {
   let characters = ignoring;
   // AppKit's own values: ⌃ turns a letter into its control character, and ⇧⇥
   // is the back-tab character.
-  if (flags & MODIFIER.Control && letter) characters = String.fromCharCode(letter.charCodeAt(0) & 0x1f);
+  if (flags & MODIFIER.Control && letter)
+    characters = String.fromCharCode(letter.charCodeAt(0) & 0x1f);
   if (shift && name === "Tab") characters = ignoring = "\u0019";
-  return { keyCode: key.code, characters, charactersIgnoringModifiers: ignoring, modifierFlags: flags | (key.flags ?? 0) };
+  return {
+    keyCode: key.code,
+    characters,
+    charactersIgnoringModifiers: ignoring,
+    modifierFlags: flags | (key.flags ?? 0),
+  };
 }
 
 /** Resolves when the page has seen the key come back up, or after a grace period. */
@@ -597,7 +718,9 @@ async function nativeKey(fields) {
         // Not fatal, as before: a check notices a lost key by what it failed to do.
         // Said here, so that failure has a cause beside it.
         const facts = await invoke("selftest_input_facts").catch(() => ({}));
-        log(`key ${JSON.stringify(fields.characters)} never came back up — focus on ${document.activeElement?.tagName.toLowerCase() ?? "nothing"}, first responder ${facts.firstResponder ?? "?"}`);
+        log(
+          `key ${JSON.stringify(fields.characters)} never came back up — focus on ${document.activeElement?.tagName.toLowerCase() ?? "nothing"}, first responder ${facts.firstResponder ?? "?"}`,
+        );
       }
       break;
     } catch (e) {
@@ -660,18 +783,30 @@ const page = {
       const all = [...document.querySelectorAll(selector)];
       return hasText == null ? all : all.filter((el) => textMatches(el, hasText));
     };
-    return new Locator(query, hasText == null ? `"${selector}"` : `"${selector}" with text ${hasText}`);
+    return new Locator(
+      query,
+      hasText == null ? `"${selector}"` : `"${selector}" with text ${hasText}`,
+    );
   },
   getByRole(role, options = {}) {
-    return new Locator(byRole(() => [document.documentElement], role, options), `role=${role}${options.name ? ` name=${options.name}` : ""}`);
+    return new Locator(
+      byRole(() => [document.documentElement], role, options),
+      `role=${role}${options.name ? ` name=${options.name}` : ""}`,
+    );
   },
   getByLabel(text, options = {}) {
-    return new Locator(byLabel(() => [document.documentElement], text, options), `label=${text}`);
+    return new Locator(
+      byLabel(() => [document.documentElement], text, options),
+      `label=${text}`,
+    );
   },
   /** The window's content becomes this size, below the app's minimum if asked. */
   async setViewportSize({ width, height }) {
     await invoke("selftest_resize", { width, height });
-    await until(`the page to be ${width}×${height}`, () => Math.abs(innerWidth - width) <= 1 && Math.abs(innerHeight - height) <= 1);
+    await until(
+      `the page to be ${width}×${height}`,
+      () => Math.abs(innerWidth - width) <= 1 && Math.abs(innerHeight - height) <= 1,
+    );
     await frame();
   },
   keyboard: {
@@ -700,7 +835,9 @@ const page = {
    * harness resume at the check after it.
    */
   async reload() {
-    const failed = audits.findings.length ? `accessibility:\n        ${audits.findings.join("\n        ")}` : null;
+    const failed = audits.findings.length
+      ? `accessibility:\n        ${audits.findings.join("\n        ")}`
+      : null;
     await report(running.check, failed);
     await invoke("selftest_reload", {
       resumeAt: running.index + 1,
@@ -721,7 +858,9 @@ window.axe = axe;
 const running = { index: 0, check: null, started: 0, scheme: "" };
 
 const advisoryObject = () =>
-  Object.fromEntries([...audits.advisories].map(([id, a]) => [id, { help: a.help, surfaces: [...a.surfaces] }]));
+  Object.fromEntries(
+    [...audits.advisories].map(([id, a]) => [id, { help: a.help, surfaces: [...a.surfaces] }]),
+  );
 
 async function report(check, error, skipped = null) {
   const ms = Math.round(performance.now() - running.started);
@@ -734,7 +873,9 @@ async function report(check, error, skipped = null) {
     : { scheme: running.scheme, name: check.name, ok: !error, ms, error, screenshot: shot };
   await invoke("selftest_check", { result }).catch(() => {});
   const status = skipped ? "skip" : error ? "FAIL" : "ok  ";
-  log(`${status}  ${running.scheme} · ${check.name} (${skipped ?? `${ms}ms`})${error ? `\n        ${error.split("\n")[0]}` : ""}`);
+  log(
+    `${status}  ${running.scheme} · ${check.name} (${skipped ?? `${ms}ms`})${error ? `\n        ${error.split("\n")[0]}` : ""}`,
+  );
   return result;
 }
 
@@ -743,7 +884,7 @@ async function report(check, error, skipped = null) {
  * lights, where nothing has a hover style. Left alone, hover follows the last
  * click. It is parked before every check and every audit. That is not the
  * whole answer: macOS still tells the window where the Mac's own pointer is
- * when it activates, and hovers under it anyway (2026-09-14), so runAxe also
+ * when it activates, and hovers under it anyway, so runAxe also
  * holds transitions at their end while axe reads.
  */
 async function parkPointer() {
@@ -796,7 +937,9 @@ async function holdTree(surface) {
     tree = await take();
   } catch (e) {
     surfaceNames.next(surface);
-    audits.findings.push(`accessibility tree of ${surface}: could not be read — ${e?.message ?? e}`);
+    audits.findings.push(
+      `accessibility tree of ${surface}: could not be read — ${e?.message ?? e}`,
+    );
     return;
   }
   await holdText(surface, tree, take);
@@ -816,16 +959,23 @@ async function holdText(surface, tree, retake) {
   // Still settling: read again until it matches or the settle time is up, and
   // keep the last reading as the evidence.
   if (expected != null && retake) {
-    for (const until = performance.now() + SETTLE_MS; normalizeTree(expected) !== tree && performance.now() < until; ) {
+    for (
+      const until = performance.now() + SETTLE_MS;
+      normalizeTree(expected) !== tree && performance.now() < until;
+    ) {
       await sleep(250);
       tree = await retake().catch(() => tree);
     }
     expected = await invoke("selftest_aria", { name, text: tree, scheme: running.scheme });
   }
   if (expected == null) {
-    audits.findings.push(`accessibility tree of ${surface}: no expectation in scripts/aria/native/${name}.yml (WebKit's tree is in the run's evidence, aria/${name}.yml)`);
+    audits.findings.push(
+      `accessibility tree of ${surface}: no expectation in scripts/aria/native/${name}.yml (WebKit's tree is in the run's evidence, aria/${name}.yml)`,
+    );
   } else if (normalizeTree(expected) !== tree) {
-    audits.findings.push(`accessibility tree of ${surface} (scripts/aria/native/${name}.yml), ${firstDifference(normalizeTree(expected), tree)}`);
+    audits.findings.push(
+      `accessibility tree of ${surface} (scripts/aria/native/${name}.yml), ${firstDifference(normalizeTree(expected), tree)}`,
+    );
   }
 }
 
@@ -853,12 +1003,17 @@ async function main() {
   /** The features a narrowed pass keeps (smoke-checks.mjs `selected`). */
   const features = (ctx.features ?? "").split(/[,\s]+/).filter(Boolean);
   log(`pass ${ctx.index + 1}/${ctx.total} (${scheme}) — ${navigator.userAgent}`);
-  if (features.length) log(`narrowed to ${features.join(", ")}: the other detachable features' checks are left out`);
-  const drawing = { framesPerSecond: await frameRate(), visibility: document.visibilityState, hasFocus: document.hasFocus() };
+  if (features.length)
+    log(`narrowed to ${features.join(", ")}: the other detachable features' checks are left out`);
+  const drawing = {
+    framesPerSecond: await frameRate(),
+    visibility: document.visibilityState,
+    hasFocus: document.hasFocus(),
+  };
   log(`drawing: ${JSON.stringify(drawing)}`);
 
   if (ctx.break === "flex") {
-    // The 2026-09-02 blank window, on purpose: `.editor-frame { flex: 1 }`
+    // The blank window that once shipped, on purpose: `.editor-frame { flex: 1 }`
     // swallowed by a stylesheet edit. A self-test that passes with this is
     // not testing anything (CI runs it and expects the failure).
     const style = document.createElement("style");
@@ -904,7 +1059,8 @@ async function main() {
       }
       await visibleOrFail();
       await check.run(page);
-      if (audits.findings.length) throw new Error(`accessibility:\n        ${audits.findings.join("\n        ")}`);
+      if (audits.findings.length)
+        throw new Error(`accessibility:\n        ${audits.findings.join("\n        ")}`);
     } catch (e) {
       error = String(e?.stack && !(e instanceof TimeoutError) ? e.message : e);
       if (e instanceof NotVisibleError) interrupted = "hidden";
@@ -938,9 +1094,16 @@ if (window.top === window && !window.__prosceniumSelftestStarted) {
       const said = `${e?.message ?? e}${e?.stack ? `\n${e.stack}` : ""}`;
       log(`harness crashed: ${said}`);
       invoke("selftest_done", {
-        result: { stop: true, scheme: running.scheme || "unknown", checks: [], console: [...consoleErrors], crash: said },
+        result: {
+          stop: true,
+          scheme: running.scheme || "unknown",
+          checks: [],
+          console: [...consoleErrors],
+          crash: said,
+        },
       }).catch(() => {});
     });
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", start, { once: true });
   else start();
 }

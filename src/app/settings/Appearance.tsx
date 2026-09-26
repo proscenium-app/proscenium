@@ -26,7 +26,12 @@ export function Appearance() {
      way. */
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const n = ACCENTS.length;
-    const step: Record<string, number> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
+    const step: Record<string, number> = {
+      ArrowRight: 1,
+      ArrowDown: 1,
+      ArrowLeft: -1,
+      ArrowUp: -1,
+    };
     let to: number;
     if (e.key in step) to = (at + step[e.key] + n) % n;
     else if (e.key === "Home") to = 0;
@@ -44,10 +49,27 @@ export function Appearance() {
       <Group label="Text">
         <label className="settings__row">
           <span className="settings__rowlabel">Text size</span>
-          <select className="field" aria-label="Text size" aria-describedby="interface-text-note"
-            value={interfaceTextSize} onChange={(e) => updateSettings({ interfaceTextSize: Number(e.target.value) })}>
-            {[100, 125, 150, 175, 200, ...([100, 125, 150, 175, 200].includes(interfaceTextSize) ? [] : [interfaceTextSize])]
-              .sort((a, b) => a - b).map((size) => <option key={size} value={size}>{size}%</option>)}
+          <select
+            className="field"
+            aria-label="Text size"
+            aria-describedby="interface-text-note"
+            value={interfaceTextSize}
+            onChange={(e) => updateSettings({ interfaceTextSize: Number(e.target.value) })}
+          >
+            {[
+              100,
+              125,
+              150,
+              175,
+              200,
+              ...([100, 125, 150, 175, 200].includes(interfaceTextSize) ? [] : [interfaceTextSize]),
+            ]
+              .sort((a, b) => a - b)
+              .map((size) => (
+                <option key={size} value={size}>
+                  {size}%
+                </option>
+              ))}
           </select>
         </label>
         <Note id="interface-text-note">
@@ -100,9 +122,16 @@ export function Appearance() {
       <Group label="Light and dark">
         <div className="settings__row">
           <span className="settings__rowlabel">Appearance</span>
-          <PopupButton label="Appearance" value={appearance} options={[
-            { value: "system", label: "Follow Mac" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" },
-          ]} onChange={(appearance) => updateSettings({ appearance })} />
+          <PopupButton
+            label="Appearance"
+            value={appearance}
+            options={[
+              { value: "system", label: "Follow Mac" },
+              { value: "light", label: "Light" },
+              { value: "dark", label: "Dark" },
+            ]}
+            onChange={(appearance) => updateSettings({ appearance })}
+          />
         </div>
         <Note>The pages you write on stay light when the rest of the app is dark.</Note>
       </Group>

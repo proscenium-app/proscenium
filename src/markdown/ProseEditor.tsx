@@ -53,14 +53,28 @@ function aligned(cell: TipTapNode): TipTapNode {
 export const PROSE_EXTENSIONS = [
   Extension.create({
     name: "paragraphAlignment",
-    addGlobalAttributes: () => [{ types: ["paragraph", "heading"], attributes: { textAlign: {
-      default: null,
-      parseHTML: (el: HTMLElement) => ["center", "right"].includes(el.style.textAlign) ? el.style.textAlign : null,
-      renderHTML: (attrs: Record<string, unknown>) => ["center", "right"].includes(String(attrs.textAlign)) ? { style: `text-align: ${attrs.textAlign}` } : {},
-    } } }],
+    addGlobalAttributes: () => [
+      {
+        types: ["paragraph", "heading"],
+        attributes: {
+          textAlign: {
+            default: null,
+            parseHTML: (el: HTMLElement) =>
+              ["center", "right"].includes(el.style.textAlign) ? el.style.textAlign : null,
+            renderHTML: (attrs: Record<string, unknown>) =>
+              ["center", "right"].includes(String(attrs.textAlign))
+                ? { style: `text-align: ${attrs.textAlign}` }
+                : {},
+          },
+        },
+      },
+    ],
   }),
   TipTapNode.create({
-    name: "managedMarker", group: "block", atom: true, selectable: false,
+    name: "managedMarker",
+    group: "block",
+    atom: true,
+    selectable: false,
     addAttributes: () => ({ source: { default: "" } }),
     parseHTML: () => [{ tag: "div[data-managed-marker]" }],
     renderHTML: () => ["div", { "data-managed-marker": "", hidden: "", "aria-hidden": "true" }],

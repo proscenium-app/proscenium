@@ -294,7 +294,10 @@ export const Comments = Extension.create<Record<string, never>, CommentsStorage>
       marks: Pick<PluginState, "activePos" | "hoverPos" | "doomedPos">,
       identities = new Map<number, string>(),
     ): PluginState => {
-      const entries = collectPmComments(doc).map((entry) => ({ ...entry, id: identities.get(entry.pos) ?? entry.id }));
+      const entries = collectPmComments(doc).map((entry) => ({
+        ...entry,
+        id: identities.get(entry.pos) ?? entry.id,
+      }));
       storage.count = entries.length;
       const decos: Decoration[] = [];
       const commentOnlyBlocks = new Set<number>();
@@ -364,7 +367,11 @@ export const Comments = Extension.create<Record<string, never>, CommentsStorage>
               next.hoverPos !== prev.hoverPos ||
               next.doomedPos !== prev.doomedPos
             ) {
-              return build(tr.doc, next, new Map(prev.entries.map((entry) => [entry.pos, entry.id])));
+              return build(
+                tr.doc,
+                next,
+                new Map(prev.entries.map((entry) => [entry.pos, entry.id])),
+              );
             }
             return prev;
           },

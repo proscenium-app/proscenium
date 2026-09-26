@@ -26,9 +26,7 @@ export function analyze(
     const timer = setTimeout(() => {
       finish();
       reject(
-        new Error(
-          "Reading took too long. Try exporting a smaller document or a Fountain copy.",
-        ),
+        new Error("Reading took too long. Try exporting a smaller document or a Fountain copy."),
       );
     }, 30_000);
     signal.addEventListener("abort", cancel, { once: true });
@@ -36,21 +34,14 @@ export function analyze(
       cancel();
       return;
     }
-    worker.onmessage = (
-      e: MessageEvent<{ document?: ImportDocument; error?: string }>,
-    ) => {
+    worker.onmessage = (e: MessageEvent<{ document?: ImportDocument; error?: string }>) => {
       finish();
       if (e.data.document) resolve(e.data.document);
-      else
-        reject(new Error(e.data.error ?? "This document could not be read."));
+      else reject(new Error(e.data.error ?? "This document could not be read."));
     };
     worker.onerror = () => {
       finish();
-      reject(
-        new Error(
-          "The document reader could not start. Close Import and try again.",
-        ),
-      );
+      reject(new Error("The document reader could not start. Close Import and try again."));
     };
     worker.postMessage({ name, bytes });
   });
