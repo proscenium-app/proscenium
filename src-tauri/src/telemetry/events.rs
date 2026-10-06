@@ -182,6 +182,18 @@ impl Version {
     }
 }
 
+/// A build's whole version, as its reports carry it (version.rs): a release's
+/// `X.Y.Z`, or a track build's `X.Y.Z-alpha.N` or `X.Y.Z-beta.N`. The service
+/// takes a published beta's reports as a release's and counts them apart by it
+/// (docs/engineering/services-and-feedback.md#SERV-272). `update_installed`
+/// still names releases alone ([`Version`]).
+pub fn build_version(v: &str) -> bool {
+    match v.split_once('-') {
+        None => Version::parse(v).is_some(),
+        Some((base, _)) => Version::parse(base).is_some() && crate::version::belongs_to(v, base),
+    }
+}
+
 /// How a crash was noticed (crash.rs).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -608,6 +620,37 @@ mod tests {
             "/Users/a/1.0.0",
         ] {
             assert!(Version::parse(bad).is_none(), "{bad:?}");
+        }
+        // A track build's whole version is a build's version, never a release's.
+        assert!(Version::parse("1.0.1-beta.2").is_none());
+    }
+
+    /// The forms the Worker takes (services/edge/src/updates.ts, VERSION and TRACK_VERSION).
+    #[test]
+    fn a_build_version_is_a_release_or_a_track_build() {
+        for good in [
+            "1.0.0",
+            "1.0.1-beta.2",
+            "1.0.1-alpha.57",
+            "0.9.0-beta.0",
+            "1.0.1-beta.123456789",
+        ] {
+            assert!(build_version(good), "{good:?}");
+        }
+        for bad in [
+            "",
+            "1.0",
+            "1.0.1-rc.1",
+            "1.0.1-beta",
+            "1.0.1-beta.",
+            "1.0.1-beta.02",
+            "1.0.1-beta.1234567890",
+            "1.0.1-BETA.2",
+            "01.0.1-beta.2",
+            "1.0.1-beta.2 ",
+            "/Users/a/1.0.1-beta.2",
+        ] {
+            assert!(!build_version(bad), "{bad:?}");
         }
     }
 }

@@ -8,8 +8,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Button, Sheet, anyLayerOpen } from "../ui";
-import { openFeedback } from "../feedback";
-import { openSettings } from "../app/settings";
+import { openFeedback } from "../ui/open-feedback";
+import { openSettings } from "../ui/settings-open";
 import { LESSONS } from "./lessons";
 import { latest } from "./model";
 import type { Tutorial } from "./useTutorial";

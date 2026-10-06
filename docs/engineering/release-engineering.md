@@ -858,88 +858,107 @@ full name is how Homebrew 6 lets someone trust a single cask from a tap.
 
 #### Every release
 
+A release goes alpha, then beta, then stable, and every stable release first
+went out as a beta from the same line.
+
+- **Alpha** is every green batch of `main`, built for Apple silicon and offered
+  only to a copy that holds the alpha track's key.
+- **Beta** is the maintainer's choice to send one out. The first beta of a
+  version cuts its line, `release/X.Y.Z`, at the newest green alpha's commit,
+  with one commit, `X.Y.Z on its line`: every file that states the version
+  says X.Y.Z, and the changelog's Unreleased entries become an undated
+  `## [X.Y.Z]` section (`node scripts/version.mjs line X.Y.Z`). The same
+  change lands on `main` the same minute, so `main`'s next release is X.Y.Z+1
+  and its alphas go on. The beta's tag, `vX.Y.Z-beta.N`, is tested and built
+  in one job and published to the beta track, and the release before it, set
+  to Beta, is proven to update to it. A fix during the soak lands on `main`
+  first; a commit whose message says `Beta: X.Y.Z` is carried to the line and
+  rides the next beta, which starts the soak again.
+- **The soak** counts days from the beta's publishing. A day is clean when the
+  beta reported no crash, no feedback from a copy on it is still unmarked as no
+  blocker, no incident is open, its proofs are green and no advisory is open
+  against what it ships. A day that is not clean holds the beta until the
+  maintainer lets it go. From day 7 the maintainer may send a clean beta to
+  stable; on day 14 it goes by itself unless held; before day 7 only the
+  maintainer's override, with its reason, sends it.
+- **Stable** is then a machine's, stage by stage, each recorded as it begins
+  and ends and each able to run again: the steps below. From its first stage
+  to its close nothing changes how releases are made.
+
 <a id="SHIP-D107"></a>
 
 #### Prepare
 
-*Agent:*
-
-1. Every gate green on `main`, and the update service's stable route proven
-   against GitHub itself, not a stand-in: `cd services/edge && bun run test:live`
-   (docs/engineering/services-and-feedback.md#SERV-267). The tag's own run
-   repeats it before the build.
-2. [CHANGELOG.md](../../CHANGELOG.md) under **Unreleased**, in words a playwright
-   reads: what they can do now, what is better, what was broken and is fixed.
-3. `bun run version 1.0.1`. That updates every file that states the version and
-   turns Unreleased into this version's section. Versions are `x.y.z`; release
-   candidates were 0.9.x.
-   - Add the version to `RELEASED_VERSIONS_JSON` in
-     [services/edge/wrangler.jsonc](../../services/edge/wrangler.jsonc).
-     `updates.proscenium.ink` answers only for versions on that list.
-4. Commit (`Proscenium 1.0.1`), tag `v1.0.1`, push both.
+1. **Preflight,** before anything is built: the build host's disk and the test
+   bench free; the signing identity, the notarization key and the Cloudflare
+   token in its keychain; the release token more than 30 days from its expiry;
+   the tap's `main`; the deployed update service answering; the version the
+   same in every file; the changelog's section written; no advisory open.
+2. **The changelog's date,** the line's only change from the beta that soaked:
+   `node scripts/version.mjs date X.Y.Z`.
 
 <a id="SHIP-D108"></a>
 
 #### Build and draft
 
-5. *Agent:* `node scripts/release.mjs --publish`. It takes 15–30 minutes, most of
-   it Apple. The first notarization for a new team can take hours; the script
-   waits. If it fails, its last line names the step. The common ones:
+3. **The public sync:** the commit's public tree, committed to the public
+   repository with a one-line message and no attribution, and its `vX.Y.Z` tag.
+4. **The tag,** whose one job tests the commit in full, with the universal
+   build and the Intel slice under Rosetta, and builds it with
+   `node scripts/release.mjs`: universal, signed, notarized and checked, its
+   seven files kept. Nothing takes the build host between the test and the
+   build. If the build fails, its last line names the step. The common ones:
    - **missing signing material:** `node scripts/release-keychain.mjs status`
      names what is gone, and the setup step above makes it again.
    - **notarization rejected:** the output has a submission ID;
      `node scripts/release-keychain.mjs log <id>` shows Apple's reasons.
    - **stapling failed:** Apple's ticket had not reached its servers yet. Run
-     the script again.
-   - **the tag on GitHub is not this tree:** the commit that was tagged is not
-     the commit checked out. Check out the tag and run it again.
+     the stage again.
+5. **The draft,** on the public repository, from those seven files
+   (`node scripts/release.mjs --draft <folder>`), its id recorded: that draft,
+   and nothing else, is what is published.
 
 <a id="SHIP-D109"></a>
 
 #### Check the draft
 
-6. *Agent:* download the draft's DMG with `gh release download`, mark it as
-   downloaded (as in setup step 7), and check it: `spctl -a -vv` on the app
-   inside says `source=Notarized Developer ID`, and its Info.plist says the
-   right version. The draft must hold:
+6. The draft's seven files download, each is the file `SHA256SUMS` names,
+   `latest.json` says the version, `build.json` names the tag's commit, and
+   Gatekeeper accepts the image as notarized:
    - `Proscenium_1.0.1_universal.dmg`
    - `Proscenium_1.0.1_universal.app.tar.gz` and its `.sig` (what the updater downloads)
    - `latest.json` (what the updater reads), `notes.md`, `SHA256SUMS`, `build.json`
-7. *Agent,* for every release: setup step 7's file checks on the draft's app,
-   and, once the release is published, the **Stable update proof** workflow on
-   the build host (`from`: the release before it, `to`: this one), whose report
-   must say proven. It builds the release before from its tag as a test copy
-   with the app's real identity, lets that copy update itself through the real
-   update address, with a line typed just before Restart to Update, and passes
-   only when the scratch folder holds this release, notarized and running, with
-   the line in the play. 1.0.0 has no release before it that carries the proof.
 
 <a id="SHIP-D110"></a>
 
 #### Publish
 
-8. The *maintainer* says publish, and says yes to deploying the Worker. The *agent* runs
-   `node scripts/edge-wrangler.mjs deploy` first, so `updates.proscenium.ink`
-   admits 1.0.1 and serves its files: until then a 1.0.1 copy's own check is
-   refused (400) and its archive is not served (404), and every copy falls back
-   to GitHub directly. Then the *maintainer* publishes the draft the pipeline
-   made, and nothing else: its edit page is
-   `https://github.com/proscenium-app/proscenium/releases/edit/v1.0.1` (the
-   release's page, then Edit), and **Publish release** at the bottom of it is
-   the click. Never **Draft a new release** from the tag's page, and never a
-   release made by hand on the tag: that makes a second, empty release beside
-   the pipeline's, GitHub serves no `latest.json`, and the website's Download
-   answers 404, as it did for five minutes on 2026-09-26 until the empty one
-   went back to draft. An agent's `gh release edit v1.0.1 --draft=false` is
-   refused as a public action, so the click is the maintainer's; the agent
-   gives the edit address and checks afterwards: one release on the tag, its
-   seven files, `proscenium.ink/download` redirecting to the DMG whose SHA-256
-   is `SHA256SUMS`'s, and GitHub's `latest.json` answering the version.
-   Homebrew's workflow runs within a minute; the agent checks it went green and
-   that `brew install --cask proscenium-app/tap/proscenium` installs 1.0.1.
+7. **Admit** the version: the update service's list of what it admits and what
+   it has halted is a file in the tracks' bucket, which the service reads
+   within a minute, so a release is admitted by writing it there, with no
+   deploy (docs/engineering/services-and-feedback.md#SERV-268). Until it is admitted, a copy of the new version is refused its own
+   check and its archive is not served.
+8. **Publish that draft, by its id.** One release on the tag, never a second
+   one made by hand: a second, empty release beside the draft makes GitHub
+   serve no `latest.json` and the website's Download answer 404, as it did for
+   five minutes on 2026-09-26.
+9. **From outside:** `proscenium.ink/download` redirects to the DMG whose
+   SHA-256 is `SHA256SUMS`'s, GitHub's `latest.json` answers the version, and
+   so does the update service.
+10. **Homebrew:** the tap's workflow names the version within a minute, and an
+    install of the cask (`brew install --cask proscenium-app/tap/proscenium`,
+    into a scratch folder) gives it.
+11. **The update proof:** the release before it, built from its tag as a test
+    copy with the app's real identity and driven by the current harness,
+    updates itself through the real update address, with a line typed just
+    before Restart to Update, and passes only when the scratch folder holds
+    this release, notarized and running, with the line in the play.
+12. **The line merged back** into `main`, the **record** written from the
+    release's own file, and the release **closed**.
 
 A bad published release is fixed by publishing a better one, never by deleting
-it: installed copies may already be updating to it.
+it: installed copies may already be updating to it. A halt stops the update
+service offering it, through the same list, and deletes nothing.
 
 ---
 

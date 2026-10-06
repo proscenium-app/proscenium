@@ -733,9 +733,13 @@ disposable cache.
 
 <a id="STOR-115"></a>
 
-**STOR-115** **Versions.** Snapshots of a script's state: first save of a session, then at
-most one `save` per 5 minutes, plus always-on `pre-reload`, `pre-keep`,
-`pre-restore`, and `collision`. Identical content dedups, except that a pinned
+**STOR-115** **Versions.** Snapshots of a script's, a sheet's or outline notes' state:
+first save of a session (with the text that save was made over, just before
+it, so a session's changes have a start — and likewise the first save after a
+change arrived from outside), then at most one `save` per 5
+minutes, and one more once saves have gone quiet for 2 minutes, so each
+sitting ends on what was written; plus always-on `pre-reload`, `pre-keep`,
+`pre-restore`, and `collision`. Opening keeps none. Identical content dedups, except that a pinned
 reason never dedups into an unpinned entry. Ring of 300 per
 script, oldest pruned, **except pinned reasons** (`collision`, `pre-keep`,
 `pre-reload` taken at a banner, `recovery`), which are never pruned. Unsaved
@@ -780,10 +784,21 @@ the play. These originals are retained.
 
 <a id="STOR-119"></a>
 
-**STOR-119** **Changes.** What changed in the play outside this window since the writer
-last saw it, with the previous text kept so each change can be put back. It is
-the surface a writer meets when the iPad, iCloud, or Dropbox did something
-while the app was closed. Its store (baseline per file, before-text per
+**STOR-119** **Changes.** One timeline of the play, newest first: the writer's own
+sittings, read from Versions, and what changed in the play outside this window
+since the writer last saw it, with the previous text kept so each change can be
+put back. A sitting is a run of versions, of any document, with no gap over 30
+minutes and no change from outside between them; one after such a change
+starts from the text that change left, so it is never counted as the
+writer's. A change's entry is stamped when it was heard, and the copy kept
+because it arrived counts as just before it, so their order never depends on
+which was written first. It opens to what changed in each document, as a whole or one version
+against the one before, with a restore through that document's guarded write
+(a document not open is opened first). ↑ and ↓, or Newer and Older, move from
+one entry to the next and open it; All, Mine and From Outside, and one
+document, filter it. **Versions…** opens it on the writer's own versions of the
+document in front. Changes from outside are also the surface a writer meets
+when the iPad, iCloud, or Dropbox did something while the app was closed. Its store (baseline per file, before-text per
 entry, an append-only ledger) lives here, not in the play. Store instances and
 queues are play-scoped. An entry is a difference from the baseline, the last
 text this device showed the writer or wrote itself; every write the app lands
@@ -793,6 +808,34 @@ the same bytes record nothing, and a file with no baseline gets one instead of
 an entry, so the next change to it has a diff and a way back. Revert verifies
 the reviewed after-hash, pins the exact current content under the item's ID,
 then writes against that hash; newer or unsaved words require a fresh choice.
+
+<a id="STOR-177"></a>
+
+**STOR-177** **A change is read on the page.** Every comparison Changes opens (a
+sitting, one version against the one before, a change from outside, another
+version left by a sync) has two looks, chosen once for all of them and
+remembered on this Mac: **On the Page**, which Changes opens in, and **Line by
+Line**. On the Page is a redline: the text as it now stands, the words that
+were cut struck through and the words that were added underlined where they
+stand, a rule in the margin beside every block a change touched, and the
+unchanged stretches left out, with a few blocks kept around each change. A
+script is drawn as the script, its elements in the play's format by the
+editor's own rules, for reading only: two speeches spoken together stand side
+by side, a speech is never shown without its cue, and a left-out stretch names
+the act and scene of what follows it when their headings are not on show. The
+texts are compared block against block (an element of a script, a line of any
+other document), then word against word inside a block that was rewritten: one
+at least half of whose words, counted over both versions, are the same words,
+or one block that replaced one of its kind. A block rewritten past that is
+struck whole, its replacement after it. A script's opening pages are not
+elements of it: when they differ the page says so, and Line by Line shows
+them. Any other document is drawn as its lines, with the same marks. Line by
+Line is the stored text as added and removed lines, title page and markup
+included. The redline is made when a comparison opens and is never written
+anywhere: its marks are no part of a play's schema, and neither look changes a
+file, a version or the ledger. Cut and added words are deletions and insertions
+to a screen reader, and a line through or a line under to the eye, so a change
+is never told by colour alone.
 
 <a id="STOR-120"></a>
 
@@ -1100,6 +1143,6 @@ git.
 
 The native vault in `src-tauri/src/vault/` owns byte reads, guarded atomic writes, durable intents and root identity. The watcher classifies changes against the vault's generation tokens. TypeScript in `src/storage/` owns buffer ancestry, autosave, recovery choices and plain failure messages.
 
-`src/workspace/play-file.ts` reads and serializes the play schema. Reconciliation joins the disk tree to binder identities and the parsed script to scene records. The app-data store holds Versions, Changes and recovery under the play id. Native folder authority is separate from a path displayed in the page.
+`src/workspace/play-file.ts` reads and serializes the play schema. Reconciliation joins the disk tree to binder identities and the parsed script to scene records. The app-data store holds Versions, Changes and recovery under the play id. A comparison's redline is derived, not stored: `src/review/redline.ts` compares blocks and then words, `src/editor/redline-doc.ts` turns a script's result into a read-only editor document, and `src/review/Comparison.tsx` draws any other text ([STOR-177](#STOR-177)). Native folder authority is separate from a path displayed in the page.
 
 The algorithms, schema, failure branches and limits above are normative. Storage tests exercise the native write boundary and the TypeScript session/reconciliation policies; browser and native smoke exercise the writer's recovery and conflict choices.

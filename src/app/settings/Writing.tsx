@@ -6,8 +6,8 @@
  * taught the checker.
  *
  * Spell check here and Check Spelling as You Type in the document menu are one
- * setting in one store (store.ts), so neither can show a state the other does
- * not.
+ * setting in one store (ui/settings-store.ts), so neither can show a state the
+ * other does not.
  *
  * **Two checkers, and the notes say which is which.** This switch and this
  * word list are the script's own checker (editor/spellcheck.ts). Documents and
@@ -17,7 +17,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Button, CloseIcon, IconButton, announce } from "../../ui";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
-import { forgetWord, learnWord, updateSettings, useSettings } from "./store";
+import { forgetWord, learnWord, updateSettings, useSettings } from "../../ui/settings-store";
 
 import { StatusList } from "./StatusList";
 

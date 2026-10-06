@@ -67,6 +67,8 @@ export interface PlayEditorProps {
   frontMatter?: FrontMatter | null;
   /** Open the Title Page editor (clicking the title sheet invokes this). */
   onEditTitlePage?: () => void;
+  /** Open Cast at what was double-clicked on the Characters sheet (its paragraph id). */
+  onEditCharactersPage?: (paragraphId: string | null) => void;
   /**
    * Inline tracked changes — a DECORATION layer over the
    * open script showing what arrived from outside. Never a document mutation:
@@ -165,6 +167,7 @@ export function PlayEditor({
   layoutMeta,
   frontMatter,
   onEditTitlePage,
+  onEditCharactersPage,
   trackedMarks,
   zoom = 1,
   commentsOpen = false,
@@ -198,7 +201,15 @@ export function PlayEditor({
     // on either side keeps its literal newlines.
     content: toEditorDoc(ensureNonEmpty(initialDoc)),
     editable,
-    onUpdate: ({ editor }) => onChange?.(fromEditorDoc(editor.getJSON() as Doc)),
+    // Only a change of the document is an edit. TipTap also says "update" when
+    // the editor is made editable or read-only, with a transaction that
+    // changes nothing: taken for an edit, every play marked its script
+    // "Editing…" as it opened and saved the same bytes back, keeping a
+    // version nobody made.
+    onUpdate: ({ editor, transaction, appendedTransactions }) => {
+      if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
+      onChange?.(fromEditorDoc(editor.getJSON() as Doc));
+    },
     editorProps: {
       // The OS check is OFF, and the app's own one (spellcheck.ts) replaces it.
       // Native squiggles were the first answer and could not be made to work:
@@ -250,7 +261,8 @@ export function PlayEditor({
   }, [editor]);
 
   useEffect(() => {
-    editor?.setEditable(editable);
+    // Editable or not changes no word: no update for it.
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   useElementAnnouncer(editor);
@@ -269,8 +281,9 @@ export function PlayEditor({
       meta: layoutMeta,
       frontMatter,
       onTitlePageClick: onEditTitlePage ?? null,
+      onCharactersPageOpen: onEditCharactersPage ?? null,
     });
-  }, [editor, paginated, format, layoutMeta, frontMatter, onEditTitlePage]);
+  }, [editor, paginated, format, layoutMeta, frontMatter, onEditTitlePage, onEditCharactersPage]);
 
   /**
    * Push tracked-change marks into the plugin's options and force one redraw.

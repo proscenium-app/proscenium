@@ -8,7 +8,7 @@
  * boundary, so e.g. `rel_dir` is passed as `relDir`. This is the ONLY module
  * that talks to the backend; everything else goes through the higher-level store.
  */
-import type { FeedbackDraft } from "../feedback/model";
+import type { FeedbackDraft } from "./feedback-draft";
 import { invoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ErrorCode } from "../diagnostics/error-codes";
@@ -448,6 +448,9 @@ export interface VersionEntry {
   pinned: boolean;
 }
 
+/** Fired on the window after a version is kept, so what lists them can read the list again. */
+export const VERSION_KEPT_EVENT = "proscenium:version-kept";
+
 /**
  * Versions — a script's earlier states, under the app's own data directory
  * keyed by play id (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), never inside the Plays folder.
@@ -464,9 +467,14 @@ export const versions = {
     content: string,
     ext = "fountain",
   ): Promise<string> =>
-    USE_MOCK
+    (USE_MOCK
       ? mock().then((m) => m.versionSnapshot(playId, scriptId, reason, content, ext))
-      : invoke("versions_snapshot", { playId, scriptId, reason, content, ext }),
+      : invoke<string>("versions_snapshot", { playId, scriptId, reason, content, ext })
+    ).then((name) => {
+      // Changes lists every version; it reads the list again when one is kept.
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(VERSION_KEPT_EVENT));
+      return name;
+    }),
   list: (playId: string, scriptId: string): Promise<VersionEntry[]> =>
     USE_MOCK
       ? mock().then((m) => m.versionList(playId, scriptId))
@@ -714,6 +722,14 @@ export const settings = {
     USE_MOCK
       ? mock().then((m) => m.systemAccent())
       : invoke<string | null>("system_accent").catch(() => null),
+  /**
+   * Whether the Mac asks for a text cursor that does not blink (caret.rs), for
+   * the caret a document draws; false where there is no such setting to ask.
+   */
+  steadyCaret: (): Promise<boolean> =>
+    USE_MOCK
+      ? mock().then((m) => m.steadyCaret())
+      : invoke<boolean>("steady_caret").catch(() => false),
   getLastVault: (): Promise<string | null> =>
     USE_MOCK ? mock().then((m) => m.getLastVault()) : invoke("get_last_vault"),
   /**

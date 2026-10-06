@@ -12,7 +12,7 @@
  * the one sheet with `useSettingsSheet`; everything else just calls this.
  */
 import { useCallback, useEffect, useState } from "react";
-import type { SettingsSection } from "./sections";
+import type { SettingsSection } from "../app/settings/sections";
 
 let show: ((section: SettingsSection) => void) | null = null;
 /** A request made before the shell mounted, delivered when it does. */

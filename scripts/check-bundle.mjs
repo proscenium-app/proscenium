@@ -25,7 +25,9 @@
  *                a track build is the next release's, as macOS takes only X.Y.Z
  *   --release    nothing of the self-test is in it: no `selftest` in the binary
  *                and none in dist/ (docs/engineering/release-engineering.md#REL-D4 — a shipped build honours no feature,
- *                command or environment variable of the test harness)
+ *                command or environment variable of the test harness); and
+ *                nothing of the update proof, whose variables, the stand-in's
+ *                update address among them, all begin PROSCENIUM_UPDATE_PROOF
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, openSync, readSync, closeSync } from "node:fs";
@@ -164,11 +166,15 @@ if (native !== "true") {
 // 5. No self-test in a release.
 if (RELEASE) {
   // The raw bytes hold symbol names and literals alike: the command names, the
-  // environment variable, the harness script. Any one of them means the
-  // feature was on. (Read directly — `strings` on a 26 MB binary overflows a
-  // child-process buffer.)
+  // environment variables, the harness script. Any one of them means the
+  // feature was on: `selftest`, or the update proof's variables, which the
+  // update-proof feature reads (the stand-in's address among them), wherever
+  // in the code they came to be read. (Read directly — `strings` on a 26 MB
+  // binary overflows a child-process buffer.)
   const bytes = readFileSync(exe).toString("latin1");
-  const hits = [...bytes.matchAll(/[\x20-\x7e]{0,40}selftest[\x20-\x7e]{0,40}/gi)].map((m) => m[0]);
+  const hits = [
+    ...bytes.matchAll(/[\x20-\x7e]{0,40}(?:selftest|PROSCENIUM_UPDATE_PROOF)[\x20-\x7e]{0,40}/gi),
+  ].map((m) => m[0]);
   if (hits.length)
     failures.push(`the binary contains self-test code: ${hits.slice(0, 3).join(" · ")}`);
   const assets = join(ROOT, "dist/assets");

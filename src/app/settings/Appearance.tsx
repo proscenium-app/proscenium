@@ -5,7 +5,7 @@
 import { useRef, type KeyboardEvent } from "react";
 import { ACCENTS, CheckIcon, Chip, PopupButton } from "../../ui";
 import { Group, Note, SectionBody } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 import { useSystemAccent } from "./system-accent";
 
 export function Appearance() {

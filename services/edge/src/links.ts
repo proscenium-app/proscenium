@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { GITHUB, released, response } from "./updates";
+import { GITHUB, releasedOn, response, type Source } from "./updates";
 export const GO = "https://go.proscenium.ink";
-export function links(
+export async function links(
   request: Request,
   env: { LINKS_ENABLED: string; RELEASED_VERSIONS_JSON: string },
-): Response {
+  source: Source,
+): Promise<Response> {
   const url = new URL(request.url);
   if (url.origin !== GO || request.method !== "GET" || url.search) return response(404);
   let destination: string | undefined;
@@ -15,7 +16,9 @@ export function links(
   if (url.pathname === "/support") destination = "https://proscenium.ink/support";
   const version = /^\/releases\/v([^/]+)$/.exec(url.pathname)?.[1];
   try {
-    if (version && released(env, version)) destination = `${GITHUB}/tag/v${version}`;
+    // A release's page is GitHub's, so only stable's releases have one; a halted release keeps its page.
+    if (version && (await releasedOn(env, source, version, ["stable"])) === "stable")
+      destination = `${GITHUB}/tag/v${version}`;
   } catch {
     return response(503);
   }

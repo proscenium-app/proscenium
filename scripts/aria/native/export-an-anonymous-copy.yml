@@ -20,11 +20,11 @@
     - listitem
       - button "Opening notes"
       - none
-        - checkbox "Include opening notes" [checked]
+        - checkbox "Include opening notes"
     - listitem
       - button "Page 1"
       - none
-        - checkbox "Include page 1" [checked]
+        - checkbox "Include page 1"
     - listitem
       - button "Page 2"
       - none
@@ -39,7 +39,7 @@
     - none
       - checkbox "Characters page" [checked]
     - none
-      - checkbox "Opening notes" [checked]
+      - checkbox "Opening notes"
   - none
     - checkbox "Anonymous copy" [checked]
   - none

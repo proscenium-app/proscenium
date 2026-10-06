@@ -361,3 +361,15 @@ The maintainer, 2026-09-25: "import off of the plays page to make a new play, im
 **IMPT-55 — Withdrawn 2026-09-25.** Replaced by [IMPT-99](../app/importing/document-import.md#IMPT-99). Original contract:
 
  Fixed footer: the create/copy consequence, Cancel, optional Skip This File, and **Create New Play**.
+
+## Withdrawn 2026-09-27: admission and halts with no deploy
+
+The update service now reads which releases it admits, and which versions it has halted, from a list a release writes to its R2 bucket, so a release is admitted and a bad one stopped within a minute and with no deploy. Reading a list it cannot rely on is the one thing the Worker has to say of its own, and a message may now carry the build version it came from.
+
+<a id="SERV-41"></a>
+
+**SERV-41 — Withdrawn 2026-09-27.** It read: “Workers Logs stays off, and the Worker writes no log line of its own.” The Worker now says, in one kind of line and nothing of any request, that its admission list could not be read or is not one. Replaced by [SERV-275](services-and-feedback.md#SERV-275).
+
+<a id="SERV-34"></a>
+
+**SERV-34 — Withdrawn 2026-09-27.** It read: “The Worker checks the sizes, a well-formed email if there is one, and that no other field is present.” A message may also carry the whole build version it came from, which the Worker checks and keeps. Replaced by [SERV-276](services-and-feedback.md#SERV-276) and [SERV-273](services-and-feedback.md#SERV-273).

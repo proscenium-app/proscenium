@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import events from "../events.json";
-import { boundedBytes, released, response } from "./updates";
+import { boundedBytes, releasedOn, response, TRACK_VERSION, VERSION, type Source } from "./updates";
 export const REPORTS = "https://reports.proscenium.ink";
 export const MAX_EVENTS_BODY = 16 * 1024;
 export const OS = /^(1[4-9]|[2-9]\d)\.(0|[1-9]\d?)$/;
@@ -11,6 +11,12 @@ export interface ReportsEnv {
   EVENTS_ENABLED: string;
   RELEASED_VERSIONS_JSON: string;
 }
+/**
+ * Where a report may come from: a release, or a published beta, whose reports
+ * are counted apart by their whole version and their track
+ * (docs/engineering/services-and-feedback.md#SERV-272). Alpha's are refused.
+ */
+export const REPORTING = ["stable", "beta"] as const;
 export const object = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 export function keys(
@@ -23,10 +29,9 @@ export function keys(
     Object.keys(v).every((k) => required.includes(k) || optional.includes(k))
   );
 }
-export const isReleased = (
-  env: Pick<ReportsEnv, "RELEASED_VERSIONS_JSON">,
-  v: unknown,
-): v is string => typeof v === "string" && released(env, v);
+/** A build's whole version as a report states it: a release's, or a track build's (version.rs). */
+export const buildVersion = (v: unknown): v is string =>
+  typeof v === "string" && (VERSION.test(v) || TRACK_VERSION.test(v));
 export function system(platform: unknown, arch: unknown, os: unknown): boolean {
   return (
     platform === "darwin" &&
@@ -42,12 +47,19 @@ interface Batch {
   os: string;
   channel: string;
   events: { name: string; props: Record<string, string> }[];
+  /** The values of `$released-version` properties, each to be a release. */
+  releases: string[];
 }
-export function parseBatch(v: unknown, env: ReportsEnv): Batch {
+/**
+ * The batch's shape, every event on the list. Whether its version, and each
+ * version a property names, was released is asked of the lists afterwards
+ * ([`counts`]), since they are read from R2.
+ */
+export function parseBatch(v: unknown): Batch {
   if (
     !object(v) ||
     !keys(v, ["version", "platform", "arch", "os", "channel", "events"]) ||
-    !isReleased(env, v.version) ||
+    !buildVersion(v.version) ||
     !system(v.platform, v.arch, v.os) ||
     !["developer-id", "app-store"].includes(v.channel as string) ||
     !Array.isArray(v.events) ||
@@ -56,6 +68,7 @@ export function parseBatch(v: unknown, env: ReportsEnv): Batch {
   )
     throw new Error("Invalid batch");
   const schema: Record<string, { props: Record<string, string[]> }> = events;
+  const releases: string[] = [];
   const checked = v.events.map((event: unknown) => {
     if (
       !object(event) ||
@@ -70,11 +83,10 @@ export function parseBatch(v: unknown, env: ReportsEnv): Batch {
     const props: Record<string, string> = {};
     for (const key of Object.keys(rule).sort()) {
       const value = event.props[key];
-      if (
-        typeof value !== "string" ||
-        !(rule[key][0] === "$released-version" ? isReleased(env, value) : rule[key].includes(value))
-      )
+      const release = rule[key][0] === "$released-version";
+      if (typeof value !== "string" || !(release ? VERSION.test(value) : rule[key].includes(value)))
         throw new Error("Invalid property");
+      if (release) releases.push(value);
       props[key] = value;
     }
     return { name: event.name, props };
@@ -86,9 +98,15 @@ export function parseBatch(v: unknown, env: ReportsEnv): Batch {
     os: v.os as string,
     channel: v.channel as string,
     events: checked,
+    releases,
   };
 }
-export async function counts(request: Request, env: ReportsEnv, now: Date): Promise<Response> {
+export async function counts(
+  request: Request,
+  env: ReportsEnv,
+  now: Date,
+  source: Source,
+): Promise<Response> {
   const url = new URL(request.url);
   if (
     url.origin !== REPORTS ||
@@ -118,11 +136,16 @@ export async function counts(request: Request, env: ReportsEnv, now: Date): Prom
     try {
       batch = parseBatch(
         JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes)),
-        env,
       );
     } catch {
       return response(400);
     }
+    // A list that cannot be read is the service's trouble, never the batch's:
+    // it answers 503, and the app keeps the batch for later.
+    const track = await releasedOn(env, source, batch.version, REPORTING);
+    if (track === null) return response(400);
+    for (const release of batch.releases)
+      if ((await releasedOn(env, source, release, ["stable"])) === null) return response(400);
     const day = now.toISOString().slice(0, 10);
     const combinations = new Map<string, { name: string; props: string; count: number }>();
     for (const event of batch.events) {
@@ -136,7 +159,7 @@ export async function counts(request: Request, env: ReportsEnv, now: Date): Prom
     const result = await env.DB.batch(
       [...combinations.values()].map((event) =>
         env.DB.prepare(`INSERT INTO usage_counts
-      (day, version, platform, arch, os, channel, event, props, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (day, version, platform, arch, os, channel, track, event, props, count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(day, version, platform, arch, os, channel, event, props) DO UPDATE SET count = count + excluded.count`).bind(
           day,
           batch.version,
@@ -144,6 +167,7 @@ export async function counts(request: Request, env: ReportsEnv, now: Date): Prom
           batch.arch,
           batch.os,
           batch.channel,
+          track,
           event.name,
           event.props,
           event.count,

@@ -28,7 +28,7 @@
  * webview sees these events at all.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BINDER_MIME } from "../app/PaneTree";
+import { BINDER_MIME } from "./binder-drag";
 import { ancestorsOf, dropPlan, filterBinder, findItem, folderIds, type DropWhere } from "./binder";
 import { BinderIcon, DisclosureIcon, PencilIcon, type IconKind } from "./BinderIcons";
 import { Menu, PlusIcon, announce, requestPageFocus, useMenu, type MenuEntry } from "../ui";

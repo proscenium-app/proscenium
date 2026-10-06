@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Pathless stack records. Neither the panic payload nor a symbol's filename is read.
-use super::events::{CrashKind, Version};
+use super::events::{build_version, CrashKind};
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -109,7 +109,7 @@ impl CrashRecord {
             id.get_version_num() == 4
                 && id.get_variant() == uuid::Variant::RFC4122
                 && id.to_string() == self.id
-        }) && Version::parse(&self.version).is_some()
+        }) && build_version(&self.version)
             && os_allowed(&self.os)
             && ["aarch64", "x86_64"].contains(&self.arch.as_str())
             && DateTime::parse_from_rfc3339(&self.at).is_ok()
@@ -470,5 +470,26 @@ mod tests {
         r.name = "Error".into();
         r.frames.clear();
         assert!(!r.valid());
+    }
+    /// A beta's crash says its whole version, which the service counts apart
+    /// (docs/engineering/services-and-feedback.md#SERV-272); a version of no build's form is refused.
+    #[test]
+    fn a_record_carries_the_builds_whole_version() {
+        let now = Utc::now();
+        for version in ["1.0.1-beta.2", "1.0.1-alpha.57", "1.0.1"] {
+            let mut r = sample(now);
+            r.version = version.into();
+            assert!(r.valid(), "{version}");
+            let envelope = super::super::envelope::encode(&r).unwrap();
+            let event: serde_json::Value =
+                serde_json::from_str(String::from_utf8(envelope).unwrap().lines().nth(2).unwrap())
+                    .unwrap();
+            assert_eq!(event["release"], version);
+        }
+        for version in ["1.0.1-rc.1", "1.0", "/Users/synthetic/1.0.1"] {
+            let mut r = sample(now);
+            r.version = version.into();
+            assert!(!r.valid(), "{version}");
+        }
     }
 }

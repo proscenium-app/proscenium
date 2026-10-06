@@ -14,12 +14,16 @@
 /* Multi-pane: script beside board/outline. */
 /* ── The pane tree (panes.ts / PaneTree.tsx) ─────────────────────────────── */
 
+/* Clipped: every pane drawn keeps a least size (panes.ts PANE_FLOOR), and a
+   window smaller than one pane's would otherwise push it over the inspector. */
 .paneroot {
   flex: 1;
   min-width: 0;
   display: flex;
+  overflow: hidden;
 }
 .panesplit {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -40,6 +44,23 @@
   min-height: 0;
   flex-grow: 0;
   flex-shrink: 1;
+}
+
+/* A pane a divider has been dragged all the way across, while the pointer is
+   still down (PaneTree.tsx): out of the flow and out of sight at the size it
+   had, so the pane beside it is drawn over the room of both and nothing in
+   this one is laid out again for a pane that may yet come back. */
+.panesplit__cell.is-leaving {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+}
+.panesplit--row > .panesplit__cell.is-leaving {
+  bottom: 0;
+}
+.panesplit--col > .panesplit__cell.is-leaving {
+  right: 0;
 }
 
 .panedivider {

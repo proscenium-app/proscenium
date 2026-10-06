@@ -1,29 +1,33 @@
 - banner:
   - button "Hide the binder" [pressed]
-  - button "Mara"
+  - button "The Weight of Water"
   - tablist "What this pane shows":
-    - tab "Script"
+    - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
     - tab "Cast"
-    - tab "Changes, <n> pending": Changes
+    - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
   - searchbox "Filter the binder"
   - tree "Binder items":
-    - treeitem "The Weight of Water" [level=1]
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
-      - treeitem "Mara Rename “Mara” Actions for “Mara”" [level=2] [selected]:
-        - text: Mara
-        - button "Rename “Mara”"
-        - button "Actions for “Mara”"
+      - treeitem "Mara" [level=2]
       - treeitem "Jonah" [level=2]
     - treeitem "Research" [expanded] [level=1]
     - group "Research":
@@ -35,49 +39,49 @@
     - group "Loglines":
       - treeitem "Logline" [level=2]
   - button "New"
-  - text: in Characters
+  - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "Cast":
-      - button "Cast"
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-    - listitem "Mara":
-      - button "Mara"
-      - button "Close Mara"
   - button "Add a surface to this pane"
-  - textbox "File name"
-  - text: character protagonist act-1 act-2
-  - button "Edit Tags"
-  - status
-  - group "View":
-    - button "Page" [pressed]
-    - button "Source"
-  - toolbar "Formatting":
-    - 'button "Paragraph style: Body Text"': Body Text
-    - button "Bold"
-    - button "Italic"
-    - button "Inline code":
-      - img
-    - button "Link":
-      - img
-    - button "Bulleted list":
-      - img
-    - button "Numbered list":
-      - img
-    - button "Insert table":
-      - img
-    - button "Insert divider":
-      - img
-  - heading "MARA" [level=1]
-  - paragraph: A hydrologist, early 40s. Measures everything and trusts nothing she can't measure. Came home to bury her mother and stayed to fight the house.
-  - paragraph:
-    - strong: "Wants:"
-    - text: to stop the dripping — the literal pipe, and everything it stands in for.
-    - strong: "Fears:"
-    - text: that quiet is just absence, not peace.
-    - strong: "Voice:"
-    - text: short sentences. Precise nouns. Doesn't finish the sentimental ones. WORDS KEPT NOWHERE
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Status
+  - 'button "Scene status: idea"': idea
+  - text: Label
+  - textbox "Label"
+  - text: Colour
+  - radiogroup "Card colour":
+    - radio "Unmarked" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: unmarked
+  - text: Board note · never prints
+  - textbox "Board note"
+  - text: On stage MARA 3 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: <save status>
@@ -90,7 +94,7 @@
   - heading "Review Your Draft" [level=2]
   - text: Harbor.pages · Pages New script name
   - textbox "New script name"
-  - text: In The Weight of Water › Characters
+  - text: In The Weight of Water
   - 'button "Add as: New Script"': New Script
   - button "Choose Different Files…"
   - strong: 13 paragraphs

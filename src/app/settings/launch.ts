@@ -38,7 +38,7 @@ import { useEffect, useRef, useState } from "react";
 import { settings as ipc } from "../../storage";
 import type { VaultPlay } from "../../workspace";
 import type { OpenAtLaunch } from "../../storage/settings-model";
-import { updateSettings, useSettings, useSettingsLoaded } from "./store";
+import { updateSettings, useSettings, useSettingsLoaded } from "../../ui/settings-store";
 
 function trimSlash(path: string): string {
   return path.length > 1 ? path.replace(/\/+$/, "") : path;

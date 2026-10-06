@@ -7,6 +7,7 @@ import { App } from "./app/App";
 import { isTauri } from "@tauri-apps/api/core";
 import { applyStoredAccent } from "./ui/use-accent";
 import { startSystemAccent } from "./app/settings/system-accent";
+import { startSystemCaret } from "./app/settings/system-caret";
 import { pageErrorSignal } from "./diagnostics/page-error";
 import { platform, telemetry } from "./storage/ipc";
 import "./app/styles.css";
@@ -20,6 +21,7 @@ if (!root) throw new Error("missing #root");
 applyStoredAccent();
 // Follow Mac asks the Mac for its accent now, and again whenever the window comes forward.
 startSystemAccent();
+startSystemCaret();
 
 /*
  * macOS draws its traffic lights OVER the toolbar (`titleBarStyle: Overlay` in

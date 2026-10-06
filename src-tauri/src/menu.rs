@@ -83,6 +83,10 @@ const VIEW: &[Item] = &[
     ("", "", None),
     ("split-row", "Split Side by Side", None),
     ("split-col", "Split Top and Bottom", None),
+    // The focused pane, when it is one of several. A pane has its own close
+    // box too; this is the one a writer finds from the menu bar and the one
+    // that needs no pointer.
+    ("close-pane", "Close Pane", None),
     ("", "", None),
     ("zoom-in", "Zoom In", Some("CmdOrCtrl+Plus")),
     ("zoom-out", "Zoom Out", Some("CmdOrCtrl+-")),

@@ -1,11 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
-export interface FeedbackDraft {
-  message: string;
-  email: string;
-  includeDetails: boolean;
-}
-export const emptyDraft = (): FeedbackDraft => ({ message: "", email: "", includeDetails: false });
+import type { FeedbackDraft } from "../storage/feedback-draft";
+// The draft's shape is the vault client's, which loads, saves and sends it.
+export { emptyDraft, type FeedbackDraft } from "../storage/feedback-draft";
 const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
 export const characters = (text: string): number => [...segmenter.segment(text)].length;
 export const hasDraft = (draft: FeedbackDraft): boolean =>

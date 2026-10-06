@@ -21,6 +21,7 @@ import { FormattingIcon } from "../ui/FormattingIcon";
 import type { Editor } from "@tiptap/core";
 import { useEffect, useState } from "react";
 import { PopupButton } from "../ui";
+import { continueNumbering, numberingAt, startNumberingAt } from "./lists";
 
 export interface FormatBarProps {
   editor: Editor | null;
@@ -102,6 +103,17 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
   }, [editor]);
 
   if (!editor) return null;
+
+  /* Where the numbered list under the caret takes its count from. A list goes
+     on from the one above it by itself (lists.ts); this is where the writer
+     says otherwise, or says so again. A number of the writer's own is typed:
+     `7.` and a space starts a list at 7. */
+  const numbering = numberingAt(editor.state);
+  const count = numbering?.continues ? "continue" : numbering?.start === 1 ? "one" : "own";
+  const run = (command: typeof continueNumbering) => {
+    editor.view.focus();
+    command(editor.state, editor.view.dispatch);
+  };
 
   const blocks = openingPage ? BLOCKS.slice(0, 4) : BLOCKS;
   const block = blocks.find((b) => b.is(editor)) ?? BLOCKS[0];
@@ -288,6 +300,35 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
               <path d="M2.6 8h10.8" />
             </svg>
           </Btn>
+        </>
+      )}
+
+      {/* Only in a numbered list, and last on the bar, so that nothing else
+          moves when it comes and goes. */}
+      {numbering && (
+        <>
+          <span className="fmt__rule" />
+          <PopupButton
+            className="fmt__count"
+            label="List numbering"
+            title="Where this numbered list counts from"
+            menuWidth={210}
+            value={count}
+            onChange={(value) => {
+              if (value === "continue") run(continueNumbering);
+              else if (value === "one") run(startNumberingAt(1));
+            }}
+            options={[
+              {
+                value: "continue",
+                label: "Continue Numbering",
+                hint: numbering.next === null ? "no list above" : `from ${numbering.next}`,
+                disabled: numbering.next === null,
+              },
+              { value: "one", label: "Start at 1" },
+              ...(count === "own" ? [{ value: "own", label: `Start at ${numbering.start}` }] : []),
+            ]}
+          />
         </>
       )}
     </div>

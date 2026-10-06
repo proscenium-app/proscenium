@@ -108,10 +108,94 @@ pub fn may_contact(url: &str) -> bool {
         && host_of(url).is_some_and(|host| CONTACTED_HOSTS.iter().any(|(h, _)| *h == host))
 }
 
+/// The update proof's stand-in of the update service: an origin on this Mac's
+/// loopback address, given at launch to an update-proof build (the Cargo
+/// feature `update-proof`, which `scripts/build-app.mjs --update-proof` turns
+/// on), and admitted by that build alone. A copy built from a release's line
+/// and numbered as the release before it can then update through a stand-in
+/// (`wrangler dev --local`) the way a writer's copy updates through the real
+/// service. A released app refuses every address but the real ones, and no
+/// other build reads the variable at all
+/// (docs/engineering/release-engineering.md#REL-29): the tests below run the
+/// default build as a proof's copy is started, and it refuses the stand-in.
+///
+/// Compiled for the tests and for an update-proof build, so the rules are
+/// tested by the ordinary `cargo test`; the variable is read only in
+/// selftest.rs, which a build without the feature does not have.
+#[cfg(any(test, feature = "update-proof"))]
+pub mod proof {
+    use reqwest::Url;
+
+    /// Where the proof's script gives the origin (scripts/update-proof.mjs `--updates`).
+    pub const ORIGIN_VAR: &str = "PROSCENIUM_UPDATE_PROOF_ORIGIN";
+
+    /// What [`loopback_origin`] takes, as a refusal says it.
+    #[cfg(feature = "update-proof")]
+    pub const SHAPE: &str = "http://127.0.0.1:<port> or http://[::1]:<port>";
+
+    /// The origin, when `given` is one: plain HTTP to a literal loopback
+    /// address, `127.0.0.1` or `[::1]`, on a port of its own, and nothing else.
+    /// No name is resolved, so no hosts file can point it elsewhere.
+    pub fn loopback_origin(given: &str) -> Option<Url> {
+        let url = Url::parse(given).ok()?;
+        (url.scheme() == "http"
+            && matches!(url.host_str(), Some("127.0.0.1" | "[::1]"))
+            && url.port().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.path() == "/"
+            && url.query().is_none()
+            && url.fragment().is_none())
+        .then_some(url)
+    }
+
+    /// The updater plugin's configuration, pointed at the stand-in: its one
+    /// address is the service's own shape (tauri.conf.json's first) on the
+    /// stand-in's origin, with no fallback beside it, over plain HTTP, which
+    /// the plugin takes only when its configuration says so. The key an update
+    /// is verified with stays the build's own. Returns the address.
+    pub fn point_updater(
+        updater: &mut serde_json::Map<String, serde_json::Value>,
+        origin: &Url,
+    ) -> String {
+        // The origin's path is "/".
+        let endpoint = format!("{origin}v1/{{{{target}}}}/{{{{arch}}}}/{{{{current_version}}}}");
+        updater.insert("endpoints".into(), serde_json::json!([endpoint]));
+        updater.insert(
+            "dangerousInsecureTransportProtocol".into(),
+            serde_json::json!(true),
+        );
+        endpoint
+    }
+
+    /// Whether `url` is on `origin`: the same scheme, host and port.
+    pub fn on(origin: &Url, url: &Url) -> bool {
+        url.origin() == origin.origin()
+    }
+
+    /// Whether the updater may ask `url` of the stand-in at `origin`: the
+    /// service's own routes, under `/v1/`, with no credentials, query or
+    /// fragment, as the real service is asked.
+    pub fn admits(origin: &Url, url: &Url) -> bool {
+        on(origin, url)
+            && url.path().starts_with("/v1/")
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.query().is_none()
+            && url.fragment().is_none()
+    }
+}
+
 /// Updates never use the analytics endpoint, credentials, a nonstandard port,
 /// or a host constructed by suffix matching. Applies to initial URLs and hops.
+/// The one exception is an update-proof build's stand-in, given at launch
+/// ([`proof`]), which no other build has.
 #[cfg(all(desktop, feature = "updater"))]
 pub fn update_url_allowed(url: &reqwest::Url) -> bool {
+    #[cfg(feature = "update-proof")]
+    if crate::selftest::proof_origin().is_some_and(|origin| proof::admits(origin, url)) {
+        return true;
+    }
     url.scheme() == "https"
         && url.port_or_known_default() == Some(443)
         && url.username().is_empty()
@@ -130,9 +214,20 @@ pub fn update_url_allowed(url: &reqwest::Url) -> bool {
 }
 
 /// Our Worker serves bytes itself. GitHub's asset redirects belong only to
-/// the fallback: neither route may redirect into the other.
+/// the fallback: neither route may redirect into the other. An update proof's
+/// stand-in serves its own bytes too: nothing redirects from it or into it.
 #[cfg(all(desktop, feature = "updater"))]
 pub fn update_redirect_allowed(previous: &[reqwest::Url], next: &reqwest::Url) -> bool {
+    #[cfg(feature = "update-proof")]
+    if let Some(origin) = crate::selftest::proof_origin() {
+        if previous
+            .iter()
+            .chain(std::iter::once(next))
+            .any(|hop| proof::on(origin, hop))
+        {
+            return false;
+        }
+    }
     previous
         .first()
         .is_some_and(|first| first.host_str() != Some("updates.proscenium.ink"))
@@ -214,6 +309,127 @@ mod tests {
             &own
         ));
         assert!(update_redirect_allowed(&[github], &asset));
+    }
+
+    /// The stand-in's addresses, as an update proof's copy would ask them.
+    const STAND_IN: [&str; 4] = [
+        "http://127.0.0.1:8787/v1/darwin/aarch64/1.0.0",
+        "http://127.0.0.1:8787/v1/beta/darwin/aarch64/1.0.0",
+        "http://127.0.0.1:8787/v1/download/v1.0.1/Proscenium_1.0.1_universal.app.tar.gz",
+        "http://[::1]:8787/v1/darwin/aarch64/1.0.0",
+    ];
+
+    #[test]
+    fn a_proof_origin_is_a_loopback_address_and_a_port() {
+        for given in [
+            "http://127.0.0.1:8787",
+            "http://127.0.0.1:8787/",
+            "http://[::1]:8787",
+        ] {
+            assert!(proof::loopback_origin(given).is_some(), "{given}");
+        }
+        for given in [
+            "",
+            "127.0.0.1:8787",
+            "https://127.0.0.1:8787",
+            "https://updates.proscenium.ink",
+            "http://updates.proscenium.ink:8787",
+            "http://localhost:8787",
+            "http://127.0.0.2:8787",
+            "http://127.0.0.1.example.org:8787",
+            "http://127.0.0.1",
+            "http://127.0.0.1:80",
+            "http://user@127.0.0.1:8787",
+            "http://127.0.0.1:8787/v1/",
+            "http://127.0.0.1:8787/?a=b",
+            "http://127.0.0.1:8787/#here",
+        ] {
+            assert!(proof::loopback_origin(given).is_none(), "{given}");
+        }
+    }
+
+    #[test]
+    fn a_proof_origin_admits_the_service_routes_on_it_and_nothing_else() {
+        let origin = proof::loopback_origin("http://127.0.0.1:8787").unwrap();
+        let parse = |s: &str| reqwest::Url::parse(s).unwrap();
+        for address in &STAND_IN[..3] {
+            assert!(proof::admits(&origin, &parse(address)), "{address}");
+        }
+        for address in [
+            STAND_IN[3],
+            "http://127.0.0.1:8788/v1/darwin/aarch64/1.0.0",
+            "https://127.0.0.1:8787/v1/darwin/aarch64/1.0.0",
+            "http://127.0.0.1:8787/admin",
+            "http://127.0.0.1:8787/v1/x?address=secret",
+            "http://127.0.0.1:8787/v1/x#here",
+            "http://user@127.0.0.1:8787/v1/x",
+            "https://updates.proscenium.ink/v1/darwin/aarch64/1.0.0",
+        ] {
+            assert!(!proof::admits(&origin, &parse(address)), "{address}");
+        }
+    }
+
+    /// What the updater plugin reads, pointed at a stand-in: one address, on
+    /// the stand-in, plain HTTP allowed, and the build's own key.
+    #[cfg(all(desktop, feature = "updater"))]
+    #[test]
+    fn a_stand_in_is_the_updater_s_one_address_and_the_key_stays() {
+        let origin = proof::loopback_origin("http://127.0.0.1:8787").unwrap();
+        let mut updater = conf("tauri.conf.json")["plugins"]["updater"]
+            .as_object()
+            .unwrap()
+            .clone();
+        let key = updater["pubkey"].clone();
+        let endpoint = proof::point_updater(&mut updater, &origin);
+        assert_eq!(
+            endpoint,
+            "http://127.0.0.1:8787/v1/{{target}}/{{arch}}/{{current_version}}"
+        );
+        assert_eq!(updater["pubkey"], key);
+        let read: tauri_plugin_updater::Config =
+            serde_json::from_value(Value::Object(updater)).unwrap();
+        assert!(read.dangerous_insecure_transport_protocol);
+        assert_eq!(read.endpoints.len(), 1, "no fallback beside the stand-in");
+        assert!(proof::admits(&origin, &read.endpoints[0]));
+    }
+
+    /// The default build, every release among them, takes no update address at
+    /// launch. The test runs itself again as an update proof's copy is started,
+    /// its variables set from the first instruction, and there the stand-in is
+    /// refused: no route, no download and no redirect.
+    #[cfg(all(desktop, feature = "updater", not(feature = "update-proof")))]
+    #[test]
+    fn only_an_update_proof_build_takes_an_address_at_launch() {
+        const NAME: &str =
+            "telemetry::allowlist::tests::only_an_update_proof_build_takes_an_address_at_launch";
+        if std::env::var_os(proof::ORIGIN_VAR).is_none() {
+            let run = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([NAME, "--exact", "--test-threads=1", "--nocapture"])
+                .env(proof::ORIGIN_VAR, "http://127.0.0.1:8787")
+                .env(
+                    "PROSCENIUM_UPDATE_PROOF",
+                    std::env::temp_dir().join("proscenium-no-proof.log"),
+                )
+                .env("PROSCENIUM_UPDATE_PROOF_LINE", "Proof line")
+                .output()
+                .unwrap();
+            let said = String::from_utf8_lossy(&run.stdout);
+            assert!(run.status.success(), "{said}");
+            // A filter that matched nothing would pass as well.
+            assert!(
+                said.contains("1 passed"),
+                "the test did not run again: {said}"
+            );
+            return;
+        }
+        let parse = |s: &str| reqwest::Url::parse(s).unwrap();
+        for address in STAND_IN {
+            assert!(!update_url_allowed(&parse(address)), "{address}");
+        }
+        assert!(!update_redirect_allowed(
+            &[parse(STAND_IN[0])],
+            &parse(STAND_IN[2])
+        ));
     }
 
     #[test]

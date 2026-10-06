@@ -459,6 +459,9 @@
     --hover-strong: rgba(31, 41, 51, 0.09);
     --track: rgba(31, 41, 51, 0.07);
     --hue-cream: #e3d9c2;
+    /* Added and cut words on a lit sheet (the redline in Changes). */
+    --ok-text: #3f4e27;
+    --bad: #9c4a2f;
   }
 }
 

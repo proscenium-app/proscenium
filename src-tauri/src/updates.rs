@@ -532,6 +532,18 @@ async fn metadata<R: tauri::Runtime>(
                 } else {
                     update.download_url.host_str() != Some("updates.proscenium.ink")
                 };
+                // An update proof's stand-in serves its own archives, as the
+                // service does, and serves none for another endpoint
+                // (telemetry/allowlist.rs `proof`).
+                #[cfg(feature = "update-proof")]
+                let origin_matches = origin_matches
+                    && match crate::selftest::proof_origin() {
+                        Some(origin) => {
+                            use crate::telemetry::allowlist::proof::on;
+                            on(origin, endpoint) == on(origin, &update.download_url)
+                        }
+                        None => true,
+                    };
                 if origin_matches {
                     return Ok(Some(update));
                 }
@@ -763,6 +775,29 @@ mod tests {
                     "{address}"
                 );
             }
+        }
+        // An update proof's stand-in (telemetry/allowlist.rs `proof`) is the
+        // one address on either track, with no GitHub beside it on stable,
+        // and every address it gives is on the stand-in.
+        let origin =
+            crate::telemetry::allowlist::proof::loopback_origin("http://127.0.0.1:8787").unwrap();
+        let mut updater = serde_json::Map::new();
+        let stand_in = crate::telemetry::allowlist::proof::point_updater(&mut updater, &origin);
+        for (track, version, segment) in [
+            (UpdateTrack::Stable, "1.0.0", ""),
+            (UpdateTrack::Beta, "1.0.0", "beta/"),
+        ] {
+            let asked = endpoints_for(&[stand_in.as_str()], track, version).unwrap();
+            assert_eq!(
+                asked,
+                vec![format!(
+                    "http://127.0.0.1:8787/v1/{segment}{{{{target}}}}/{{{{arch}}}}/{version}"
+                )]
+            );
+            assert!(crate::telemetry::allowlist::proof::admits(
+                &origin,
+                &reqwest::Url::parse(&asked[0]).unwrap()
+            ));
         }
         assert_eq!(endpoints_for(&[], UpdateTrack::Stable, "1.0.0"), None);
         assert_eq!(

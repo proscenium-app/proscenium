@@ -48,6 +48,7 @@ import {
   type ChangesStore,
   type LedgerEntry,
   type TrackedMarks,
+  type HistoryDoc,
 } from "../review";
 import {
   castFromBinder,
@@ -73,7 +74,7 @@ import {
 } from "../fountain";
 import type { FormatSpec } from "../format";
 import { useFormatRegistry } from "./formats/use-formats";
-import { settingsStore } from "./settings/store";
+import { settingsStore } from "../ui/settings-store";
 import {
   paginateDoc,
   scenePageMap,
@@ -85,7 +86,7 @@ import { pdfExported } from "../diagnostics";
 import { revalidateFiles } from "../storage/revalidate";
 import { watcherHealth } from "../storage/ipc";
 import { copyPractice } from "../tutorial/copy-practice";
-import { ulid } from "../workspace/ulid";
+import { ulid } from "../storage/ulid";
 import { tutorials, type ExportFileType, type PracticeSource } from "../storage/ipc";
 import { anonymousFrontMatter, anonymousMeta } from "../pdf/anonymous";
 import { pageRangeLabel, type FrontSheet } from "../pdf/plan";
@@ -97,7 +98,7 @@ import {
   KEPT_AT_QUIT,
   NO_FILE_YET,
   RecoverySnapshots,
-  SnapshotPolicy,
+  WritingVersions,
   decodeKeptAtQuit,
   encodeKeptAtQuit,
   keptAtQuitMessage,
@@ -354,7 +355,7 @@ function scheduleThrottled(
   }, delayMs);
 }
 
-/** What the Versions panel works on: a script, a sheet, or the outline note. */
+/** A document's versions, for Changes: a script, a sheet, or the outline note. */
 export interface VersionsTarget {
   title: string;
   list: () => Promise<VersionEntry[]>;
@@ -554,6 +555,18 @@ export interface Workspace {
   restoreVersion: (name: string) => Promise<boolean>;
   /** The script as it stands, serialized — the live side of a version compare. */
   currentScriptText: () => string;
+  /** Every document of the play that has versions, with them: the writer's half of Changes (docs/app/keeping-work/storage-and-file-format.md#STOR-119). */
+  historyDocs: () => Promise<HistoryDoc[]>;
+  /** The binder id of the script in the editor, or null. */
+  activeScriptId: () => string | null;
+  /** One version of any document of the play. */
+  readHistoryVersion: (docId: string, name: string) => Promise<string>;
+  /**
+   * What Changes can do with a document's versions: its words as they stand,
+   * and a restore through that document's guarded write. Null while it is not
+   * open — a restore writes through the open session, so it is opened first.
+   */
+  historyTarget: (docId: string) => Pick<VersionsTarget, "current" | "restore"> | null;
   // corkboard / outliner
   view: ScriptView;
   cards: SceneCard[];
@@ -861,6 +874,7 @@ export function useWorkspace(): Workspace {
     setError: (error) => setError(error),
     setPreserved: (update) => setPreserved(update),
     saveLanded: (key) => saveLanded(key),
+    keepWritingVersion: (id, content, ext, before) => keepWritingVersion(id, content, ext, before),
     saveRefused: (key, error, subject) => saveRefused(key, error, subject),
     saveSubject: (kind, path) => saveSubject(kind, path),
     refusalFor: (key) => refusedRef.current.get(key),
@@ -914,6 +928,7 @@ export function useWorkspace(): Workspace {
     setError: (error) => setError(error),
     setPreserved: (update) => setPreserved(update),
     saveLanded: (key) => saveLanded(key),
+    keepWritingVersion: (id, content, ext, before) => keepWritingVersion(id, content, ext, before),
     saveRefused: (key, error, subject) => saveRefused(key, error, subject),
     saveSubject: (kind, path) => saveSubject(kind, path),
     runBinderOp: (operation) => runBinderOp(operation),
@@ -1042,9 +1057,23 @@ export function useWorkspace(): Workspace {
   if (!autosaveRef.current) {
     autosaveRef.current = new AutosaveScheduler(DEFAULT_AUTOSAVE, () => flushRef.current());
   }
-  // Version cadence (docs/app/keeping-work/storage-and-file-format.md#STOR-D10): bucketed save snapshots.
-  const snapshotPolicyRef = useRef<SnapshotPolicy | null>(null);
-  if (!snapshotPolicyRef.current) snapshotPolicyRef.current = new SnapshotPolicy();
+  // Version cadence (docs/app/keeping-work/storage-and-file-format.md#STOR-115): bucketed
+  // save snapshots, and one when the saves go quiet — of a script, a sheet or outline notes.
+  // One keeper for the app's life: each held version carries the play it was written in.
+  const writingVersionsRef = useRef<WritingVersions | null>(null);
+  if (!writingVersionsRef.current)
+    writingVersionsRef.current = new WritingVersions((playId, id, content, ext) =>
+      versions.snapshot(playId, id, "save", content, ext).catch(() => null),
+    );
+  const keepWritingVersion = useCallback(
+    (id: string, content: string, ext: string, before?: string) => {
+      const playId = playIdRef.current;
+      if (playId) writingVersionsRef.current?.landed(playId, id, content, ext, before);
+    },
+    [],
+  );
+  /** What the open script's file holds, as far as this window knows: a save's `before`. */
+  const scriptOnDiskRef = useRef<string | null>(null);
   // Recovery snapshots (docs/app/keeping-work/storage-and-file-format.md#STOR-D10, docs/app/keeping-work/storage-and-file-format.md#STOR-D13): the open script's unsaved words, in
   // app data every few seconds while autosave has not landed them.
   const recoveryRef = useRef<RecoverySnapshots | null>(null);
@@ -1265,6 +1294,7 @@ export function useWorkspace(): Workspace {
    */
   const applyLoaded = useCallback(
     (path: string, content: string) => {
+      scriptOnDiskRef.current = content;
       // What the writer is about to look at becomes the review baseline, so a
       // later change from outside can be diffed and undone.
       void changesRef.current?.writeBaseline(path, content);
@@ -1392,6 +1422,7 @@ export function useWorkspace(): Workspace {
         setStatus("saving");
         try {
           let content = serialize({ frontMatter: frontMatterRef.current, doc });
+          const onDiskBefore = scriptOnDiskRef.current ?? undefined;
           // Events arriving from here until onSaved are deferred, not decided
           // (a watcher event can outrun the write's promise, and our own bytes are not an edit from outside).
           let carried = session.beginWrite();
@@ -1419,10 +1450,9 @@ export function useWorkspace(): Workspace {
               void recoveryRef.current?.saved({ playId, scriptId: sid });
             }
             // Bucketed version of exactly what landed (docs/app/keeping-work/storage-and-file-format.md#STOR-D10).
-            if (sid && playId && snapshotPolicyRef.current?.shouldSnapshot(sid)) {
-              snapshotPolicyRef.current.record(sid);
-              void versions.snapshot(playId, sid, "save", content).catch(() => null);
-            }
+            if (sid && playId)
+              writingVersionsRef.current?.landed(playId, sid, content, "fountain", onDiskBefore);
+            if (stillOpen()) scriptOnDiskRef.current = content;
             if (!stillOpen()) continue;
             if (session.dirty) {
               // Typed mid-write: those keystrokes are not in what landed.
@@ -1735,7 +1765,7 @@ export function useWorkspace(): Workspace {
       const vaultPath = current.path;
 
       // The swap. Nothing is awaited from here until the session is in place.
-      snapshotPolicyRef.current?.reset(current.id); // first save of a session snapshots
+      writingVersionsRef.current?.reset(current.id); // first save of a session snapshots
       scriptPathRef.current = vaultPath;
       setScriptPathState(vaultPath);
       activeScriptIdRef.current = current.id;
@@ -1924,6 +1954,40 @@ export function useWorkspace(): Workspace {
     const doc = docRef.current;
     if (!doc) return "";
     return serialize({ frontMatter: frontMatterRef.current, doc });
+  }, []);
+
+  const historyDocs = useCallback(async (): Promise<HistoryDoc[]> => {
+    const playId = playIdRef.current;
+    if (!playId) return [];
+    const items = flatten(playRef.current?.data.binder ?? []).filter(
+      (it) =>
+        it.type === "script" ||
+        it.type === "character" ||
+        it.type === "document" ||
+        it.type === "outline",
+    );
+    const lists = await Promise.all(
+      items.map((it) => versions.list(playId, it.id).catch((): VersionEntry[] => [])),
+    );
+    return items
+      .map(
+        (it, i): HistoryDoc => ({
+          id: it.id,
+          title: titleOf(it),
+          path: it.path,
+          kind: it.type === "script" ? "script" : it.type === "outline" ? "outline" : "sheet",
+          versions: lists[i]!,
+        }),
+      )
+      .filter((doc) => doc.versions.length > 0);
+  }, []);
+
+  const activeScriptId = useCallback(() => activeScriptIdRef.current, []);
+
+  const readHistoryVersion = useCallback(async (docId: string, name: string) => {
+    const playId = playIdRef.current;
+    if (!playId) throw new Error("no play open");
+    return versions.read(playId, docId, name);
   }, []);
 
   // --- leave the open workspace safely ---
@@ -2171,7 +2235,8 @@ export function useWorkspace(): Workspace {
       // Versions and Changes are addressed by play id in app data (docs/app/keeping-work/storage-and-file-format.md#STOR-D10).
       const changes = openChanges(play.id);
       changesRef.current = changes;
-      snapshotPolicyRef.current = new SnapshotPolicy();
+      // A new play: what the last one's quiet saves held is kept now, under its own id.
+      writingVersionsRef.current?.flush();
       // Words the last quit kept in Versions because they could not be saved:
       // said the first time the play is open again, once its script has opened
       // (quit-note.ts, `sayQuitNote`). A note nobody can read is removed.
@@ -4218,6 +4283,21 @@ export function useWorkspace(): Workspace {
     [applyScriptText, snapshotBuffer],
   );
 
+  const historyTarget = useCallback(
+    (docId: string): Pick<VersionsTarget, "current" | "restore"> | null => {
+      if (docId === activeScriptIdRef.current)
+        return {
+          current: currentScriptText,
+          // Checked when pressed, not when drawn: another script may be in
+          // the editor by then, and this version is not one of its own.
+          restore: async (name) =>
+            activeScriptIdRef.current === docId ? restoreVersion(name) : false,
+        };
+      return versionsOf(docId);
+    },
+    [versionsOf, currentScriptText, restoreVersion],
+  );
+
   /**
    * The play as pages, for the export dialog to show before anything is
    * written. Deliberately the same paginator call `exportScriptPdf` makes
@@ -4376,6 +4456,10 @@ export function useWorkspace(): Workspace {
        * — a start-up scan, a return to the app — records nothing (record.ts).
        */
       if (changes && e.hash !== null && isReviewable(e.relPath)) {
+        // When it was heard, not when its read came back: every version kept
+        // in reaction to it is stamped later, so the two have one order
+        // (review/timeline.ts counts on it).
+        const heardIso = new Date().toISOString();
         void (async () => {
           try {
             const fresh = await vault.read(e.relPath);
@@ -4383,7 +4467,7 @@ export function useWorkspace(): Workspace {
               path: e.relPath,
               after: fresh.content,
               afterHash: fresh.hash,
-              nowIso: new Date().toISOString(),
+              nowIso: heardIso,
             });
             if (entry && gen === workspaceGenRef.current) setLedger((prev) => [...prev, entry]);
           } catch {
@@ -4941,6 +5025,10 @@ export function useWorkspace(): Workspace {
     recoverOffer,
     discardOffer: () => void discardOffer(),
     versionsOf,
+    historyDocs,
+    activeScriptId,
+    readHistoryVersion,
+    historyTarget,
     outlineNoteId: outlineNotePath ? (outline.record()?.id ?? null) : null,
     listVersions,
     readVersion,

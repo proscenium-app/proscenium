@@ -28,10 +28,15 @@
  *   bun run smoke -- --engine webkit  # one engine only (chromium or webkit)
  *   SMOKE_TIME_SCALE=3 bun run smoke  # a slow host: every wait may take three times as long
  *   bun run smoke -- --serial       # the engines one after the other, not side by side
- *   bun run smoke -- --only import,spell  # a narrowed pass: leaves out the detachable
- *                                   # features' checks not named (smoke-checks.mjs)
+ *   bun run smoke -- --acts editor,spelling  # named acts only (smoke-checks.mjs ACTS)
+ *   bun run smoke -- --features spell  # the opening act and spell's acts; a run's plan first adds
+ *                                      # every feature that uses spell (ci-plan.mjs explain names its acts)
+ *   bun run smoke -- --order reverse  # another order: reverse, or shuffle:<seed>
+ *   bun run smoke -- --no-retry     # a failed act is not run again from its start
+ *   bun run smoke -- --quarantine <file>  # the build host's quarantine: reported, not failing
  *   bun run smoke -- --update-aria  # rewrite scripts/aria/*.yml from this run
  *   bun run smoke -- --timing <file>  # each check's time, per pass, as JSON
+ *   node scripts/smoke.mjs --prove "<check>" …  # prove a new or changed check (below)
  *
  * **Behaviour once, the look in both schemes.** One pass per engine runs every
  * check, in the light scheme. At each surface a check audits, the page is
@@ -72,23 +77,47 @@
  * script, style or fetch the policy would block in the app is blocked, and
  * reported, here; and every request the page makes to anywhere but this server
  * is stopped and fails the run.
+ *
+ * **A new or changed check is proven before it lands** (scripts/smoke-proofs.mjs).
+ * `--prove` runs the act of each check named 60 times in each engine, never a
+ * second try: ten runs with every core of the host kept busy, five with the
+ * page's clock a day ahead and five a year ahead, the rest as a pass runs. A
+ * check that passed every run is written to scripts/smoke-proofs.json with its
+ * source's hash and the hash of every snapshot it held.
  */
 import { chromium, webkit } from "playwright";
+import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { availableParallelism } from "node:os";
 import { dirname, extname, join, normalize as normalizePath } from "node:path";
 import {
+  ACTS,
   AUDIT_TAGS,
+  SETTLE_TIMEOUT_MS,
   TIME_SCALE,
+  actNamed,
+  actsFor,
+  actsOf,
+  pageSettles,
   recordAudit,
   runAxe,
-  selected,
   smokeChecks,
+  startOf,
 } from "./smoke-checks.mjs";
 import { SurfaceNames, firstDifference, forSurface, normalize } from "./aria-snapshots.mjs";
 import { holdHostBench } from "./host-bench.mjs";
+import {
+  PROOF_CLOCKS,
+  PROOF_LOADED,
+  PROOF_RUNS,
+  PROOFS,
+  checkHash,
+  readProofs,
+  textHash,
+} from "./smoke-proofs.mjs";
 
 const STARTED = Date.now();
 const DIST = new URL("../dist/", import.meta.url).pathname;
@@ -102,12 +131,71 @@ const SHOTS = process.argv.includes("--shots=all")
     : null;
 const UPDATE_ARIA = process.argv.includes("--update-aria");
 const ONE_ENGINE = argValue("--engine");
-/** The features a narrowed pass keeps (smoke-checks.mjs `selected`); none, every check. */
-const ONLY = (argValue("--only") ?? "").split(/[,\s]+/).filter(Boolean);
+/** The checks `--prove` names: every argument after it up to the next option. */
+const PROVE = (() => {
+  const at = process.argv.indexOf("--prove");
+  if (at < 0) return null;
+  const names = [];
+  for (const a of process.argv.slice(at + 1)) {
+    if (a.startsWith("--")) break;
+    names.push(a);
+  }
+  const unknown = names.filter((n) => !ACTS.some((a) => a.checks.includes(n)));
+  if (!names.length || unknown.length) {
+    console.error(
+      names.length
+        ? `smoke: no check is named ${unknown.map((n) => JSON.stringify(n)).join(", ")}`
+        : "smoke: --prove names the checks it proves",
+    );
+    process.exit(2);
+  }
+  for (const other of [
+    "--acts",
+    "--features",
+    "--order",
+    "--update-aria",
+    "--engine",
+    "--quarantine",
+  ])
+    if (process.argv.includes(other)) {
+      console.error(`smoke: --prove runs its checks' acts in both engines, alone; drop ${other}`);
+      process.exit(2);
+    }
+  return names;
+})();
+/**
+ * The acts to run (smoke-checks.mjs ACTS), by name, comma-separated; none is
+ * every act. `--features a,b` chooses the opening act and every act of those
+ * features; a run's plan first adds every feature that uses them, so its acts
+ * are what `node scripts/ci-plan.mjs explain` names.
+ */
+const ACT_NAMES = (() => {
+  const named = (argValue("--acts") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const features = (argValue("--features") ?? "").split(/[,\s]+/).filter(Boolean);
+  if (named.length && features.length) {
+    console.error("smoke: --acts or --features, not both");
+    process.exit(2);
+  }
+  if (PROVE) return [...new Set(PROVE.map((c) => ACTS.find((a) => a.checks.includes(c)).name))];
+  if (features.length) return actsFor(features);
+  for (const n of named) actNamed(n);
+  return named;
+})();
+/** The acts' order: as named, `reverse`, or `shuffle:<seed>`, as the proof that each act stands on its own start runs them. */
+const ORDER = argValue("--order");
+/** Acts run at once in each engine: each has a browser context of its own. */
+const WORKERS = UPDATE_ARIA ? 1 : Math.max(1, Number(argValue("--workers") ?? 3));
+/** An act with a failing check runs once more from its start; a check green then is a flake. */
+const RETRY = !process.argv.includes("--no-retry") && !PROVE;
+/** The build host's quarantine, checks whose failure already has an owner: they run and are reported, and fail nothing. Never on a tag's run. */
+const QUARANTINE = argValue("--quarantine");
 const TIMING = argValue("--timing");
-if (ONLY.length && UPDATE_ARIA) {
+if (ACT_NAMES.length && UPDATE_ARIA) {
   console.error(
-    "smoke: --update-aria writes every surface's snapshot, so it runs every check; drop --only",
+    "smoke: --update-aria writes every surface's snapshot, so it runs every act; drop --acts",
   );
   process.exit(2);
 }
@@ -229,6 +317,10 @@ function newPass(engine) {
   };
 }
 
+/** The next frame the page draws. */
+const nextFrame = (page) =>
+  page.evaluate(() => new Promise((done) => requestAnimationFrame(() => done())));
+
 /**
  * The page in the other scheme for `fn`, then back. The app follows the
  * scheme through a matchMedia listener (src/ui/use-accent.ts) when its
@@ -246,15 +338,10 @@ async function inScheme(P, page, scheme, fn) {
       want,
       { timeout: 5000 },
     );
-    // Two frames, so the new colours are drawn before anything reads them;
-    // never longer than a quarter second, should a frame not come.
-    await page.evaluate(
-      () =>
-        new Promise((r) => {
-          requestAnimationFrame(() => requestAnimationFrame(r));
-          setTimeout(r, 250);
-        }),
-    );
+    // Two frames, so the new colours are drawn before anything reads them.
+    // What they set moving is the audit gate's to wait for (settled, below).
+    await nextFrame(page);
+    await nextFrame(page);
   };
   await settle(scheme);
   Object.assign(P, { scheme, names: P.darkNames });
@@ -269,6 +356,66 @@ async function inScheme(P, page, scheme, fn) {
 const heldFiles = new Set();
 
 /**
+ * The tree a surface is held to: Playwright's ARIA snapshot of the page. A
+ * toast is on screen for as long as its timer says, and its words were already
+ * said through the announcer: it is timing, not the surface, and is left out.
+ */
+async function surfaceTree(page) {
+  await page.evaluate(() =>
+    document
+      .querySelectorAll(".toast")
+      .forEach(
+        (t) =>
+          t.setAttribute("data-smoke-hidden", t.getAttribute("aria-hidden") ?? "") ||
+          t.setAttribute("aria-hidden", "true"),
+      ),
+  );
+  try {
+    return forSurface(await page.locator("body").ariaSnapshot());
+  } finally {
+    await page.evaluate(() =>
+      document.querySelectorAll("[data-smoke-hidden]").forEach((t) => {
+        const was = t.getAttribute("data-smoke-hidden");
+        if (was) t.setAttribute("aria-hidden", was);
+        else t.removeAttribute("aria-hidden");
+        t.removeAttribute("data-smoke-hidden");
+      }),
+    );
+  }
+}
+
+/**
+ * The audit gate: the page has settled before axe reads it and its tree is
+ * held. Its fonts are loaded and no animation that will end is still running
+ * (pageSettles, which lets one that never ends, a spinner, run on: runAxe holds
+ * it at its end while axe reads), and two readings of its tree, a frame apart,
+ * are the same. It waits for exactly that, never for a time, and says what
+ * never settled as a finding of the check, rather than audit a page in motion.
+ */
+async function settled(P, page, label) {
+  const timeout = SETTLE_TIMEOUT_MS * TIME_SCALE;
+  const deadline = Date.now() + timeout;
+  try {
+    await page.evaluate(pageSettles, timeout);
+    let last = await surfaceTree(page);
+    for (;;) {
+      await nextFrame(page);
+      const now = await surfaceTree(page);
+      if (now === last) return;
+      if (Date.now() > deadline)
+        throw new Error(
+          `its tree still changing after ${timeout}ms, ${firstDifference(last, now)}`,
+        );
+      last = now;
+      // What changed the tree may have started an animation: let it land too.
+      await page.evaluate(pageSettles, Math.max(1, deadline - Date.now()));
+    }
+  } catch (e) {
+    P.audits.findings.push(`${label} · the page never settled for its audit: ${e.message}`);
+  }
+}
+
+/**
  * The surface's ARIA snapshot against scripts/aria/<name>.yml, or against
  * <name>.<engine>.yml where one engine honestly reads a surface otherwise.
  * `--update-aria` writes the file from the first pass that meets the surface,
@@ -281,36 +428,19 @@ async function holdSnapshot(P, page, surface) {
   // surface; WebKit runs every check, axe and the checks that hold the tree
   // (hold, below), and the native self-test holds WebKit's own tree.
   if (P.engine !== ENGINE_ORDER[0]) return P.names.next(surface);
-  // A toast is on screen for as long as its timer says, and its words were
-  // already said through the announcer: it is timing, not the surface.
-  const take = async () => {
-    await page.evaluate(() =>
-      document
-        .querySelectorAll(".toast")
-        .forEach(
-          (t) =>
-            t.setAttribute("data-smoke-hidden", t.getAttribute("aria-hidden") ?? "") ||
-            t.setAttribute("aria-hidden", "true"),
-        ),
-    );
-    try {
-      return forSurface(await page.locator("body").ariaSnapshot());
-    } finally {
-      await page.evaluate(() =>
-        document.querySelectorAll("[data-smoke-hidden]").forEach((t) => {
-          const was = t.getAttribute("data-smoke-hidden");
-          if (was) t.setAttribute("aria-hidden", was);
-          else t.removeAttribute("aria-hidden");
-          t.removeAttribute("data-smoke-hidden");
-        }),
-      );
-    }
-  };
-  await holdText(P, surface, await take(), take);
+  await holdText(P, surface, await surfaceTree(page), async () => {
+    await nextFrame(page);
+    return surfaceTree(page);
+  });
 }
 
-/** How long a snapshot that differs is read again before it fails, as Playwright's toMatchAriaSnapshot waits. */
-const SETTLE_MS = 3000;
+/**
+ * How long a snapshot that differs is read again, a frame at a time, before it
+ * fails, as Playwright's toMatchAriaSnapshot reads until it matches: a page
+ * settled for its audit can still take a change a moment later (an
+ * announcement made on a timer), which the expectation was recorded after.
+ */
+const MATCH_MS = 3000;
 
 async function holdText(P, surface, actual, retake) {
   const name = P.names.next(surface);
@@ -331,7 +461,11 @@ async function holdText(P, surface, actual, retake) {
     .filter(Boolean)
     .map((f) => join(ARIA, f));
   const read = (f) => (existsSync(f) ? normalize(readFileSync(f, "utf8")) : null);
-  const held = (f) => heldFiles.add(f.slice(ARIA.length));
+  const held = (f) => {
+    heldFiles.add(f.slice(ARIA.length));
+    if (!heldBy.has(P.runningCheck)) heldBy.set(P.runningCheck, new Set());
+    heldBy.get(P.runningCheck).add(f.slice(ARIA.length));
+  };
   if (UPDATE_ARIA) {
     const [own, ...wider] = candidates;
     const inherited = wider.find(existsSync);
@@ -351,12 +485,11 @@ async function holdText(P, surface, actual, retake) {
   held(file);
   const expected = read(file);
   // Still settling (an announcement, a hover, a pane finishing its render):
-  // read again until it matches or the settle time is up.
+  // read again, each frame, until it matches or the time to match is up.
   for (
-    const until = Date.now() + SETTLE_MS;
+    const until = Date.now() + MATCH_MS;
     expected !== null && expected !== actual && retake && Date.now() < until;
   ) {
-    await new Promise((r) => setTimeout(r, 250));
     actual = await retake();
   }
   if (expected === actual) return;
@@ -370,6 +503,8 @@ async function holdText(P, surface, actual, retake) {
   );
 }
 const writtenNow = new Set();
+/** The snapshot files each check held, for a proof. */
+const heldBy = new Map();
 
 /** The driver a pass hands its checks: `audit` in both schemes, `hold` as the page is. */
 function driverFor(P) {
@@ -377,6 +512,7 @@ function driverFor(P) {
     async audit(page, surface) {
       if (!(await page.evaluate(() => "axe" in window))) await page.addScriptTag({ url: AXE_PATH });
       const look = async (label) => {
+        await settled(P, page, label);
         recordAudit(await page.evaluate(runAxe, AUDIT_TAGS), label, P.audits);
         await holdSnapshot(P, page, surface);
         if (SHOTS && surface.startsWith("Send Feedback")) {
@@ -396,10 +532,61 @@ function driverFor(P) {
   };
 }
 
-const ALL_CHECKS = smokeChecks(driverFor(newPass(""))).length;
+/**
+ * Every failing check, each engine's, for the pipeline's triage: only a
+ * check that failed is named here (scripts/ci-triage.mjs). Screenshots are
+ * evidence; some are taken of surfaces that passed. Flakes (a check that
+ * failed once, in an act that then passed from its start) and quarantined
+ * checks are named apart: neither fails the run.
+ */
+const failedChecks = [];
+const flakes = [];
+const quarantinedFailures = [];
 /** Which check audited each surface, so a surface two checks audit is caught (below). */
 const surfaceChecks = new Map();
-const timing = { passes: [] };
+const timing = { acts: [] };
+
+/** The checks the quarantine holds, when this run takes it. */
+const quarantined = (() => {
+  if (!QUARANTINE || !existsSync(QUARANTINE)) return new Set();
+  try {
+    const now = Date.now();
+    return new Set(
+      (JSON.parse(readFileSync(QUARANTINE, "utf8")).checks ?? [])
+        .filter((q) => Date.parse(q.until) > now)
+        .map((q) => q.check),
+    );
+  } catch (e) {
+    console.log(`  smoke: the quarantine could not be read (${e.message}): nothing is quarantined`);
+    return new Set();
+  }
+})();
+
+/** The acts in the order asked for: as named (every act by default), reversed, or shuffled by a seed. */
+function ordered(names) {
+  const list = names.length ? [...names] : ACTS.map((a) => a.name);
+  if (!ORDER) return list;
+  if (ORDER === "reverse") return list.reverse();
+  const m = /^shuffle:(\d+)$/.exec(ORDER);
+  if (!m) {
+    console.error(`smoke: --order is reverse or shuffle:<seed>, not ${ORDER}`);
+    process.exit(2);
+  }
+  // A small, seeded generator: the same seed is the same order, on any host.
+  let seed = Number(m[1]) || 1;
+  const next = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  return list;
+}
+const RUN_ACTS = ordered(ACT_NAMES);
+/** A whole run: every act. Only a whole run may say a snapshot no surface uses is stale. */
+const WHOLE = RUN_ACTS.length === ACTS.length;
 
 // Two browsers' worth of pages: never beside a native self-test on the same host.
 await holdHostBench("smoke");
@@ -407,24 +594,21 @@ const server = await serve();
 const port = server.address().port;
 let failures = 0;
 
-async function runEngine(engine) {
+/**
+ * One act, once: a fresh browser context, the act's start (the opening's
+ * checks, quietly), then its checks. Returns what each check said.
+ */
+async function runAct(browser, engine, name, attempt, { clockMs = 0 } = {}) {
   const P = newPass(engine);
-  const CHECKS = smokeChecks(driverFor(P)).filter((c) => selected(c, ONLY));
-  if (ONLY.length && engine === ENGINE_ORDER[0]) {
-    console.log(
-      `  --only ${ONLY.join(", ")}: ${CHECKS.length} of ${ALL_CHECKS} checks${CHECKS.length === ALL_CHECKS ? " (no other feature's checks are detachable yet)" : ""}`,
-    );
-  }
-  const findings = P.audits.findings;
-  const scheme = P.scheme;
-  const browser = await ENGINES[engine].launch();
+  const act = actsOf(smokeChecks(driverFor(P)), [name])[0];
+  const start = startOf(act, smokeChecks({ audit: async () => {}, hold: async () => {} }));
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
-    colorScheme: scheme,
+    colorScheme: P.scheme,
     deviceScaleFactor: 2,
   });
   // Anything the page asks of any other host is stopped before it leaves this
-  // machine, and fails the run (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D2).
+  // machine, and fails the act (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D2).
   const external = [];
   const local = `http://127.0.0.1:${port}`;
   await context.route(
@@ -435,6 +619,8 @@ async function runEngine(engine) {
       return route.abort();
     },
   );
+  // A proof's run with the page's clock moved: the date ahead, time still flowing.
+  if (clockMs) await context.clock.setSystemTime(Date.now() + clockMs);
   const page = await context.newPage();
   // A slow host's every wait stretched alike (smoke-checks.mjs's TIME_SCALE).
   page.setDefaultTimeout(30000 * TIME_SCALE);
@@ -461,10 +647,11 @@ async function runEngine(engine) {
 
   /* The app's OWN in-memory vault (src/storage/dev-mock.ts), which seeds from
      sample-vault/ — a faithful fixture that 794 unit tests already exercise,
-     rather than a second hand-written one to keep in step. */
+     rather than a second hand-written one to keep in step. A context of its
+     own is a first launch: nothing remembered, an untouched vault. */
   await page.addInitScript(() => {
     window.__PROSCENIUM_FIXTURE__ = true;
-    // Fresh once per run, not once per load: "open at launch" reloads the page
+    // Fresh once per act, not once per load: "open at launch" reloads the page
     // and has to find the settings and the last folder it left behind.
     try {
       if (!sessionStorage.getItem("smoke:fresh")) {
@@ -475,66 +662,265 @@ async function runEngine(engine) {
       /* a fresh profile has nothing to clear */
     }
   });
-  await page.goto(`http://127.0.0.1:${port}/`);
-
-  const passTiming = { engine, scheme: "light+dark", startedAt: Date.now(), ms: 0, checks: [] };
-  timing.passes.push(passTiming);
-  for (const check of CHECKS) {
-    P.runningCheck = check.name;
-    findings.length = 0;
-    Object.assign(waiting, { ms: 0, count: 0 });
-    const started = Date.now();
-    // A check that failed with a menu or sheet up must not take the next one
-    // down with it: close what is open, and only what is open.
-    for (let i = 0; i < 4 && (await page.locator(".menu, .sheet, .alert").count()); i++) {
-      await page.keyboard.press("Escape");
-      await page.waitForTimeout(120);
+  const started = Date.now();
+  const actTiming = { engine, act: name, attempt, startMs: 0, ms: 0, checks: [] };
+  const results = [];
+  try {
+    await page.goto(`http://127.0.0.1:${port}/`);
+    // The act's start: the opening's checks, quietly.
+    for (const check of start) {
+      try {
+        await check.run(page);
+        // Said, and not printed: a check that failed here in a first try and
+        // passes in the second is a flake.
+        results.push({ check: check.name, start: true, quiet: true, ok: true });
+      } catch (e) {
+        results.push({
+          check: check.name,
+          start: true,
+          ok: false,
+          error: `the act's start failed at "${check.name}": ${String(e).split("\n")[0]}`,
+        });
+        return { name, attempt, results, timing: actTiming, page, context };
+      }
     }
-    let failed = false;
-    try {
-      await check.run(page);
-      if (findings.length)
-        throw new Error(`accessibility:\n        ${findings.join("\n        ")}`);
-      console.log(`  ok    ${engine} · ${check.name} (${Date.now() - started} ms)`);
-    } catch (e) {
-      failures++;
-      failed = true;
-      // An accessibility failure lists its findings on the lines below the
-      // first; every other failure is one line.
-      const text = String(e);
-      const shown = text.startsWith("Error: accessibility") ? text : text.split("\n")[0];
-      console.log(
-        `  FAIL  ${engine} · ${check.name} (${Date.now() - started} ms)\n        ${shown}`,
-      );
+    actTiming.startMs = Date.now() - started;
+    for (const check of act.checks) {
+      P.runningCheck = check.name;
+      P.audits.findings.length = 0;
+      Object.assign(waiting, { ms: 0, count: 0 });
+      const t = Date.now();
+      // A check that failed with a menu or sheet up must not take the next one
+      // down with it: close what is open, and only what is open.
+      for (let i = 0; i < 4; i++) {
+        const open = await page.locator(".menu, .sheet, .alert").count();
+        if (!open) break;
+        await page.keyboard.press("Escape");
+        // One layer fewer, or, where the key closed nothing, on to the next press.
+        await page
+          .waitForFunction(
+            (open) => document.querySelectorAll(".menu, .sheet, .alert").length < open,
+            open,
+            { timeout: 1000 },
+          )
+          .catch(() => {});
+      }
+      let error = null;
+      try {
+        await check.run(page);
+        if (P.audits.findings.length)
+          throw new Error(`accessibility:\n        ${P.audits.findings.join("\n        ")}`);
+      } catch (e) {
+        // An accessibility failure lists its findings on the lines below the
+        // first; every other failure is one line.
+        const text = String(e);
+        error = text.startsWith("Error: accessibility") ? text : text.split("\n")[0];
+      }
+      results.push({ check: check.name, ok: !error, error, ms: Date.now() - t });
+      actTiming.checks.push({
+        name: check.name,
+        ms: Date.now() - t,
+        ok: !error,
+        waitMs: waiting.ms,
+        waits: waiting.count,
+      });
+      if (SHOTS === "all" || (SHOTS && error))
+        await page.screenshot({
+          path: shotPath(`${engine}-${P.scheme}`, `${name}-${attempt}-${check.name}`),
+        });
     }
-    passTiming.checks.push({
-      name: check.name,
-      ms: Date.now() - started,
-      ok: !failed,
-      waitMs: waiting.ms,
-      waits: waiting.count,
-    });
-    if (SHOTS === "all" || (SHOTS && failed))
-      await page.screenshot({ path: shotPath(`${engine}-${P.scheme}`, check.name) });
-  }
-  passTiming.ms = Date.now() - passTiming.startedAt;
-
-  if (errors.length) {
-    failures++;
-    console.log(`  FAIL  ${engine} · console\n        ${errors.slice(0, 3).join("\n        ")}`);
-  }
-  if (external.length) {
-    failures++;
-    console.log(
-      `  FAIL  ${engine} · the page reached outside the app\n        ${[...new Set(external)].slice(0, 5).join("\n        ")}`,
+    // The page's own checks, passed quietly too, so that a second try clean of
+    // what the first found makes the first's a flake.
+    results.push(
+      errors.length
+        ? { check: "console", ok: false, error: errors.slice(0, 3).join(" · ") }
+        : { check: "console", quiet: true, ok: true },
     );
-  } else {
-    console.log(`  ok    ${engine} · no request left the app`);
+    results.push(
+      external.length
+        ? {
+            check: "the page reached outside the app",
+            ok: false,
+            error: [...new Set(external)].slice(0, 5).join(" · "),
+          }
+        : { check: "the page reached outside the app", quiet: true, ok: true },
+    );
+  } finally {
+    actTiming.ms = Date.now() - started;
+    timing.acts.push(actTiming);
+    await context.close().catch(() => {});
   }
-  await context.close();
-  await browser.close();
+  return { name, attempt, results, timing: actTiming };
 }
 
+/** Say what an act's attempt found, one line a check. */
+function report(engine, outcome) {
+  for (const r of outcome.results) {
+    if (r.quiet && r.ok) continue;
+    const label = `${engine} · ${outcome.name}${outcome.attempt > 1 ? " (second try)" : ""} · ${r.check}`;
+    if (r.ok) console.log(`  ok    ${label} (${r.ms} ms)`);
+    else console.log(`  FAIL  ${label}${r.ms != null ? ` (${r.ms} ms)` : ""}\n        ${r.error}`);
+  }
+}
+
+async function runEngine(engine) {
+  const browser = await ENGINES[engine].launch();
+  const queue = [...RUN_ACTS];
+  const worker = async () => {
+    for (let name = queue.shift(); name; name = queue.shift()) {
+      let outcome = await runAct(browser, engine, name, 1);
+      report(engine, outcome);
+      const failedFirst = outcome.results.filter((r) => !r.ok);
+      if (failedFirst.length && RETRY) {
+        // Once more from its start, and only the second try counts: a check
+        // that failed in the first and passed in the second is a flake, named
+        // and failing nothing, whatever else the second found (as in the app).
+        const second = await runAct(browser, engine, name, 2);
+        report(engine, second);
+        for (const r of failedFirst)
+          if (second.results.some((x) => x.check === r.check && x.ok))
+            flakes.push({
+              engine,
+              act: name,
+              check: r.check,
+              first: String(r.error).slice(0, 400),
+            });
+        outcome = second;
+      }
+      for (const r of outcome.results.filter((x) => !x.ok)) {
+        const entry = {
+          engine,
+          scheme: "light",
+          act: name,
+          check: r.check,
+          error: String(r.error).slice(0, 2000),
+        };
+        if (quarantined.has(r.check)) quarantinedFailures.push(entry);
+        else {
+          failures++;
+          failedChecks.push(entry);
+        }
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(WORKERS, RUN_ACTS.length) }, worker));
+  await browser.close();
+  console.log(`  ok    ${engine} · the acts ran: ${RUN_ACTS.length}`);
+}
+
+/**
+ * Every core of the host kept busy, for a proof's loaded runs: a child per
+ * core spinning. Returns the function that stops them.
+ */
+function loadHost() {
+  const children = Array.from({ length: availableParallelism() }, () =>
+    spawn(process.execPath, ["-e", "for (;;) {}"], { stdio: "ignore" }),
+  );
+  return () => {
+    for (const c of children) c.kill("SIGKILL");
+  };
+}
+
+/** `--prove`: each check's act, PROOF_RUNS times in each engine; what passed every run is written. */
+async function prove() {
+  const phases = [
+    { label: "loaded", runs: PROOF_LOADED, load: true },
+    ...PROOF_CLOCKS.map((c) => ({ label: `clock ${c.label}`, runs: c.runs, clockMs: c.ms })),
+  ];
+  phases.push({
+    label: "as a pass runs",
+    runs: PROOF_RUNS - phases.reduce((n, p) => n + p.runs, 0),
+  });
+  const passed = new Map(PROVE.map((c) => [c, { chromium: 0, webkit: 0 }]));
+  const failed = [];
+  const browsers = Object.fromEntries(
+    await Promise.all(ENGINE_ORDER.map(async (e) => [e, await ENGINES[e].launch()])),
+  );
+  for (const phase of phases) {
+    const stop = phase.load ? loadHost() : () => {};
+    try {
+      await Promise.all(
+        ENGINE_ORDER.map(async (engine) => {
+          const queue = RUN_ACTS.flatMap((act) => Array.from({ length: phase.runs }, () => act));
+          const worker = async () => {
+            for (let act = queue.shift(); act; act = queue.shift()) {
+              const outcome = await runAct(browsers[engine], engine, act, 1, phase);
+              for (const check of PROVE) {
+                const r = outcome.results.find((x) => x.check === check);
+                // A check its act never reached, a start that failed, failed.
+                const startFailed = outcome.results.find((x) => x.start && !x.ok);
+                if (r?.ok && !startFailed) passed.get(check)[engine]++;
+                else if (ACTS.find((a) => a.name === act).checks.includes(check))
+                  failed.push({
+                    engine,
+                    phase: phase.label,
+                    check,
+                    error: String(r?.error ?? startFailed?.error ?? "never ran").split("\n")[0],
+                  });
+              }
+            }
+          };
+          await Promise.all(Array.from({ length: WORKERS }, worker));
+        }),
+      );
+    } finally {
+      stop();
+    }
+    console.log(
+      `  proof · ${phase.label}: ${PROVE.map((c) => `${c} ${ENGINE_ORDER.map((e) => `${e} ${passed.get(c)[e]}`).join(", ")}`).join(" · ")}`,
+    );
+  }
+  for (const b of Object.values(browsers)) await b.close();
+  server.close();
+
+  const proofs = readProofs(join(ARIA, "..", ".."));
+  const checks = smokeChecks({ audit: async () => {}, hold: async () => {} });
+  const today = new Date().toISOString().slice(0, 10);
+  let unprovenCount = 0;
+  for (const name of PROVE) {
+    const runs = passed.get(name);
+    const mine = failed.filter((f) => f.check === name);
+    if (mine.length || ENGINE_ORDER.some((e) => runs[e] < PROOF_RUNS)) {
+      unprovenCount++;
+      console.log(
+        `  FAIL  not proven: ${name}: ${ENGINE_ORDER.map((e) => `${e} ${runs[e]}/${PROOF_RUNS}`).join(", ")}${mine
+          .slice(0, 5)
+          .map((f) => `\n        ${f.engine} · ${f.phase}: ${f.error}`)
+          .join("")}`,
+      );
+      continue;
+    }
+    const files = [...(heldBy.get(name) ?? [])].sort();
+    proofs.checks[name] = {
+      hash: checkHash(checks.find((c) => c.name === name)),
+      runs,
+      loaded: PROOF_LOADED,
+      clocks: Object.fromEntries(PROOF_CLOCKS.map((c) => [c.label, c.runs])),
+      snapshots: Object.fromEntries(
+        files.map((f) => [f.replace(/\.yml$/, ""), textHash(readFileSync(join(ARIA, f), "utf8"))]),
+      ),
+      provenAt: today,
+    };
+    console.log(
+      `  ok    proven: ${name}: ${ENGINE_ORDER.map((e) => `${e} ${runs[e]}/${PROOF_RUNS}`).join(", ")}${files.length ? `, holding ${files.join(", ")}` : ""}`,
+    );
+  }
+  const file = join(ARIA, "..", "..", PROOFS);
+  const sorted = Object.fromEntries(
+    Object.entries(proofs.checks).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  writeFileSync(file, `${JSON.stringify({ v: 1, checks: sorted }, null, 2)}\n`);
+  console.log(`\n  time: ${Math.round((Date.now() - STARTED) / 1000)} s`);
+  if (unprovenCount) {
+    console.log(`\nsmoke: ${unprovenCount} check${unprovenCount === 1 ? "" : "s"} not proven`);
+    process.exit(1);
+  }
+  console.log(`\nsmoke: proven, written to ${PROOFS}`);
+  process.exit(0);
+}
+
+if (PROVE) await prove();
+if (ACT_NAMES.length || ORDER) console.log(`  acts: ${RUN_ACTS.join(" · ")}`);
 // Side by side, unless the snapshots are being written: WebKit's own files are
 // the ones that differ from what Chromium just wrote.
 if (UPDATE_ARIA || process.argv.includes("--serial")) {
@@ -546,13 +932,22 @@ if (UPDATE_ARIA || process.argv.includes("--serial")) {
 server.close();
 
 // A surface audited by two checks is numbered by the order they ran in, so a
-// pass that leaves one out (--only, a narrowed pipeline run) would hold the
+// pass that leaves one out (--acts, a narrowed pipeline run) would hold the
 // other against the wrong file. One check per surface keeps every pass's
 // numbering the same.
-if (!ONLY.length) {
+if (WHOLE) {
   const shared = [...surfaceChecks].filter(([, checks]) => checks.size > 1);
   if (shared.length) {
     failures++;
+    failedChecks.push({
+      engine: "both",
+      scheme: "light",
+      check: "a surface audited by more than one check",
+      error: shared
+        .map(([b]) => b)
+        .join(", ")
+        .slice(0, 2000),
+    });
     console.log(
       `  FAIL  a surface is audited by more than one check; give each its own name\n        ${shared
         .map(([base, checks]) => `${base}: ${[...checks].join(" · ")}`)
@@ -564,7 +959,7 @@ if (!ONLY.length) {
 // A file no surface was held against is a surface that is gone: it goes, or
 // it fails the run, so the folder never describes screens that no longer exist.
 // Only a run of every engine and every check can say so.
-if (!ONE_ENGINE && !ONLY.length && existsSync(ARIA)) {
+if (!ONE_ENGINE && WHOLE && existsSync(ARIA)) {
   const stale = readdirSync(ARIA).filter((f) => f.endsWith(".yml") && !heldFiles.has(f));
   if (stale.length && UPDATE_ARIA) {
     for (const f of stale) rmSync(join(ARIA, f));
@@ -573,6 +968,12 @@ if (!ONE_ENGINE && !ONLY.length && existsSync(ARIA)) {
     );
   } else if (stale.length) {
     failures++;
+    failedChecks.push({
+      engine: "both",
+      scheme: "light",
+      check: "snapshots no surface uses",
+      error: stale.join(", ").slice(0, 2000),
+    });
     console.log(
       `  FAIL  scripts/aria/ holds snapshots no surface uses (--update-aria removes them)\n        ${stale.join("\n        ")}`,
     );
@@ -590,15 +991,34 @@ if (advisories.size) {
   }
 }
 
+// Written on every run, so an old list never outlives the run that made it.
+mkdirSync(OUT, { recursive: true });
+writeFileSync(
+  join(OUT, "failed.json"),
+  `${JSON.stringify({ v: 2, acts: RUN_ACTS, failed: failedChecks, flakes, quarantined: quarantinedFailures }, null, 2)}\n`,
+);
+
 if (TIMING) {
   mkdirSync(dirname(TIMING), { recursive: true });
-  writeFileSync(TIMING, `${JSON.stringify({ only: ONLY, ...timing }, null, 2)}\n`);
+  writeFileSync(TIMING, `${JSON.stringify({ acts: RUN_ACTS, ...timing }, null, 2)}\n`);
 }
-const waited = (p) => Math.round(p.checks.reduce((n, c) => n + c.waitMs, 0) / 1000);
+const waited = (list) =>
+  Math.round(list.reduce((n, a) => n + a.checks.reduce((m, c) => m + c.waitMs, 0), 0) / 1000);
 timing.wallMs = Date.now() - STARTED;
 console.log(
-  `\n  time: ${Math.round(timing.wallMs / 1000)} s — ${timing.passes.map((p) => `${p.engine} ${Math.round(p.ms / 1000)} s (${waited(p)} s of it waiting for selectors)`).join(" · ")}`,
+  `\n  time: ${Math.round(timing.wallMs / 1000)} s — ${ENGINE_ORDER.map((e) => {
+    const mine = timing.acts.filter((a) => a.engine === e);
+    return `${e} ${mine.length} acts, ${Math.round(mine.reduce((n, a) => n + a.ms, 0) / 1000)} s of act time (${waited(mine)} s of it waiting for selectors)`;
+  }).join(" · ")}`,
 );
+if (flakes.length)
+  console.log(
+    `\n  flakes (failed once, then green from the act's start):\n${flakes.map((f) => `    ${f.engine} · ${f.act} · ${f.check}: ${f.first.split("\n")[0]}`).join("\n")}`,
+  );
+if (quarantinedFailures.length)
+  console.log(
+    `\n  quarantined, and failing (reported, not counted):\n${quarantinedFailures.map((f) => `    ${f.engine} · ${f.act} · ${f.check}`).join("\n")}`,
+  );
 
 if (failures) {
   console.log(`\nsmoke: ${failures} failure${failures === 1 ? "" : "s"}`);

@@ -4,9 +4,19 @@ import { expect, test } from "bun:test";
 import { crashes, parseEnvelope, CRASH_PATH, MAX_CRASH_BODY, type CrashEnv } from "../src/crashes";
 import { forward, type Connect } from "../src/sentry-forward";
 import { REPORTS } from "../src/reports";
+import { admissionList, lists } from "./lists";
 const encoder = new TextEncoder();
 const sample = await Bun.file(new URL("./fixtures/crash.envelope", import.meta.url)).text();
 const now = new Date("2026-09-18T23:00:00Z");
+/** A published beta, and alpha's list, as the pipeline writes them to R2. */
+const { source, objects, cache } = lists(
+  new Map([
+    ["beta/versions.json", JSON.stringify(["1.0.1-beta.1", "1.0.1-beta.2"])],
+    ["alpha/versions.json", JSON.stringify(["1.0.1-alpha.57"])],
+  ]),
+);
+/** The envelope, rebuilt after validation. */
+const parse = (bytes: Uint8Array) => parseEnvelope(bytes, now).bytes;
 const env: CrashEnv = {
   CRASHES_ENABLED: "true",
   CRASH_LIMIT: {
@@ -52,7 +62,7 @@ function request(body: Uint8Array = encoder.encode(sample)): Request {
   });
 }
 test("the real Rust SDK fixture is accepted; native protocol defaults are accepted too", () => {
-  expect(parseEnvelope(encoder.encode(sample), env, now)).toEqual(encoder.encode(sample));
+  expect(parse(encoder.encode(sample))).toEqual(encoder.encode(sample));
   const native = altered((e) => {
     delete e.platform;
     e.exception.values[0].type = "RustPanic";
@@ -60,7 +70,7 @@ test("the real Rust SDK fixture is accepted; native protocol defaults are accept
       { module: "native", function: "proscenium_lib::vault::save", lineno: 12 },
     ];
   });
-  expect(() => parseEnvelope(native, env, now)).not.toThrow();
+  expect(() => parse(native)).not.toThrow();
 });
 test("every message, path, dump, identity, source or metadata extension is refused", () => {
   for (const key of [
@@ -79,22 +89,18 @@ test("every message, path, dump, identity, source or metadata extension is refus
     "fingerprint",
   ])
     expect(() =>
-      parseEnvelope(
+      parse(
         altered((e) => {
           e[key] = "Secret";
         }),
-        env,
-        now,
       ),
     ).toThrow();
   for (const key of ["value", "mechanism", "thread_id"])
     expect(() =>
-      parseEnvelope(
+      parse(
         altered((e) => {
           e.exception.values[0][key] = "Secret";
         }),
-        env,
-        now,
       ),
     ).toThrow();
   for (const key of [
@@ -110,28 +116,28 @@ test("every message, path, dump, identity, source or metadata extension is refus
     "function",
   ])
     expect(() =>
-      parseEnvelope(
+      parse(
         altered((e) => {
           e.exception.values[0].stacktrace.frames[0][key] = "Secret";
         }),
-        env,
-        now,
       ),
     ).toThrow();
   for (const type of ["attachment", "minidump", "transaction", "session"])
     expect(() =>
-      parseEnvelope(encoder.encode(sample.replace('"type":"event"', `"type":"${type}"`)), env, now),
+      parse(encoder.encode(sample.replace('"type":"event"', `"type":"${type}"`))),
     ).toThrow();
-  expect(() => parseEnvelope(encoder.encode(sample + "{}\n"), env, now)).toThrow();
+  expect(() => parse(encoder.encode(sample + "{}\n"))).toThrow();
   for (const change of [
     (e: TestEvent) => e.timestamp++,
-    (e: TestEvent) => (e.release = "4.0.0"),
+    (e: TestEvent) => (e.release = "4.0"),
+    (e: TestEvent) => (e.release = "1.0.1-rc.1"),
+    (e: TestEvent) => (e.release = "/Users/a/1.0.0"),
     (e: TestEvent) => (e.tags.os = "15.6.1"),
     (e: TestEvent) => (e.exception.values[0].type = "Secret"),
     (e: TestEvent) => (e.exception.values[0].stacktrace.frames = []),
     (e: TestEvent) => (e.exception.values[0].stacktrace.frames[0].lineno = -1),
   ])
-    expect(() => parseEnvelope(altered(change), env, now)).toThrow();
+    expect(() => parse(altered(change))).toThrow();
 });
 function connection(status = 200) {
   const chunks: Uint8Array[] = [];
@@ -166,7 +172,13 @@ function connection(status = 200) {
 }
 test("Sentry receives an explicit TLS request with no visitor address or forwarding header", async () => {
   const f = connection();
-  const r = await crashes(request(), env, now, (bytes, dsn) => forward(bytes, dsn, f.connect));
+  const r = await crashes(
+    request(),
+    env,
+    now,
+    (bytes, dsn) => forward(bytes, dsn, f.connect),
+    source,
+  );
   expect(r.status).toBe(204);
   expect(f.destinations).toEqual([
     {
@@ -208,6 +220,7 @@ test("no redirects, arbitrary hosts or project routes can receive a crash", asyn
         env,
         now,
         send,
+        source,
       )
     ).status,
   ).toBe(404);
@@ -226,7 +239,9 @@ test("no redirects, arbitrary hosts or project routes can receive a crash", asyn
     [500, 503],
     [400, 400],
   ])
-    expect((await crashes(request(), env, now, () => Promise.resolve(status))).status).toBe(result);
+    expect((await crashes(request(), env, now, () => Promise.resolve(status), source)).status).toBe(
+      result,
+    );
 });
 test("crashes have unread body caps, consent-independent edge switches and rate limits", async () => {
   let pulls = 0;
@@ -247,10 +262,11 @@ test("crashes have unread body caps, consent-independent edge switches and rate 
       "Content-Length": String(MAX_CRASH_BODY + 1),
     },
   });
-  expect((await crashes(r, env, now, async () => 200)).status).toBe(413);
+  expect((await crashes(r, env, now, async () => 200, source)).status).toBe(413);
   expect(pulls).toBe(0);
   expect(
-    (await crashes(request(), { ...env, CRASHES_ENABLED: "false" }, now, async () => 200)).status,
+    (await crashes(request(), { ...env, CRASHES_ENABLED: "false" }, now, async () => 200, source))
+      .status,
   ).toBe(503);
   expect(
     (
@@ -266,7 +282,38 @@ test("crashes have unread body caps, consent-independent edge switches and rate 
         },
         now,
         async () => 200,
+        source,
       )
     ).status,
   ).toBe(429);
+});
+test("a published beta's crash reaches Sentry with its whole version as its release; an unpublished beta's or an alpha's does not (docs/engineering/services-and-feedback.md#SERV-272)", async () => {
+  const sent: string[] = [];
+  const send = async (bytes: Uint8Array) => {
+    sent.push(JSON.parse(new TextDecoder().decode(bytes).split("\n")[2]).release);
+    return 200;
+  };
+  const report = (release: string) =>
+    crashes(
+      request(
+        altered((e) => {
+          e.release = release;
+        }),
+      ),
+      env,
+      now,
+      send,
+      source,
+    );
+  expect((await report("1.0.1-beta.2")).status).toBe(204);
+  expect((await report("1.0.0")).status).toBe(204);
+  for (const release of ["1.0.1-beta.3", "1.0.1-alpha.57", "1.0.1", "4.0.0"])
+    expect((await report(release)).status, release).toBe(400);
+  // A release the release admitted in R2 is a release's, with no deploy.
+  objects.set("admission.json", admissionList(["1.0.1"]));
+  cache.clear();
+  expect((await report("1.0.1")).status).toBe(204);
+  objects.delete("admission.json");
+  cache.clear();
+  expect(sent).toEqual(["1.0.1-beta.2", "1.0.0", "1.0.1"]);
 });

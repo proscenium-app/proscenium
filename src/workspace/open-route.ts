@@ -25,7 +25,7 @@
 import type { OpenedFacts } from "../storage";
 import { isPlayFileName } from "./play-file";
 import { pathKey, samePath } from "../storage/path-key";
-import { isImportFile } from "../import/formats";
+import { isImportFile } from "../storage/import-files";
 export { samePath } from "../storage/path-key";
 
 export type { OpenedFacts };

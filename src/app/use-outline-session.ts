@@ -54,6 +54,8 @@ interface Host {
   setError: Dispatch<SetStateAction<string | SaveProblem | null>>;
   setPreserved: Dispatch<SetStateAction<string[]>>;
   saveLanded: (key: string) => void;
+  /** A save of the writer's own landed: it may keep a version (docs/app/keeping-work/storage-and-file-format.md#STOR-115). */
+  keepWritingVersion: (id: string, content: string, ext: string, before?: string) => void;
   saveRefused: (key: string, error: VaultWriteError, subject: SaveSubject) => void;
   saveSubject: (kind: SaveSubject["kind"], path: string) => SaveSubject;
   runBinderOp: BinderOperation;
@@ -73,6 +75,7 @@ export function useOutlineSession(binder: BinderItem[], host: Host) {
     setError,
     setPreserved,
     saveLanded,
+    keepWritingVersion,
     saveRefused,
     saveSubject,
     runBinderOp,
@@ -91,6 +94,8 @@ export function useOutlineSession(binder: BinderItem[], host: Host) {
       setPreserved: (...args: Parameters<Host["setPreserved"]>) =>
         hostRef.current.setPreserved(...args),
       saveLanded: (...args: Parameters<Host["saveLanded"]>) => hostRef.current.saveLanded(...args),
+      keepWritingVersion: (...args: Parameters<Host["keepWritingVersion"]>) =>
+        hostRef.current.keepWritingVersion(...args),
       saveRefused: (...args: Parameters<Host["saveRefused"]>) =>
         hostRef.current.saveRefused(...args),
       saveSubject: (...args: Parameters<Host["saveSubject"]>) =>
@@ -312,6 +317,12 @@ export function useOutlineSession(binder: BinderItem[], host: Host) {
             outlineParkedRef.current = outlineParkedRef.current.filter((p) => p.full !== body);
             syncBeacon();
             saveLanded("outline");
+            keepWritingVersion(
+              noteId,
+              withFrontMatter(note.header, body),
+              "md",
+              withFrontMatter(note.header, note.body),
+            );
             setSheetStatus("saved");
             return true;
           }

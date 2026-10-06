@@ -74,6 +74,70 @@ This reference covers owned endpoints, service behavior, protection and operatio
 - <a id="SERV-18"></a> **SERV-18** **Its code lives in this repository,** in `services/edge/`: TypeScript,
   tested with `bun test`, deployed with `wrangler`. It goes public with the
   rest at launch, so anyone can read exactly what is kept.
+  - <a id="SERV-274"></a> **SERV-274** **A stand-in, local only.** `wrangler.standin.jsonc`
+    runs the update routes as production answers them (`bun run dev:standin`, on
+    the address its `UPDATES` var names), through its own entry,
+    `test/standin-entry.ts`: the three origins production keeps as constants
+    (`REPOSITORY`, `GITHUB`, `UPDATES`) come from its vars, and every R2 key it
+    reads is under `stand-in/`, the admission list (SERV-268) and the tracks
+    alike. So a stand-in release is served from a local bucket seeded with its
+    files (`bun test/standin-seed.ts`), and its GitHub manifest and files from a
+    GitHub stand-in on loopback (`bun test/github-standin.ts --stand-in`), which
+    serves each release build given with its archive at its own address. Every
+    address and port the stand-in and its helpers use is one of its vars, so
+    rewriting them moves all of it. Every origin must be loopback and the only
+    requests it makes are to its own stand-ins: anything else answers 500 before
+    it leaves. The configuration names no account, route or remote binding, its
+    bucket is a local one of its own, and `scripts/edge-wrangler.mjs` deploys
+    `wrangler.jsonc` alone; the production entry, `src/index.ts`, takes no origin
+    or prefix from its environment.
+  - <a id="SERV-279"></a> **SERV-279** **The stand-in takes crash reports and feedback, as production
+    does.** On its one origin, at production's paths, it answers the crash route
+    and the feedback route with production's own code: a crash report is taken
+    only from a version the stand-in's lists released (SERV-269, SERV-272), a
+    published beta's among them, and one it takes goes to a Sentry stand-in on
+    loopback (`bun test/sentry-standin.ts`, at its `SENTRY` var) in place of
+    Sentry, which keeps a line for each in `.wrangler/standin/sentry.jsonl`: when
+    it came, its release, its day and the exception's first line (its kind and
+    where it stopped). A stand-in run plants one with
+    `bun test/standin-crash.ts --version <v>`: one JavaScript crash, dated its
+    day, with a fresh id, exactly as a copy's reporter writes it, posted to
+    `/api/proscenium/envelope/` with `Content-Type: application/x-sentry-envelope`
+    (`--print` shows the headers and body instead).
+  - <a id="SERV-278"></a> **SERV-278** **A track's answer names its archives on the Worker's own
+    origin, as stable's does.** The manifest in R2 names each archive on the
+    track's download route of the update service's own host, as the pipeline
+    writes it, or already of the Worker's own origin; any other address is
+    refused. The answer names each archive on the Worker's own origin. In
+    production those are one host, so the answer is the manifest as written; a
+    stand-in answers the same manifest on its loopback origin, the only one a
+    copy made for the update proof admits.
+- <a id="SERV-280"></a> **SERV-280** **What a release's clock reads about a build, over a window.**
+  Three things, from what the service already keeps, and nothing new is
+  collected for them:
+  - `copies`: the most update checks the build made on one UTC day the window
+    touches (`copies-by-version.sql`), an estimate of the copies on it, since a
+    copy checks once a day, has no identifier, and checks again when opened
+    twice; null when the service counted no check at all those days, which says
+    the counts are missing rather than that no copy checked.
+  - `crashes`: the crash reports from the build whose day the window touches,
+    and `crashSaid`, one line of how many and what, the most first, within 300
+    characters. A report says the UTC day it happened and never the hour, so it
+    counts in every window its day touches.
+  - `feedback`: the messages from copies on the build received those days
+    (`feedback-by-version.sql`, by id alone, no words), as a total and as those
+    not among the ids the maintainer has cleared.
+
+  `bun test/standin-evidence.ts --version <v> --from <iso> --until <iso>
+  [--cleared id,id]` prints `{ copies, crashes, crashSaid, feedback: { total,
+  unmarked } }` from a stand-in's local database and its Sentry stand-in's
+  file; the build host's clock reads the same, by the same code
+  (`services/edge/src/evidence.ts`), from production's D1 through
+  `scripts/edge-wrangler.mjs query <name> <from> <to> <version>`
+  (`wrangler d1 execute … --remote`, read-only) and from Sentry's API: the
+  events endpoint of the organization, the `errors` dataset, filtered by
+  release, which asks a token with the scope `org:read`. A source that cannot
+  be read fails the reading; it is never zero.
 - <a id="SERV-19"></a> **SERV-19** **Updates.**
   - <a id="SERV-20"></a> **SERV-20** For each check, add one to the day's count for its platform,
     architecture, version and macOS version. Then answer with the current
@@ -126,6 +190,44 @@ This reference covers owned endpoints, service behavior, protection and operatio
     counted as the check it is and answered with stable's manifest, exactly as
     the stable route answers it; alpha's key is still asked for first. A release's
     manifest stays universal.
+  - <a id="SERV-268"></a> **SERV-268** **Stable is admitted by a list the release writes, with no
+    deploy.** Beside the deployed list (`RELEASED_VERSIONS_JSON`), the Worker
+    reads `admission.json` at the root of its R2 keys, at most once a minute
+    through the edge cache: `{ "v": 1, "stable": ["X.Y.Z", …], "halted": [{
+    "version", "track", "at", "why" }, …] }`. Stable's admitted releases are
+    both lists together; a halt (SERV-270) names its version, the track it is
+    halted on (`stable`, `beta` or `alpha`, the version of that track's form),
+    when (ISO 8601, with its zone) and why (at most 500 characters). None
+    written is an empty list. One that cannot be read, or is not exactly that
+    shape (another `v`, a field more or less, a version of the wrong form, over
+    64 KiB), is taken as empty, never as admitting or halting anything, and is
+    said in the Worker's one line (SERV-275): content once for the minute it is
+    kept, R2 failing to answer on each request, since that is asked again. A
+    release's admission, and a halt, so take effect within a minute; the
+    Worker's own changes are what a deploy is for.
+  - <a id="SERV-270"></a> **SERV-270** **A halt stops the offer, and deletes nothing.** A halted
+    version is not offered on its track, and everything else about it stands:
+    it stays released (SERV-269), its copies are answered and counted, their
+    reports are taken, and R2, which the Worker only reads, and GitHub keep its
+    files. On stable, a check whose newest release on GitHub is halted is
+    answered as if that release were not there: with the newest admitted
+    release before it that is not halted, from that release's own
+    `latest.json`, and when there is none, or its manifest cannot be had, with
+    204, nothing newer. Never an error there: the updater would take an error to
+    its GitHub fallback, whose manifest names the halted release (SERV-9). The
+    release before is offered because it was the release until the halted one
+    was, and the updater installs only a version newer than its own, so no copy
+    goes back. On a track, a halted newest version is answered 204, since R2
+    keeps no manifest of a track's earlier versions. The download routes answer
+    a halted version's files 404.
+  - <a id="SERV-271"></a> **SERV-271** **While a halt is in force, nothing sends the updater to
+    GitHub.** A halt on stable is in force when the newest release the service
+    knows, admitted or halted, is halted: GitHub's newest release is then most
+    likely that one. Until another release is admitted past it, a stable check
+    that fails (GitHub unreachable or answering something unusable, or the
+    Worker's own fault) answers 204 in place of SERV-22's 502 and SERV-266's 500.
+    A check the service refuses before it asks anything (a switch, a limit, a
+    version it never released) still goes on to GitHub, as every refusal does.
 - <a id="SERV-23"></a> **SERV-23** **Usage counts** (decision 2).
   - <a id="SERV-24"></a> **SERV-24** A batch carries the build's version, platform, architecture, macOS version
     and channel, and a list of events, each a name and its properties.
@@ -147,12 +249,39 @@ This reference covers owned endpoints, service behavior, protection and operatio
   - <a id="SERV-30"></a> **SERV-30** A report is stack traces, never a memory dump (no minidump), since memory
     can hold a play's words.
   - <a id="SERV-31"></a> **SERV-31** It carries no message text and no file path, since either can name a play.
+- <a id="SERV-272"></a> **SERV-272** **A published beta's reports are taken as a release's, and
+  counted apart.** A copy reports its whole build version (the version it asks
+  for updates with): a release `X.Y.Z`, the same as its package's, or a track
+  build's `X.Y.Z-beta.N`. A usage batch or a crash report from a beta its track
+  has published is taken as one from a release; one from a beta the track never
+  published, or from an alpha, is refused whole, as a version never released is
+  (SERV-106). Each usage count records its track, `stable` or `beta` (D1
+  `usage_counts.track`, migration 0006), read from the lists when the batch is
+  taken, and the queries count the two apart; a crash report goes on to Sentry
+  with its whole version as its release, which is how Sentry tells them apart.
+  `update_installed` still names releases alone: a move to or from a beta is
+  not reported. A track's list that cannot be read answers 503, so the app
+  keeps the report for later; the admission list is taken as empty then
+  (SERV-268), so a release on it alone is refused until it can be read.
 - <a id="SERV-32"></a> **SERV-32** **Feedback** (decision 7, [feedback.md](../app/preferences-and-help/feedback.md)).
   - <a id="SERV-33"></a> **SERV-33** A message carries a submission id and the writer's text. It carries an
     email and technical details only when the writer gave them, and nothing
     else, not even the app version.
-  - <a id="SERV-34"></a> **SERV-34** The Worker checks the sizes, a well-formed email if there is one, and that
-    no other field is present.
+  - <a id="SERV-276"></a> **SERV-276** The Worker checks the sizes, a well-formed email if there is one,
+    a build's whole version if there is one (SERV-273), and that no other field
+    is present. It replaces SERV-34
+    (docs/engineering/withdrawn-requirements.md#SERV-34).
+  - <a id="SERV-273"></a> **SERV-273** **The Worker keeps a message's build version when the copy
+    says it.** A message may carry `version`, the whole build version it was sent
+    from: `X.Y.Z`, `X.Y.Z-beta.N` or `X.Y.Z-alpha.N`, of that form and nothing
+    else, or it is refused with a reason. It is stored with the message (D1
+    `feedback_messages.version`, migration 0007; NULL when absent), so the
+    messages from copies on a beta can be counted, by the words-free receipts
+    (`feedback-receipts.sql`). A message is never refused for being from a
+    version that was not released: the writer's words matter more. The Worker
+    takes the field before any copy sends it, since a Worker without it refuses
+    the message whole; a copy sends it only once the privacy page lists it
+    (SERV-50), and until then SERV-33 describes what a message carries.
   - <a id="SERV-35"></a> **SERV-35** It stores the message in a private table, then answers 201 with the id.
     That answer is the "confirmed receipt" the sheet waits for.
   - <a id="SERV-36"></a> **SERV-36** The same id again answers the same 201 and stores nothing new, so a retry
@@ -165,7 +294,13 @@ This reference covers owned endpoints, service behavior, protection and operatio
 - <a id="SERV-39"></a> **SERV-39** **Links:** redirects (302), and nothing else.
 - <a id="SERV-40"></a> **SERV-40** **What it keeps:** the daily counts and the feedback messages, and nothing
   about any single request.
-  - <a id="SERV-41"></a> **SERV-41** Workers Logs stays off, and the Worker writes no log line of its own.
+  - <a id="SERV-275"></a> **SERV-275** Workers Logs stays off. The Worker writes one kind of line of its
+    own, and no other: that the admission list (SERV-268) could not be read, or
+    is not one, naming its key and nothing of any request. With Workers Logs
+    off it is kept nowhere; it shows in a local `wrangler dev` and to a live
+    `wrangler tail`, and the behaviour it names is seen from outside anyway, as a
+    release that is not admitted. It replaces SERV-41
+    (docs/engineering/withdrawn-requirements.md#SERV-41).
   - <a id="SERV-42"></a> **SERV-42** Rate limiting reads the sender's address in memory and forgets it.
 - <a id="SERV-43"></a> **SERV-43** **Reading it.** The maintainer's scheduled jobs on the Mac mini pull the counts
   daily with a read-only Cloudflare token, and send the maintainer a weekly summary:
@@ -324,6 +459,16 @@ reports.
   - <a id="SERV-250"></a> **SERV-250** A version counts as released when the stable admission list or any
     track's list of published versions holds it, so a copy that changes track is
     never refused for the track it came from.
+  - <a id="SERV-269"></a> **SERV-269** **One answer to "was this version released", for every
+    route.** A release `X.Y.Z` is stable's when the deployed list or the
+    admission list (SERV-268) holds it; a track build's whole version,
+    `X.Y.Z-beta.N` or `X.Y.Z-alpha.N`, is released when its own track's list of
+    published versions holds it. What counts depends on who asks: an update
+    check takes all three (SERV-250); usage counts and crash reports take stable
+    and beta (SERV-272); a `go` link to a release's page takes stable alone,
+    since only a release has a page on GitHub. A halt does not change this
+    answer, only what is offered (SERV-270): a copy that installed a release
+    before it was halted is still answered, counted and heard.
 - <a id="SERV-107"></a> **SERV-107** **Secrets** live in Worker secrets, never in the app or the repository: the
   Sentry forwarding target.
   - <a id="SERV-262"></a> **SERV-262** And alpha's key, as its SHA-256 only (`ALPHA_KEY_SHA256`). The key itself
@@ -445,6 +590,15 @@ Proscenium's GitHub sponsors, by level, for Settings › About
     need none; and no other route tells published alphas apart.
   - an Apple-silicon-only track manifest and its files are served, a mixed one
     is refused, and an Intel check on a track gets stable's manifest (SERV-265).
+  - <a id="SERV-277"></a> **SERV-277** a release on the admission list in R2 is answered, offered
+    and served with no deploy, and a list that is not one admits and halts
+    nothing and is said once; a halt stops the offer on every route that offers
+    and deletes nothing, stable offering the release before it or 204 and never
+    an error while it is in force; a published beta's usage counts and crash
+    reports are taken and counted apart, an alpha's refused; a message's version
+    is stored; and the stand-in's own bundle serves a stand-in release from its
+    `stand-in/` keys and its loopback GitHub, asking nothing else. The bundle
+    runs in workerd for each (`bun run test:workerd`).
 - <a id="SERV-140"></a> **SERV-140** **Feedback:** a message sent from a release build is stored in the list, and
   a reply to the address the writer gave reaches it.
 - <a id="SERV-141"></a> **SERV-141** **The zone:** DNSSEC, CAA, HSTS and the rate limits are on, and the scheduled jobs'
@@ -510,6 +664,16 @@ There is no prelaunch state any more: before launch one recorded every 502 as
 deploy the service's own fault answered that same 502 for eight days, unseen.
 A mode that silences an alarm must never wait for a person to end it.
 
+A halt changes what the first endpoint should answer, and the proof reads the
+admission list to know it (docs/engineering/services-and-feedback.md#SERV-268).
+While a halt is in force the right answer is the newest admitted release before
+the halted one, or 204 (docs/engineering/services-and-feedback.md#SERV-270), not
+GitHub's `latest.json`; a failure is a 204 too
+(docs/engineering/services-and-feedback.md#SERV-271). The proof compares the
+answer with the release before in place of GitHub's newest, and reports that a
+halt is in force, every day until another release is admitted past it: a halt
+is an incident of its own, never a silenced alarm.
+
 A failed network check gets one retry within five minutes. A bad signature
 alerts immediately. Repeated failure goes to the existing failure bus and
 the maintainer's private notification path, with this job excluded from model-based
@@ -529,18 +693,27 @@ Dates are UTC `YYYY-MM-DD`, with start inclusive and end exclusive.
 |---|---|---|
 | `update-use.sql` | start, end | Checks by version, macOS, chip and day; approximate copies in use |
 | `downloads.sql` | start, end | Release download requests, not completed installations |
-| `launches-by-version.sql` | start, end | Launches per version and channel: how many copies run the newest release. Released versions only; a track build sends no usage counts |
-| `feature-share.sql` | start, end | Event/property counts and actions per 100 launches, by channel |
+| `launches-by-version.sql` | start, end | Launches per version, track and channel: how many copies run the newest release, and how many a published beta (SERV-272). No alpha sends usage counts the service takes |
+| `feature-share.sql` | start, end | Event/property counts and actions per 100 launches, by track and channel, so a beta's copies never move a release's shares |
 | `daily-volume.sql` | start, end | Daily usage, update and feedback totals for comparisons |
 | `feedback-counts.sql` | start, end | Messages per day; no message text |
-| `feedback-receipts.sql` | start, end | Per-message receipts (id, day, length, whether an email or details came) with no words or address; safe to show |
+| `feedback-receipts.sql` | start, end | Per-message receipts (id, day, length, whether an email or details came, and the build version when the copy said it, SERV-273) with no words or address; safe to show, and how feedback from copies on a beta is counted |
 | `feedback-list.sql` | cursor day, cursor id, today | The private pull: id, day, message, email, details; 100 rows a page, completed days only; start with empty cursors |
+| `copies-by-version.sql` | start, end, version | A build's copies for a release's clock (SERV-280): its most checks on one of those days; NULL when no check at all was counted |
+| `feedback-by-version.sql` | start, end, version | The ids of the messages from copies on a build (SERV-280); no words or address |
+| `usage-by-day.sql` | start, end | Each day's count of every event and property value, by version and track: one feature over time, for the usage page (CHECKS-D105) |
+| `launches-by-day.sql` | start, end | Each day's launches by version, track, channel, chip and macOS: which releases and systems the app is opened on (CHECKS-D105) |
 
-Use Cloudflare's D1 query API with a separate **D1 Read** token, never the
-Worker deploy token. Fix the account/database IDs in the reviewed Mini config.
-The query API accepts D1 Read. Reject any response with `success: false`, errors
-or missing results. Verify read-only permissions in the dashboard; do not try a
-write against production as a permission test.
+The scheduled service checks use Cloudflare's D1 query API with a D1 Read
+token. A release's clock reads the two queries it needs through
+`scripts/edge-wrangler.mjs query` with the one deploy token
+(docs/engineering/services-and-feedback.md#SERV-251), which the build host
+already holds for the Worker and the tracks' bucket: a second, narrower token
+on the same machine would guard nothing that machine cannot reach anyway, so
+for the clock the queries being read-only is the SQL's own, reviewed here, and
+not the token's. Either way, fix the account/database IDs in reviewed
+configuration, reject any response with `success: false`, errors or missing
+results, and never try a write against production as a test of anything.
 [Cloudflare query API](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/).
 
 Sentry reads use the project's actual regional API origin and a separate token
@@ -621,3 +794,76 @@ send both to the maintainer's existing private destination. Record receipts and 
 the two jobs only after their inputs and notifications work. Test that a bad
 signature produces a same-day alert and a duplicate run produces no duplicate
 message. Neither live run is claimed by this Proscenium task.
+
+<a id="CHECKS-D105"></a>
+
+### The usage page
+
+The maintainer's private page on the Mini has one more view: how the website,
+the downloads and the app are used, as charts. It reads; it collects nothing.
+Every number on it is a total something already keeps and the privacy page
+already names (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D7,
+docs/app/keeping-work/privacy-and-telemetry.md#PRIV-84), so no event, field,
+beacon or counter is added to the app, the service or the website to feed it.
+
+**What it reads, each a fixed request with fixed parameters:**
+
+| What | From | Its limits |
+|---|---|---|
+| Update checks by day, version, macOS and chip; download requests by day and version | `update-use.sql`, `downloads.sql` | A check is a copy asking, at launch and once a day while it runs, so a day's checks are roughly the copies in use: a copy opened twice is counted twice, and one with update checks switched off not at all. The monitor's own requests are subtracted and labelled |
+| Launches, and every event and property value, by day | `usage-by-day.sql`, `launches-by-day.sql` | Releases and published betas only (SERV-272); an alpha sends none. Copies with usage reports switched off send none |
+| Feedback messages per day | `feedback-counts.sql` | Counts only. A writer's words stay on the feedback page and nowhere else |
+| Crash reports per day, and the top failures | Sentry, the three requests of CHECKS-D102 | As the weekly summary reads them; the country and city Sentry attaches are never read |
+| The website's visits and page views by day, page, referring site, country, browser and device | Cloudflare Web Analytics, through its account analytics API (GraphQL, the `rumPageloadEventsAdaptiveGroups` dataset), filtered to the site's own hosts | Cloudflare samples it, and it counts only browsers that ran its beacon. It is the website's own total (PRIV-84); the app's services still count no country (SERV-143) |
+| Downloads of each release's files | GitHub's public releases API for the public repository: each file's `download_count` | A running total with no dates. The page keeps each day's reading and draws the difference between days, so its history begins the day it first read |
+
+**The credential.** The website's analytics need Account Analytics: Read on the
+same Cloudflare read token the queries use: that token, widened, not a second
+one. It stays read-only and is never the Worker deploy token (CHECKS-D102).
+GitHub's release counts are public and take no token. A request that names the
+service names it only as the monitor does (`User-Agent: proscenium-checks`),
+and carries nothing of the maintainer's.
+
+**What it says.** The rules of CHECKS-D103 hold on the page as in the reports:
+
+- Counts are actions and approximate copies. No chart, table or tooltip counts
+  people or unique anything: there is no identifier to count them by
+  (SERV-66). "Copies in use" is a day's update checks; a visit is Cloudflare's
+  estimate of one.
+- **One estimate of real users, and it is called an estimate.** The maintainer
+  asked for the nearest the counts can come to how many writers use the app,
+  with the project's own machines taken away. The page gives one, labelled as
+  an estimate wherever it appears, with how it was reached and what limits it
+  beside it:
+  - *What is taken away first*, from every chart on the page and not only the
+    estimate: alpha builds, which run on the maintainer's own Macs alone; the
+    monitor's own requests (CHECKS-D101); any version with no published
+    release, since a test build was never anyone else's; and a release's
+    version on days before its publication. What was taken away is said, with
+    its size.
+  - *The estimate*: update checks from published releases and betas, grouped
+    by the kind of Mac that made them (macOS version and chip). Two kinds are
+    certainly two Macs; within a kind, its busiest day says how many were in
+    use at once. The estimate is each kind's busiest day, added together. The
+    page gives beside it the least it can be (the kinds seen) and the most
+    (every check a different Mac).
+  - *What it cannot do*, said on the page: tell two days' checks from one Mac
+    from one day's from two; see a copy with update checks switched off; or
+    tell a release copy on one of the project's own machines from a writer's,
+    because nothing a copy sends says whose it is. The website's visits and
+    GitHub's download counts include the project's own, for the same reason.
+  The reports (CHECKS-D103) are unchanged: they give no such estimate.
+- **Unavailable is never zero.** A source that could not be read, a missing
+  credential, or a day before a stream was collected is drawn as missing and
+  says why. Only a day the source answered for, with no count, is a zero.
+- A share over no launches is unavailable, not 0%. Actions can exceed 100 per
+  100 launches.
+- Days are UTC. Today is a part of a day and is labelled so.
+- No model reads or writes any of it, and no feedback message appears on it.
+
+**How it is kept.** One collector on the Mini makes the requests and writes one
+file of totals beside the monitor's other state, outside any repository. The
+daily check runs it, so each day has a reading; the page runs it again when its
+file is older than fifteen minutes, and shows the file it has, with the reason,
+when a request fails. The page is drawn on the Mini with no script and loads
+nothing from anywhere, as its other views are.

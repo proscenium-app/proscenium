@@ -35,7 +35,7 @@ import { listInWords } from "../formats/draft";
 import type { DesignerRequest } from "../formats/open";
 import { useFormatRegistry } from "../formats/use-formats";
 import { Group, Note, SectionBody } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 export function FormatsSlot({
   canReveal,

@@ -12,7 +12,7 @@ import { useUpdateState } from "../updates";
 import { Button, useToast } from "../../ui";
 import { settings as ipc } from "../../storage/ipc";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 export function PrivacySlot() {
   const { shareAnalytics } = useSettings();

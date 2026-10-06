@@ -43,7 +43,7 @@ import {
   useUpdateState,
 } from "../updates";
 import { Group, Note, SectionBody, SwitchRow, useAppInfo } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 /** What arrives on each track, in one sentence. */
 const TRACK_NOTES: Record<UpdateTrack, string> = {

@@ -15,8 +15,8 @@ import {
   type KeyValueStorage,
   type Settings,
   type SettingsPatch,
-} from "../../storage/settings-model";
-import { createSettingsStore } from "./store";
+} from "../storage/settings-model";
+import { createSettingsStore } from "./settings-store";
 
 function memoryStorage(
   seed: Record<string, string> = {},

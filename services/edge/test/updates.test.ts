@@ -9,6 +9,7 @@ import {
   UPDATES,
   TRACK_KEY_HEADER,
   UPSTREAM_HEADERS,
+  parseAdmission,
   parseManifest,
   parseTrackManifest,
   boundedBytes,
@@ -16,26 +17,29 @@ import {
   type Env,
   type Dependencies,
 } from "../src/updates";
+import { admissionList } from "./lists";
 /** Alpha's key in these tests, and the hash the Worker holds as its secret. */
 const KEY = "k".repeat(22) + "Ey_-0123456789abcdefg";
 const KEY_SHA256 = createHash("sha256").update(KEY).digest("hex");
 const keyed = { [TRACK_KEY_HEADER]: KEY };
 const migration = await Bun.file(new URL("../migrations/0001_updates.sql", import.meta.url)).text();
-const latest = () => ({
-  version: "0.9.1",
+/** A release's manifest, as GitHub serves it. */
+const release = (version: string) => ({
+  version,
   notes: "A release.",
   pub_date: "2026-09-18T12:00:00Z",
   platforms: {
     "darwin-aarch64": {
       signature: "a".repeat(100),
-      url: `${GITHUB}/download/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz`,
+      url: `${GITHUB}/download/v${version}/Proscenium_${version}_universal.app.tar.gz`,
     },
     "darwin-x86_64": {
       signature: "a".repeat(100),
-      url: `${GITHUB}/download/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz`,
+      url: `${GITHUB}/download/v${version}/Proscenium_${version}_universal.app.tar.gz`,
     },
   },
 });
+const latest = () => release("0.9.1");
 /** A track's manifest, as the pipeline writes it to R2. */
 const trackLatest = (track: string, version: string) => ({
   version,
@@ -118,8 +122,10 @@ function fixture() {
     TRACKS: bucket(objects),
     ALPHA_KEY_SHA256: KEY_SHA256,
   };
+  const said: string[] = [];
   const deps: Dependencies = {
     updatesOrigin: UPDATES,
+    log: (line) => said.push(line),
     now: () => new Date("2026-09-18T12:34:56Z"),
     cache: {
       async match(r) {
@@ -154,8 +160,39 @@ function fixture() {
     db,
     cache,
     objects,
+    said,
     request,
     run: (r = request()) => updates(r, env, deps),
+  };
+}
+/**
+ * GitHub with these releases published, the last one newest: its manifest at
+ * `latest/download`, each release's own at `download/v<version>`, and its files.
+ */
+function github(f: ReturnType<typeof fixture>, published: string[]) {
+  f.deps.fetch = async (r) => {
+    f.calls.push(r);
+    const path = new URL(r.url).pathname;
+    if (path.endsWith("/latest/download/latest.json"))
+      return Response.json(release(published[published.length - 1]));
+    const own = /\/download\/v([^/]+)\/latest\.json$/.exec(path)?.[1];
+    if (own !== undefined)
+      return published.includes(own)
+        ? Response.json(release(own))
+        : new Response(null, { status: 404 });
+    return new Response("signed archive");
+  };
+}
+const checks = (f: ReturnType<typeof fixture>) =>
+  f.db
+    .query("SELECT version, count FROM update_counts WHERE kind = 'check' ORDER BY version")
+    .all();
+/** What a check answered: its status, and the version it offers. */
+async function answer(r: Response) {
+  const body = await r.text();
+  return {
+    status: r.status,
+    version: body ? (JSON.parse(body) as { version: string }).version : null,
   };
 }
 describe("update service", () => {
@@ -183,7 +220,9 @@ describe("update service", () => {
       },
     ]);
     expect(JSON.stringify(rows)).not.toContain("192.0.2.100");
-    expect(f.cache.values().next().value?.headers.get("Cache-Control")).toBe("public, max-age=300");
+    expect(f.cache.get(`${GITHUB}/latest/download/latest.json`)?.headers.get("Cache-Control")).toBe(
+      "public, max-age=300",
+    );
   });
   test("streams only the release's own files and counts downloads by version", async () => {
     const f = fixture();
@@ -588,6 +627,58 @@ describe("update tracks (docs/engineering/services-and-feedback.md#SERV-245)", (
       expect(await r.text()).toBe("");
     }
   });
+  test("production answers a track's manifest exactly as the pipeline wrote it (docs/engineering/services-and-feedback.md#SERV-278)", async () => {
+    for (const manifest of [
+      trackLatest("alpha", "1.0.1-alpha.58"),
+      armLatest("alpha", "1.0.1-alpha.58"),
+    ]) {
+      const f = fixture();
+      f.objects.set("alpha/latest.json", JSON.stringify(manifest));
+      const r = await f.run(f.request("/v1/alpha/darwin/aarch64/1.0.1-alpha.57", keyed));
+      expect(r.status).toBe(200);
+      const text = await r.text();
+      // The pipeline's values, in the parser's order, which is what production answered before.
+      expect(JSON.parse(text) as unknown).toEqual(manifest as unknown);
+      expect(text).toBe(JSON.stringify(parseTrackManifest(manifest, "alpha")));
+    }
+  });
+  test("a stand-in answers a track's manifest on its own origin, whichever of the service's hosts it named (docs/engineering/services-and-feedback.md#SERV-278)", async () => {
+    const standIn = "http://127.0.0.1:8797";
+    const v = "1.0.1-beta.2";
+    const onStandIn = armLatest("beta", v);
+    onStandIn.platforms["darwin-aarch64"].url = onStandIn.platforms["darwin-aarch64"].url.replace(
+      UPDATES,
+      standIn,
+    );
+    const elsewhere = armLatest("beta", v);
+    elsewhere.platforms["darwin-aarch64"].url =
+      `https://example.org/v1/beta/download/v${v}/Proscenium_${v}_aarch64.app.tar.gz`;
+    for (const [what, manifest, status] of [
+      ["as the pipeline wrote it", armLatest("beta", v), 200],
+      ["already on the stand-in", onStandIn, 200],
+      ["on another host", elsewhere, 502],
+      ["universal, as the first track builds were", trackLatest("beta", v), 200],
+    ] as const) {
+      const f = fixture();
+      f.deps.updatesOrigin = standIn;
+      f.objects.set("beta/versions.json", JSON.stringify([v]));
+      f.objects.set("beta/latest.json", JSON.stringify(manifest));
+      const r = await f.run(
+        new Request(`${standIn}/v1/beta/darwin/aarch64/0.9.1`, {
+          headers: { "Proscenium-OS": "26.0" },
+        }),
+      );
+      expect(r.status, what).toBe(status);
+      if (status !== 200) continue;
+      const data = (await r.json()) as ReturnType<typeof trackLatest>;
+      expect(data.version).toBe(v);
+      const slice = Object.keys(manifest.platforms).length === 1 ? "aarch64" : "universal";
+      for (const p of Object.values(data.platforms))
+        expect(p.url, what).toBe(
+          `${standIn}/v1/beta/download/v${v}/Proscenium_${v}_${slice}.app.tar.gz`,
+        );
+    }
+  });
 });
 
 describe("alpha answers only its key", () => {
@@ -705,5 +796,345 @@ describe("alpha answers only its key", () => {
       expect(text).not.toContain(KEY);
       expect(text).not.toContain(KEY_SHA256);
     }
+  });
+});
+
+describe("the admission list the release writes (docs/engineering/services-and-feedback.md#SERV-268)", () => {
+  test("a release admitted in R2 is answered, counted, offered and served, with no deploy", async () => {
+    const f = fixture();
+    github(f, ["0.9.1", "0.9.2"]);
+    // Published, not yet admitted: the fallback's signal, as before.
+    expect((await f.run()).status).toBe(502);
+    expect((await f.run(f.request("/v1/darwin/aarch64/0.9.2"))).status).toBe(400);
+    expect(
+      (await f.run(f.request("/v1/download/v0.9.2/Proscenium_0.9.2_universal.dmg"))).status,
+    ).toBe(404);
+    f.objects.set("admission.json", admissionList(["0.9.2"]));
+    f.cache.clear(); // the minute passes
+    expect(await answer(await f.run())).toEqual({ status: 200, version: "0.9.2" });
+    expect(await answer(await f.run(f.request("/v1/darwin/aarch64/0.9.2")))).toEqual({
+      status: 200,
+      version: "0.9.2",
+    });
+    const file = await f.run(f.request("/v1/download/v0.9.2/Proscenium_0.9.2_universal.dmg"));
+    expect(file.status).toBe(200);
+    expect(await file.text()).toBe("signed archive");
+    // The deployed list still admits on its own.
+    expect((await f.run(f.request("/v1/darwin/aarch64/0.9.0"))).status).toBe(200);
+    expect(checks(f)).toEqual([
+      { version: "0.9.0", count: 3 },
+      { version: "0.9.2", count: 1 },
+    ]);
+    expect(f.said).toEqual([]);
+  });
+  test("it is read at most once a minute, through the edge cache", async () => {
+    const f = fixture();
+    github(f, ["0.9.1", "0.9.2"]);
+    expect((await f.run()).status).toBe(502);
+    expect(f.cache.get(`${UPDATES}/tracks/admission.json`)?.headers.get("Cache-Control")).toBe(
+      "public, max-age=60",
+    );
+    // Written within the minute: not seen until the cached copy ends.
+    f.objects.set("admission.json", admissionList(["0.9.2"]));
+    expect((await f.run()).status).toBe(502);
+    f.cache.delete(`${UPDATES}/tracks/admission.json`);
+    expect((await f.run()).status).toBe(200);
+  });
+  test("none written admits nothing more; one unreadable or not the list's shape is said and admits and halts nothing", async () => {
+    const valid = JSON.parse(admissionList(["0.9.2"], [{ version: "0.9.1", track: "stable" }]));
+    const halt = valid.halted[0];
+    const broken: [string, string | Uint8Array][] = [
+      ["not JSON", "{ stable: [0.9.2] }"],
+      ["a version it does not know", JSON.stringify({ ...valid, v: 2 })],
+      ["no version", JSON.stringify({ stable: valid.stable, halted: valid.halted })],
+      ["a field more", JSON.stringify({ ...valid, admitted: ["0.9.2"] })],
+      ["a list that is not one", JSON.stringify({ ...valid, stable: "0.9.2" })],
+      ["a version that is not a release", JSON.stringify({ ...valid, stable: ["0.9.2-beta.1"] })],
+      ["a halt on no track", JSON.stringify({ ...valid, halted: [{ ...halt, track: "nightly" }] })],
+      [
+        "a halt whose version is another track's",
+        JSON.stringify({ ...valid, halted: [{ ...halt, track: "beta" }] }),
+      ],
+      ["a halt with no time", JSON.stringify({ ...valid, halted: [{ ...halt, at: "yesterday" }] })],
+      ["a halt with a field more", JSON.stringify({ ...valid, halted: [{ ...halt, by: "x" }] })],
+      ["too large", JSON.stringify({ ...valid, padding: "x".repeat(70_000) })],
+      ["not UTF-8", new Uint8Array([0x7b, 0xff, 0x7d])],
+    ];
+    for (const [what, content] of broken) {
+      const f = fixture();
+      github(f, ["0.9.1", "0.9.2"]);
+      const bytes =
+        typeof content === "string" ? content : new TextDecoder("latin1").decode(content);
+      f.env.TRACKS = {
+        async get(key: string) {
+          if (key !== "admission.json") return null;
+          const body = typeof content === "string" ? new TextEncoder().encode(content) : content;
+          return { body: new Response(body).body as ReadableStream, size: body.byteLength };
+        },
+      } as unknown as Env["TRACKS"];
+      // Never admitting: 0.9.2 is still refused, and GitHub's 0.9.2 is still not offered.
+      expect((await f.run(f.request("/v1/darwin/aarch64/0.9.2"))).status, what).toBe(400);
+      expect((await f.run()).status, what).toBe(502);
+      // Never halting: the halted 0.9.1 of the valid list would not be served.
+      expect(
+        (await f.run(f.request("/v1/download/v0.9.1/Proscenium_0.9.1_universal.dmg"))).status,
+        what,
+      ).toBe(200);
+      // Said once for the minute it is kept, and nothing of any request in it.
+      expect(f.said, what).toEqual([
+        "admission.json is not an admission list: nothing is admitted or halted by it",
+      ]);
+      expect(bytes.length).toBeGreaterThan(0);
+    }
+    // The valid list itself admits 0.9.2 and halts 0.9.1.
+    expect(parseAdmission(valid)).toEqual({ stable: ["0.9.2"], halted: [halt] });
+    const f = fixture();
+    expect((await f.run(f.request("/v1/darwin/aarch64/0.9.2"))).status).toBe(400);
+    expect(f.said).toEqual([]);
+  });
+  test("R2 not answering is said, taken as empty, and asked again by the next request", async () => {
+    const f = fixture();
+    let asked = 0;
+    f.env.TRACKS = {
+      async get(key: string) {
+        if (key === "admission.json") asked++;
+        throw new Error("R2 unavailable");
+      },
+    } as unknown as Env["TRACKS"];
+    // The deployed list still answers stable: a check, and the offer of 0.9.1.
+    expect(await answer(await f.run())).toEqual({ status: 200, version: "0.9.1" });
+    expect(await answer(await f.run())).toEqual({ status: 200, version: "0.9.1" });
+    expect(asked).toBeGreaterThanOrEqual(2);
+    expect(new Set(f.said)).toEqual(
+      new Set([
+        "admission.json could not be read: nothing is admitted or halted by it until it can be",
+      ]),
+    );
+  });
+  test("its keys are read under the prefix: a stand-in reads `stand-in/`, and nothing at the root", async () => {
+    const f = fixture();
+    f.deps.prefix = "stand-in/";
+    github(f, ["0.9.1", "0.9.2"]);
+    f.objects.set("admission.json", admissionList(["0.9.2"]));
+    f.objects.set("beta/versions.json", JSON.stringify(["1.0.1-beta.1"]));
+    f.objects.set("beta/latest.json", JSON.stringify(trackLatest("beta", "1.0.1-beta.1")));
+    // The root's list and track are not the stand-in's.
+    expect((await f.run()).status).toBe(502);
+    expect((await f.run(f.request("/v1/beta/darwin/aarch64/0.9.1"))).status).toBe(204);
+    f.objects.set("stand-in/admission.json", admissionList(["0.9.2"]));
+    f.objects.set("stand-in/beta/versions.json", JSON.stringify(["1.0.1-beta.1"]));
+    f.objects.set("stand-in/beta/latest.json", JSON.stringify(trackLatest("beta", "1.0.1-beta.1")));
+    f.objects.set(
+      "stand-in/beta/1.0.1-beta.1/Proscenium_1.0.1-beta.1_universal.dmg",
+      "stand-in disk image",
+    );
+    f.cache.clear();
+    expect(await answer(await f.run())).toEqual({ status: 200, version: "0.9.2" });
+    expect(await answer(await f.run(f.request("/v1/beta/darwin/aarch64/0.9.1")))).toEqual({
+      status: 200,
+      version: "1.0.1-beta.1",
+    });
+    const d = await f.run(
+      f.request("/v1/beta/download/v1.0.1-beta.1/Proscenium_1.0.1-beta.1_universal.dmg"),
+    );
+    expect(await d.text()).toBe("stand-in disk image");
+    expect([...f.cache.keys()].filter((k) => k.includes("/tracks/"))).toEqual(
+      expect.arrayContaining([
+        `${UPDATES}/tracks/stand-in/admission.json`,
+        `${UPDATES}/tracks/stand-in/beta/latest.json`,
+      ]),
+    );
+  });
+});
+
+describe("a halt stops the offer and deletes nothing (docs/engineering/services-and-feedback.md#SERV-270)", () => {
+  const halting = (version: string, track = "stable") =>
+    admissionList(["0.9.2"], [{ version, track }]);
+  test("GitHub's newest release halted: the release before it is offered in its place, never GitHub's", async () => {
+    const f = fixture();
+    github(f, ["0.9.1", "0.9.2"]);
+    f.objects.set("admission.json", halting("0.9.2"));
+    for (const path of ["/v1/darwin/aarch64/0.9.0", "/v1/stable/darwin/x86_64/0.9.0"]) {
+      const r = await f.run(f.request(path));
+      expect(r.status).toBe(200);
+      const data = (await r.json()) as ReturnType<typeof release>;
+      expect(data.version).toBe("0.9.1");
+      for (const p of Object.values(data.platforms))
+        expect(p.url).toBe(`${UPDATES}/v1/download/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz`);
+    }
+    // An Intel copy on a track is answered as stable answers it.
+    expect(await answer(await f.run(f.request("/v1/beta/darwin/x86_64/0.9.0")))).toEqual({
+      status: 200,
+      version: "0.9.1",
+    });
+    // The halted release's files are not served; the release before it's are.
+    expect(
+      (await f.run(f.request("/v1/download/v0.9.2/Proscenium_0.9.2_universal.app.tar.gz"))).status,
+    ).toBe(404);
+    expect(
+      (await f.run(f.request("/v1/download/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz"))).status,
+    ).toBe(200);
+    // Nothing asked of GitHub was the halted release's file.
+    expect(f.calls.map((c) => new URL(c.url).pathname).filter((p) => p.includes("0.9.2_"))).toEqual(
+      [],
+    );
+  });
+  test("a copy running the halted release is still answered and counted, and offered nothing older", async () => {
+    const f = fixture();
+    github(f, ["0.9.1", "0.9.2"]);
+    f.objects.set("admission.json", halting("0.9.2"));
+    // 0.9.1 is not newer than 0.9.2: the updater keeps the copy where it is.
+    expect(await answer(await f.run(f.request("/v1/darwin/aarch64/0.9.2")))).toEqual({
+      status: 200,
+      version: "0.9.1",
+    });
+    expect(checks(f)).toEqual([{ version: "0.9.2", count: 1 }]);
+    // When a better release is out, it is offered to that copy through this service.
+    github(f, ["0.9.1", "0.9.2", "0.9.3"]);
+    f.objects.set(
+      "admission.json",
+      admissionList(["0.9.2", "0.9.3"], [{ version: "0.9.2", track: "stable" }]),
+    );
+    f.cache.clear();
+    expect(await answer(await f.run(f.request("/v1/darwin/aarch64/0.9.2")))).toEqual({
+      status: 200,
+      version: "0.9.3",
+    });
+  });
+  test("with no release before it to offer, or its manifest failing, the answer is 204, never an error", async () => {
+    // The only admitted release is the halted one.
+    const alone = fixture();
+    github(alone, ["0.9.2"]);
+    alone.env.RELEASED_VERSIONS_JSON = "[]";
+    alone.objects.set(
+      "admission.json",
+      admissionList(["0.9.2"], [{ version: "0.9.2", track: "stable" }]),
+    );
+    const r = await alone.run(alone.request("/v1/darwin/aarch64/0.9.2"));
+    expect(r.status).toBe(204);
+    expect(await r.text()).toBe("");
+    // The release before it is admitted, and its own manifest is not there.
+    const missing = fixture();
+    github(missing, ["0.9.2"]);
+    missing.objects.set("admission.json", halting("0.9.2"));
+    expect((await missing.run()).status).toBe(204);
+    // Both halted.
+    const both = fixture();
+    github(both, ["0.9.0", "0.9.1", "0.9.2"]);
+    both.objects.set(
+      "admission.json",
+      admissionList(
+        ["0.9.2"],
+        [
+          { version: "0.9.2", track: "stable" },
+          { version: "0.9.1", track: "stable" },
+        ],
+      ),
+    );
+    expect(await answer(await both.run())).toEqual({ status: 200, version: "0.9.0" });
+  });
+  test("while a halt is in force a failure answers 204, since GitHub's manifest names the halted release (docs/engineering/services-and-feedback.md#SERV-271)", async () => {
+    for (const [what, fail] of [
+      ["GitHub unreachable", () => Promise.reject(new Error("Network connection lost."))],
+      ["GitHub refusing", () => Promise.resolve(new Response(null, { status: 503 }))],
+      ["a manifest that does not validate", () => Promise.resolve(new Response("broken json"))],
+    ] as const) {
+      const f = fixture();
+      f.deps.fetch = fail;
+      f.objects.set("admission.json", halting("0.9.2"));
+      expect((await f.run()).status, what).toBe(204);
+      // With no halt in force, the same failure is 502, the fallback's signal.
+      const plain = fixture();
+      plain.deps.fetch = fail;
+      expect((await plain.run()).status, what).toBe(502);
+      // A halt of an older release is not in force: 0.9.2 is admitted and newer.
+      const older = fixture();
+      older.deps.fetch = fail;
+      older.objects.set("admission.json", halting("0.9.1"));
+      expect((await older.run()).status, what).toBe(502);
+    }
+    // The Worker's own fault too: 204 while a halt is in force, 500 otherwise.
+    for (const inForce of [true, false]) {
+      const f = fixture();
+      f.objects.set("admission.json", inForce ? halting("0.9.2") : admissionList(["0.9.2"]));
+      const cache = f.deps.cache;
+      f.deps.cache = {
+        async match(r) {
+          if (
+            new URL(typeof r === "string" ? r : r instanceof URL ? r.href : r.url).hostname ===
+            "github.com"
+          )
+            throw new Error("cache");
+          return cache.match(r);
+        },
+        put: cache.put,
+      };
+      expect((await f.run()).status).toBe(inForce ? 204 : 500);
+    }
+  });
+  test("a halted track version is not offered: its check hears nothing newer and its files are not served", async () => {
+    const f = fixture();
+    f.objects.set("admission.json", halting("1.0.1-alpha.58", "alpha"));
+    const r = await f.run(f.request("/v1/alpha/darwin/aarch64/1.0.1-alpha.57", keyed));
+    expect(r.status).toBe(204);
+    expect(await r.text()).toBe("");
+    for (const suffix of [".app.tar.gz", ".app.tar.gz.sig", ".dmg"])
+      expect(
+        (
+          await f.run(
+            f.request(
+              `/v1/alpha/download/v1.0.1-alpha.58/Proscenium_1.0.1-alpha.58_universal${suffix}`,
+              keyed,
+            ),
+          )
+        ).status,
+      ).toBe(404);
+    // A copy on the halted version is answered and counted; alpha still asks for its key first.
+    expect((await f.run(f.request("/v1/alpha/darwin/aarch64/1.0.1-alpha.58", keyed))).status).toBe(
+      204,
+    );
+    expect((await f.run(f.request("/v1/alpha/darwin/aarch64/1.0.1-alpha.58"))).status).toBe(404);
+    expect(checks(f)).toEqual([
+      { version: "1.0.1-alpha.57", count: 1 },
+      { version: "1.0.1-alpha.58", count: 1 },
+    ]);
+    // A beta halted the same way; the track it names is the one halted.
+    const b = fixture();
+    b.objects.set("beta/versions.json", JSON.stringify(["1.0.1-beta.1", "1.0.1-beta.2"]));
+    b.objects.set("beta/latest.json", JSON.stringify(trackLatest("beta", "1.0.1-beta.2")));
+    b.objects.set("beta/1.0.1-beta.1/Proscenium_1.0.1-beta.1_universal.dmg", "beta 1");
+    b.objects.set("beta/1.0.1-beta.2/Proscenium_1.0.1-beta.2_universal.dmg", "beta 2");
+    b.objects.set("admission.json", halting("1.0.1-beta.2", "beta"));
+    expect((await b.run(b.request("/v1/beta/darwin/aarch64/0.9.1"))).status).toBe(204);
+    expect(
+      (
+        await b.run(
+          b.request("/v1/beta/download/v1.0.1-beta.2/Proscenium_1.0.1-beta.2_universal.dmg"),
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      await (
+        await b.run(
+          b.request("/v1/beta/download/v1.0.1-beta.1/Proscenium_1.0.1-beta.1_universal.dmg"),
+        )
+      ).text(),
+    ).toBe("beta 1");
+    // Stable is untouched by a track's halt.
+    expect(await answer(await b.run())).toEqual({ status: 200, version: "0.9.1" });
+  });
+  test("a halt deletes nothing: the Worker reads R2 and never writes it", async () => {
+    const f = fixture();
+    github(f, ["0.9.1", "0.9.2"]);
+    const before = new Map(f.objects);
+    f.objects.set("admission.json", halting("0.9.2"));
+    await f.run();
+    await f.run(f.request("/v1/download/v0.9.2/Proscenium_0.9.2_universal.dmg"));
+    f.objects.delete("admission.json");
+    expect(f.objects).toEqual(before);
+    const source = await Bun.file(new URL("../src/updates.ts", import.meta.url)).text();
+    expect(source).not.toMatch(
+      /\.(put|delete)\(\s*`?\$\{source\.prefix|TRACKS\.(put|delete)|bucket\.(put|delete)/,
+    );
   });
 });

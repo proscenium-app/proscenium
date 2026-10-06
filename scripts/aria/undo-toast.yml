@@ -44,19 +44,12 @@
   - text: in Loglines
 - main "Play":
   - list "Open in this pane":
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-      - button "Close The Weight of Water"
-    - listitem "Outline":
-      - button "Outline"
-    - listitem "1953 North Sea Flood":
-      - button "1953 North Sea Flood"
   - button "Add a surface to this pane"
-  - 'button "What this line is: Scene"': Scene
-  - button "Bold" [disabled]: ⌘B
-  - button "Italic" [disabled]: ⌘I
-  - button "Underline" [disabled]: ⌘U
-  - button "Line Break ⇧⏎" [disabled]
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
   - button "Page Break ⌘⏎"
   - button "+ Comment ⌘⌥M"
   - button "Comments ⌘⇧C"

@@ -12,8 +12,74 @@ that version's section.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-06
+
+### Added
+
+- Changes shows your own writing. Versions…, in the script-name menu, opens
+  Changes on the document in front of you: each session you wrote, newest
+  first under its day, alongside what arrived from another app or device.
+  Open a session to read what you changed in it, as a whole or one saved
+  version at a time, and restore either. ↑ and ↓, or Newer and Older, step
+  through the list; All, Mine and From Outside choose whose changes it shows.
+  A session holds only what you wrote: a change that arrived from elsewhere
+  ends it and is listed on its own, and a copy kept as that change arrived
+  says when what it adds may be that change. With VoiceOver, Versions… says
+  how many sessions it found. Changes takes the place of the Versions sheet.
+- Changes shows a change on the page. Open one of your writing sessions, a
+  change from another device, or a script someone sent back, and the script is
+  drawn in your play's format with the words that were cut struck through and
+  the words that were added underlined, and a rule in the margin beside each
+  line a change touched. Line by Line, in the Changes bar, is the list of
+  added and removed lines it showed before.
+- Double-click the Characters page to edit it. In page view, a double-click on
+  the Characters page opens Cast with the cursor in the description of the
+  character you clicked.
+- Numbered lists in a document can carry on or start again. A numbered list
+  keeps counting past a paragraph that interrupts it, and in a numbered list
+  the formatting bar offers Continue Numbering and Start at 1. Type `7.` and a
+  space to start a list at 7.
+
+### Changed
+
+- Panes keep a width you can read. In a window too small for every pane, the
+  smallest wait out of sight and come back when there is room, and Split says
+  there is no room rather than making a sliver.
+- Versions follow your writing more closely. Documents, character sheets and
+  outline notes keep versions as scripts do, a session's first save keeps the
+  text it began from, and a version is kept once you have stopped for two
+  minutes, so a session ends on what you wrote.
+- On an Intel Mac, Proscenium follows stable releases only, and Settings ›
+  Updates shows Stable with no track to choose. Test versions are built for
+  Apple silicon.
+
 ### Fixed
 
+- A pane made with Split can be closed. Every pane of several now has its tab
+  and close box, View › Close Pane closes the pane you are in, and a divider
+  dragged all the way across a pane closes it. A split pane with one tab had
+  nothing to close it with.
+- Opening a play no longer saves it. A play said "Editing…" as it opened,
+  wrote the same text back, and kept a version nobody had made.
+- Lists in a document hold together. Backspace, or ⌘⌫, at the start of an
+  item keeps its words in the list, as a new line of the item above, where it
+  split the list in two. A line broken inside an item with Shift-Return is
+  still a line of that item when the document is opened again. Tab and
+  Shift-Tab indent and outdent an item and do nothing else, and two lists of
+  one kind with nothing between them are one list.
+- A click anywhere on a document's page puts the cursor in the text: in a
+  margin, between two paragraphs, or on the blank paper under the last line.
+- A list in a document lines up at every zoom. An item's first line starts
+  with the lines under it, and its bullet or number hangs in the indent beside
+  it, where on a zoomed page the first line began further left and a
+  two-figure number stood out in the margin. The cursor in a document is the
+  height of the type on every line and stands between two letters, where it
+  sat on the first letter of a list item. It holds steady if your Mac is set
+  to prefer a cursor that does not blink.
+- The inspector's count of comments follows an undo that takes a comment
+  away. It kept the old count until something else redrew it.
+- Added lines in Changes are easier to read in the dark appearance. Their
+  green did not stand out enough from the page behind it.
 - File › New Play… and ⌘N now name a new play, from the Plays screen or from
   inside a play. The New Play button's menu said "Blank Play ⌘N" while ⌘N
   made nothing.

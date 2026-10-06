@@ -16,7 +16,7 @@ import { settings as ipc } from "../../storage";
 import type { OpenAtLaunch } from "../../storage/settings-model";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
 import { StatusList } from "./StatusList";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 const LAUNCH_OPTIONS: { value: OpenAtLaunch; label: string }[] = [
   { value: "lastPlay", label: "Where you left off" },

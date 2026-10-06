@@ -26,7 +26,7 @@
 import { useRef, useState } from "react";
 import { LanguageSheet } from "./LanguageSheet";
 import { openSettings } from "./settings";
-import { useSettings } from "./settings/store";
+import { useSettings } from "../ui/settings-store";
 import { openFeedback } from "../feedback";
 import { openHelp } from "../tutorial/events";
 import type { FormatSpec } from "../format";
@@ -55,7 +55,11 @@ const VIEWS: SegmentedOption<ViewId>[] = [
   { id: "corkboard", label: "Board", title: "Show the board in the focused pane (⌘2)" },
   { id: "outliner", label: "Outline", title: "Show the outline in the focused pane (⌘3)" },
   { id: "cast", label: "Cast", title: "Show the cast in the focused pane (⌘4)" },
-  { id: "changes", label: "Changes", title: "Show what arrived from outside (⌘5)" },
+  {
+    id: "changes",
+    label: "Changes",
+    title: "Show your changes and what arrived from outside (⌘5)",
+  },
 ];
 
 export interface DocumentMenuActions {

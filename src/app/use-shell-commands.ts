@@ -41,6 +41,7 @@ interface ShellActions {
   setInspectorOpen: (on: boolean) => void;
   toggleComments: () => void;
   splitFocused: (dir: "row" | "col") => void;
+  closeFocusedPane: () => void;
   zoomBy: (delta: number) => void;
   zoomReset: () => void;
   zoomCtl: Pick<ReturnType<typeof useZoom>, "setMode">;
@@ -95,6 +96,7 @@ export function useShellCommands(
     setInspectorOpen,
     toggleComments,
     splitFocused,
+    closeFocusedPane,
     zoomBy,
     zoomReset,
     zoomCtl,
@@ -450,6 +452,9 @@ export function useShellCommands(
         case "split-col":
           splitFocused("col");
           return;
+        case "close-pane":
+          closeFocusedPane();
+          return;
         case "zoom-in":
           zoomBy(ZOOM_STEP);
           return;
@@ -503,6 +508,7 @@ export function useShellCommands(
       setInspectorOpen,
       toggleComments,
       splitFocused,
+      closeFocusedPane,
       zoomBy,
       zoomReset,
       zoomCtl,

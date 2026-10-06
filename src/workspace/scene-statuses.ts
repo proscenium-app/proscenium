@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useSettings } from "./store";
+import { useSettings } from "../ui/settings-store";
 
 /** Existing labels stay available even after the writer changes the list. */
 export function useSceneStatusOptions(current: string) {

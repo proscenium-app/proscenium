@@ -33,7 +33,7 @@ export interface Node {
 // ---------------------------------------------------------------- to the doc
 
 export function toDoc(markdown: string): Node {
-  const content = parseBlocks(markdown).map(blockToNode);
+  const content = counted(parseBlocks(markdown).map(blockToNode));
   // ProseMirror will not accept an empty doc, and neither would a writer:
   // an empty note still needs somewhere to put the caret.
   return { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
@@ -106,10 +106,29 @@ function listToNode(list: ListBlock): Node {
       type: "listItem",
       content: [
         { type: "paragraph", content: spansToNodes(item.spans) },
-        ...item.children.map(listToNode),
+        ...counted(item.children.map(listToNode)),
       ],
     })),
   };
+}
+
+/**
+ * Markdown has no way to say "this list goes on from the one above": a
+ * numbered list after an interruption is a new list with a number of its own.
+ * So the number is the mark. A numbered list that starts where the one before
+ * it, among the same siblings, left off is that list continuing, and the
+ * editor keeps it counting from there as the list above grows (lists.ts holds
+ * the same rule for a document being edited).
+ */
+function counted(nodes: Node[]): Node[] {
+  let next: number | null = null;
+  for (const node of nodes) {
+    if (node.type !== "orderedList") continue;
+    const start = Number(node.attrs?.start ?? 1);
+    if (next !== null && start === next) node.attrs = { ...node.attrs, continues: true };
+    next = start + (node.content?.length ?? 0);
+  }
+  return nodes;
 }
 
 /**
@@ -240,18 +259,29 @@ function listToText(list: Node, indent: string): string {
     const marker = ordered ? `${start + i}. ` : "- ";
     const pad = " ".repeat(marker.length);
     const blocks = item.content ?? [];
-    const [first, ...rest] = blocks;
-    const head = first ? (blockToText(first, indent + pad, false) ?? "") : "";
-    lines.push(`${indent}${marker}${head}`);
 
-    for (const block of rest) {
+    // The item's own text: its paragraph, and any more that follow it before
+    // a nested list (a pasted second paragraph). Each line the writer broke
+    // stays a line: it ends in a backslash and the next one hangs under the
+    // item's text, which the parser reads straight back as one item.
+    let k = 0;
+    const own: string[] = [];
+    while (k < blocks.length && (k === 0 || blocks[k]!.type === "paragraph")) {
+      own.push(...inlineToText(blocks[k]!.content ?? [], "broken").split("\n"));
+      k += 1;
+    }
+    // A break with nothing after it has no line to hold open.
+    while (own.length > 1 && !own[own.length - 1]!.trim()) own.pop();
+    lines.push(`${indent}${marker}${own.join(`\\\n${indent}${pad}`)}`);
+
+    for (const block of blocks.slice(k)) {
       if (block.type === "bulletList" || block.type === "orderedList") {
         lines.push(listToText(block, indent + pad));
         continue;
       }
-      // Anything else inside an item (a pasted second paragraph, a quote) folds
-      // into the item as a continuation line: the text survives, and the
-      // parser reads it straight back as part of the same item.
+      // Anything else inside an item (a quote, a paragraph under a nested
+      // list) folds into the item as a continuation line: the text survives,
+      // and the parser reads it straight back as part of the list.
       const text = blockToText(block, indent + pad, false);
       if (text) lines.push(prefixLines(text, indent + pad));
     }
@@ -323,9 +353,11 @@ const WORD = /[\p{L}\p{N}]/u;
  * `lineStarts` is true only for a top-level paragraph — the one place where a
  * line beginning `- ` or `## ` would be read back as a different block. Inside
  * a heading, a list item, a quote or a table cell the marker is already spent,
- * so escaping there would only litter the file.
+ * so escaping there would only litter the file. A list item is "broken": its
+ * first line is spent, and each line after a break is a line start again, where
+ * `- ` would be read back as an item of its own.
  */
-function inlineToText(nodes: Node[], lineStarts = false): string {
+function inlineToText(nodes: Node[], lineStarts: boolean | "broken" = false): string {
   let out = "";
   let open: { mark: Mark; close: string }[] = [];
 
@@ -451,7 +483,7 @@ function fenceCode(text: string): string {
  * `before` is the text already emitted on this block, so line-start rules apply
  * to a real line start rather than to every text run.
  */
-function escapeText(text: string, before: string, lineStarts: boolean): string {
+function escapeText(text: string, before: string, lineStarts: boolean | "broken"): string {
   let out = text
     .replace(/\\/g, "\\\\")
     // Emphasis and code markers. The `_` rule has to be the exact mirror of
@@ -465,7 +497,7 @@ function escapeText(text: string, before: string, lineStarts: boolean): string {
     // A bracket run that looks like a link, so it doesn't become one.
     .replace(/\[([^\]]*)\]\(/g, "\\[$1\\](");
 
-  if (lineStarts && (!before || before.endsWith("\n"))) {
+  if (before.endsWith("\n") ? lineStarts : lineStarts === true && !before) {
     // The backslash goes before the PUNCTUATION, never before a digit: `1\.`
     // is an escaped period, `\1.` is a literal backslash followed by "1.".
     out = out

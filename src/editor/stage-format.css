@@ -422,11 +422,13 @@ span.formatting-icon {
   position: relative;
   height: var(--fmt-block-height);
 }
-.titlesheet--editable {
+.titlesheet--editable,
+.frontsheet--editable {
   pointer-events: auto;
   cursor: pointer;
 }
-.titlesheet--editable:hover {
+.titlesheet--editable:hover,
+.frontsheet--editable:hover {
   outline: 1px dashed var(--rule);
   outline-offset: -6px;
 }

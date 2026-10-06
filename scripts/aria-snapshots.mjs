@@ -106,11 +106,13 @@ export function normalize(text) {
       // A saved copy's short date (9/25/2026) is the day the checks ran.
       .replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, "<date>")
       .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s?[AP]M\b/g, "<time>")
+      // The vault's copy for this launch: one a pass once, one an act now
+      // (plays-<n>, numbered by launch), so the number is where the act ran.
       .replace(
-        /(?:\/private)?\/var\/folders\/[^\s"':]*?\/proscenium-selftest-\d+\/plays-(?:light|dark)/g,
+        /(?:\/private)?\/var\/folders\/[^\s"':]*?\/proscenium-selftest-\d+\/plays-(?:light|dark|\d+)/g,
         "<plays folder>",
       )
-      .replace(/plays-(?:light|dark)\b/g, "<plays folder name>")
+      .replace(/plays-(?:light|dark|\d+)\b/g, "<plays folder name>")
       // Anything else under the self-test's temporary home: the build host's
       // temp folder and the run's pid are not the app's.
       .replace(
@@ -310,8 +312,12 @@ export function renderWebKitTree(tree) {
     const s = node.states ?? {};
     if (s.headingLevel) states.push(`level=${s.headingLevel}`);
     if (s.hierarchyLevel && role === "treeitem") states.push(`level=${s.hierarchyLevel}`);
-    if (s.checked !== undefined && s.checked !== false)
-      states.push(s.checked === "mixed" ? "checked=mixed" : "checked");
+    // WebKit's inspector says a control's checked state as a word, "true",
+    // "false" or "mixed", never a boolean: read as "anything but false", every
+    // radio in a group was written checked, the one that is and the ones that
+    // are not.
+    if (s.checked === true || s.checked === "true") states.push("checked");
+    else if (s.checked === "mixed") states.push("checked=mixed");
     if (s.pressed !== undefined && s.pressed !== false)
       states.push(s.pressed === "mixed" ? "pressed=mixed" : "pressed");
     if (s.expanded === true) states.push("expanded");

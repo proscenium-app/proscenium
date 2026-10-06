@@ -37,7 +37,7 @@ import {
 } from "./play-file";
 import { fileName, titleFromFileName } from "./filename";
 import type { KeptFile } from "../storage/import-bytes";
-import { ulid } from "./ulid";
+import { ulid } from "../storage/ulid";
 import {
   BINDER_CHANGED,
   reconcileDelta,

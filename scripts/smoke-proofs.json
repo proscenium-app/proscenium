@@ -1,0 +1,278 @@
+{
+  "v": 1,
+  "checks": {
+    "a document's caret and list markers stand where the words are": {
+      "hash": "1c9415756d2b225d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-05"
+    },
+    "a document's caret holds steady when the Mac asks for one that does not blink": {
+      "hash": "7531b8b3800ea658",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-06"
+    },
+    "a failed version read is spoken in Changes": {
+      "hash": "2e98da40adeb5361",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "version-read-failure": "6545d2f0ab79d498"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "a list in a document holds together": {
+      "hash": "5785a81053336b7f",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-04"
+    },
+    "Changes speaks delayed and unavailable comparisons": {
+      "hash": "b87d664366e1015b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comparison-unavailable": "73628a0a50e57936"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "characters page · a double-click opens Cast at the line": {
+      "hash": "f325bb2df8339774",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-01"
+    },
+    "copies kept during a save are readable in Changes": {
+      "hash": "14b3c49ef4dd1eb3",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "saved-copy": "ea1aaccb54889263"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "outline and cast": {
+      "hash": "24a7365de9b67a86",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "cast": "7767859f437f3e24",
+        "changes": "c2a161a496812187",
+        "outline": "d87f050c9eaf5641"
+      },
+      "provenAt": "2026-10-01"
+    },
+    "panes · a pane of several closes by its box, its key and a divider dragged across it": {
+      "hash": "e252953bdc37a1f6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "split-panes": "01bd63e2e0338f1c"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "panes · a window with no room hides a pane, says so, and makes no new one": {
+      "hash": "46608ca044338bf5",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-05"
+    },
+    "seeded Find and export results use premounted status regions": {
+      "hash": "362a3fc9e6612766",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "export-range-feedback": "ca0d9c5274ba7cd3"
+      },
+      "provenAt": "2026-10-01"
+    },
+    "settings · every section": {
+      "hash": "2095da9ac4797648",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-about": "a150524c4db36640",
+        "settings-appearance": "34a2296ba61b471f",
+        "settings-formats": "29339a2caa9fffd2",
+        "settings-general": "15438de30f756fda",
+        "settings-help-feedback": "0b85a5db09b0be11",
+        "settings-keyboard-shortcuts": "94875deb17237d65",
+        "settings-privacy": "e4f012a981bf5e3e",
+        "settings-updates": "5d64a0e30590b994",
+        "settings-writing": "749e219ef9a604f4"
+      },
+      "provenAt": "2026-09-29"
+    },
+    "settings · updates": {
+      "hash": "6fb381c33bf692e1",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-updates-automatic-off": "bbc42690766f8f47"
+      },
+      "provenAt": "2026-09-29"
+    },
+    "settings · updates, alpha's key": {
+      "hash": "432bee5a26a65762",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-updates-a-key-refused": "01561de491550b57",
+        "settings-updates-alpha-track": "1ed6a20a2565fc04",
+        "settings-updates-alpha-without-a-key": "3decaf8a39b08b4a"
+      },
+      "provenAt": "2026-09-29"
+    },
+    "sheet and outline recovery survive a crash and remain readable": {
+      "hash": "7cbe7ff816e62f25",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "recovered-document-copy--2": "4a9222a364adeb6a",
+        "recovered-document-copy": "0c903c689d08b3ec"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "versions": {
+      "hash": "57a0f603b87ed97d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "versions": "5a78574ee097a795"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "versions · a restore lands in the script it was chosen from, or nowhere": {
+      "hash": "ecbfef9f7f028b22",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-01"
+    }
+  }
+}

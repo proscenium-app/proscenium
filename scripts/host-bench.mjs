@@ -12,6 +12,7 @@
  * Smoke loops run by hand beside a CI self-test once stretched one read past
  * its budget, and five of eight runs failed on passing code.
  */
+import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -23,4 +24,24 @@ export async function holdHostBench(what) {
   // Named and missing is a host set up wrong: say so, rather than run unguarded.
   const { holdBench } = await import(pathToFileURL(resolve(ROOT, name)).href);
   await holdBench(what);
+}
+
+/**
+ * `node scripts/host-bench.mjs "<what>" -- <command…>`: the command, run
+ * holding the bench, so a heavy step the pipeline runs directly (cargo's)
+ * never shares the host with a native self-test, whose tree reads a heavy
+ * build beside it once stretched past their budget. Its exit code is the
+ * command's.
+ */
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const at = process.argv.indexOf("--");
+  const what = process.argv[2];
+  const command = at > 0 ? process.argv.slice(at + 1) : [];
+  if (!what || what === "--" || command.length === 0) {
+    console.error('usage: node scripts/host-bench.mjs "<what>" -- <command…>');
+    process.exit(2);
+  }
+  await holdHostBench(what);
+  const child = spawn(command[0], command.slice(1), { stdio: "inherit" });
+  child.on("exit", (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
 }

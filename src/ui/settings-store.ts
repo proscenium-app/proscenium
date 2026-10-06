@@ -21,10 +21,14 @@
  *   The last answer carries both.
  * - **Migrating.** The first load carries the pre-model localStorage values
  *   into settings.json (settings-model.ts `legacyMigration`) before painting.
+ *
+ * It sits in src/ui/, beside the first paint it keeps in step (use-accent.ts)
+ * and below the workspace, whose outliner and board read the scene statuses
+ * from it; the Settings sheet (src/app/settings/) reaches it from above.
  */
 import { useEffect, useSyncExternalStore } from "react";
-import { applyAppearance, applyInterfaceTextSize } from "../../ui/use-accent";
-import { settings as ipc } from "../../storage";
+import { applyAppearance, applyInterfaceTextSize } from "./use-accent";
+import { settings as ipc } from "../storage";
 import {
   applyPatch,
   browserStorage,
@@ -36,7 +40,7 @@ import {
   type KeyValueStorage,
   type Settings,
   type SettingsPatch,
-} from "../../storage/settings-model";
+} from "../storage/settings-model";
 
 export interface SettingsBackend {
   get(): Promise<Settings>;

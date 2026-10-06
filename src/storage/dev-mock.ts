@@ -10,7 +10,7 @@
  * Activated by ipc.ts ONLY when `import.meta.env.DEV` and there is no Tauri
  * runtime. The production build never imports this module.
  */
-import { emptyDraft, type FeedbackDraft } from "../feedback/model";
+import { emptyDraft, type FeedbackDraft } from "./feedback-draft";
 import { assertDocumentText } from "./read-limit";
 import { matchingPath } from "./path-key";
 import wowPlay from "../../sample-vault/The Weight of Water/The Weight of Water.proscenium?raw";
@@ -439,6 +439,7 @@ const updateListeners = new Set<Box<UpdateState>>();
 const accessListeners = new Set<Box<FolderAccessIssue | null>>();
 let updateState: UpdateState = { kind: "unconfigured" };
 let mockAccent: string | null = null;
+let mockSteadyCaret = false;
 let accessIssue: FolderAccessIssue | null = null;
 let finishUpdate: (() => void) | null = null;
 let dirtyBuffer = false;
@@ -1092,6 +1093,18 @@ export const devVault = {
     window.dispatchEvent(new Event("proscenium:system-accent"));
   },
 
+  /** No Mac here: a caret that blinks, unless a check asks for a steady one. */
+  steadyCaret: (): Promise<boolean> => delay(mockSteadyCaret),
+  /**
+   * Stand in for the writer turning the Mac's non-blinking cursor setting on
+   * or off and coming back: the page asks again on `proscenium:system-caret`,
+   * as the app does when its window comes forward.
+   */
+  mockSteadyCaret: (on: boolean): void => {
+    mockSteadyCaret = on;
+    window.dispatchEvent(new Event("proscenium:system-caret"));
+  },
+
   // A folder about to become the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-D2, docs/app/keeping-work/storage-and-file-format.md#STOR-D11). The mock has
   // no providers; a play is a directory holding its `.proscenium`.
   folderFacts: (path: string): Promise<FolderFacts> => {
@@ -1368,6 +1381,7 @@ if (typeof window !== "undefined") {
   w.__prosceniumUpdate = devVault.mockUpdate;
   w.__prosceniumUpdateState = devVault.mockUpdateState;
   w.__prosceniumSystemAccent = devVault.mockSystemAccent;
+  w.__prosceniumSteadyCaret = devVault.mockSteadyCaret;
   w.__prosceniumUpdateHeld = () => finishUpdate !== null;
   w.__prosceniumFolderAccess = devVault.mockFolderAccess;
 }

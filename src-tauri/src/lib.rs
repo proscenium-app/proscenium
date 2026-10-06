@@ -10,6 +10,7 @@
 
 mod accent;
 mod authority;
+mod caret;
 mod conflict;
 mod export;
 mod feedback;
@@ -1106,6 +1107,13 @@ pub fn run() {
     let builder = builder.plugin(selftest::plugin());
     #[cfg(all(desktop, feature = "updater"))]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    let context = tauri::generate_context!();
+    // An update proof given a stand-in of the update service: the updater's
+    // address, before the plugin reads it (selftest.rs). Only an update-proof
+    // build has this line; the self-test's plugin above has read the proof's
+    // variables by now.
+    #[cfg(feature = "update-proof")]
+    let context = selftest::proof_context(context);
     builder
         // Before anything can open a file: a launch caused by a double-click
         // delivers its paths before the webview exists (opens.rs).
@@ -1222,6 +1230,7 @@ pub fn run() {
             settings::open_privacy,
             symbols::formatting_symbols,
             accent::system_accent,
+            caret::steady_caret,
             tutorials::tutorials_root,
             tutorials::tutorials_session,
             tutorials::tutorials_sessions,
@@ -1297,6 +1306,8 @@ pub fn run() {
             selftest::selftest_proof_log,
             #[cfg(feature = "selftest")]
             selftest::selftest_done,
+            #[cfg(feature = "selftest")]
+            selftest::selftest_act_done,
             opens_take,
             opened_facts,
             opened_read,
@@ -1304,7 +1315,7 @@ pub fn run() {
             opened_read_package,
             vault_folder_facts,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         // Nothing runs before this: a builder that cannot make the app has no
         // window to say so in, so the process ends here with the reason on stderr.
         .expect("error while building the Proscenium application")

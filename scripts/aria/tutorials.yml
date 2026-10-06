@@ -42,11 +42,6 @@
   - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-      - button "Close The Weight of Water"
-    - listitem "Outline":
-      - button "Outline"
   - button "Add a surface to this pane"
   - 'button "What this line is: Action"': Action
   - button "Bold": ⌘B
@@ -55,22 +50,38 @@
   - button "Line Break ⇧⏎"
   - button "Page Break ⌘⏎"
   - button "+ Comment ⌘⌥M"
-  - button "Comments ⌘⇧C" [pressed]
+  - button "Comments ⌘⇧C"
   - text: Page 2 of 2
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
 - complementary "Inspector":
   - tablist "Inspector":
-    - tab "Scene"
-    - tab "Comments" [selected]
+    - tab "Scene" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - heading "0 comments" [level=2]
-  - 'button "Filter comments: All Comments"': All Comments
-  - paragraph:
-    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
-    - code: "[["
-    - text: where you want one.
-  - list
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Status
+  - 'button "Scene status: idea"': idea
+  - text: Label
+  - textbox "Label"
+  - text: Colour
+  - radiogroup "Card colour":
+    - radio "Unmarked" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: unmarked
+  - text: Board note · never prints
+  - textbox "Board note"
+  - text: On stage MARA 3 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: <save status>
@@ -82,11 +93,11 @@
 - dialog "Help & Tutorials":
   - heading "Help & Tutorials" [level=2]
   - text: Six short lessons, building one practice play as you go.
-  - 'button "Continue: Write Your First Exchange · Step 1 of 5"'
-  - paragraph: In your practice play, at the step where you stopped.
+  - 'button "Start: Write Your First Exchange"'
+  - paragraph: In your practice play, right where the last lesson left it.
   - list:
     - listitem:
-      - button "Write Your First Exchange": Write Your First Exchange Step 1 of 5
+      - button "Write Your First Exchange": Write Your First Exchange About 3 minutes
     - listitem:
       - button "Format the Script" [expanded]: Format the Script About 3 minutes
       - paragraph: Emphasize words, keep a speech going on a new line, start a new page and try another format.
@@ -101,14 +112,14 @@
         - listitem:
           - button "Choose a format"
     - listitem:
-      - button "Arrange Scenes on the Board": Arrange Scenes on the Board Step 3 of 5
+      - button "Arrange Scenes on the Board": Arrange Scenes on the Board About 3 minutes
     - listitem:
       - button "Characters and Opening Pages": Characters and Opening Pages About 3 minutes
     - listitem:
-      - button "Organize Files and Tags": Organize Files and Tags Step 2 of 4
+      - button "Organize Files and Tags": Organize Files and Tags About 3 minutes
     - listitem:
       - button "Prepare a PDF or Print": Prepare a PDF or Print About 3 minutes
-  - button "Saved Practice (13)"
+  - button "Saved Practice (0)"
   - button "Start Over in a New Play"
   - button "Reset Progress…"
   - button "Keyboard Shortcuts"

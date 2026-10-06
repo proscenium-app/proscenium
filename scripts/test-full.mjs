@@ -20,6 +20,9 @@ const out = join(root, ".selftest", "full", id);
 const app = join(root, "src-tauri/target/release/bundle/macos/Proscenium Self-Test.app");
 const steps = [
   ["types", "Type checking", "bun", ["run", "typecheck"]],
+  ["lint", "Lint", "bun", ["run", "lint"]],
+  ["format", "Formatting", "bun", ["run", "format:check"]],
+  ["scripts", "The scripts' own tests", "bun", ["test", "./scripts"]],
   ["layout", "Script layout rules", "bun", ["run", "check:layout"]],
   ["design", "Design tokens", "bun", ["run", "check:design"]],
   ["licenses", "License headers", "bun", ["run", "check:spdx"]],

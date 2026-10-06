@@ -3,12 +3,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CommentsFeed } from "../comments";
-import { commentsState } from "../comments/plugin";
+import { useSceneComments } from "../comments/scene-comments";
 import { errorShown, playOpened, surfaceShown, workspaceErrorCode } from "../diagnostics";
 import { FeedbackSheet } from "../feedback/FeedbackSheet";
-import { PlayEditor } from "../editor";
+import { PlayEditor, RedlineScript } from "../editor";
 import { useCaretScene } from "../editor/caret-scene";
-import { ChangesView } from "../review";
+import { ChangesView, type ScriptPage, type Who } from "../review";
 import { useRecoveryCopies } from "../review/RecoveryCopies";
 import { useSavedCopies } from "../review/SavedCopies";
 import { settings, vault } from "../storage";
@@ -232,11 +232,10 @@ function AppShell() {
 
   const openTitlePage = useCallback(() => setShowTitlePage(true), []);
   /**
-   * Versions, and of what: the script (null), or the sheet or outline note
-   * in front when it was asked for — their kept words were in Versions with
-   * nothing in the app able to show them.
+   * Versions… opens Changes on the writer's own versions of what was in front:
+   * the script, or the sheet or outline note being written in (docs/app/keeping-work/storage-and-file-format.md#STOR-119).
    */
-  const [showHistory, setShowHistoryFor] = useState<{ id: string | null } | null>(null);
+  const [changesFocus, setChangesFocus] = useState<{ who: Who; docId: string | null } | null>(null);
   /** The review of words a crash left behind (docs/app/keeping-work/storage-and-file-format.md#STOR-D10). */
   const [showRecovery, setShowRecovery] = useState(false);
   // Export is a dialog now (which pages, seen first), so the menu item opens
@@ -256,6 +255,8 @@ function AppShell() {
     scriptScrollerRef,
     setScriptSlot,
     paneRootRef,
+    setPaneRoot,
+    hiddenPanes,
     scriptVisible,
     visibleSurfaces,
     labelFor,
@@ -264,6 +265,8 @@ function AppShell() {
     onActivateTab,
     switcherView,
     onCloseTab,
+    onClosePane,
+    closeFocusedPane,
     onSelectBinderItem,
     onDropBinderItem,
     splitFocused,
@@ -345,6 +348,16 @@ function AppShell() {
     [ws],
   );
 
+  /** A double-click on the Characters sheet: open Cast at the line hit (docs/app/formatting/formats-and-layout.md#FMT-59). */
+  const [castFocus, setCastFocus] = useState<{ paragraphId: string | null } | null>(null);
+  const panesRef = useRef(panes);
+  panesRef.current = panes;
+  const editCharactersPage = useCallback((paragraphId: string | null) => {
+    setCastFocus({ paragraphId });
+    panesRef.current.open({ kind: "cast" });
+  }, []);
+  const clearCastFocus = useCallback(() => setCastFocus(null), []);
+
   const castSurface = useCallback(
     () => (
       <CastView
@@ -368,9 +381,11 @@ function AppShell() {
         cards={ws.cards}
         onOpenScene={ws.openScene}
         onExportSides={(name) => setShowExport({ sidesFor: name })}
+        focusRequest={castFocus}
+        onFocusHandled={clearCastFocus}
       />
     ),
-    [ws, openMaterialTab],
+    [ws, openMaterialTab, castFocus, clearCastFocus],
   );
 
   const [binderOpen, setBinderOpenState] = useState<boolean>(() => {
@@ -410,11 +425,39 @@ function AppShell() {
     // solved against the wrong width is the bug this token exists to prevent.
     // The whole tree is in the token because ANY reshape can resize the page's
     // pane or move the page to another one; the focused pane, because with no
-    // script showing it decides which sheet that is.
-    layout: `${binderVisible}:${panes.focusedLeaf}:${JSON.stringify(paneTree)}`,
+    // script showing it decides which sheet that is; and the panes the window
+    // has no room for, because one coming back is a new pane to solve against.
+    layout: `${binderVisible}:${panes.focusedLeaf}:${JSON.stringify(paneTree)}:${[...hiddenPanes].join()}`,
   });
   const { zoom, zoomBy, refit } = zoomCtl;
   const zoomReset = zoomCtl.reset;
+
+  const clearChangesFocus = useCallback(() => setChangesFocus(null), []);
+  /** Changes' reading of the writer's versions, made once, so its list is not read again on every render. */
+  const changesHistory = useMemo(
+    () => ({
+      load: ws.historyDocs,
+      read: ws.readHistoryVersion,
+      target: ws.historyTarget,
+      open: (docId: string) => {
+        const item = findBinderItem(ws.binder, docId);
+        if (!item) return;
+        ws.selectItem(item);
+        panes.openBeside(
+          item.type === "script" ? { kind: "script" } : { kind: "material", id: item.id },
+          "row",
+        );
+      },
+    }),
+    [ws.historyDocs, ws.readHistoryVersion, ws.historyTarget, ws.binder, ws.selectItem, panes],
+  );
+
+  // Changes reads a script's changes on the script's own page, in the play's format.
+  const format = ws.format;
+  const scriptPage = useCallback<ScriptPage>(
+    (props) => <RedlineScript {...props} format={format} />,
+    [format],
+  );
 
   const renderSurface = useCallback(
     (surface: Surface): ReactNode => {
@@ -454,6 +497,10 @@ function AppShell() {
               loadOther={ws.loadOther}
               onKeepOther={ws.keepOther}
               onTrashOther={ws.trashOther}
+              history={changesHistory}
+              focus={changesFocus}
+              onFocusHandled={clearChangesFocus}
+              scriptPage={scriptPage}
             />
           );
         case "comments":
@@ -495,7 +542,17 @@ function AppShell() {
         }
       }
     },
-    [ws, outlineSurface, castSurface, zoom, refit],
+    [
+      ws,
+      outlineSurface,
+      castSurface,
+      zoom,
+      refit,
+      changesHistory,
+      changesFocus,
+      clearChangesFocus,
+      scriptPage,
+    ],
   );
 
   // Per-surface scroll memory now lives in the pane that owns the
@@ -600,23 +657,8 @@ function AppShell() {
 
   /* Comments in this scene. A comment IS text in the script, so this counts the
      same plugin state the feed and the margin read — there is no comment store
-     that could disagree with the document. Recomputed on every doc change,
-     which is what `docVersion` is for. */
-  const docVersion = ws.editor?.state.doc.nodeSize ?? 0;
-  const caretComments = useMemo(() => {
-    const heading = caretCard?.heading ?? null;
-    const state = ws.editor ? commentsState(ws.editor.state) : undefined;
-    if (!state || heading === null) return { total: 0, todo: 0 };
-    let total = 0;
-    let todo = 0;
-    for (const entry of state.entries) {
-      if (entry.scene !== heading) continue;
-      total += 1;
-      if (entry.parsed.todo) todo += 1;
-    }
-    return { total, todo };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caretCard, ws.editor, docVersion]);
+     that could disagree with the document — after every change of it. */
+  const caretComments = useSceneComments(ws.editor, caretCard?.heading ?? null);
 
   /** A change that landed from somewhere else and touched this scene. */
   const caretPending = useMemo(() => {
@@ -680,25 +722,15 @@ function AppShell() {
   const openHistory = useCallback(() => {
     const leaf = panes.focusedLeaf ? findLeaf(paneTree, panes.focusedLeaf) : null;
     const surface = leaf?.tabs[leaf.active];
-    if (surface?.kind === "material") {
-      setShowHistoryFor({ id: surface.id });
-      return;
-    }
-    if (surface?.kind === "outliner" && inOutlineNotesRef.current) {
-      setShowHistoryFor({ id: ws.outlineNoteId ?? "outline" });
-      return;
-    }
-    setShowHistoryFor({ id: null });
-  }, [paneTree, panes.focusedLeaf, ws.outlineNoteId]);
-  /**
-   * The sheet's or notes' Versions, made once per opening: new functions on
-   * every render re-ran the panel's loading, which moved its selection back to
-   * the newest version and dismissed a Restore being confirmed.
-   */
-  const historyTarget = useMemo(
-    () => (showHistory?.id ? ws.versionsOf(showHistory.id) : null),
-    [showHistory, ws.versionsOf],
-  );
+    const docId =
+      surface?.kind === "material"
+        ? surface.id
+        : surface?.kind === "outliner" && inOutlineNotesRef.current
+          ? (ws.outlineNoteId ?? null)
+          : ws.activeScriptId();
+    setChangesFocus({ who: "mine", docId });
+    panes.open({ kind: "changes" });
+  }, [paneTree, panes, ws.outlineNoteId, ws.activeScriptId]);
 
   /** What the script says about the character whose sheet is showing. */
   const sheetDerived = useMemo(() => {
@@ -808,7 +840,6 @@ function AppShell() {
     closeDialogs: () => {
       setShowExport(null);
       setShowTitlePage(false);
-      setShowHistoryFor(null);
     },
     // Asked one place at a time, not as one selector list: a list answers with its
     // first match in the page, and the toolbar's Help & Tutorials comes before any
@@ -841,6 +872,7 @@ function AppShell() {
     setInspectorOpen,
     toggleComments,
     splitFocused,
+    closeFocusedPane,
     zoomBy,
     zoomReset,
     zoomCtl,
@@ -1014,13 +1046,15 @@ function AppShell() {
              panes → inspector, and with a play open the panes were a div,
              so the rotor listed a navigation and a complementary and no
              place to write. */
-            <main ref={paneRootRef} className="paneroot" aria-label="Play">
+            <main ref={setPaneRoot} className="paneroot" aria-label="Play">
               <PaneTree
                 node={paneTree}
                 activeLeafId={panes.focusedLeaf}
                 onFocusLeaf={panes.setFocusedLeaf}
                 onActivateTab={onActivateTab}
                 onCloseTab={onCloseTab}
+                onClosePane={onClosePane}
+                hidden={hiddenPanes}
                 onResize={panes.resize}
                 onAddSurface={panes.openInLeaf}
                 onDropTab={panes.dropTab}
@@ -1145,6 +1179,7 @@ function AppShell() {
               layoutMeta={ws.layoutMeta}
               frontMatter={ws.frontMatter}
               onEditTitlePage={openTitlePage}
+              onEditCharactersPage={editCharactersPage}
               trackedMarks={ws.showTracked ? ws.trackedMarks : undefined}
               zoom={zoom}
               commentsOpen={commentsOpen}
@@ -1213,9 +1248,6 @@ function AppShell() {
           quitGate={quitGate}
           showRecovery={showRecovery}
           setShowRecovery={setShowRecovery}
-          showHistory={showHistory}
-          setShowHistoryFor={setShowHistoryFor}
-          historyTarget={historyTarget}
         />
         {launching && <LaunchScreen play={opening} />}
       </div>
