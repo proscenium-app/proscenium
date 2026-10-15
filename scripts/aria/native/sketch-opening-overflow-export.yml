@@ -28,7 +28,7 @@
   - group [live=polite]: Page 1 of 4
   - button "Next page"
   - none
-    - checkbox "Anonymous copy" [checked]
+    - checkbox "Anonymous copy"
   - none
     - textbox "Play language"
   - button "Cancel"

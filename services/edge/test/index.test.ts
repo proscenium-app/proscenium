@@ -8,16 +8,22 @@
  * that looked like GitHub being down. Bun's fetch accepts any receiver, so the
  * global is replaced here by one that refuses the way workerd does.
  */
-import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, spyOn, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { GITHUB, UPDATES } from "../src/updates";
+import { admissionList, bucket } from "./lists";
 mock.module("cloudflare:sockets", () => ({
   connect() {
     throw new Error("No socket in this test");
   },
 }));
 const { default: worker } = await import("../src/index");
-const migration = await Bun.file(new URL("../migrations/0001_updates.sql", import.meta.url)).text();
+const { REPORTS } = await import("../src/reports");
+const migrations = await Promise.all(
+  ["0001_updates.sql", "0003_usage.sql", "0006_usage_track.sql"].map((f) =>
+    Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text(),
+  ),
+);
 
 const archive = "Proscenium_1.0.0_universal.app.tar.gz";
 const manifest = {
@@ -60,9 +66,9 @@ afterAll(() => {
   Reflect.set(globalThis, "caches", saved.caches);
 });
 
-function env() {
+function env(objects = new Map<string, string>()) {
   const db = new Database(":memory:");
-  db.exec(migration);
+  for (const sql of migrations) db.exec(sql);
   const allow = {
     async limit() {
       return { success: true };
@@ -70,12 +76,15 @@ function env() {
   };
   return {
     db,
+    objects,
     env: {
       DB: {
         prepare(sql: string) {
           return {
             bind(...args: string[]) {
               return {
+                sql,
+                args,
                 async run() {
                   db.query(sql).run(...args);
                   return { success: true };
@@ -84,17 +93,23 @@ function env() {
             },
           };
         },
+        async batch(statements: { sql: string; args: string[] }[]) {
+          return db.transaction(() =>
+            statements.map((s) => {
+              db.query(s.sql).run(...s.args);
+              return { success: true };
+            }),
+          )();
+        },
       },
       UPDATE_LIMIT: allow,
       DOWNLOAD_LIMIT: allow,
+      EVENTS_LIMIT: allow,
       UPDATES_ENABLED: "true",
       DOWNLOADS_ENABLED: "true",
+      EVENTS_ENABLED: "true",
       RELEASED_VERSIONS_JSON: '["0.9.0","1.0.0"]',
-      TRACKS: {
-        async get() {
-          return null;
-        },
-      },
+      TRACKS: bucket(objects),
     } as unknown as Parameters<typeof worker.fetch>[1],
   };
 }
@@ -137,6 +152,72 @@ describe("production entry", () => {
     expect(upstream).toEqual([
       `${GITHUB}/download/v1.0.0/latest.json`,
       `${GITHUB}/download/v1.0.0/${archive}`,
+    ]);
+  });
+  test("the entry reads the admission list at the bucket's root, and says one it cannot read on the error console alone", async () => {
+    const said = spyOn(console, "error").mockImplementation(() => {});
+    const logged = spyOn(console, "log");
+    try {
+      // A stand-in's keys are not production's.
+      const standIn = env(new Map([["stand-in/admission.json", admissionList(["1.0.1"])]]));
+      cache.clear();
+      expect((await worker.fetch(get("/v1/darwin/aarch64/1.0.1"), standIn.env)).status).toBe(400);
+      const root = env(new Map([["admission.json", admissionList(["1.0.1"])]]));
+      cache.clear();
+      expect((await worker.fetch(get("/v1/darwin/aarch64/1.0.1"), root.env)).status).toBe(200);
+      expect(said).not.toHaveBeenCalled();
+      // Not a list: said once, on the error console, with nothing of the request in it.
+      const broken = env(new Map([["admission.json", "{ not a list"]]));
+      cache.clear();
+      expect((await worker.fetch(get("/v1/darwin/aarch64/1.0.1"), broken.env)).status).toBe(400);
+      expect((await worker.fetch(get("/v1/darwin/aarch64/1.0.0"), broken.env)).status).toBe(200);
+      expect(said.mock.calls).toEqual([
+        ["admission.json is not an admission list: nothing is admitted or halted by it"],
+      ]);
+      expect(logged).not.toHaveBeenCalled();
+    } finally {
+      said.mockRestore();
+      logged.mockRestore();
+    }
+  });
+  test("a halt through the entry: GitHub's newest release is not offered, and the updater is not sent to GitHub for it", async () => {
+    const f = env(
+      new Map([["admission.json", admissionList([], [{ version: "1.0.0", track: "stable" }])]]),
+    );
+    cache.clear();
+    upstream.length = 0;
+    // The release before it is asked for; this GitHub answers it with the halted one's manifest,
+    // which is refused, so the answer is that there is nothing newer.
+    const r = await worker.fetch(get("/v1/darwin/aarch64/0.9.0"), f.env);
+    expect(r.status).toBe(204);
+    expect(upstream).toEqual([
+      `${GITHUB}/latest/download/latest.json`,
+      `${GITHUB}/download/v0.9.0/latest.json`,
+    ]);
+    expect((await worker.fetch(get(`/v1/download/v1.0.0/${archive}`), f.env)).status).toBe(404);
+  });
+  test("a published beta's usage counts through the entry are counted apart", async () => {
+    const f = env(new Map([["beta/versions.json", JSON.stringify(["1.0.1-beta.1"])]]));
+    cache.clear();
+    const batch = (version: string) =>
+      new Request(`${REPORTS}/v1/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          version,
+          platform: "darwin",
+          arch: "aarch64",
+          os: "26.0",
+          channel: "developer-id",
+          events: [{ name: "app_launched", props: {} }],
+        }),
+      });
+    expect((await worker.fetch(batch("1.0.1-beta.1"), f.env)).status).toBe(204);
+    expect((await worker.fetch(batch("1.0.0"), f.env)).status).toBe(204);
+    expect((await worker.fetch(batch("1.0.1-beta.2"), f.env)).status).toBe(400);
+    expect(f.db.query("SELECT version, track FROM usage_counts ORDER BY version").all()).toEqual([
+      { version: "1.0.0", track: "stable" },
+      { version: "1.0.1-beta.1", track: "beta" },
     ]);
   });
 });

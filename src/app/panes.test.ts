@@ -5,11 +5,14 @@ import { beforeEach, describe, expect, it } from "bun:test";
 
 import {
   __resetPaneIds,
+  PANE_FLOOR,
   allSurfaces,
+  closeNode,
   closeSurface,
   closeTab,
   defaultTree,
   findLeaf,
+  findNode,
   fromLegacyLayout,
   hasSurface,
   leaf,
@@ -17,6 +20,8 @@ import {
   moveTab,
   normalize,
   openSurface,
+  paneNeed,
+  panesWithoutRoom,
   pruneMissingMaterials,
   reviveTree,
   setSize,
@@ -218,6 +223,78 @@ describe("closing", () => {
   });
 });
 
+describe("closing a whole pane", () => {
+  it("closes a pane with every tab in it, whatever the tab count", () => {
+    // The pane Split makes has ONE tab, and for a while nothing could close it:
+    // the only close box was on a strip drawn for two tabs or more.
+    const t = split("row", [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b")]);
+    const one = closeNode(t, "b")!;
+    expect(one.type).toBe("leaf");
+    expect(allSurfaces(one).map(surfaceKey)).toEqual(["script"]);
+
+    const many = closeNode(
+      split("row", [leaf([SCRIPT], 0, "a"), leaf([BOARD, OUTLINE, COMMENTS], 1, "b")]),
+      "b",
+    )!;
+    expect(allSurfaces(many).map(surfaceKey)).toEqual(["script"]);
+  });
+
+  it("closes everything under a split, and collapses what is left", () => {
+    const inner = split("col", [leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")], undefined, "in");
+    const t = split("row", [leaf([SCRIPT], 0, "a"), inner]);
+    const next = closeNode(t, "in")!;
+    expect(next.type).toBe("leaf");
+    expect(allSurfaces(next).map(surfaceKey)).toEqual(["script"]);
+  });
+
+  it("gives its share to the pane named as its heir", () => {
+    const t = split(
+      "row",
+      [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")],
+      [0.5, 0.2, 0.3],
+    );
+    // A divider dragged across `b` from `c`'s side: `c` is drawn over both.
+    const next = closeNode(t, "b", "c")! as { sizes: number[] };
+    expect(next.sizes[0]).toBeCloseTo(0.5, 5);
+    expect(next.sizes[1]).toBeCloseTo(0.5, 5);
+    expectWellFormed(next as PaneNode);
+  });
+
+  it("shares it out in proportion when no heir is named, as a tab's close does", () => {
+    const t = split(
+      "row",
+      [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")],
+      [0.5, 0.2, 0.3],
+    );
+    const next = closeNode(t, "b")! as { sizes: number[] };
+    expect(next.sizes[0]).toBeCloseTo(0.625, 3);
+    expect(next.sizes[1]).toBeCloseTo(0.375, 3);
+  });
+
+  it("ignores an heir that is not a sibling", () => {
+    const inner = split("col", [leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")], [0.5, 0.5], "in");
+    const t = split("row", [leaf([SCRIPT], 0, "a"), inner], [0.6, 0.4]);
+    const next = closeNode(t, "b", "a")! as { sizes: number[] };
+    expect(next.sizes[0]).toBeCloseTo(0.6, 5);
+    expect(next.sizes[1]).toBeCloseTo(0.4, 5);
+    expectWellFormed(next as PaneNode);
+  });
+
+  it("returns null for the whole tree, and the tree for an id that is not in it", () => {
+    const t = split("row", [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b")]);
+    expect(closeNode(t, t.id)).toBeNull();
+    expect(leaves(closeNode(t, "nowhere")!).map((l) => l.id)).toEqual(["a", "b"]);
+  });
+
+  it("finds a split as well as a leaf by id", () => {
+    const inner = split("col", [leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")], undefined, "in");
+    const t = split("row", [leaf([SCRIPT], 0, "a"), inner]);
+    expect(findNode(t, "in")).toBe(inner);
+    expect(findNode(t, "c")?.type).toBe("leaf");
+    expect(findNode(t, "nowhere")).toBeNull();
+  });
+});
+
 describe("moving tabs", () => {
   it("moves a tab into another pane", () => {
     const t = split("row", [leaf([SCRIPT, BOARD], 1, "a"), leaf([OUTLINE], 0, "b")]);
@@ -265,6 +342,118 @@ describe("resizing", () => {
     const next = setSize(t, t.id, 0, 0.001) as { sizes: number[] };
     expect(next.sizes[0]).toBeGreaterThan(0.1);
     expectWellFormed(next as PaneNode);
+  });
+
+  it("stops at the floors the renderer measured, on either side", () => {
+    const t = split("row", [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b")], [0.5, 0.5]);
+    const least = { first: 0.3, second: 0.25 };
+    expect((setSize(t, t.id, 0, 0.01, 1, least) as { sizes: number[] }).sizes[0]).toBeCloseTo(0.3);
+    expect((setSize(t, t.id, 0, 0.99, 1, least) as { sizes: number[] }).sizes[0]).toBeCloseTo(0.75);
+  });
+
+  it("meets in the middle when the two floors do not fit the pair", () => {
+    const t = split("row", [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b")], [0.5, 0.5]);
+    const least = { first: 0.7, second: 0.7 };
+    for (const ask of [0, 0.5, 1]) {
+      const next = setSize(t, t.id, 0, ask, 1, least) as { sizes: number[] };
+      expect(next.sizes[0]).toBeCloseTo(0.5, 5);
+    }
+  });
+
+  it("resizes across a pane that is not drawn, leaving that pane's share alone", () => {
+    const t = split(
+      "row",
+      [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")],
+      [0.4, 0.2, 0.4],
+    );
+    const next = setSize(t, t.id, 0, 0.6, 2) as { sizes: number[] };
+    expect(next.sizes[0]).toBeCloseTo(0.6, 5);
+    expect(next.sizes[1]).toBeCloseTo(0.2, 5); // the pane between, untouched
+    expect(next.sizes[2]).toBeCloseTo(0.2, 5);
+  });
+
+  it("is a no-op for a pair that is not two children in order", () => {
+    const t = split("row", [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b")], [0.5, 0.5]);
+    expect((setSize(t, t.id, 1, 0.9, 0) as { sizes: number[] }).sizes).toEqual([0.5, 0.5]);
+    expect((setSize(t, t.id, 0, 0.9, 5) as { sizes: number[] }).sizes).toEqual([0.5, 0.5]);
+  });
+});
+
+describe("room", () => {
+  const W = PANE_FLOOR.width;
+  const H = PANE_FLOOR.height;
+  const row = (...ids: string[]) =>
+    split(
+      "row",
+      ids.map((id) => leaf([BOARD], 0, id)),
+    );
+
+  it("needs one floor for a pane, the sum along a split and the largest across it", () => {
+    expect(paneNeed(leaf([SCRIPT], 0, "a"))).toEqual({ width: W, height: H });
+    expect(paneNeed(row("a", "b", "c"))).toEqual({ width: 3 * W, height: H });
+    const stacked = split("col", [leaf([SCRIPT], 0, "a"), row("b", "c")]);
+    expect(paneNeed(stacked)).toEqual({ width: 2 * W, height: 2 * H });
+  });
+
+  it("counts only the panes still drawn, and nothing for a split with none", () => {
+    const t = split("row", [leaf([SCRIPT], 0, "a"), row("b", "c")]);
+    expect(paneNeed(t, new Set(["b"]))).toEqual({ width: 2 * W, height: H });
+    expect(paneNeed(row("b", "c"), new Set(["b", "c"]))).toBeNull();
+  });
+
+  it("leaves every pane in when they fit", () => {
+    expect(panesWithoutRoom(row("a", "b"), { width: 2 * W, height: H }, "a").size).toBe(0);
+    // A measured box is fractional: a hair under is still room.
+    expect(panesWithoutRoom(row("a", "b"), { width: 2 * W - 0.4, height: H }, "a").size).toBe(0);
+  });
+
+  it("leaves out the smallest pane first, and never the focused one", () => {
+    const t = split(
+      "row",
+      [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b"), leaf([OUTLINE], 0, "c")],
+      [0.5, 0.2, 0.3],
+    );
+    const box = { width: 2 * W + 10, height: 400 };
+    expect([...panesWithoutRoom(t, box, "a")]).toEqual(["b"]);
+    // Focused, the smallest stays and the next smallest goes.
+    expect([...panesWithoutRoom(t, box, "b")]).toEqual(["c"]);
+  });
+
+  it("leaves out the later of two equals", () => {
+    expect([...panesWithoutRoom(row("a", "b", "c"), { width: 2 * W, height: H }, "a")]).toEqual([
+      "c",
+    ]);
+  });
+
+  it("keeps one pane however small the box, the first when none is focused", () => {
+    const box = { width: 10, height: 10 };
+    expect([...panesWithoutRoom(row("a", "b", "c"), box, "b")].sort()).toEqual(["a", "c"]);
+    expect([...panesWithoutRoom(row("a", "b", "c"), box, null)].sort()).toEqual(["b", "c"]);
+    expect([...panesWithoutRoom(row("a", "b", "c"), box, "gone")].sort()).toEqual(["b", "c"]);
+    expect(panesWithoutRoom(leaf([SCRIPT], 0, "a"), box, "a").size).toBe(0);
+  });
+
+  it("passes over a pane whose absence would not help", () => {
+    // Too narrow for the row of three; the tiny pane stacked beside it costs
+    // no width, so it stays and one of the row goes.
+    const stack = split("col", [leaf([SCRIPT], 0, "a"), leaf([OUTLINE], 0, "tiny")], [0.95, 0.05]);
+    const t = split("row", [stack, leaf([BOARD], 0, "b"), leaf([BOARD], 0, "c")], [0.4, 0.3, 0.3]);
+    const hidden = panesWithoutRoom(t, { width: 2 * W, height: 2 * H }, "a");
+    expect([...hidden]).toEqual(["c"]);
+  });
+
+  it("answers for height as it does for width", () => {
+    const t = split("col", [leaf([SCRIPT], 0, "a"), leaf([BOARD], 0, "b")], [0.7, 0.3]);
+    expect([...panesWithoutRoom(t, { width: 900, height: 2 * H - 20 }, "a")]).toEqual(["b"]);
+    expect(panesWithoutRoom(t, { width: 900, height: 2 * H }, "a").size).toBe(0);
+  });
+
+  it("changes nothing in the tree: a larger box draws every pane again", () => {
+    const t = row("a", "b", "c");
+    const before = JSON.stringify(t);
+    expect(panesWithoutRoom(t, { width: W, height: H }, "a").size).toBe(2);
+    expect(JSON.stringify(t)).toBe(before);
+    expect(panesWithoutRoom(t, { width: 3 * W, height: H }, "a").size).toBe(0);
   });
 });
 

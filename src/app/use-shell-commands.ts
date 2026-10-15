@@ -8,6 +8,7 @@ import {
   type SetStateAction,
   type MutableRefObject,
 } from "react";
+import { keyStyle, pressed } from "../ui/keys";
 import { anyLayerOpen, useToast } from "../ui";
 import { vault } from "../storage";
 import { openFeedback } from "../feedback";
@@ -25,6 +26,9 @@ import type { Surface } from "./panes";
 import type { Workspace } from "./useWorkspace";
 import type { ExportRequest } from "./ExportDialog";
 
+/** Whether a PC's chords are in force, where they differ from a Mac's (ui/keys.ts). */
+const pc = () => keyStyle() === "pc";
+
 export const VIEW_TO_SURFACE: Record<ViewId, Surface> = {
   script: { kind: "script" },
   corkboard: { kind: "corkboard" },
@@ -41,6 +45,7 @@ interface ShellActions {
   setInspectorOpen: (on: boolean) => void;
   toggleComments: () => void;
   splitFocused: (dir: "row" | "col") => void;
+  closeFocusedPane: () => void;
   zoomBy: (delta: number) => void;
   zoomReset: () => void;
   zoomCtl: Pick<ReturnType<typeof useZoom>, "setMode">;
@@ -95,6 +100,7 @@ export function useShellCommands(
     setInspectorOpen,
     toggleComments,
     splitFocused,
+    closeFocusedPane,
     zoomBy,
     zoomReset,
     zoomCtl,
@@ -124,14 +130,20 @@ export function useShellCommands(
    */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "f") return;
-      // ⌃⌘F is focus mode, not find — both would otherwise fire on one chord.
-      if (e.metaKey && e.ctrlKey) return;
+      // A PC's are Ctrl+F and Ctrl+H (ui/keys.ts).
+      const replace = pc() ? pressed(e, "⌘⌥F") : e.altKey;
+      if (pc()) {
+        if (!pressed(e, "⌘F") && !replace) return;
+      } else {
+        if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "f") return;
+        // ⌃⌘F is focus mode, not find — both would otherwise fire on one chord.
+        if (e.metaKey && e.ctrlKey) return;
+      }
       // A menu or sheet is up: the window's keys wait for it (docs/app/preferences-and-help/accessibility.md#A11Y-3).
       if (anyLayerOpen()) return;
       if (mode !== "workspace" || !scriptTitle) return;
       e.preventDefault();
-      openFind(e.altKey);
+      openFind(replace);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -143,8 +155,13 @@ export function useShellCommands(
      editor's keymap has no business doing. */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
-      if (e.key.toLowerCase() !== "c") return;
+      if (pc()) {
+        // Ctrl+Shift+M: Ctrl+Shift+C is Character's there (ui/keys.ts).
+        if (!pressed(e, "⌘⇧C")) return;
+      } else {
+        if (!(e.metaKey || e.ctrlKey) || !e.shiftKey) return;
+        if (e.key.toLowerCase() !== "c") return;
+      }
       if (anyLayerOpen()) return;
       if (mode !== "workspace" || !scriptTitle) return;
       e.preventDefault();
@@ -213,7 +230,7 @@ export function useShellCommands(
       }
 
       // ⌃⌘F leaves focus mode too, and Esc is the escape hatch everywhere.
-      if (e.ctrlKey && e.metaKey && key === "f" && inPlay) {
+      if ((pc() ? pressed(e, "⌃⌘F") : e.ctrlKey && e.metaKey && key === "f") && inPlay) {
         e.preventDefault();
         setFocusMode((on) => !on);
         return;
@@ -243,6 +260,13 @@ export function useShellCommands(
         askNewPlay();
         return;
       }
+      // ⌘O is File › Open Vault…. A Mac's menu bar takes the chord first; on
+      // a PC, WebView2 holds the keyboard, so the window answers it.
+      if (pc() && pressed(e, "⌘O")) {
+        e.preventDefault();
+        openFolder();
+        return;
+      }
       // All Plays needs a play, not a script, as the menu bar's item does: a
       // play whose script is still reading (from iCloud, or just after Stop
       // Tutorial brought the play back) or could not be read is left by its key
@@ -262,12 +286,13 @@ export function useShellCommands(
         panes.show(VIEW_TO_SURFACE[order[Number(key) - 1]]);
         return;
       }
-      if (e.altKey && key === "b") {
+      // A PC's panel chords are Ctrl+Shift (ui/keys.ts): no Ctrl+Alt there.
+      if (pc() ? pressed(e, "⌘⌥B") : e.altKey && key === "b") {
         e.preventDefault();
         setBinderOpen(!binderVisible);
         return;
       }
-      if (e.altKey && key === "i") {
+      if (pc() ? pressed(e, "⌘⌥I") : e.altKey && key === "i") {
         e.preventDefault();
         setInspectorOpen(!inspectorVisible);
         return;
@@ -278,8 +303,11 @@ export function useShellCommands(
         return;
       }
       // ⌘P prints, through the same dialog. Command only: in a Mac text field
-      // ⌃P moves the caret up a line, and the script is a text field.
-      if (e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && key === "p") {
+      // ⌃P moves the caret up a line, and the script is a text field. A PC's
+      // is Ctrl+P.
+      if (
+        pc() ? pressed(e, "⌘P") : e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && key === "p"
+      ) {
         e.preventDefault();
         if (!exporting) setShowExport({ sidesFor: null, action: "print" });
         return;
@@ -289,10 +317,22 @@ export function useShellCommands(
         setShowGoToScene(true);
         return;
       }
-      // ⌥⌘↑ / ⌥⌘↓ — the previous and next scene, from wherever the caret is.
-      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+      // ⌥⌘↑ / ⌥⌘↓ — the previous and next scene, from wherever the caret is;
+      // a PC's Ctrl+PageUp and Ctrl+PageDown.
+      const step = pc()
+        ? pressed(e, "⌥⌘↓")
+          ? 1
+          : pressed(e, "⌥⌘↑")
+            ? -1
+            : 0
+        : e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")
+          ? e.key === "ArrowDown"
+            ? 1
+            : -1
+          : 0;
+      if (step !== 0) {
         e.preventDefault();
-        stepScene(e.key === "ArrowDown" ? 1 : -1);
+        stepScene(step);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -372,6 +412,10 @@ export function useShellCommands(
         case "settings":
           openSettings();
           return;
+        case "about":
+          // Windows' Help › About Proscenium: a Mac's is the app menu's own panel.
+          openSettings("about");
+          return;
         case "check-updates":
           openSettings("updates");
           void checkForUpdatesNow();
@@ -450,6 +494,9 @@ export function useShellCommands(
         case "split-col":
           splitFocused("col");
           return;
+        case "close-pane":
+          closeFocusedPane();
+          return;
         case "zoom-in":
           zoomBy(ZOOM_STEP);
           return;
@@ -503,6 +550,7 @@ export function useShellCommands(
       setInspectorOpen,
       toggleComments,
       splitFocused,
+      closeFocusedPane,
       zoomBy,
       zoomReset,
       zoomCtl,

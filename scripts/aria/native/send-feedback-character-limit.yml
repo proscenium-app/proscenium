@@ -9,7 +9,7 @@
     - none
       - textbox "Email (optional)"
     - paragraph
-    - checkbox "Include technical details" [checked]
+    - checkbox "Include technical details"
     - paragraph
     - group
       - none "View Details"

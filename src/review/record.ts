@@ -14,7 +14,7 @@
  * app does not own. What we can do — and do here — is remember what the writer
  * had, so the change can be shown as a change and undone in one click.
  */
-import { ulid } from "../workspace/ulid";
+import { ulid } from "../storage/ulid";
 import { diffLines } from "./diff";
 import type { ChangesStore, LedgerEntry } from "./store";
 

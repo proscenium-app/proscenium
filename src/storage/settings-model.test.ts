@@ -16,6 +16,7 @@ import {
   DEFAULT_PLAY_STATUSES,
   DEFAULT_SCENE_STATUSES,
   DEFAULT_SETTINGS,
+  MAX_COMMENT_NAME_CHARS,
   MAX_STATUSES,
   LEGACY_KEYS,
   SETTINGS_MIRROR_KEY,
@@ -104,6 +105,7 @@ describe("the model agrees with settings.rs", () => {
       defaultFormat: null,
       shareAnalytics: true,
       privacyNoticeSeen: false,
+      commentName: "",
     });
     // settings.rs spells the same defaults.
     expect(rust).toContain('const DEFAULT_ACCENT: &str = "gilt"');
@@ -152,6 +154,7 @@ describe("readSettings", () => {
       // And before reports existed: on, with the notice still to be seen.
       shareAnalytics: true,
       privacyNoticeSeen: false,
+      commentName: "",
     });
   });
 
@@ -272,8 +275,29 @@ describe("validatePatch", () => {
       { learnedWords: { add: ["   "] } },
       { learnedWords: { add: ["x".repeat(101)] } },
       { learnedWords: { set: ["x"] } },
+      { commentName: "Robin:" },
+      { commentName: "[[Robin]]" },
+      { commentName: " Robin" },
+      { commentName: "Robin\nSam" },
+      { commentName: "A name that runs on past any name" },
+      { commentName: 7 },
     ] as unknown as SettingsPatch[];
     for (const patch of bad) expect(validatePatch(patch)).not.toBeNull();
+  });
+
+  it("docs/app/writing/comments.md#COMM-52: holds the name comments are signed with, or nothing", () => {
+    for (const commentName of ["Robin", "Zoë", "Mary Ann O'Neil-Park", "J. R.", ""]) {
+      expect(validatePatch({ commentName })).toBeNull();
+      expect(applyPatch({ ...DEFAULT_SETTINGS }, { commentName }).commentName).toBe(commentName);
+    }
+    // A mangled value in the file costs only the name.
+    expect(readSettings({ commentName: "Robin: no", accent: "iris" })).toMatchObject({
+      commentName: "",
+      accent: "iris",
+    });
+    // settings.rs holds the same length and refuses the same three characters.
+    expect(rust).toContain(`const MAX_COMMENT_NAME_CHARS: usize = ${MAX_COMMENT_NAME_CHARS};`);
+    expect(rust).toContain("matches!(c, ':' | '[' | ']')");
   });
 });
 

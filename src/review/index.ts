@@ -29,5 +29,10 @@ export type { DiffLine } from "./diff";
 export { ChangesView } from "./ChangesView";
 export type { ChangesViewProps } from "./ChangesView";
 
+export type { ChangesLook, ScriptPage } from "./Comparison";
+
 export { computeMarks, emptyMarks, mergeMarks } from "./tracked";
 export type { TrackedMarks } from "./tracked";
+
+export { buildTimeline, filterTimeline, SITTING_GAP_MS } from "./timeline";
+export type { HistoryDoc, SittingDoc, TimelineEntry, Who } from "./timeline";

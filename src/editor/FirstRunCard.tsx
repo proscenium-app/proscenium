@@ -12,6 +12,7 @@
  * Dismissed by typing, not by a button: the gesture that makes the card
  * unnecessary is the gesture that removes it. Shown once ever, per install.
  */
+import { keys } from "../ui/keys";
 import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 
@@ -56,13 +57,13 @@ export function FirstRunCard({ editor }: { editor: Editor | null }) {
   return (
     <aside className="firstrun" aria-label="How the editor works">
       <p className="firstrun__row">
-        <kbd className="keybadge">⏎</kbd> the next thought — the app guesses what kind
+        <kbd className="keybadge">{keys("⏎")}</kbd> the next thought — the app guesses what kind
       </p>
       <p className="firstrun__row">
-        <kbd className="keybadge">⇧⏎</kbd> the next line, same thought
+        <kbd className="keybadge">{keys("⇧⏎")}</kbd> the next line, same thought
       </p>
       <p className="firstrun__row">
-        <kbd className="keybadge">⇥</kbd> change what this line is
+        <kbd className="keybadge">{keys("⇥")}</kbd> change what this line is
       </p>
       <p className="firstrun__foot">Shown once. Type to dismiss.</p>
     </aside>

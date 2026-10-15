@@ -141,7 +141,16 @@ Supporting mechanics:
   model, engine, and PDF still see literal newlines.
 - <a id="EDIT-43"></a> **EDIT-43** **A blank line inside a speech serializes as Fountain's two-space line.** A
   bare empty line would end the dialogue block on the next parse and demote the
-  rest of the speech to action (round-trip rule 1).
+  rest of the speech to action (round-trip rule 1). The same line stands under
+  a cue that has no speech at all, so the cue is still a cue when the script is
+  opened again, with an empty speech under it
+  ([docs/engineering/fountain-model.md#EDIT-175](../../engineering/fountain-model.md#EDIT-175)). And it
+  stands between two verses of one speech, where it is the break between them
+  and comes back as no line of its own
+  ([docs/engineering/fountain-model.md#EDIT-183](../../engineering/fountain-model.md#EDIT-183)).
+  Each of those has a line of its block over it. With none over it the line
+  has nothing to keep going, and is read and written as a blank line
+  ([docs/engineering/fountain-model.md#EDIT-191](../../engineering/fountain-model.md#EDIT-191)).
 
 <a id="EDIT-D110"></a>
 
@@ -186,6 +195,27 @@ those (they are legitimate characters elsewhere).
 - <a id="EDIT-52"></a> **EDIT-52** Leading `#` / `##` → **Act** / **Scene** (structural).
 - <a id="EDIT-53"></a> **EDIT-53** `@Name` → forced **Character** (preserves mixed case). `!` → forced **Action**. `~` → **Lyric**. Leading `=` → **Synopsis** (the card description). `[[ … ]]` → **Note**.
 - <a id="EDIT-54"></a> **EDIT-54** **Auto-caps**: Character cues, Act/Scene/Transition headings auto-uppercase as you type (toggleable).
+
+<a id="EDIT-176"></a>
+
+**EDIT-176** **A cue that holds lower case keeps it.** Auto-caps reads the whole script on every change and upper-cases each Character that is not `forced`, an attribute of the block that only typing `@` set. A script read from disk carried none. The file says a cue keeps its case with the letters themselves, and `serialize` writes the `@` from them ([docs/engineering/fountain-model.md#EDIT-138](../../engineering/fountain-model.md#EDIT-138)). So after a reopen the first change anywhere in the script made `McTeague` read MCTEAGUE, and the next save wrote that. It took a cue with no `@` in the file too: `HANS (on the radio)` became `HANS (ON THE RADIO)`.
+
+- **Where it is held.** On the page, in `forced`. From the letters alone auto-caps cannot tell a name read from a file from one half typed, so it has to be told. An attribute stays with its block through an undo and a move, and through a cut and a paste ([EDIT-177](#EDIT-177)).
+- **Who sets it.** Typing `@` ([EDIT-53](#EDIT-53)), as before. And `toEditorDoc` (`src/editor/bridge.ts`), the one door every script comes onto the page through: opened, read again after it changed on disk, put back from Versions, or brought back after a change on the board. There a cue with a letter auto-caps would change is `forced`. The question is asked of the cue as the page shows it, so of its name and its extension ([docs/engineering/fountain-model.md#EDIT-124](../../engineering/fountain-model.md#EDIT-124)), and not of a comment on it: a comment in lower case on `MARA` leaves her a cue that upper-cases as it is typed.
+- **What the script holds.** Nothing new. The parser sets no `forced` and the serializer reads none. The model carries the attribute out of the editor and back in, so a cue the writer forced stays theirs when a change made off the page brings the script back onto it. A cue typed with `@` and left in capitals is `forced` for as long as the page lives. After a reopen it is a cue like any other, because the file has no letters to say otherwise.
+- **What did not change.** A new cue typed in lower case with no `@` is upper-cased as it is typed. So is a line set to Character, and so is a cue in capitals read from a script and typed in.
+- **Why not in auto-caps.** Leaving alone every cue the change did not type in would keep the case through a keystroke elsewhere and lose it at the first change to the cue itself. Adding `(V.O.)` to `McTeague` would upper-case the name, and so would an undo that put the name back. What a cue is would depend on what last touched it, and every change the app makes itself (a script read again, a scene moved, a version put back) would have to say which kind it was.
+- **Why not in the parser.** Set from the `@` in the file, `forced` would be set for every cue with a comment on it, which is written with an `@` whatever its capitals ([docs/engineering/fountain-model.md#EDIT-174](../../engineering/fountain-model.md#EDIT-174)), and auto-caps would stop for `MARA` the moment someone commented on her. Set from the letters, it would be a second copy of them in the model, for every other maker of a model to keep in step.
+
+`src/editor/auto-caps.test.ts` pins a cue in mixed case read from a script, with and without an extension, a comment, a `^` and a speech under it, through a keystroke elsewhere, the next save and the reopen after it; a name in another alphabet; and what is still upper-cased as it is typed. `src/editor/bridge.test.ts` pins the page that comes back.
+
+<a id="EDIT-177"></a>
+
+**EDIT-177** **A cue is what it was after a cut and a paste.** The clipboard is the other door onto the page. A block goes onto it as the HTML the schema writes and comes off it through the schema's parse rules, and a yes-or-no attribute is written bare: `data-forced`, `data-dual`. Read back with `getAttribute`, a bare attribute is the empty string, which is no to everything that asks. So a cue in mixed case, cut and pasted, was upper-cased where it landed. A right-hand cue kept the quiet `^` the page draws wherever `data-dual` is, while the layout engine, which asks for `true`, no longer set it beside its partner, and it was saved without its `^`. Both are read back by whether the attribute is there (`flagAttr`, `src/editor/schema.ts`). `src/editor/schema.test.ts` pins that each attribute of a cue and of a scene heading is read back from the HTML it writes.
+
+<a id="EDIT-178"></a>
+
+**EDIT-178** **Auto-caps changes each run where it stands.** A letter can upper-case to more than one: `ß` is `SS`. Auto-caps makes all its replacements in one transaction, and placed each from where the run stood before any of them, so after one such letter every later replacement was a place off. Two headings holding `ß` were enough: the second was replaced across its own end, and `## Die Straße wieder` came out a stage direction reading `DIE STRASSE WIEDERr`. Each run is now found through what the transaction has already done. `src/editor/auto-caps.test.ts` pins three such lines in one script, and two such runs either side of a comment on one line.
 
 <a id="EDIT-D112"></a>
 

@@ -40,6 +40,7 @@
  * two pages off one desk. The sheet used to be a 520px card 60% of the window
  * tall, whatever the format or the zoom said.
  */
+import { keys } from "../ui/keys";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { formatCssVars, type FormatSpec } from "../format";
@@ -583,7 +584,7 @@ export function MaterialEditor({
                 className={`material__mode${mode === "page" ? " material__mode--on" : ""}`}
                 onClick={() => show("page")}
                 aria-pressed={mode === "page"}
-                title="Write on the page · ⌘E"
+                title={`Write on the page · ${keys("⌘E")}`}
               >
                 Page
               </button>
@@ -591,7 +592,7 @@ export function MaterialEditor({
                 className={`material__mode${mode === "source" ? " material__mode--on" : ""}`}
                 onClick={() => show("source")}
                 aria-pressed={mode === "source"}
-                title="Edit the Markdown source · ⌘E"
+                title={`Edit the Markdown source · ${keys("⌘E")}`}
               >
                 Source
               </button>

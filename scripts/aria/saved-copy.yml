@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
@@ -42,14 +42,27 @@
   - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "Cast":
-      - button "Cast"
-    - listitem "Changes":
-      - button "Changes"
-      - button "Close Changes"
   - button "Add a surface to this pane"
   - heading "Copies kept during a save" [level=3]
   - button "Saved copy of Second Draft.fountain <date>, <time>"
+  - tablist "Whose changes":
+    - tab "All" [selected]
+    - tab "Mine"
+    - tab "From Outside"
+  - tablist "How changes are shown":
+    - tab "On the Page" [selected]
+    - tab "Line by Line"
+  - button "Newer"
+  - button "Older"
+  - heading "Today" [level=3]
+  - button "You wrote <time> The Weight of Water +1 −1"
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - paragraph: No scene here
+  - paragraph: "Put the caret in a scene, or type ## Scene in the script, and its card appears here."
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: <save status>

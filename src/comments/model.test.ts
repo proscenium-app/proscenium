@@ -4,11 +4,16 @@
 import { describe, expect, it } from "bun:test";
 import { parse } from "../fountain";
 import {
+  COMMENT_NAME_MAX,
   anchorSpan,
+  cleanCommentName,
   collectComments,
+  commentNameInput,
   isAnchorNoteText,
   isCommentOnlyBlock,
+  joinsThread,
   parseCommentText,
+  signComment,
 } from "./model";
 
 describe("anchorSpan", () => {
@@ -157,5 +162,98 @@ describe("isCommentOnlyBlock", () => {
   it("is false for a genuinely empty block and for mixed content", () => {
     expect(isCommentOnlyBlock({ type: "action", content: [] })).toBe(false);
     expect(isCommentOnlyBlock({ type: "action" })).toBe(false);
+  });
+});
+
+describe("names in any script", () => {
+  it("docs/app/writing/comments.md#COMM-51: reads a name written with letters beyond ASCII", () => {
+    expect(parseCommentText("Zoë: too fast").author).toBe("Zoë");
+    expect(parseCommentText("José María: otra vez").author).toBe("José María");
+    expect(parseCommentText("O’Brien: cut this").author).toBe("O’Brien");
+    expect(parseCommentText("李: 好").author).toBe("李");
+  });
+
+  it("still opens on a letter and still stops at 24 characters", () => {
+    expect(parseCommentText("3 things: one, two").author).toBeNull();
+    expect(parseCommentText("What I mean by all of this here: unclear").author).toBeNull();
+  });
+
+  it("docs/app/writing/comments.md#COMM-51: keeps whose to-do it is", () => {
+    expect(parseCommentText("Robin: todo: verify tide times")).toEqual({
+      author: "Robin",
+      todo: true,
+      body: "verify tide times",
+    });
+  });
+});
+
+describe("the name comments are signed with", () => {
+  it("holds, while it is typed, only what a signature can carry", () => {
+    expect(commentNameInput("Robin: [[x]]")).toBe("Robin x");
+    expect(commentNameInput("Mary Ann ")).toBe("Mary Ann ");
+    expect(commentNameInput("a".repeat(40))).toHaveLength(COMMENT_NAME_MAX);
+  });
+
+  it("settles to a name that reads back as the author, or to nothing", () => {
+    expect(cleanCommentName("  Mary   Ann  ")).toBe("Mary Ann");
+    expect(cleanCommentName("3PO")).toBe("PO");
+    expect(cleanCommentName(" - ")).toBe("");
+    expect(cleanCommentName("todo")).toBe("");
+    for (const name of ["Robin", "Zoë", "Mary Ann O'Neil-Park", "J. R."]) {
+      expect(cleanCommentName(name)).toBe(name);
+      expect(parseCommentText(signComment("is this earned?", name)).author).toBe(name);
+    }
+  });
+});
+
+describe("signComment", () => {
+  it("docs/app/writing/comments.md#COMM-52: signs what the composer writes, when the writer has a name", () => {
+    expect(signComment("too long?", "Robin")).toBe("Robin: too long?");
+    expect(signComment("  too long?  ", "")).toBe("too long?");
+    // A colon in the comment is not somebody else's signature.
+    expect(signComment("Note: this drags", "Robin")).toBe("Robin: Note: this drags");
+    // A flag keeps whose it is.
+    expect(parseCommentText(signComment("todo: check the tide", "Robin"))).toEqual({
+      author: "Robin",
+      todo: true,
+      body: "check the tide",
+    });
+  });
+
+  it("does not sign twice, and signs nothing empty", () => {
+    expect(signComment("Robin: too long?", "Robin")).toBe("Robin: too long?");
+    expect(signComment("   ", "Robin")).toBe("");
+  });
+});
+
+describe("threads", () => {
+  const threadsOf = (script: string) => collectComments(parse(script).doc).map((c) => c.thread);
+
+  it("docs/app/writing/comments.md#COMM-50: a comment directly after another answers it", () => {
+    expect(threadsOf("She pauses [[Robin: too long?]][[Sam: no]] at the door.")).toEqual([0, 0]);
+    expect(threadsOf("She pauses [[Robin: too long?]] [[Sam: no]][[Robin: ok]] here.")).toEqual([
+      0, 0, 0,
+    ]);
+  });
+
+  it("white space between them leaves them one conversation; a word does not", () => {
+    expect(threadsOf("Before.\n\n[[Robin: a thought]]\n[[Sam: agreed]]\n\nAfter.")).toEqual([0, 0]);
+    expect(threadsOf("One [[a]] two [[b]] three.")).toEqual([0, 1]);
+    expect(joinsThread("")).toBe(true);
+    expect(joinsThread(" \n ")).toBe(true);
+    expect(joinsThread(" and ")).toBe(false);
+  });
+
+  it("starts again in the next block", () => {
+    expect(threadsOf("One. [[a]][[b]]\n\nTwo. [[c]][[d]]")).toEqual([0, 0, 2, 2]);
+  });
+
+  it("docs/app/writing/comments.md#COMM-50: a comment and its reply on a line of their own are two comments", () => {
+    // The tokenizer reads such a line as ONE note holding `a]][[b`.
+    const script = "Before.\n\n[[Robin: a thought]][[Sam: agreed]]\n\nAfter.";
+    const comments = collectComments(parse(script).doc);
+    expect(comments.map((c) => c.text)).toEqual(["Robin: a thought", "Sam: agreed"]);
+    expect(comments.map((c) => c.thread)).toEqual([0, 0]);
+    expect(comments.every((c) => c.standalone)).toBe(true);
   });
 });

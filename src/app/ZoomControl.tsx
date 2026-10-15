@@ -23,6 +23,7 @@
  * arrow keys, no focus on open and nowhere for focus to go on close — the
  * one menu in the app a keyboard could open and not operate.
  */
+import { keys } from "../ui/keys";
 import { useRef } from "react";
 import { ZOOM_PRESETS, ZOOM_STEP, type ZoomMode } from "./use-zoom";
 import { Menu, PlusIcon, useMenu, type MenuEntry } from "../ui";
@@ -93,7 +94,7 @@ export function ZoomControl(props: ZoomControlProps) {
         type="button"
         className="zoomctl__step"
         onClick={() => props.onDelta(-ZOOM_STEP)}
-        title="Zoom out (⌘−)"
+        title={`Zoom out (${keys("⌘−")})`}
         aria-label="Zoom out"
       >
         <MinusIcon />
@@ -120,7 +121,7 @@ export function ZoomControl(props: ZoomControlProps) {
         type="button"
         className="zoomctl__step"
         onClick={() => props.onDelta(ZOOM_STEP)}
-        title="Zoom in (⌘+)"
+        title={`Zoom in (${keys("⌘+")})`}
         aria-label="Zoom in"
       >
         <PlusIcon size={11} />

@@ -11,8 +11,16 @@
  *   node scripts/selftest.mjs --out <dir>       report and screenshots (default .selftest/<run>)
  *   node scripts/selftest.mjs --only <text>     only the checks whose names contain <text>, for
  *                                               chasing one failure; never a verdict on the app
- *   node scripts/selftest.mjs --features a,b    a narrowed pass, as smoke --only: leaves out the
- *                                               detachable features' checks not named (smoke-checks.mjs)
+ *   node scripts/selftest.mjs --acts "a,b"      only those acts (scripts/smoke-checks.mjs ACTS), each
+ *                                               from a fresh first launch; none is every act
+ *   node scripts/selftest.mjs --features a,b    the acts those features choose, as a run's plan does
+ *   node scripts/selftest.mjs --order reverse   the acts' order: reverse, or shuffle:<seed> (the
+ *                                               independence proof)
+ *   node scripts/selftest.mjs --no-retry        a failed act is not tried again from its start
+ *   node scripts/selftest.mjs --aria a,b        surfaces (snapshot names) a commit declared changed:
+ *                                               their WebKit trees are recorded, not held
+ *   node scripts/selftest.mjs --quarantine <f>  the build host's quarantine: its checks' failures
+ *                                               are reported and fail nothing
  *
  * Build the app first: `bun run build:selftest` (universal, what CI runs) or
  * `node scripts/build-app.mjs --selftest` (this Mac's slice, faster).
@@ -35,7 +43,8 @@
  * run stopped and proves nothing about the app either way. Run it again.
  */
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { ACTS, actNamed, actsFor } from "./smoke-checks.mjs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -49,8 +58,42 @@ const opt = (name) => {
 const BREAK = opt("--break");
 const ONLY = opt("--only");
 const FEATURES = opt("--features");
+/** The acts each pass runs, in their order: each from a fresh first launch and its own start. */
+const RUN_ACTS = (() => {
+  const named = (opt("--acts") ?? "")
+    .split(",")
+    .map((a) => a.trim())
+    .filter(Boolean);
+  const list = named.length
+    ? named.map((n) => actNamed(n).name)
+    : FEATURES
+      ? actsFor(FEATURES.split(/[,\s]+/).filter(Boolean))
+      : ACTS.map((a) => a.name);
+  const order = opt("--order");
+  if (!order) return list;
+  if (order === "reverse") return [...list].reverse();
+  const m = /^shuffle:(\d+)$/.exec(order);
+  if (!m) {
+    console.error(`selftest: --order is reverse or shuffle:<seed>, not ${order}`);
+    process.exit(2);
+  }
+  // The same seeded shuffle as smoke's, so one seed is one order in both.
+  let seed = Number(m[1]) || 1;
+  const next = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+})();
+const QUARANTINE = opt("--quarantine");
 const ARCH = opt("--arch");
-const TIMEOUT = Number(opt("--timeout") ?? 420);
+/** Seconds an act may go without reporting back (the app's own watchdog). */
+const TIMEOUT = Number(opt("--timeout") ?? 300);
 
 function findApp() {
   const explicit = opt("--app");
@@ -117,7 +160,7 @@ if (expectTranslated) {
 }
 
 const child = spawn(command[0], command[1], {
-  stdio: ["ignore", "inherit", "inherit"],
+  stdio: ["ignore", "pipe", "inherit"],
   env: {
     ...process.env,
     PROSCENIUM_SELFTEST: reportPath,
@@ -127,16 +170,32 @@ const child = spawn(command[0], command[1], {
     ...(BREAK ? { PROSCENIUM_SELFTEST_BREAK: BREAK } : {}),
     ...(ONLY ? { PROSCENIUM_SELFTEST_ONLY: ONLY } : {}),
     ...(FEATURES ? { PROSCENIUM_SELFTEST_FEATURES: FEATURES } : {}),
+    PROSCENIUM_SELFTEST_ACTS: JSON.stringify(RUN_ACTS),
+    PROSCENIUM_SELFTEST_ARIA_DECLARED: JSON.stringify(
+      (opt("--aria") ?? "").split(/[,\s]+/).filter(Boolean),
+    ),
+    ...(args.includes("--no-retry") ? { PROSCENIUM_SELFTEST_RETRY: "0" } : {}),
   },
 });
-// The app has its own watchdog; this one is for an app that cannot even start.
-const killer = setTimeout(
-  () => {
-    console.error(`selftest: no exit after ${TIMEOUT + 60}s — killing it`);
-    child.kill("SIGKILL");
-  },
-  (TIMEOUT + 60) * 1000,
-);
+// The app has its own watchdog, which an act that stops reporting trips; this
+// one is for an app that cannot even start, or has stopped saying anything: a
+// minute past the app's own limit with no line from it, it is killed.
+let killer;
+const quiet = () => {
+  clearTimeout(killer);
+  killer = setTimeout(
+    () => {
+      console.error(`selftest: nothing from the app for ${TIMEOUT + 60}s — killing it`);
+      child.kill("SIGKILL");
+    },
+    (TIMEOUT + 60) * 1000,
+  );
+};
+quiet();
+child.stdout.on("data", (chunk) => {
+  process.stdout.write(chunk);
+  quiet();
+});
 const code = await new Promise((r) => child.on("exit", (c, signal) => r(c ?? (signal ? 128 : 1))));
 clearTimeout(killer);
 
@@ -185,21 +244,65 @@ if (interrupted) {
     );
   verdict = problems.length ? "FAIL" : "ok — the deliberate break was caught";
 } else {
-  if (code !== 0) problems.push(`exited ${code}`);
-  if (report && !report.ok) problems.push(...report.failures);
+  // The quarantine's checks, whose failure already has an owner, fail nothing: reported apart.
+  const held = (() => {
+    if (!QUARANTINE || !existsSync(QUARANTINE)) return new Set();
+    try {
+      const now = Date.now();
+      return new Set(
+        (JSON.parse(readFileSync(QUARANTINE, "utf8")).checks ?? [])
+          .filter((q) => Date.parse(q.until) > now)
+          .map((q) => q.check),
+      );
+    } catch {
+      return new Set();
+    }
+  })();
+  const counted = (report?.failed ?? []).filter((f) => !held.has(f.check));
+  const quarantinedFailing = (report?.failed ?? []).filter((f) => held.has(f.check));
+  // For the triage's ledger: what failed under quarantine, and counted nothing.
+  if (report)
+    writeFileSync(
+      join(out, "judged.json"),
+      `${JSON.stringify(
+        {
+          v: 1,
+          quarantined: quarantinedFailing.map((f) => ({
+            scheme: f.scheme,
+            act: f.act,
+            check: f.check,
+          })),
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  if (quarantinedFailing.length)
+    console.log(
+      `  quarantined, and failing (reported, not counted): ${quarantinedFailing.map((f) => `${f.scheme} · ${f.check}`).join("; ")}`,
+    );
+  if (code !== 0 && counted.length === (report?.failed ?? []).length)
+    problems.push(`exited ${code}`);
+  if (report && !report.ok) {
+    const quiet = new Set(quarantinedFailing.map((f) => `${f.scheme} · ${f.check}`));
+    problems.push(
+      ...report.failures.filter((line) => ![...quiet].some((q) => line.startsWith(`${q}:`))),
+    );
+  }
   if (report && report.passes?.length !== 2)
     problems.push(`${report.passes?.length ?? 0} of 2 passes ran`);
   verdict = problems.length
     ? "FAIL"
     : ONLY
       ? `ok for the checks matching "${ONLY}" — a partial run, not a verdict`
-      : FEATURES
-        ? `clean, narrowed to ${FEATURES}`
+      : RUN_ACTS.length < ACTS.length
+        ? `clean, for ${RUN_ACTS.length} of ${ACTS.length} acts`
         : "clean";
 }
 
 if (report) {
-  const checks = report.passes.flatMap((p) => p.checks ?? []);
+  // An act's start is said as it passes, for the flake rule; it is not one of the act's checks.
+  const checks = report.passes.flatMap((p) => p.checks ?? []).filter((c) => !c.start);
   // A check that only works on the dev mock is skipped here and reported as
   // skipped: counted with the passes, it would read as proof it never gave.
   // Left out by --only or --features: not run here by choice, and not counted.
@@ -214,6 +317,10 @@ if (report) {
       ` · ${Math.round(report.durationMs / 1000)}s`,
   );
 }
+for (const f of report?.flakes ?? [])
+  console.log(
+    `  flake  ${f.scheme} · ${f.act} · ${f.check}: failed once, then green from the act's start: ${f.first}`,
+  );
 for (const p of problems) console.log(`  ${interrupted ? "STOP" : "FAIL"}  ${p}`);
 console.log(`selftest: ${verdict}`);
 process.exit(interrupted ? 3 : problems.length ? 1 : 0);

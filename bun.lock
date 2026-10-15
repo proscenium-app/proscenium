@@ -22,7 +22,7 @@
         "react-dom": "^18.3.1",
       },
       "devDependencies": {
-        "@biomejs/biome": "^2.5.14",
+        "@biomejs/biome": "2.5.14",
         "@mdn/browser-compat-data": "^8.1.1",
         "@tauri-apps/cli": "^2",
         "@types/bun": "latest",
@@ -35,7 +35,7 @@
         "css-tree": "^3.2.1",
         "dictionary-en": "^4.0.0",
         "dictionary-en-gb": "3.0.0",
-        "playwright": "^1.62.1",
+        "playwright": "1.62.1",
         "typescript": "^5.6.3",
         "vite": "^6.0.3",
       },

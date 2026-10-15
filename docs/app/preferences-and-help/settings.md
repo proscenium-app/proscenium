@@ -46,6 +46,13 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
    - <a id="SET-10"></a> **SET-10** **Formats** — an empty slot with a working "Open Formats Folder". Part B
      fills it.
    - <a id="SET-11"></a> **SET-11** **Keyboard Shortcuts** — the shared shortcut reference.
+     On a PC every shortcut is shown and bound as a PC's (src/ui/keys.ts): Ctrl where
+     a Mac has ⌘; Ctrl+Shift where a Mac's element and panel chords have ⌘⌥, since
+     Ctrl+Alt is AltGr on many keyboards; Ctrl+H for Find and Replace; Ctrl+PageUp and
+     Ctrl+PageDown for the previous and next scene; Ctrl+M for a comment and
+     Ctrl+Shift+M for the comments; Ctrl+Shift with an arrow to move a binder item or a
+     status, since Ctrl+Windows with an arrow is Windows' own; and Delete to move a binder
+     item to the Recycle Bin.
    - <a id="SET-12"></a> **SET-12** **Help & Feedback** — short tutorial topics and a reviewed feedback/report action.
    - <a id="SET-13"></a> **SET-13** **Privacy** — the analytics switch and one concise explanation.
    - <a id="SET-14"></a> **SET-14** **Updates** — empty slot; T1 fills it.
@@ -59,6 +66,9 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
      already installed, because Proscenium never installs an older one. The setting is
      `updateTrack` in `settings.json`. Stable brings tagged releases, Beta tagged
      pre-releases, and Alpha every change to the main line that passes its checks.
+     On Windows, where no alpha is published, the menu is Stable and Beta whatever the
+     copy holds, with no Have a key? button; a stored alpha follows beta there, and
+     stays stored.
    - <a id="SET-38"></a> **SET-38** **Have a key?** — a small button under the track, while the copy
      holds no key, opens a field and Add Key. A key of the wrong shape is refused in
      words beside the field. An accepted one closes the field, adds Alpha to the
@@ -77,7 +87,19 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
      key? button. The app follows stable there whatever `updateTrack` holds, leaves
      the stored value as it is, and refuses a patch to another track. The note that
      a slower track waits to pass the version already installed still shows while
-     it is true.
+     it is true. The rule is the Mac's alone: a PC's x64 is offered Beta as an Arm
+     one is.
+   - <a id="SET-41"></a> **SET-41** **Writing › Comments › Your name** — the name the writer's comments
+     and replies are signed with
+     ([docs/app/writing/comments.md#COMM-52](../writing/comments.md#COMM-52)), with
+     a note saying that it signs them and that it is written into the script with
+     each one. Empty, which is how it starts, signs nothing. The field takes only
+     what a signature can carry, up to 24 characters, and stores the name when it
+     is left or ⏎ is pressed, saying so through `src/ui/announce.ts`. It is the
+     same value the comment field's own name field reads and writes, so a name
+     given in either shows in the other. The setting is `commentName` in
+     `settings.json`; settings.rs holds it to one short line with no `:`, `[` or
+     `]`, and the name is sent nowhere.
    - <a id="SET-15"></a> **SET-15** **About** — version and architecture; "Free software under the GNU AGPL"
      linking to the license; acknowledgements (Courier Prime OFL, the SCOWL
      dictionary, Tauri, React, ProseMirror and TipTap, pdf-lib). Copy Diagnostics and Report a Problem are slots for T4.
@@ -93,7 +115,9 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
          (docs/engineering/services-and-feedback.md#SERV-D105), and bakes it into the page. The app
          asks no one for it, so a new name arrives with the next update. Every build that is not a
          release, and a release that cannot reach the roll, carries the empty roll; the release
-         says so and is not held back.
+         says so and is not held back. Each system's build of a release asks for the roll itself
+         and records the hash of what it baked in; a release's Windows files are published only
+         when that hash is the Mac's, so one release names one roll on every system.
        - <a id="SET-35"></a> **SET-35** **Release notes.** An edition published while it has Benefactors ends its
          notes with "This edition was underwritten by …", naming them.
        - <a id="SET-36"></a> **SET-36** **Recognition only.** Sponsoring unlocks nothing in the app, and no

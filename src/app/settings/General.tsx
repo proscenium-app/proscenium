@@ -11,12 +11,13 @@
  * (docs/app/keeping-work/storage-and-file-format.md#STOR-D11), and the way to point the app somewhere else. Changing it moves
  * nothing — the app simply looks in the new folder.
  */
+import { systemWords } from "../../ui/system-words";
 import { Button, PopupButton, useToast } from "../../ui";
 import { settings as ipc } from "../../storage";
 import type { OpenAtLaunch } from "../../storage/settings-model";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
 import { StatusList } from "./StatusList";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 const LAUNCH_OPTIONS: { value: OpenAtLaunch; label: string }[] = [
   { value: "lastPlay", label: "Where you left off" },
@@ -60,7 +61,7 @@ export function General({
                 void ipc.revealPlaysFolder().catch(() =>
                   toast({
                     kind: "error",
-                    title: "The Plays folder could not be shown in Finder.",
+                    title: `The Plays folder could not be shown in ${systemWords().fileManager}.`,
                     // The refusal a writer can meet here: the folder is no longer at its path.
                     detail: "It may have been moved, renamed or deleted.",
                     code: "E-REVEAL",
@@ -68,7 +69,7 @@ export function General({
                 )
               }
             >
-              Reveal in Finder
+              Reveal in {systemWords().fileManager}
             </Button>
           )}
           <Button size="small" onClick={onChangePlaysFolder}>

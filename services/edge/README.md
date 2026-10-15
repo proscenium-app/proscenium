@@ -50,6 +50,57 @@ real Mac remains a release check.
 The local admission list contains 0.0.0 (the test's older copy) and 0.1.0 (the
 current rehearsal artifact). Match it to the artifact if the app version changes.
 
+### The stand-in
+
+`wrangler.standin.jsonc` serves a stand-in release the way production serves a
+real one (docs/engineering/services-and-feedback.md#SERV-274): the production
+routes, through the local entry `test/standin-entry.ts`, with the origins
+production keeps as constants taken from the configuration's vars (`REPOSITORY`,
+`GITHUB`, `UPDATES`, all on loopback) and every R2 key read under `stand-in/`,
+the admission list and the tracks alike. Its deployed list is empty, so what it
+admits is its admission list alone. On the same origin it answers production's
+crash route and feedback route (docs/engineering/services-and-feedback.md#SERV-279).
+Every address and port below is one of the configuration's vars (`UPDATES`
+8797, `GITHUB` 8798, `SENTRY` 8796): rewrite them to move all of it. Nothing
+here reaches an account:
+
+1. Here, `bun test/standin-seed.ts --admission <admission.json> [<track build folder>...]`
+   applies the migrations to the stand-in's local database and writes the
+   admission list and each track build's files, version list and manifest (as
+   the build wrote it: the Worker answers it on its own origin) to the local
+   bucket under `stand-in/`, in `.wrangler/standin`. Every Wrangler call it
+   makes says `--local`, and none is given a token.
+2. In another terminal here, `bun test/github-standin.ts --stand-in <release build folder>...`
+   serves each release build given, the newest as GitHub's `latest`, at the
+   address `GITHUB` names, each manifest with its archive at that address.
+3. In another, `bun test/sentry-standin.ts`: Sentry's ingest at `SENTRY`,
+   keeping a line for each crash report the stand-in forwards in
+   `.wrangler/standin/sentry.jsonl`.
+4. Here, `bun run dev:standin`: the stand-in at `UPDATES`.
+
+A run plants a crash from a build with `bun test/standin-crash.ts --version <v>`
+(`--print` shows its exact headers and body), and feedback with a POST to
+`<UPDATES>/v1/messages` whose body carries `version`. What a release's clock
+reads about a build is then `bun test/standin-evidence.ts --version <v> --from
+<iso> --until <iso> [--cleared id,id]`
+(docs/engineering/services-and-feedback.md#SERV-280).
+
+The stand-in answers and asks on loopback alone: an origin off it, or a request
+to anything but its GitHub and Sentry stand-ins, answers 500 before it leaves.
+A halt is a new admission list seeded the same way; like production, the Worker
+reads it within a minute.
+
+Windows beside the Mac (docs/engineering/services-and-feedback.md#SERV-283) has
+a stand-in proof of its own, which brings up everything above itself, in a
+temporary folder, on `--port` and the three ports after it:
+`bun test/standin-windows.ts [--against <git ref>] [--port <n>]` runs the ref's
+Worker (`origin/main`'s by default) and this checkout's under
+`wrangler dev --local`, each with every manifest naming the Mac alone and with
+every one naming Windows beside it, and fails unless every Mac request is
+answered and counted as the ref's Worker answers it with the Mac's manifests,
+and every Windows request as docs/engineering/services-and-feedback.md#SERV-283
+says (docs/engineering/services-and-feedback.md#SERV-284).
+
 For another rehearsal, stop both local servers before rebuilding. The stand-in
 loads its manifest at startup and Wrangler persists the five-minute cache
 across restarts. With Wrangler stopped, remove only `.wrangler/state/v3/cache`
@@ -92,6 +143,14 @@ removed after each command, and Wrangler is the only network tool given it.
   address and no custom domain, so the Worker is the only way in.
 - **Admission list:** `["0.9.0"]`, the signed test build cut next. Every
   release adds its version before publication (docs/engineering/release-engineering.md#SHIP-D100, Every release).
+  Since the Worker reads `admission.json` from the tracks' bucket, a release can
+  be admitted, and a version halted, by writing that list, with no deploy
+  (docs/engineering/services-and-feedback.md#SERV-268): stable's admitted
+  releases are the deployed list and that list's together, and a halt stops
+  the offer of a version and deletes nothing
+  (docs/engineering/services-and-feedback.md#SERV-270). The Worker's one line of
+  its own says when the list cannot be read or is not one
+  (docs/engineering/services-and-feedback.md#SERV-275).
 - **updates.proscenium.ink** (deployed 2026-09-18, version `5fe432d7`): the
   update and download routes, rate limits 7001 and 7002 (no other Worker on
   this Mac's projects uses rate limiting), and the daily retention job at 04:15
@@ -115,7 +174,9 @@ removed after each command, and Wrangler is the only network tool given it.
   CAA, HSTS and TLS floor.
 
 Updates cache only a validated GitHub manifest for five minutes. The Worker
-serves only a release's canonical universal DMG, archive and signature. GitHub
+serves only a release's canonical universal DMG, archive and signature, and
+Windows' two installers and their signatures when the release's manifest names
+them (docs/engineering/services-and-feedback.md#SERV-283). GitHub
 errors return 502 for the app's independent fallback. Each route has its own
 switch. Empty production admission lists admit no check or download.
 
@@ -227,7 +288,9 @@ Feedback is programmatic, not an email: a list to run analysis on and use
 address, and a test holds it to that.
 
 `POST feedback.proscenium.ink/v1/messages` accepts exactly `id`, `message`, and
-optional `email` / `details`. The message limit is 10,000 grapheme clusters;
+optional `email` / `details` / `version`, the whole build version a message came
+from, which migration `0007_feedback_version.sql` keeps with it
+(docs/engineering/services-and-feedback.md#SERV-273). The message limit is 10,000 grapheme clusters;
 JSON is capped at 1 MiB before reading and during streaming, and details at
 64 KiB. This byte ceiling also bounds hostile combining-character sequences.
 All validation precedes D1. A unique submission id is stored once, and only a
@@ -266,7 +329,11 @@ The SDK envelope is one event, at most 64 frames / 64 KiB. Unknown fields,
 messages, paths, attachments, dumps, source, memory addresses and identity
 fields are refused. Native omits `platform` because Sentry defaults to native;
 JavaScript says `javascript`. Crash timestamps are UTC midnight, not the
-precise local time. Only released app versions and supported systems pass.
+precise local time. Only released app versions and supported systems pass: a
+release, or a beta its track has published, whose usage counts record the track
+(`usage_counts.track`, migration `0006_usage_track.sql`) and whose crash reports
+carry its whole version as their release, so the two are counted apart
+(docs/engineering/services-and-feedback.md#SERV-272).
 
 The adapter uses a TLS socket to an exact Sentry ingest hostname and an
 explicit HTTP header set. Starting `fetch` with fresh headers alone does not

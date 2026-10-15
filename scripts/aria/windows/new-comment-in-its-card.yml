@@ -1,0 +1,42 @@
+- banner:
+  - button "Show the binder"
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - text: Tab cycles · ; menu
+  - button "Bold": Ctrl+B
+  - button "Italic": Ctrl+I
+  - button "Underline": Ctrl+U
+  - button "Line Break Shift+Enter"
+  - button "Page Break Ctrl+Enter"
+  - button "+ Comment Ctrl+M"
+  - button "Comments (1) Ctrl+Shift+M"
+  - text: Page 2 of 2
+  - article:
+    - textbox "Your name"
+    - textbox "New comment"
+    - button "Save"
+    - button "Cancel"
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- contentinfo:
+  - button "<plays>\\The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert

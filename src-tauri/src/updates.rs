@@ -203,6 +203,13 @@ pub fn setup(app: &AppHandle) {
         publish(app, UpdateState::Unconfigured);
         return;
     }
+    // A test build checks only when asked, unless it is proving an update:
+    // its runs are not copies in use, and a check landing in the middle of
+    // one changes what a surface says while it is audited.
+    #[cfg(feature = "selftest")]
+    if !crate::selftest::proving_update() {
+        return;
+    }
     let app = app.clone();
     std::thread::spawn(move || {
         std::thread::sleep(FIRST_CHECK_AFTER);
@@ -372,12 +379,9 @@ async fn fetch(
     if !endpoints.iter().all(download::allowed) {
         return Err(std::io::Error::other("The update endpoint is not permitted").into());
     }
-    let os = crate::telemetry::operating_system()
-        .1
-        .split('.')
-        .take(2)
-        .collect::<Vec<_>>()
-        .join(".");
+    // As the reports say it (telemetry/client.rs): a Mac's major and minor,
+    // Windows' `10.0.<build>`.
+    let os = crate::telemetry::client::os_version(&crate::telemetry::operating_system().1);
     let pubkey = updater_config
         .get("pubkey")
         .and_then(|v| v.as_str())
@@ -532,6 +536,18 @@ async fn metadata<R: tauri::Runtime>(
                 } else {
                     update.download_url.host_str() != Some("updates.proscenium.ink")
                 };
+                // An update proof's stand-in serves its own archives, as the
+                // service does, and serves none for another endpoint
+                // (telemetry/allowlist.rs `proof`).
+                #[cfg(feature = "update-proof")]
+                let origin_matches = origin_matches
+                    && match crate::selftest::proof_origin() {
+                        Some(origin) => {
+                            use crate::telemetry::allowlist::proof::on;
+                            on(origin, endpoint) == on(origin, &update.download_url)
+                        }
+                        None => true,
+                    };
                 if origin_matches {
                     return Ok(Some(update));
                 }
@@ -654,7 +670,11 @@ pub async fn update_restart(app: AppHandle) -> Result<RestartOutcome, String> {
 
 /// Release notes in the writer's browser: one version's, or every release's.
 /// The address is fixed; the page supplies at most a version, and only a
-/// version is accepted.
+/// version with notes is accepted: a release's `X.Y.Z`, or a beta's
+/// `X.Y.Z-beta.N`, which is what a copy on the beta track is offered. Where
+/// each lands is decided where the link is answered
+/// (docs/engineering/services-and-feedback.md#SERV-281): a release's own page,
+/// and for a beta, which has no such page, the Guide's.
 #[tauri::command]
 pub async fn update_release_notes(version: Option<String>) -> Result<(), String> {
     let url = match version {
@@ -662,19 +682,20 @@ pub async fn update_release_notes(version: Option<String>) -> Result<(), String>
         Some(v) => return Err(format!("\"{v}\" is not a version")),
         None => RELEASES.to_string(),
     };
-    std::process::Command::new("open")
-        .arg(url)
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    crate::shell::open(url)
 }
 
+/// `X.Y.Z`, or `X.Y.Z-beta.N`: digits, at most six to a number, and nothing
+/// before, between or after them. An alpha's version is not one: an alpha has
+/// no notes to open.
 fn is_version(v: &str) -> bool {
-    let parts: Vec<&str> = v.split('.').collect();
-    parts.len() == 3
-        && parts
-            .iter()
-            .all(|p| !p.is_empty() && p.len() <= 6 && p.bytes().all(|b| b.is_ascii_digit()))
+    let number = |p: &str| !p.is_empty() && p.len() <= 6 && p.bytes().all(|b| b.is_ascii_digit());
+    let (release, beta) = match v.split_once("-beta.") {
+        Some((release, n)) => (release, Some(n)),
+        None => (v, None),
+    };
+    let parts: Vec<&str> = release.split('.').collect();
+    parts.len() == 3 && parts.iter().all(|p| number(p)) && beta.map_or(true, number)
 }
 
 /// The unsaved-work beacon (`buffer-state.json`, settings.rs): the page writes
@@ -764,6 +785,29 @@ mod tests {
                 );
             }
         }
+        // An update proof's stand-in (telemetry/allowlist.rs `proof`) is the
+        // one address on either track, with no GitHub beside it on stable,
+        // and every address it gives is on the stand-in.
+        let origin =
+            crate::telemetry::allowlist::proof::loopback_origin("http://127.0.0.1:8787").unwrap();
+        let mut updater = serde_json::Map::new();
+        let stand_in = crate::telemetry::allowlist::proof::point_updater(&mut updater, &origin);
+        for (track, version, segment) in [
+            (UpdateTrack::Stable, "1.0.0", ""),
+            (UpdateTrack::Beta, "1.0.0", "beta/"),
+        ] {
+            let asked = endpoints_for(&[stand_in.as_str()], track, version).unwrap();
+            assert_eq!(
+                asked,
+                vec![format!(
+                    "http://127.0.0.1:8787/v1/{segment}{{{{target}}}}/{{{{arch}}}}/{version}"
+                )]
+            );
+            assert!(crate::telemetry::allowlist::proof::admits(
+                &origin,
+                &reqwest::Url::parse(&asked[0]).unwrap()
+            ));
+        }
         assert_eq!(endpoints_for(&[], UpdateTrack::Stable, "1.0.0"), None);
         assert_eq!(
             endpoints_for(
@@ -818,6 +862,10 @@ mod tests {
     fn release_notes_take_only_a_version() {
         assert!(is_version("0.9.1"));
         assert!(is_version("1.0.0"));
+        // A beta's whole version, as a copy on the beta track is offered it.
+        for beta in ["1.0.1-beta.2", "1.0.1-beta.0", "10.20.30-beta.123456"] {
+            assert!(is_version(beta), "{beta:?} refused");
+        }
         for bad in [
             "",
             "1.0",
@@ -827,6 +875,21 @@ mod tests {
             "1..0",
             "1.0.0/../../x",
             "1.0.0 --x",
+            // No other track's version, and no beta's that is not whole.
+            "1.0.1-alpha.3",
+            "1.0.1-beta",
+            "1.0.1-beta.",
+            "1.0.1-beta.x",
+            "1.0.1-beta.1.2",
+            "1.0.1-beta.1/../x",
+            "1.0.1-beta.1 --x",
+            "1.0.1-beta.-1",
+            "1.0.1-beta.1234567",
+            "1.0.1-beta.1-beta.2",
+            "1.0.1-Beta.1",
+            "1.0-beta.1",
+            "-beta.1",
+            "../1.0.1-beta.1",
         ] {
             assert!(!is_version(bad), "{bad:?} passed");
         }

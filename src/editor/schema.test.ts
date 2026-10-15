@@ -105,6 +105,48 @@ describe("editor schema ↔ fountain model", () => {
     expect(chars[1].attrs?.dual).toBe(true);
   });
 
+  /**
+   * What is copied is what is pasted (docs/app/writing/editor-ux.md#EDIT-177).
+   * A cut and a paste go through the schema's own HTML: `toDOM` writes a
+   * block's attributes and the parse rule reads them back. No DOM here, so the
+   * element is stood in for by the attributes that were written.
+   */
+  it("reads a block's attributes back from the HTML it writes", () => {
+    const through = (type: string, attrs: Record<string, unknown>) => {
+      const node = schema.nodes[type].create(attrs, schema.text("McTeague"));
+      const { toDOM, parseDOM } = node.type.spec;
+      if (!toDOM) throw new Error(`${type} writes no HTML`);
+      const [, written] = toDOM(node) as unknown as [string, Record<string, string>];
+      const element = {
+        getAttribute: (name: string) => written[name] ?? null,
+        hasAttribute: (name: string) => name in written,
+      } as unknown as HTMLElement;
+      const read = parseDOM?.[0].getAttrs?.(element);
+      expect(schema.nodes[type].create(read || null).attrs).toEqual(node.attrs);
+      return written;
+    };
+
+    for (const attrs of [
+      {},
+      { forced: true },
+      { dual: true },
+      { dual: true, forced: true },
+      { extension: "(V.O.)" },
+      { extension: "(V.O.)", dual: true, forced: true },
+    ]) {
+      through("character", attrs);
+    }
+    through("sceneHeading", { sceneNumber: "1A" });
+    through("sceneHeading", {});
+
+    // A yes is written bare, and a no is not written at all.
+    const yes = through("character", { dual: true, forced: true });
+    expect(yes["data-dual"]).toBe("");
+    expect(yes["data-forced"]).toBe("");
+    const no = through("character", {});
+    expect("data-dual" in no || "data-forced" in no).toBe(false);
+  });
+
   it("preserves the boneyard text node through the schema", () => {
     const { doc } = parse("Visible.\n\n/* hidden */\n\nEnd.");
     const back = throughSchema(doc);

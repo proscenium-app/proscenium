@@ -48,7 +48,7 @@ shows is not covered.
 
 <a id="REL-D2"></a>
 
-### The macOS floor
+### The macOS and WebView2 floors
 
 - <a id="REL-7"></a> **REL-7** Set `bundle.macOS.minimumSystemVersion` to `"14.0"` in `tauri.conf.json`, and
   assert the built `Info.plist` says so.
@@ -63,6 +63,20 @@ shows is not covered.
 
 **REL-9** **Acceptance:** the plist floor is 14.0, `check:webkit-floor` is in CI, and a
 deliberately newer CSS feature makes it fail.
+
+<a id="REL-127"></a>
+
+**REL-127** **The Windows engine floor.** On Windows the webview is WebView2's
+Evergreen runtime, which updates itself, so no Windows release fixes the engine
+the way a macOS release fixes Safari's: the floor is a runtime that has stopped
+updating. It is WebView2 131 (Chromium 131), declared once, with its reasons,
+as `WEBVIEW2_FLOOR` in `scripts/webkit-floor.ts`. `check:webkit-floor` reads
+`dist/` against it as well as against Safari 17, from the compat data's Edge
+statements, each engine with its own canary and its own allowed exceptions. A
+Windows release is built and proven on the current runtime, which its workflow
+installs and records before it tests. The floor is not given to Tauri as
+`minimumWebview2Version`: the per-user installer would then update an older
+runtime itself, and that asks for an administrator.
 
 <a id="REL-D3"></a>
 
@@ -114,6 +128,22 @@ both on 2026-09-22, and they are withdrawn (docs/engineering/withdrawn-requireme
   Under Rosetta that is the Intel slice's launch to export, which is the Intel
   slice's whole proof. Reveal in Finder is kept
   the same way: what the app asked Finder to show is recorded, not opened.
+- <a id="REL-128"></a> **REL-128** **On Windows it is driven from outside.** WebView2 can be
+  driven, as Microsoft and Playwright document, so the Windows test build
+  (`node scripts/build-app.mjs --selftest` there) carries no harness in the
+  page: it is the release build with its own identifier, WebView2's DevTools
+  port opened on the loopback address when `PROSCENIUM_SELFTEST_DEVTOOLS`
+  names one (an elevated process ignores WebView2's own variables), and the
+  folder picker, the save panel and Reveal in File Explorer answered as on a
+  Mac. `node scripts/smoke.mjs --engine webview2
+  --app <proscenium.exe>` (scripts/smoke-webview2.mjs) starts it for each act
+  with a scratch home, a fresh copy of `sample-vault/` and its DevTools port on
+  the loopback address, attaches Playwright, and runs smoke's own checks, acts
+  and audits against it, pressing a PC's keys for a Mac's. The PC copy's tree
+  is held against `scripts/aria/windows/`. `--break flex` is its negative
+  control. The in-memory vault's own hooks (`devMock` checks) are skipped and
+  said. Its acceptance is this section's: three clean passes in a row, and the
+  negative control caught.
 
 **Acceptance** on the build host: three clean passes on `main` in a row, the negative control
 (`--break flex`) caught on the collapsed frame, snapshots of the real surfaces kept as the run's
@@ -216,6 +246,20 @@ draft release, which opens cleanly from a quarantined download.
   private key has exactly four copies: the maintainer's login keychain, the build host's release
   keychain, an encrypted archive and the Actions secrets. It is never committed and
   never printed.
+- **Windows updates through the same key (since 2026-10-14).** Each release's and
+  each beta's per-user installers, x64 and Arm64, are built unsigned on GitHub's
+  hosted Windows machines and signed for the updater by the build host, with the
+  same private key and nowhere else (`tauri signer sign`); each signature is
+  checked against the key the app trusts before anything is written, since the
+  CLI only warns on a mismatch. A version's manifest names each platform's build:
+  a track's `latest.json` is merged per platform whenever one is written, the
+  Mac's entries never rewritten by Windows' or Windows' by the Mac's, and never
+  one version beside another; alpha is the Mac's alone. On Windows the updater
+  runs the signed installer for the current user, passively, after the save
+  beacon, and the installer starts the new version (REL-63's restart, as a
+  writer's word). A Windows track build's whole version, `X.Y.Z-beta.N`, is
+  compiled in and kept whole in the executable (`version.rs`), where a check
+  from outside reads it as a Mac's reads `ProsceniumVersion`.
 - <a id="REL-60"></a> **REL-60** **Behaviour:**
   - <a id="REL-61"></a> **REL-61** Check at launch and every 24 hours while the app runs, only if "Check for
     updates automatically" is on (on by default).
@@ -226,7 +270,12 @@ draft release, which opens cleanly from a quarantined download.
     install. An unreadable beacon is unsafe. A failed install releases editing.
   - <a id="REL-64"></a> **REL-64** The app menu gets "Check for Updates…". The Updates section in Settings
     (T3a's slot) has the switch, Check Now, the current version and the release
-    notes link.
+    notes link. Once an update is downloaded the link names it, "What’s new in
+    <version>", and opens that version's notes through
+    `go.proscenium.ink/releases/v<version>`
+    (docs/engineering/services-and-feedback.md#SERV-281). The app makes that
+    address only from a release's `X.Y.Z` or a beta's `X.Y.Z-beta.N`, the whole
+    version the update was offered as, and opens nothing for anything else.
 - <a id="REL-124"></a> **REL-124** **An Intel Mac takes stable releases alone.** Alpha and beta builds are
   Apple silicon only (`aarch64-apple-darwin`), and each one's manifest names
   `darwin-aarch64` alone; a release stays universal. The Intel build follows
@@ -315,6 +364,11 @@ dark and tinted modes, and it holds up at 16px.
   differ.
 - <a id="REL-80"></a> **REL-80** **`CHANGELOG.md`** in Keep a Changelog form; the release draft takes its notes
   from it.
+- <a id="REL-126"></a> **REL-126** **The public changelog says what is released.** The export sends
+  `CHANGELOG.md` out with nothing under Unreleased: what only a pre-release build of
+  `main` holds is not public until its version is a beta's or a release's. The heading
+  stays, since the version's own tooling reads it, and a version's section, dated or
+  still in beta, goes out as it is.
 - <a id="REL-81"></a> **REL-81** **Numbering.** 0.9.x for release candidates and updater tests, then 1.0.0.
 - <a id="REL-82"></a> **REL-82** **Homebrew.** A personal tap, `proscenium-app/homebrew-tap`, with a cask for the
   universal DMG (with `livecheck`), updated by the release workflow. Submission
@@ -858,88 +912,107 @@ full name is how Homebrew 6 lets someone trust a single cask from a tap.
 
 #### Every release
 
+A release goes alpha, then beta, then stable, and every stable release first
+went out as a beta from the same line.
+
+- **Alpha** is every green batch of `main`, built for Apple silicon and offered
+  only to a copy that holds the alpha track's key.
+- **Beta** is the maintainer's choice to send one out. The first beta of a
+  version cuts its line, `release/X.Y.Z`, at the newest green alpha's commit,
+  with one commit, `X.Y.Z on its line`: every file that states the version
+  says X.Y.Z, and the changelog's Unreleased entries become an undated
+  `## [X.Y.Z]` section (`node scripts/version.mjs line X.Y.Z`). The same
+  change lands on `main` the same minute, so `main`'s next release is X.Y.Z+1
+  and its alphas go on. The beta's tag, `vX.Y.Z-beta.N`, is tested and built
+  in one job and published to the beta track, and the release before it, set
+  to Beta, is proven to update to it. A fix during the soak lands on `main`
+  first; a commit whose message says `Beta: X.Y.Z` is carried to the line and
+  rides the next beta, which starts the soak again.
+- **The soak** counts days from the beta's publishing. A day is clean when the
+  beta reported no crash, no feedback from a copy on it is still unmarked as no
+  blocker, no incident is open, its proofs are green and no advisory is open
+  against what it ships. A day that is not clean holds the beta until the
+  maintainer lets it go. From day 7 the maintainer may send a clean beta to
+  stable; on day 14 it goes by itself unless held; before day 7 only the
+  maintainer's override, with its reason, sends it.
+- **Stable** is then a machine's, stage by stage, each recorded as it begins
+  and ends and each able to run again: the steps below. From its first stage
+  to its close nothing changes how releases are made.
+
 <a id="SHIP-D107"></a>
 
 #### Prepare
 
-*Agent:*
-
-1. Every gate green on `main`, and the update service's stable route proven
-   against GitHub itself, not a stand-in: `cd services/edge && bun run test:live`
-   (docs/engineering/services-and-feedback.md#SERV-267). The tag's own run
-   repeats it before the build.
-2. [CHANGELOG.md](../../CHANGELOG.md) under **Unreleased**, in words a playwright
-   reads: what they can do now, what is better, what was broken and is fixed.
-3. `bun run version 1.0.1`. That updates every file that states the version and
-   turns Unreleased into this version's section. Versions are `x.y.z`; release
-   candidates were 0.9.x.
-   - Add the version to `RELEASED_VERSIONS_JSON` in
-     [services/edge/wrangler.jsonc](../../services/edge/wrangler.jsonc).
-     `updates.proscenium.ink` answers only for versions on that list.
-4. Commit (`Proscenium 1.0.1`), tag `v1.0.1`, push both.
+1. **Preflight,** before anything is built: the build host's disk and the test
+   bench free; the signing identity, the notarization key and the Cloudflare
+   token in its keychain; the release token more than 30 days from its expiry;
+   the tap's `main`; the deployed update service answering; the version the
+   same in every file; the changelog's section written; no advisory open.
+2. **The changelog's date,** the line's only change from the beta that soaked:
+   `node scripts/version.mjs date X.Y.Z`.
 
 <a id="SHIP-D108"></a>
 
 #### Build and draft
 
-5. *Agent:* `node scripts/release.mjs --publish`. It takes 15–30 minutes, most of
-   it Apple. The first notarization for a new team can take hours; the script
-   waits. If it fails, its last line names the step. The common ones:
+3. **The public sync:** the commit's public tree, committed to the public
+   repository with a one-line message and no attribution, and its `vX.Y.Z` tag.
+4. **The tag,** whose one job tests the commit in full, with the universal
+   build and the Intel slice under Rosetta, and builds it with
+   `node scripts/release.mjs`: universal, signed, notarized and checked, its
+   seven files kept. Nothing takes the build host between the test and the
+   build. If the build fails, its last line names the step. The common ones:
    - **missing signing material:** `node scripts/release-keychain.mjs status`
      names what is gone, and the setup step above makes it again.
    - **notarization rejected:** the output has a submission ID;
      `node scripts/release-keychain.mjs log <id>` shows Apple's reasons.
    - **stapling failed:** Apple's ticket had not reached its servers yet. Run
-     the script again.
-   - **the tag on GitHub is not this tree:** the commit that was tagged is not
-     the commit checked out. Check out the tag and run it again.
+     the stage again.
+5. **The draft,** on the public repository, from those seven files
+   (`node scripts/release.mjs --draft <folder>`), its id recorded: that draft,
+   and nothing else, is what is published.
 
 <a id="SHIP-D109"></a>
 
 #### Check the draft
 
-6. *Agent:* download the draft's DMG with `gh release download`, mark it as
-   downloaded (as in setup step 7), and check it: `spctl -a -vv` on the app
-   inside says `source=Notarized Developer ID`, and its Info.plist says the
-   right version. The draft must hold:
+6. The draft's seven files download, each is the file `SHA256SUMS` names,
+   `latest.json` says the version, `build.json` names the tag's commit, and
+   Gatekeeper accepts the image as notarized:
    - `Proscenium_1.0.1_universal.dmg`
    - `Proscenium_1.0.1_universal.app.tar.gz` and its `.sig` (what the updater downloads)
    - `latest.json` (what the updater reads), `notes.md`, `SHA256SUMS`, `build.json`
-7. *Agent,* for every release: setup step 7's file checks on the draft's app,
-   and, once the release is published, the **Stable update proof** workflow on
-   the build host (`from`: the release before it, `to`: this one), whose report
-   must say proven. It builds the release before from its tag as a test copy
-   with the app's real identity, lets that copy update itself through the real
-   update address, with a line typed just before Restart to Update, and passes
-   only when the scratch folder holds this release, notarized and running, with
-   the line in the play. 1.0.0 has no release before it that carries the proof.
 
 <a id="SHIP-D110"></a>
 
 #### Publish
 
-8. The *maintainer* says publish, and says yes to deploying the Worker. The *agent* runs
-   `node scripts/edge-wrangler.mjs deploy` first, so `updates.proscenium.ink`
-   admits 1.0.1 and serves its files: until then a 1.0.1 copy's own check is
-   refused (400) and its archive is not served (404), and every copy falls back
-   to GitHub directly. Then the *maintainer* publishes the draft the pipeline
-   made, and nothing else: its edit page is
-   `https://github.com/proscenium-app/proscenium/releases/edit/v1.0.1` (the
-   release's page, then Edit), and **Publish release** at the bottom of it is
-   the click. Never **Draft a new release** from the tag's page, and never a
-   release made by hand on the tag: that makes a second, empty release beside
-   the pipeline's, GitHub serves no `latest.json`, and the website's Download
-   answers 404, as it did for five minutes on 2026-09-26 until the empty one
-   went back to draft. An agent's `gh release edit v1.0.1 --draft=false` is
-   refused as a public action, so the click is the maintainer's; the agent
-   gives the edit address and checks afterwards: one release on the tag, its
-   seven files, `proscenium.ink/download` redirecting to the DMG whose SHA-256
-   is `SHA256SUMS`'s, and GitHub's `latest.json` answering the version.
-   Homebrew's workflow runs within a minute; the agent checks it went green and
-   that `brew install --cask proscenium-app/tap/proscenium` installs 1.0.1.
+7. **Admit** the version: the update service's list of what it admits and what
+   it has halted is a file in the tracks' bucket, which the service reads
+   within a minute, so a release is admitted by writing it there, with no
+   deploy (docs/engineering/services-and-feedback.md#SERV-268). Until it is admitted, a copy of the new version is refused its own
+   check and its archive is not served.
+8. **Publish that draft, by its id.** One release on the tag, never a second
+   one made by hand: a second, empty release beside the draft makes GitHub
+   serve no `latest.json` and the website's Download answer 404, as it did for
+   five minutes on 2026-09-26.
+9. **From outside:** `proscenium.ink/download` redirects to the DMG whose
+   SHA-256 is `SHA256SUMS`'s, GitHub's `latest.json` answers the version, and
+   so does the update service.
+10. **Homebrew:** the tap's workflow names the version within a minute, and an
+    install of the cask (`brew install --cask proscenium-app/tap/proscenium`,
+    into a scratch folder) gives it.
+11. **The update proof:** the release before it, built from its tag as a test
+    copy with the app's real identity and driven by the current harness,
+    updates itself through the real update address, with a line typed just
+    before Restart to Update, and passes only when the scratch folder holds
+    this release, notarized and running, with the line in the play.
+12. **The line merged back** into `main`, the **record** written from the
+    release's own file, and the release **closed**.
 
 A bad published release is fixed by publishing a better one, never by deleting
-it: installed copies may already be updating to it.
+it: installed copies may already be updating to it. A halt stops the update
+service offering it, through the same list, and deletes nothing.
 
 ---
 

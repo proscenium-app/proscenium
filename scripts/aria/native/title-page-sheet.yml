@@ -11,7 +11,7 @@
   - none
   - textbox "Draft date"
   - none
-    - checkbox "Write the title page freely" [checked]
+    - checkbox "Write the title page freely"
   - heading "Opening Notes" [level=2]
   - paragraph
   - group "Opening notes text"

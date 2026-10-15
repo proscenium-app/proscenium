@@ -29,6 +29,7 @@ bun run check:network                         # no http(s) address outside src-t
 bun run check:docs                            # documentation paths and stable requirement/design ids
 bun run check:names                           # no other writing app named outside the import tool (src/import/)
 bun run check:webkit-floor                    # dist/ CSS + JS against the macOS floor's Safari (14 → 17)
+                                              # and Windows' WebView2 (131)
 bun run check:version                         # one version in package.json, Cargo.toml, tauri.conf.json…
 bun run smoke                                 # drives the built dist/ bundle in a browser; axe + key checks
 cargo test --manifest-path src-tauri/Cargo.toml

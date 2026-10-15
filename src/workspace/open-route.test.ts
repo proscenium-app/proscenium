@@ -138,3 +138,24 @@ describe("paths compared the way the Mac compares them", () => {
     expect(isInside("/Users/w/Plays 2", "/Users/w/Plays")).toBe(false);
   });
 });
+
+describe("what a file opened from File Explorer is", () => {
+  const plays = "C:\\Users\\w\\OneDrive\\Documents\\Plays";
+  const tide = `${plays}\\The Tide`;
+  const here = [{ dir: tide, playFiles: ["The Tide.proscenium"] }];
+
+  it("a play file is its play, in the Plays folder around it", () => {
+    expect(classifyOpened(facts(`${tide}\\The Tide.proscenium`, { playDirs: here }))).toEqual({
+      kind: "play",
+      playDir: tide,
+      playsFolder: plays,
+      dirName: "The Tide",
+    });
+  });
+
+  it("a script inside a play is named inside it with `/`", () => {
+    const route = classifyOpened(facts(`${tide}\\Scenes\\Draft two.fountain`, { playDirs: here }));
+    expect(route).toMatchObject({ kind: "script-in-play", script: "Scenes/Draft two.fountain" });
+    expect(isInside(`${tide}\\Scenes`, plays)).toBe(true);
+  });
+});

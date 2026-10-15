@@ -1,27 +1,21 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-export const DIRECT_EXTENSIONS = [
-  "docx",
-  "pages",
-  "odt",
-  "rtf",
-  "txt",
-  "md",
-  "fountain",
-  "spmd",
-  "fdx",
-];
-export const GUIDED_EXTENSIONS = ["doc", "gdoc", "scriv", "scrivx", "wdz", "wdx", "pdf", "zip"];
+import { DIRECT_EXTENSIONS, GUIDED_EXTENSIONS, extension } from "../storage/import-files";
+
+// The extensions and the test by them sit below the workspace, whose Finder router uses them.
+export {
+  DIRECT_EXTENSIONS,
+  GUIDED_EXTENSIONS,
+  extension,
+  isImportFile,
+} from "../storage/import-files";
 export const IMPORT_ACCEPT = [...DIRECT_EXTENSIONS, ...GUIDED_EXTENSIONS]
   .map((x) => `.${x}`)
   .join(",");
-export const extension = (name: string) => name.slice(name.lastIndexOf(".") + 1).toLowerCase();
 /** A `.pages` document, or a package-form one zipped whole: the web view hands
  * a package over as `Name.pages.zip`, and Finder's Compress names it the same. */
 export const isPagesName = (name: string) => /\.pages(?:\.zip)?$/i.test(name);
-export const isImportFile = (name: string) =>
-  [...DIRECT_EXTENSIONS, ...GUIDED_EXTENSIONS].includes(extension(name));
 export const SOURCE_GUIDES = [
   {
     name: "Word",

@@ -60,7 +60,12 @@ export interface CharacterAttrs {
   extension?: string | null;
   /** Fountain `^` — second half of a dual-dialogue pair. */
   dual?: boolean;
-  /** Did the cue need a leading `@` because it isn't all-caps? */
+  /**
+   * The editor's: this cue keeps its case as it is typed in. The parser does
+   * not set it and the serializer does not read it, because the script says the
+   * same with the cue's own letters; the editor bridge sets it from them
+   * (docs/app/writing/editor-ux.md#EDIT-176).
+   */
   forced?: boolean;
 }
 
@@ -86,7 +91,10 @@ export interface CharacterEntry {
  * Front matter is NOT part of the ProseMirror doc; it is a structured object
  * serialized to/from the Fountain title page (docs/engineering/fountain-model.md#FOUN-D107). Standard keys map to named fields; the house keys
  * Setting/Time/Place/Characters are custom title-page keys; anything else is
- * preserved verbatim in `_extra` (storage "preserve-unknown-keys").
+ * preserved verbatim in `_extra` (storage "preserve-unknown-keys"). A list of
+ * none (`authors: []`) is a key the title page names with nothing after it,
+ * and is written back as the key alone; a list that is not there has no line
+ * (docs/engineering/fountain-model.md#EDIT-192).
  */
 export interface FrontMatter {
   title?: string;
@@ -111,7 +119,11 @@ export interface FrontMatter {
    * separately emitted.
    */
   atRise?: string;
-  /** Unknown / unmodeled title-page keys, preserved verbatim for round-trip. */
+  /**
+   * Unknown / unmodeled title-page keys, preserved verbatim for round-trip. A
+   * key named twice holds the lines of each entry, and so does a house key's
+   * entry its field did not take (docs/engineering/fountain-model.md#EDIT-190).
+   */
   _extra?: Record<string, string>;
 }
 

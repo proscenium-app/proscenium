@@ -64,22 +64,26 @@ impl PendingOpens {
     /// `dir` holds (or is) a path that was opened from Finder — a folder the
     /// app may ask about, because the writer's own open named something in it.
     pub fn is_around_granted(&self, dir: &Path) -> bool {
-        let dir = dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf());
+        let dir = dunce::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
         self.granted
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .iter()
             .any(|path| {
                 path.starts_with(&dir)
-                    || path
-                        .canonicalize()
-                        .is_ok_and(|canonical| canonical.starts_with(&dir))
+                    || dunce::canonicalize(path).is_ok_and(|canonical| canonical.starts_with(&dir))
             })
     }
 }
 
 /// The filesystem paths among an open event's URLs. Anything that is not a
 /// `file:` URL (a custom scheme, a malformed URL) is not ours to open.
+#[cfg(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "android",
+    all(test, unix)
+))]
 pub fn paths_from_urls(urls: &[tauri::Url]) -> Vec<PathBuf> {
     urls.iter()
         .filter(|u| u.scheme() == "file")
@@ -228,7 +232,7 @@ pub fn play_dirs_from(start: Option<&Path>, home: &Path) -> Vec<PlayDir> {
 /// Gather the facts about one opened path. `home` is the writer's real home
 /// folder, which bounds how far up a play is looked for.
 pub fn facts(path: &Path, home: &Path) -> OpenedFacts {
-    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    let canonical = dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let exists = canonical.exists();
     let is_dir = canonical.is_dir();
     let mut play_dirs = play_dirs_from(
@@ -274,9 +278,255 @@ pub fn facts(path: &Path, home: &Path) -> OpenedFacts {
     }
 }
 
+/// What a launch was asked to open, on Windows: File Explorer starts the app
+/// with each file it opens as an argument, `"%1"` in the installers'
+/// registration. Only absolute paths: the app is given no other arguments.
+#[cfg(any(windows, test))]
+pub fn launch_paths(args: impl IntoIterator<Item = std::ffi::OsString>) -> Vec<PathBuf> {
+    args.into_iter()
+        .skip(1)
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .collect()
+}
+
+/// A file opened from File Explorer while Proscenium is running reaches the
+/// copy already running (docs/app/keeping-work/storage-and-file-format.md#STOR-D5):
+/// Windows starts a second process for it, which hands its paths over and
+/// ends, as macOS sends the running app an open event.
+///
+/// The first copy holds a named mutex for as long as it runs and listens on a
+/// message-only window; a second finds that window and sends it the paths in
+/// one `WM_COPYDATA`, then exits before it has made anything. Both names carry
+/// the app's identifier, so a self-test build never hands a file to a
+/// writer's copy, and the mutex is per session (`Local\`), as the window is.
+#[cfg(windows)]
+pub mod handoff {
+    use std::ffi::OsString;
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    use std::path::PathBuf;
+    use std::sync::OnceLock;
+    use std::time::{Duration, Instant};
+
+    use tauri::{AppHandle, Emitter, Manager};
+    use windows_sys::Win32::Foundation::{
+        GetLastError, ERROR_ALREADY_EXISTS, HWND, LPARAM, LRESULT, WPARAM,
+    };
+    use windows_sys::Win32::System::DataExchange::COPYDATASTRUCT;
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::System::Threading::CreateMutexW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        AllowSetForegroundWindow, CreateWindowExW, DefWindowProcW, FindWindowExW,
+        GetWindowThreadProcessId, RegisterClassW, SendMessageTimeoutW, HWND_MESSAGE,
+        SMTO_ABORTIFHUNG, WM_COPYDATA, WNDCLASSW,
+    };
+
+    use super::PendingOpens;
+
+    /// `dwData` of a hand-off: "PROS", so no other sender's data is read as paths.
+    const KIND: usize = 0x5052_4F53;
+
+    /// How long a second copy waits for the first one's window: the first may
+    /// still be starting.
+    const WAIT: Duration = Duration::from_secs(5);
+
+    static APP: OnceLock<AppHandle> = OnceLock::new();
+
+    fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().chain(Some(0)).collect()
+    }
+
+    fn class(identifier: &str) -> Vec<u16> {
+        wide(&format!("{identifier}.opens"))
+    }
+
+    /// The paths as UTF-16, each ended by a null.
+    fn encode(paths: &[PathBuf]) -> Vec<u16> {
+        paths
+            .iter()
+            .flat_map(|path| path.as_os_str().encode_wide().chain(Some(0)))
+            .collect()
+    }
+
+    pub(super) fn decode(units: &[u16]) -> Vec<PathBuf> {
+        units
+            .split(|unit| *unit == 0)
+            .filter(|path| !path.is_empty())
+            .map(|path| PathBuf::from(OsString::from_wide(path)))
+            .collect()
+    }
+
+    /// Run first, before anything else is made. True when a copy is already
+    /// running and has taken `paths`: this process then has nothing to do.
+    pub fn to_running(identifier: &str, paths: &[PathBuf]) -> bool {
+        let name = wide(&format!("Local\\{identifier}.running"));
+        // SAFETY: a terminated name; the handle is kept for the process's
+        // whole life, which is what holding the mutex means.
+        let handle = unsafe { CreateMutexW(std::ptr::null(), 0, name.as_ptr()) };
+        let running = !handle.is_null() && unsafe { GetLastError() } == ERROR_ALREADY_EXISTS;
+        if !running {
+            return false;
+        }
+        let class = class(identifier);
+        let deadline = Instant::now() + WAIT;
+        let window = loop {
+            // SAFETY: a terminated class name; a message-only window is found
+            // only under HWND_MESSAGE.
+            let window = unsafe {
+                FindWindowExW(
+                    HWND_MESSAGE,
+                    std::ptr::null_mut(),
+                    class.as_ptr(),
+                    std::ptr::null(),
+                )
+            };
+            if !window.is_null() || Instant::now() >= deadline {
+                break window;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        };
+        // A copy that never made its window: run beside it rather than drop the open.
+        if window.is_null() {
+            return false;
+        }
+        let units = encode(paths);
+        let data = COPYDATASTRUCT {
+            dwData: KIND,
+            cbData: (units.len() * 2) as u32,
+            lpData: units.as_ptr() as *mut _,
+        };
+        let mut process = 0u32;
+        let mut answer = 0usize;
+        // SAFETY: `data` and `units` outlive the synchronous send; the running
+        // copy may bring its window forward, which only this process may allow.
+        unsafe {
+            GetWindowThreadProcessId(window, &mut process);
+            AllowSetForegroundWindow(process);
+            SendMessageTimeoutW(
+                window,
+                WM_COPYDATA,
+                0,
+                &data as *const COPYDATASTRUCT as LPARAM,
+                SMTO_ABORTIFHUNG,
+                5_000,
+                &mut answer,
+            ) != 0
+                && answer == 1
+        }
+    }
+
+    /// The running copy's side: its window, made on the main thread, whose
+    /// loop is the app's.
+    pub fn listen(app: &AppHandle, identifier: &str) -> Result<(), String> {
+        let _ = APP.set(app.clone());
+        let class = class(identifier);
+        // SAFETY: the class name lives in a leaked buffer, as a registered
+        // class's name must for as long as the class exists; the procedure
+        // is a plain function.
+        unsafe {
+            let instance = GetModuleHandleW(std::ptr::null());
+            let class: &'static [u16] = Box::leak(class.into_boxed_slice());
+            let mut description: WNDCLASSW = std::mem::zeroed();
+            description.lpfnWndProc = Some(receive);
+            description.hInstance = instance;
+            description.lpszClassName = class.as_ptr();
+            if RegisterClassW(&description) == 0 {
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+            let window = CreateWindowExW(
+                0,
+                class.as_ptr(),
+                std::ptr::null(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                HWND_MESSAGE,
+                std::ptr::null_mut(),
+                instance,
+                std::ptr::null(),
+            );
+            if window.is_null() {
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+        }
+        Ok(())
+    }
+
+    unsafe extern "system" fn receive(
+        window: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if message != WM_COPYDATA || lparam == 0 {
+            return DefWindowProcW(window, message, wparam, lparam);
+        }
+        // SAFETY: for WM_COPYDATA, lParam is the sender's COPYDATASTRUCT,
+        // valid until this returns; its data is `cbData` bytes of UTF-16.
+        let data = &*(lparam as *const COPYDATASTRUCT);
+        if data.dwData != KIND || (data.cbData > 0 && data.lpData.is_null()) {
+            return 0;
+        }
+        let units = if data.cbData == 0 {
+            &[][..]
+        } else {
+            std::slice::from_raw_parts(data.lpData as *const u16, data.cbData as usize / 2)
+        };
+        let paths = decode(units);
+        let Some(app) = APP.get() else { return 0 };
+        if !paths.is_empty() {
+            app.state::<PendingOpens>().push(paths);
+        }
+        // Said and shown once the loop that called this is free again.
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let _ = handle.emit(super::EVENT_OPENED, ());
+            if let Some(window) = handle.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        });
+        1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// File Explorer's arguments are the files it opens; the program's own
+    /// name and anything that is not an absolute path are not.
+    #[test]
+    fn a_launch_opens_the_absolute_paths_it_was_given() {
+        let tmp = tempfile::tempdir().unwrap();
+        let play = tmp.path().join("Lear").join("Lear.proscenium");
+        let args = [
+            std::ffi::OsString::from("proscenium.exe"),
+            play.clone().into_os_string(),
+            std::ffi::OsString::from("relative.fountain"),
+        ];
+        assert_eq!(launch_paths(args), vec![play]);
+        assert!(launch_paths([std::ffi::OsString::from("proscenium.exe")]).is_empty());
+    }
+
+    /// What one copy sends another is every path, whole, in order.
+    #[cfg(windows)]
+    #[test]
+    fn a_handed_off_open_arrives_whole() {
+        use std::os::windows::ffi::OsStrExt;
+        let paths = [
+            PathBuf::from(r"C:\Users\writer\Documents\Plays\Lear\Lear.proscenium"),
+            PathBuf::from(r"C:\Users\writer\Desktop\Café — draft.fountain"),
+        ];
+        let units: Vec<u16> = paths
+            .iter()
+            .flat_map(|p| p.as_os_str().encode_wide().chain(Some(0)))
+            .collect();
+        assert_eq!(handoff::decode(&units), paths);
+        assert!(handoff::decode(&[]).is_empty());
+    }
 
     fn touch(path: &Path) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -289,7 +539,9 @@ mod tests {
     /// A folder as the App Sandbox shows one the writer has not granted: it
     /// cannot be listed, but a path inside it can still be looked up. Restores
     /// the permissions on drop so the temp directory can be cleaned up.
+    #[cfg(unix)]
     struct Unlisted(PathBuf);
+    #[cfg(unix)]
     impl Unlisted {
         fn new(dir: &Path) -> Self {
             use std::os::unix::fs::PermissionsExt;
@@ -297,6 +549,7 @@ mod tests {
             Unlisted(dir.to_path_buf())
         }
     }
+    #[cfg(unix)]
     impl Drop for Unlisted {
         fn drop(&mut self) {
             use std::os::unix::fs::PermissionsExt;
@@ -326,6 +579,8 @@ mod tests {
         assert!(!pending.is_around_granted(Path::new("/tmp/C")));
     }
 
+    /// A Mac's open event; Windows hands a launch its paths as arguments.
+    #[cfg(unix)]
     #[test]
     fn only_file_urls_become_paths() {
         let urls = vec![
@@ -342,10 +597,10 @@ mod tests {
     #[test]
     fn facts_find_the_play_a_script_belongs_to_nearest_first() {
         let tmp = tempfile::tempdir().unwrap();
-        let plays = tmp.path().canonicalize().unwrap().join("Plays");
+        let plays = dunce::canonicalize(tmp.path()).unwrap().join("Plays");
         let play = plays.join("The Tide");
         touch(&play.join("The Tide.proscenium"));
-        let script = play.join("Scenes/Draft two.fountain");
+        let script = play.join("Scenes").join("Draft two.fountain");
         touch(&script);
 
         let f = facts(&script, Path::new(NO_HOME));
@@ -363,7 +618,7 @@ mod tests {
     #[test]
     fn facts_for_a_play_folder_start_at_the_folder_itself() {
         let tmp = tempfile::tempdir().unwrap();
-        let play = tmp.path().canonicalize().unwrap().join("Lear");
+        let play = dunce::canonicalize(tmp.path()).unwrap().join("Lear");
         touch(&play.join("Lear.proscenium"));
         // A temp file mid-write and a hidden file are never play files.
         touch(&play.join(".Lear.proscenium.1a2b.tmp"));
@@ -380,9 +635,7 @@ mod tests {
     #[test]
     fn facts_for_a_loose_file_have_no_play_and_a_missing_file_says_so() {
         let tmp = tempfile::tempdir().unwrap();
-        let loose = tmp
-            .path()
-            .canonicalize()
+        let loose = dunce::canonicalize(tmp.path())
             .unwrap()
             .join("Downloads/Hamlet.fdx");
         touch(&loose);
@@ -398,6 +651,7 @@ mod tests {
         assert!(!gone.exists);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_play_that_cannot_be_listed_is_found_by_its_own_name() {
         // A script in a play outside the Plays folder, opened under the App
@@ -405,7 +659,9 @@ mod tests {
         // used to fail silently, the script looked loose, and "make a play from
         // it" copied it into a second play.
         let tmp = tempfile::tempdir().unwrap();
-        let play = tmp.path().canonicalize().unwrap().join("Elsewhere/Lear");
+        let play = dunce::canonicalize(tmp.path())
+            .unwrap()
+            .join("Elsewhere/Lear");
         touch(&play.join("Lear.proscenium"));
         let script = play.join("Lear.fountain");
         touch(&script);
@@ -424,12 +680,13 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[test]
     fn an_opened_play_file_names_its_folder_under_any_name() {
         // Renamed in Finder, in a folder that cannot be listed: the file that
         // was opened is still the play file, and its folder is the play.
         let tmp = tempfile::tempdir().unwrap();
-        let play = tmp.path().canonicalize().unwrap().join("Lear");
+        let play = dunce::canonicalize(tmp.path()).unwrap().join("Lear");
         let file = play.join("Lear (old).proscenium");
         touch(&file);
         let _unlisted = Unlisted::new(&play);
@@ -447,7 +704,7 @@ mod tests {
     #[test]
     fn a_stray_play_file_in_documents_makes_no_play_of_anything() {
         let tmp = tempfile::tempdir().unwrap();
-        let home = tmp.path().canonicalize().unwrap().join("alex");
+        let home = dunce::canonicalize(tmp.path()).unwrap().join("alex");
         let stray = home.join("Documents/stray.proscenium");
         touch(&stray);
         let loose = home.join("Documents/Scripts/Draft.fountain");
@@ -464,7 +721,7 @@ mod tests {
         );
 
         // A real play below it is still found, and the walk stops there.
-        let play = home.join("Documents/Plays/Tide");
+        let play = home.join("Documents").join("Plays").join("Tide");
         touch(&play.join("Tide.proscenium"));
         let script = play.join("Tide.fountain");
         touch(&script);

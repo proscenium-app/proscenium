@@ -30,11 +30,6 @@
   - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "Practice Play":
-      - button "Practice Play"
-    - listitem "Untitled":
-      - button "Untitled"
-      - button "Close Untitled"
   - button "Add a surface to this pane"
   - textbox "File name"
   - button "Edit Tags"
@@ -61,16 +56,13 @@
   - paragraph: Remember the sound of the rain.
 - complementary "Inspector":
   - tablist "Inspector":
-    - tab "Sheet"
-    - tab "Comments" [selected]
+    - tab "Sheet" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - heading "0 comments" [level=2]
-  - 'button "Filter comments: All Comments"': All Comments
-  - paragraph:
-    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
-    - code: "[["
-    - text: where you want one.
-  - list
+  - text: Sheet
+  - heading "Untitled" [level=2]
+  - text: Notes/Untitled.md
+  - paragraph: A document is a blank page — it carries no front matter to edit. The whole file is yours.
 - contentinfo:
   - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
   - text: <save status>

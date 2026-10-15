@@ -13,6 +13,13 @@
  *   node scripts/build-app.mjs --update-proof      the update proof's copy of this version: the self-test
  *                                                  build under the real app's name and identifier, for
  *                                                  the build host's proof only
+ *   node scripts/build-app.mjs --update-proof --version <x.y.z>
+ *                                                  the same, numbered as another release: the proof of a
+ *                                                  release's line against a stand-in of the update
+ *                                                  service, whose copy is the release before it
+ *
+ * On Windows, `--selftest` (the test build, no installer) and `--update-proof`
+ * (the proof's copy, with its per-user installer) alone.
  *
  * `--universal` builds `universal-apple-darwin`: one bundle for Apple silicon and
  * Intel, the loader picks the slice (docs/engineering/release-engineering.md#REL-123). `bun run app:install`
@@ -39,7 +46,14 @@
  * that asks must be that app. Started with PROSCENIUM_UPDATE_PROOF, its updater
  * asks the real service (src-tauri/src/selftest.rs). Only the build host's proof
  * script builds it, into a scratch home that nothing else reads; like every
- * self-test build it is never packaged or shipped.
+ * self-test build it is never packaged or shipped. It turns on the Cargo
+ * feature `update-proof` (which implies `selftest`), the one build that also
+ * takes a stand-in of the update service at launch,
+ * PROSCENIUM_UPDATE_PROOF_ORIGIN, on this Mac's loopback address
+ * (src-tauri/src/telemetry/allowlist.rs). `--version` numbers it as another
+ * release, since a stand-in's copy of "the release before" is built from the
+ * release's own line: macOS, the updater and the update service then all
+ * read that number.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -56,7 +70,15 @@ const PROOF = args.includes("--update-proof");
 const SELFTEST = args.includes("--selftest") || PROOF;
 const DMG = args.includes("--dmg");
 const LOCAL = args.includes("--local");
+/** The release an update proof's copy is numbered as, when it is not this tree's. */
+const NUMBERED = args.includes("--version") ? args[args.indexOf("--version") + 1] : null;
 
+if (NUMBERED !== null && (!PROOF || !/^\d+\.\d+\.\d+$/.test(NUMBERED))) {
+  console.error(
+    "build-app: --version <x.y.z> numbers an update proof's copy, and nothing else — with --update-proof",
+  );
+  process.exit(1);
+}
 if (SELFTEST && DMG) {
   console.error("build-app: a self-test build is never packaged for distribution — drop --dmg");
   process.exit(1);
@@ -68,10 +90,31 @@ if (LOCAL && (SELFTEST || DMG || UNIVERSAL)) {
   process.exit(1);
 }
 
+/**
+ * On Windows, two test builds and nothing else. `--selftest`: the test build
+ * smoke's WebView2 engine drives from outside (scripts/smoke-webview2.mjs), an
+ * executable with no installer, its identifier its own. `--update-proof`: the
+ * update proof's copy, for its driver on clean hosted machines, the real app's name
+ * and identifier, with its per-user installer, since the update it takes
+ * replaces an installed copy as a writer's does. Every installer that ships
+ * is the release workflow's.
+ */
+const WINDOWS = process.platform === "win32";
+if (WINDOWS && (!SELFTEST || UNIVERSAL || DMG || LOCAL)) {
+  console.error(
+    "build-app: on Windows it builds the test build (--selftest) or the update proof's copy (--update-proof) alone",
+  );
+  process.exit(1);
+}
+
 const conf = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
 const productName = SELFTEST && !PROOF ? "Proscenium Self-Test" : conf.productName;
 
-const tauriArgs = ["build", "--bundles", DMG ? "app,dmg" : "app"];
+const tauriArgs = WINDOWS
+  ? PROOF
+    ? ["build", "--bundles", "nsis"]
+    : ["build", "--no-bundle"]
+  : ["build", "--bundles", DMG ? "app,dmg" : "app"];
 if (UNIVERSAL) tauriArgs.push("--target", "universal-apple-darwin");
 if (LOCAL) tauriArgs.push("--features", "custom-protocol,local", "--", "--no-default-features");
 /**
@@ -96,20 +139,22 @@ function selftestInfoPlist() {
 }
 
 if (SELFTEST) {
-  tauriArgs.push("--features", "selftest");
+  // The update proof's feature implies the self-test's.
+  tauriArgs.push("--features", PROOF ? "update-proof" : "selftest");
   // A merge patch replaces arrays whole, so the window list is copied from the
   // real config rather than restated — a window setting added there reaches
   // the self-test build without anyone remembering this file.
   const overlay = {
     identifier: PROOF ? conf.identifier : `${conf.identifier}.selftest`,
     productName,
+    ...(NUMBERED ? { version: NUMBERED } : {}),
     // acceptFirstMouse: a click reaches the page even when the window is not
     // key, so a run survives someone clicking another app mid-test. The shipped
     // app keeps the Mac default (the first click only activates).
     app: {
       windows: conf.app.windows.map((w) => ({ ...w, incognito: true, acceptFirstMouse: true })),
     },
-    bundle: { macOS: { infoPlist: selftestInfoPlist() } },
+    ...(WINDOWS ? {} : { bundle: { macOS: { infoPlist: selftestInfoPlist() } } }),
   };
   tauriArgs.push("--config", JSON.stringify(overlay));
 }
@@ -123,7 +168,7 @@ const env = {
   CI: process.env.CI ?? "true",
 };
 
-if (SELFTEST) {
+if (SELFTEST && !WINDOWS) {
   // The in-page half of the self-test, one self-contained script with axe-core
   // inside it. The Rust half embeds it at compile time (src-tauri/build.rs), so
   // it is bundled first, and never into dist/.
@@ -161,11 +206,30 @@ try {
 }
 
 console.log(`build-app: tauri ${tauriArgs.join(" ")}`);
-execFileSync(join(ROOT, "node_modules/.bin/tauri"), tauriArgs, {
-  cwd: ROOT,
-  stdio: "inherit",
-  env,
-});
+// Windows' node_modules/.bin holds Bun's own shims, which bun runs.
+if (WINDOWS)
+  execFileSync("bun", ["run", "tauri", ...tauriArgs], { cwd: ROOT, stdio: "inherit", env });
+else
+  execFileSync(join(ROOT, "node_modules/.bin/tauri"), tauriArgs, {
+    cwd: ROOT,
+    stdio: "inherit",
+    env,
+  });
+
+if (WINDOWS) {
+  const release = join(ROOT, "src-tauri/target/release");
+  if (PROOF) {
+    // Tauri names the installer by the version it was built as, and the chip.
+    const chip = process.arch === "arm64" ? "arm64" : "x64";
+    const installer = join(
+      release,
+      "bundle/nsis",
+      `${conf.productName}_${NUMBERED ?? conf.version}_${chip}-setup.exe`,
+    );
+    console.log(`build-app: ${installer}`);
+  } else console.log(`build-app: ${join(release, "proscenium.exe")}`);
+  process.exit(0);
+}
 
 const app = join(
   ROOT,
@@ -195,5 +259,6 @@ if (SELFTEST) {
 const checkArgs = [join(ROOT, "scripts/check-bundle.mjs"), app];
 if (UNIVERSAL) checkArgs.push("--universal");
 if (!SELFTEST) checkArgs.push("--release");
+if (NUMBERED) checkArgs.push("--version", NUMBERED);
 execFileSync(process.execPath, checkArgs, { stdio: "inherit" });
 console.log(`build-app: ${app}`);

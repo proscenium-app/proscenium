@@ -78,6 +78,10 @@ const PLAY_STATUSES: &str = "playStatuses";
 /// accident, not something to teach the checker.
 const MAX_WORD_CHARS: usize = 100;
 
+/// A signature is a name, not a sentence; the comment grammar reads no longer
+/// one (`MAX_COMMENT_NAME_CHARS` in settings-model.ts).
+const MAX_COMMENT_NAME_CHARS: usize = 24;
+
 const LAST_VAULT: &str = "lastVault";
 const LAST_VAULT_BOOKMARK: &str = "lastVaultBookmark";
 const LEARNED_WORDS: &str = "learnedWords";
@@ -122,16 +126,29 @@ pub enum UpdateTrack {
 
 /// Whether this copy is the Intel build. An Intel Mac takes stable releases
 /// alone: alpha and beta are built for Apple silicon only
-/// (docs/app/preferences-and-help/settings.md#SET-40).
-pub(crate) const INTEL: bool = cfg!(target_arch = "x86_64");
+/// (docs/app/preferences-and-help/settings.md#SET-40). The rule is the Mac's:
+/// an x86_64 PC is offered Beta as an Arm one is.
+pub(crate) const INTEL: bool = cfg!(all(target_os = "macos", target_arch = "x86_64"));
 
-/// The track a copy follows: the one stored, except that an Intel Mac follows
-/// stable whatever is stored, and leaves the stored value as it is.
-pub(crate) fn effective_track(stored: UpdateTrack, intel: bool) -> UpdateTrack {
-    if intel {
-        UpdateTrack::Stable
-    } else {
+/// The tracks this build is published on, slowest first: an Intel Mac's is
+/// Stable, Windows' Stable and Beta, since no Windows alpha is published
+/// (docs/app/preferences-and-help/settings.md#SET-37).
+pub(crate) const TRACKS: &[UpdateTrack] = if INTEL {
+    &[UpdateTrack::Stable]
+} else if cfg!(windows) {
+    &[UpdateTrack::Stable, UpdateTrack::Beta]
+} else {
+    &[UpdateTrack::Stable, UpdateTrack::Beta, UpdateTrack::Alpha]
+};
+
+/// The track a copy follows: the one stored, or the fastest this build is
+/// published on when the stored one is faster (an Intel Mac follows stable
+/// whatever is stored). The stored value is left as it is.
+pub(crate) fn effective_track(stored: UpdateTrack, tracks: &[UpdateTrack]) -> UpdateTrack {
+    if tracks.contains(&stored) {
         stored
+    } else {
+        tracks.last().copied().unwrap_or_default()
     }
 }
 
@@ -189,6 +206,10 @@ pub struct Settings {
     /// The Welcome screen has said, once, that reports are sent — state the app
     /// keeps, not a choice the writer makes.
     pub privacy_notice_seen: bool,
+    /// The name the writer's comments and replies are signed with
+    /// (docs/app/writing/comments.md#COMM-52), or empty to sign nothing. It is written
+    /// into a script only where the writer makes a comment, and goes nowhere else.
+    pub comment_name: String,
 }
 
 /// A partial update: every field is optional, and a field that is absent (or
@@ -238,6 +259,9 @@ pub struct SettingsPatch {
     pub share_analytics: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub privacy_notice_seen: Option<bool>,
+    /// A name, or the empty string to stop signing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment_name: Option<String>,
     /// A change to the dictionary, never the whole list. Replacing the list
     /// would let a window holding an older copy wipe the word another just
     /// learned; adding and removing single words cannot.
@@ -291,8 +315,11 @@ pub struct AppInfo {
     /// The architecture of the code actually running: `aarch64` or `x86_64`.
     /// A universal binary runs one slice or the other, and this names which.
     arch: &'static str,
-    /// `developer-id`, `app-store` or `local`: what updates this copy, if anything.
+    /// `developer-id`, `app-store`, `download`, `microsoft-store` or `local`:
+    /// what updates this copy, if anything.
     channel: &'static str,
+    /// The tracks this build is published on, slowest first ([`TRACKS`]).
+    tracks: &'static [UpdateTrack],
 }
 
 /// One writer at a time, for the whole process. Reads need no lock — a write
@@ -336,6 +363,18 @@ fn read_statuses(items: &[Value]) -> Vec<String> {
     }
     out.truncate(MAX_STATUSES);
     out
+}
+
+/// A name the file will hold (`isCommentName` in settings-model.ts): empty for
+/// none, or one short line with nothing that would end the signature (`:`) or
+/// the note it is written into (`[`, `]`). Which characters a name is made of
+/// is the comment grammar's question, asked before a name gets here.
+fn valid_comment_name(name: &str) -> bool {
+    name == name.trim()
+        && name.chars().count() <= MAX_COMMENT_NAME_CHARS
+        && !name
+            .chars()
+            .any(|c| c.is_control() || matches!(c, ':' | '[' | ']'))
 }
 
 fn valid_play_ref(id: &str) -> bool {
@@ -451,7 +490,7 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
                 .cloned()
                 .and_then(|v| serde_json::from_value(v).ok())
                 .unwrap_or_default(),
-            INTEL,
+            TRACKS,
         ),
         has_update_track_key: obj
             .get(UPDATE_TRACK_KEY)
@@ -464,6 +503,12 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
             .map(str::to_string),
         share_analytics: flag("shareAnalytics").unwrap_or(true),
         privacy_notice_seen: flag("privacyNoticeSeen").unwrap_or(false),
+        comment_name: obj
+            .get("commentName")
+            .and_then(Value::as_str)
+            .filter(|name| valid_comment_name(name))
+            .unwrap_or_default()
+            .to_string(),
     }
 }
 
@@ -531,10 +576,21 @@ fn validate(patch: &SettingsPatch) -> Result<(), String> {
         return Err("That is not a key".into());
     }
     if patch
-        .update_track
-        .is_some_and(|t| effective_track(t, INTEL) != t)
+        .comment_name
+        .as_deref()
+        .is_some_and(|name| !valid_comment_name(name))
     {
-        return Err("An Intel Mac takes stable releases only".into());
+        return Err("That is not a name comments can be signed with".into());
+    }
+    if patch
+        .update_track
+        .is_some_and(|t| effective_track(t, TRACKS) != t)
+    {
+        return Err(if INTEL {
+            "An Intel Mac takes stable releases only".into()
+        } else {
+            "This build is not published on that track".into()
+        });
     }
     if let Some(Some(id)) = &patch.default_format {
         if !valid_format_id(id) {
@@ -721,7 +777,17 @@ pub async fn update_settings(app: AppHandle, patch: SettingsPatch) -> Result<Set
         .update_track_key
         .as_ref()
         .is_some_and(|key| update_track_key(&app).as_ref() != Some(key));
+    #[cfg(windows)]
+    let appearance_changed = patch.appearance.is_some();
     let settings = update_at(&path, patch)?;
+    // Windows draws the title bar: it takes the scheme the page now has.
+    #[cfg(windows)]
+    if appearance_changed {
+        use tauri::Manager;
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.set_theme(crate::window_color::theme(&settings.appearance));
+        }
+    }
     // The reports switch acts the moment it moves (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3).
     crate::telemetry::settings_changed(&app, &settings);
     // And a change of track asks the new one at once, as does a new key on
@@ -810,7 +876,7 @@ fn bookmark_below(
 /// `child` is a folder strictly inside `parent`, however either is spelled.
 fn folder_inside(child: &str, parent: &str) -> bool {
     matches!(
-        (std::fs::canonicalize(child), std::fs::canonicalize(parent)),
+        (dunce::canonicalize(child), dunce::canonicalize(parent)),
         (Ok(c), Ok(p)) if c != p && c.starts_with(&p)
     )
 }
@@ -878,7 +944,7 @@ fn bookmark_to_keep(
 fn same_folder(a: &str, b: &str) -> bool {
     a == b
         || matches!(
-            (std::fs::canonicalize(a), std::fs::canonicalize(b)),
+            (dunce::canonicalize(a), dunce::canonicalize(b)),
             (Ok(x), Ok(y)) if x == y
         )
 }
@@ -925,11 +991,7 @@ pub async fn open_license() -> Result<(), String> {
 
 #[cfg(desktop)]
 fn os_open(target: &str) -> Result<(), String> {
-    std::process::Command::new("open")
-        .arg(target)
-        .spawn()
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    crate::shell::open(target)
 }
 
 /// Mobile has no Finder to open anything in; the frontend hides these through
@@ -986,6 +1048,7 @@ pub async fn app_info(app: AppHandle) -> AppInfo {
         version: crate::version::whole(&app),
         arch: std::env::consts::ARCH,
         channel: crate::telemetry::channel(),
+        tracks: TRACKS,
     }
 }
 

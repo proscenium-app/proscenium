@@ -690,6 +690,18 @@ fn a_write_never_makes_again_the_folder_its_vault_was() {
 
 // --- findings of an outside code review ---------------------------------------------------
 
+/// A link, as each platform makes one: Windows tells a folder's from a file's.
+fn symlink(target: &std::path::Path, link: &std::path::Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
+    #[cfg(windows)]
+    if target.is_dir() {
+        std::os::windows::fs::symlink_dir(target, link).unwrap();
+    } else {
+        std::os::windows::fs::symlink_file(target, link).unwrap();
+    }
+}
+
 /// A name planted at the temp sibling — here a symlink to a file the
 /// writer would never mean to touch — is not opened, so it is not truncated.
 #[test]
@@ -700,7 +712,7 @@ fn a_planted_temp_name_is_never_opened() {
     std::fs::write(&victim, b"the writer's other file").unwrap();
     let target = dir.path().join("draft.fountain");
     let tmp = dir.path().join(".draft.fountain.deadbeef.tmp");
-    std::os::unix::fs::symlink(&victim, &tmp).unwrap();
+    symlink(&victim, &tmp);
 
     let err = write_atomic_via(&tmp, &target, b"new words").unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
@@ -721,6 +733,7 @@ fn a_planted_temp_name_is_never_opened() {
 }
 
 /// A file the writer restricted to themselves stays restricted after a save.
+#[cfg(unix)]
 #[test]
 fn a_save_keeps_the_files_permission_bits() {
     use std::os::unix::fs::PermissionsExt;
@@ -759,9 +772,11 @@ fn a_symlink_inside_the_play_is_not_followed() {
     let (dir, vault) = new_vault();
     let outside = tempfile::tempdir().unwrap();
     std::fs::write(outside.path().join("secret.md"), b"outside the play").unwrap();
-    std::os::unix::fs::symlink(outside.path(), dir.path().join("escape")).unwrap();
-    std::os::unix::fs::symlink(outside.path().join("secret.md"), dir.path().join("leaf.md"))
-        .unwrap();
+    symlink(outside.path(), &dir.path().join("escape"));
+    symlink(
+        &outside.path().join("secret.md"),
+        &dir.path().join("leaf.md"),
+    );
 
     for rel in ["escape/secret.md", "leaf.md", "escape"] {
         let err = vault.read(rel).unwrap_err();
@@ -826,4 +841,44 @@ fn aliases_share_self_write_generations_and_in_process_locks() {
         &write_lock(Path::new("Notes/Café.md")),
         &write_lock(Path::new("NOTES/Cafe\u{301}.MD"))
     ));
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_errors_reach_the_page_in_the_apps_words() {
+    // docs/app/keeping-work/storage-and-file-format.md#STOR-D9: Windows' text
+    // is in the writer's language and its numbers are not Darwin's.
+    let said = |code| in_app_words(&std::io::Error::from_raw_os_error(code));
+    assert_eq!(said(2), "No such file or directory");
+    assert_eq!(said(3), "No such file or directory");
+    assert_eq!(said(5), "Permission denied");
+    assert_eq!(said(32), "in-use: The file is open in another program");
+    assert_eq!(said(112), "No space left on device");
+    assert_eq!(said(53), "Input/output error");
+    assert!(!said(1).contains("os error"), "{}", said(1));
+    let ours = std::io::Error::other("locked: Permission denied");
+    assert_eq!(in_app_words(&ours), "locked: Permission denied");
+}
+
+#[cfg(windows)]
+#[test]
+fn a_read_only_file_is_refused_as_locked() {
+    let (_dir, vault) = new_vault();
+    let WriteOutcome::Ok { hash } = vault.write("Hamlet.fountain", b"theirs", None).unwrap() else {
+        panic!("expected Ok")
+    };
+    let path = vault.root().join("Hamlet.fountain");
+    let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(&path, permissions.clone()).unwrap();
+    let err = vault
+        .write("Hamlet.fountain", b"ours", Some(&hash))
+        .unwrap_err();
+    assert_eq!(err.to_string(), "locked: Permission denied");
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(vault.read("Hamlet.fountain").unwrap(), b"theirs");
+    #[allow(clippy::permissions_set_readonly_false)]
+    permissions.set_readonly(false);
+    std::fs::set_permissions(&path, permissions).unwrap();
+    assert_eq!(all_files(vault.root()), vec!["Hamlet.fountain"]);
 }

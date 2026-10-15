@@ -21,7 +21,7 @@
  */
 import type { TimerHost } from "./autosave";
 import { encodeSnapshot } from "./recovery-policy";
-import { ulid } from "../workspace/ulid";
+import { ulid } from "./ulid";
 
 export const RECOVERY_INTERVAL_MS = 5000;
 

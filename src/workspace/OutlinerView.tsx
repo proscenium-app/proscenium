@@ -21,7 +21,7 @@ import type { SceneCard } from "./card-reconcile";
 import { useFieldDraft } from "./field-draft";
 import { AutosaveScheduler, DEFAULT_AUTOSAVE } from "../storage/autosave";
 import type { BufferLease, MaterialBuffer, ParkedWords } from "./material-buffer";
-import { useSceneStatusOptions } from "../app/settings/scene-statuses";
+import { useSceneStatusOptions } from "./scene-statuses";
 import type { Card } from "./play-file";
 import { ArrowDownIcon, ArrowUpIcon, OutlineIcon, PopupButton } from "../ui";
 

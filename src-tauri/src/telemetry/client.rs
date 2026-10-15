@@ -84,7 +84,10 @@ impl Queue {
 
 /// OS granularity is major/minor only; full local diagnostics stay local.
 pub fn os_version(full: &str) -> String {
-    full.split('.').take(2).collect::<Vec<_>>().join(".")
+    // A Mac's major and minor; Windows' major, minor and build, since its
+    // major and minor are 10.0 on every version that runs the app.
+    let parts = if cfg!(windows) { 3 } else { 2 };
+    full.split('.').take(parts).collect::<Vec<_>>().join(".")
 }
 
 /// Batch dimensions once; events carry only their closed name and properties.
@@ -101,7 +104,7 @@ pub fn body(batch: &[Pending], context: &Context) -> String {
             json!({ "name": pending.event.name(), "props": props })
         })
         .collect();
-    json!({ "version": context.app_version, "platform": "darwin", "arch": context.arch,
+    json!({ "version": context.app_version, "platform": super::platform(), "arch": context.arch,
         "os": os_version(&context.os_version), "channel": context.channel.as_str(), "events": events }).to_string()
 }
 
@@ -215,8 +218,8 @@ mod tests {
     fn context() -> Context {
         Context {
             app_version: "1.0.0".into(),
-            os_name: "macOS",
-            os_version: "15.6.1".into(),
+            os_name: crate::telemetry::example::NAME,
+            os_version: crate::telemetry::example::FULL.into(),
             arch: "aarch64",
             channel: Channel::DeveloperId,
         }
@@ -264,8 +267,9 @@ mod tests {
         let sent: Value = serde_json::from_str(&body(&batch, &context())).unwrap();
         assert_eq!(
             sent,
-            json!({"version":"1.0.0","platform":"darwin","arch":"aarch64","os":"15.6",
-            "channel":"developer-id","events":[{"name":"play_opened","props":{"plays":"2-5"}}]})
+            json!({"version":"1.0.0","platform":crate::telemetry::platform(),"arch":"aarch64",
+            "os":crate::telemetry::example::SENT,"channel":"developer-id",
+            "events":[{"name":"play_opened","props":{"plays":"2-5"}}]})
         );
     }
 

@@ -89,6 +89,7 @@ fn a_missing_file_is_every_default() {
             default_format: None,
             share_analytics: true,
             privacy_notice_seen: false,
+            comment_name: String::new(),
         }
     );
 }
@@ -493,6 +494,7 @@ fn the_model_serializes_under_the_names_the_frontend_reads() {
             "accent",
             "appearance",
             "checkForUpdates",
+            "commentName",
             "defaultFormat",
             "formatOrder",
             "hasUpdateTrackKey",
@@ -573,9 +575,13 @@ fn an_intel_mac_follows_stable_whatever_is_stored() {
     // docs/app/preferences-and-help/settings.md#SET-40: alpha and beta are
     // built for Apple silicon alone, so an Intel copy follows stable, and a
     // track stored before it moved, or copied from another Mac, stays stored.
-    for track in [UpdateTrack::Stable, UpdateTrack::Beta, UpdateTrack::Alpha] {
-        assert_eq!(effective_track(track, true), UpdateTrack::Stable);
-        assert_eq!(effective_track(track, false), track);
+    let all = [UpdateTrack::Stable, UpdateTrack::Beta, UpdateTrack::Alpha];
+    for track in all {
+        assert_eq!(
+            effective_track(track, &[UpdateTrack::Stable]),
+            UpdateTrack::Stable
+        );
+        assert_eq!(effective_track(track, &all), track);
     }
     if INTEL {
         let (_dir, path) = temp_settings();
@@ -590,6 +596,22 @@ fn an_intel_mac_follows_stable_whatever_is_stored() {
 }
 
 #[test]
+fn windows_follows_stable_and_beta() {
+    // docs/app/preferences-and-help/settings.md#SET-37: no Windows alpha is
+    // published, so a stored alpha follows beta there, and stays stored.
+    let windows = [UpdateTrack::Stable, UpdateTrack::Beta];
+    assert_eq!(
+        effective_track(UpdateTrack::Alpha, &windows),
+        UpdateTrack::Beta
+    );
+    assert_eq!(
+        effective_track(UpdateTrack::Beta, &windows),
+        UpdateTrack::Beta
+    );
+    assert_eq!(cfg!(windows), TRACKS == windows.as_slice());
+}
+
+#[test]
 fn the_update_track_is_stable_until_chosen() {
     let (_dir, path) = temp_settings();
     assert_eq!(
@@ -597,17 +619,19 @@ fn the_update_track_is_stable_until_chosen() {
         UpdateTrack::Stable
     );
 
-    // An Intel build is held to stable (the test above); these are Apple silicon's tracks.
-    if !INTEL {
-        for (word, track) in [
-            ("alpha", UpdateTrack::Alpha),
-            ("beta", UpdateTrack::Beta),
-            ("stable", UpdateTrack::Stable),
-        ] {
-            let s = update_at(&path, patch(json!({ "updateTrack": word }))).unwrap();
-            assert_eq!(s.update_track, track);
-            assert_eq!(read_json(&path)["updateTrack"], json!(word));
+    // Each track this build is published on (an Intel build is held to stable, the test above).
+    for (word, track) in [
+        ("alpha", UpdateTrack::Alpha),
+        ("beta", UpdateTrack::Beta),
+        ("stable", UpdateTrack::Stable),
+    ] {
+        if !TRACKS.contains(&track) {
+            assert!(update_at(&path, patch(json!({ "updateTrack": word }))).is_err());
+            continue;
         }
+        let s = update_at(&path, patch(json!({ "updateTrack": word }))).unwrap();
+        assert_eq!(s.update_track, track);
+        assert_eq!(read_json(&path)["updateTrack"], json!(word));
     }
 
     // Only a track reaches the file.
@@ -638,7 +662,7 @@ fn alphas_key_is_written_by_patch_and_never_read_back() {
     assert!(!answered.contains(&key));
     // Another preference leaves it where it is.
     assert!(
-        update_at(&path, patch(json!({ "updateTrack": "alpha" })))
+        update_at(&path, patch(json!({ "checkForUpdates": false })))
             .unwrap()
             .has_update_track_key
     );
@@ -667,9 +691,10 @@ fn alphas_key_is_written_by_patch_and_never_read_back() {
         json!({ "updateTrack": "alpha", "updateTrackKey": "short" }),
     );
     let s = from_object(&read_object(&path));
+    // Alpha where this build is published on it (not Windows, not an Intel Mac).
     assert_eq!(
         (s.update_track, s.has_update_track_key),
-        (UpdateTrack::Alpha, false)
+        (effective_track(UpdateTrack::Alpha, TRACKS), false)
     );
 }
 
@@ -714,6 +739,39 @@ fn interface_text_size_is_bounded_and_persisted() {
         assert!(update_at(&path, patch(json!({ "interfaceTextSize": size }))).is_err());
         assert_eq!(from_object(&read_object(&path)).interface_text_size, 200);
     }
+}
+
+/// docs/app/writing/comments.md#COMM-52: the name comments are signed with.
+#[test]
+fn the_comment_name_is_a_short_line_or_nothing() {
+    let (_dir, path) = temp_settings();
+    assert_eq!(from_object(&read_object(&path)).comment_name, "");
+    for name in ["Robin", "Zoë", "Mary Ann O'Neil-Park", "J. R."] {
+        let saved = update_at(&path, patch(json!({ "commentName": name }))).unwrap();
+        assert_eq!(saved.comment_name, name);
+        assert_eq!(from_object(&read_object(&path)).comment_name, name);
+    }
+    // Nothing that would end the signature or the note, and no sentence.
+    for name in [
+        "Robin:",
+        "[[Robin]]",
+        " Robin",
+        "Robin\nSam",
+        "A name that runs on past any name",
+    ] {
+        assert!(update_at(&path, patch(json!({ "commentName": name }))).is_err());
+        assert_eq!(from_object(&read_object(&path)).comment_name, "J. R.");
+    }
+    // The empty string stops signing; a mangled value in the file costs only the name.
+    let cleared = update_at(&path, patch(json!({ "commentName": "" }))).unwrap();
+    assert_eq!(cleared.comment_name, "");
+    write_json(
+        &path,
+        json!({ "commentName": "Robin: no", "accent": "iris" }),
+    );
+    let s = from_object(&read_object(&path));
+    assert_eq!(s.comment_name, "");
+    assert_eq!(s.accent, "iris");
 }
 
 #[test]

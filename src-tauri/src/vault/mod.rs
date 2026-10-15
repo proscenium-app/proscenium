@@ -32,7 +32,7 @@ use path_key::{comparison_path, path_key};
 pub(crate) mod atomic_file;
 mod move_journal;
 mod write_journal;
-use identity::FileIdentity;
+pub(crate) use identity::FileIdentity;
 pub use move_journal::PendingMove;
 pub use write_journal::SavedCopy;
 pub mod sync_names;
@@ -330,10 +330,7 @@ pub(crate) fn write_atomic_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::
 
     // `create_new`: O_EXCL, so an existing file or link at the temp name fails
     // here rather than being opened for writing.
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(tmp)?;
+    let mut f = atomic_file::create_temp(tmp)?;
     let written = (|| {
         f.write_all(bytes)?;
         f.flush()?;
@@ -345,9 +342,11 @@ pub(crate) fn write_atomic_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::
                 f.set_permissions(meta.permissions())?;
             }
         }
+        atomic_file::unhide(&f)?;
         f.sync_all()?;
-        // Atomic replace. On the same filesystem this is a single rename(2).
-        std::fs::rename(tmp, target)
+        // Atomic replace. On the same filesystem this is a single rename(2);
+        // on Windows, one write-through MoveFileExW.
+        atomic_file::replace(tmp, target)
     })();
     drop(f);
     if let Err(e) = written {
@@ -401,12 +400,63 @@ pub mod refused {
     pub const FOLDER_LOCKED: &str = "folder-locked";
     /// The folder the vault is — the play's, or the Plays folder — is not there.
     pub const FOLDER_GONE: &str = "folder-gone";
+    /// Another program holds the file open and will not share it: Windows'
+    /// sharing and lock violations, still there after the save's patience.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub const IN_USE: &str = "in-use";
 }
 
+/// What a refused write's error is when the file or folder may be locked:
+/// EPERM on a Mac, Access Denied on Windows.
+#[cfg(not(windows))]
 const EPERM: i32 = 1;
+#[cfg(windows)]
+const EPERM: i32 = 5;
 
 fn refusal(reason: &str, e: std::io::Error) -> std::io::Error {
-    std::io::Error::new(e.kind(), format!("{reason}: {e}"))
+    let kind = e.kind();
+    #[cfg(windows)]
+    let e = in_app_words(&e);
+    std::io::Error::new(kind, format!("{reason}: {e}"))
+}
+
+/// An operating system's error in the app's own words, for Windows
+/// (docs/engineering/cross-platform.md#PLAT-67). Windows says an error in the
+/// writer's language and numbers it its own way, so the page, which reads a
+/// Mac's words and Darwin's numbers, is given neither: the words the C
+/// library would use, which `src/storage/save-failure.ts` and the readers of a
+/// missing file know, and no number. An error the app made itself, or one a
+/// refusal already names, is as it was.
+#[cfg(windows)]
+pub fn in_app_words(e: &std::io::Error) -> String {
+    let Some(code) = e.raw_os_error() else {
+        return e.to_string();
+    };
+    match code {
+        // FILE_NOT_FOUND, PATH_NOT_FOUND, INVALID_DRIVE, BAD_PATHNAME
+        2 | 3 | 15 | 161 => "No such file or directory".into(),
+        // ACCESS_DENIED: the file's Read-only, its folder's permissions, or
+        // Windows Security's Controlled folder access.
+        5 => "Permission denied".into(),
+        // WRITE_PROTECT
+        19 => "Read-only file system".into(),
+        // SHARING_VIOLATION, LOCK_VIOLATION
+        32 | 33 => format!("{}: The file is open in another program", refused::IN_USE),
+        // HANDLE_DISK_FULL, DISK_FULL
+        39 | 112 => "No space left on device".into(),
+        // DISK_QUOTA_EXCEEDED
+        1295 => "Disk quota exceeded".into(),
+        // NOT_READY, CRC, BAD_NETPATH, UNEXP_NET_ERR, NETNAME_DELETED,
+        // BAD_NET_NAME, SEM_TIMEOUT, IO_DEVICE, DEVICE_NOT_CONNECTED,
+        // NETWORK_UNREACHABLE, HOST_UNREACHABLE
+        21 | 23 | 53 | 59 | 64 | 67 | 121 | 1117 | 1167 | 1231 | 1232 => {
+            "Input/output error".into()
+        }
+        // FILE_EXISTS, ALREADY_EXISTS
+        80 | 183 => "File exists".into(),
+        // Anything else by its kind, in Rust's own English.
+        _ => e.kind().to_string(),
+    }
 }
 
 /// Finder's Locked: the user immutable flag (`UF_IMMUTABLE`, `chflags uchg`).
@@ -419,7 +469,14 @@ fn locked_in_finder(path: &Path) -> bool {
     std::fs::metadata(path).is_ok_and(|m| m.st_flags() & UF_IMMUTABLE != 0)
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+/// Windows' Read-only, on a file: Windows will not replace a file that has it.
+/// A folder's Read-only stops nothing, so a folder is never locked here.
+#[cfg(windows)]
+fn locked_in_finder(path: &Path) -> bool {
+    std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().readonly())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "ios", windows)))]
 fn locked_in_finder(_path: &Path) -> bool {
     false
 }
@@ -471,7 +528,7 @@ impl LocalFsVault {
         self_writes: Arc<SelfWrites>,
         trash_dir: Option<PathBuf>,
     ) -> std::io::Result<Self> {
-        let root = root.canonicalize().unwrap_or(root);
+        let root = dunce::canonicalize(&root).unwrap_or(root);
         // Never resurrect a vault on a path that no longer exists — otherwise a
         // deleted last-opened folder would be silently recreated as an empty
         // skeleton on auto-reopen instead of failing back to the empty state.
@@ -942,6 +999,10 @@ impl LocalFsVault {
         } else if permission && locked_in_finder(target) {
             refusal(refused::LOCKED, e)
         } else {
+            #[cfg(windows)]
+            if matches!(e.raw_os_error(), Some(32 | 33)) {
+                return std::io::Error::new(e.kind(), in_app_words(&e));
+            }
             e
         }
     }

@@ -67,6 +67,8 @@ export interface PlayEditorProps {
   frontMatter?: FrontMatter | null;
   /** Open the Title Page editor (clicking the title sheet invokes this). */
   onEditTitlePage?: () => void;
+  /** Open Cast at what was double-clicked on the Characters sheet (its paragraph id). */
+  onEditCharactersPage?: (paragraphId: string | null) => void;
   /**
    * Inline tracked changes — a DECORATION layer over the
    * open script showing what arrived from outside. Never a document mutation:
@@ -81,6 +83,11 @@ export interface PlayEditorProps {
   /** The Comments feed pane is open — the bar's chip reflects and toggles it. */
   commentsOpen?: boolean;
   onToggleComments?: () => void;
+  /**
+   * Show the comment feed: a comment is being made or answered and the margin
+   * has no room for the card it would be typed in (docs/app/writing/comments.md#COMM-56).
+   */
+  onShowComments?: () => void;
   /** Underline misspellings (docs/app/writing/editor-ux.md#EDIT-D116). */
   spellcheck?: boolean;
   language?: string;
@@ -165,10 +172,12 @@ export function PlayEditor({
   layoutMeta,
   frontMatter,
   onEditTitlePage,
+  onEditCharactersPage,
   trackedMarks,
   zoom = 1,
   commentsOpen = false,
   onToggleComments,
+  onShowComments,
   spellcheck = true,
   language = DEFAULT_PLAY_LANGUAGE,
   learnedWords = NO_WORDS,
@@ -198,7 +207,15 @@ export function PlayEditor({
     // on either side keeps its literal newlines.
     content: toEditorDoc(ensureNonEmpty(initialDoc)),
     editable,
-    onUpdate: ({ editor }) => onChange?.(fromEditorDoc(editor.getJSON() as Doc)),
+    // Only a change of the document is an edit. TipTap also says "update" when
+    // the editor is made editable or read-only, with a transaction that
+    // changes nothing: taken for an edit, every play marked its script
+    // "Editing…" as it opened and saved the same bytes back, keeping a
+    // version nobody made.
+    onUpdate: ({ editor, transaction, appendedTransactions }) => {
+      if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
+      onChange?.(fromEditorDoc(editor.getJSON() as Doc));
+    },
     editorProps: {
       // The OS check is OFF, and the app's own one (spellcheck.ts) replaces it.
       // Native squiggles were the first answer and could not be made to work:
@@ -250,7 +267,8 @@ export function PlayEditor({
   }, [editor]);
 
   useEffect(() => {
-    editor?.setEditable(editable);
+    // Editable or not changes no word: no update for it.
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   useElementAnnouncer(editor);
@@ -269,8 +287,9 @@ export function PlayEditor({
       meta: layoutMeta,
       frontMatter,
       onTitlePageClick: onEditTitlePage ?? null,
+      onCharactersPageOpen: onEditCharactersPage ?? null,
     });
-  }, [editor, paginated, format, layoutMeta, frontMatter, onEditTitlePage]);
+  }, [editor, paginated, format, layoutMeta, frontMatter, onEditTitlePage, onEditCharactersPage]);
 
   /**
    * Push tracked-change marks into the plugin's options and force one redraw.
@@ -368,7 +387,7 @@ export function PlayEditor({
       {editable && !tutorialActive && <FirstRunCard editor={editor} />}
       {/* Comments live beside the page they annotate; the whole list lives in
           the feed pane, which App owns (docs/app/writing/comments.md#COMM-D4, docs/app/writing/comments.md#COMM-D5). */}
-      {editor && <CommentsMargin editor={editor} onMargin={setMargin} />}
+      {editor && <CommentsMargin editor={editor} onMargin={setMargin} onNoRoom={onShowComments} />}
       {/* `zoom` (not transform) so scroll extents track the visual size. */}
       <div
         className={`play-page${paginated ? " is-paginated" : ""}`}

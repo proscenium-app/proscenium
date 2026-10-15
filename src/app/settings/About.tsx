@@ -6,6 +6,7 @@
  * work it is built on, the keyboard sheet, and the diagnostics a writer hands
  * to someone when something goes wrong (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D5).
  */
+import { systemWords } from "../../ui/system-words";
 import { copyDiagnostics, formatsInUse } from "../../diagnostics";
 import { openFeedback } from "../../feedback";
 import { AppMarkIcon, Button, useToast } from "../../ui";
@@ -99,8 +100,9 @@ function Diagnostics({ plays }: { plays: readonly VaultPlay[] }) {
         </Button>
       </div>
       <Note>
-        Copies the Proscenium and macOS versions, your settings and recent errors as text for you to
-        paste. Nothing is sent. It never includes play, file or folder names, or dictionary words.
+        Copies the Proscenium and {systemWords().system} versions, your settings and recent errors
+        as text for you to paste. Nothing is sent. It never includes play, file or folder names, or
+        dictionary words.
       </Note>
       <div className="settings__row">
         <span className="settings__rowlabel">Feedback</span>

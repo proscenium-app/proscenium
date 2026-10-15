@@ -33,7 +33,7 @@
 //! Only a distribution build enables reports; development and local installs send nothing.
 
 pub mod allowlist;
-mod client;
+pub(crate) mod client;
 mod crash;
 mod diagnostics;
 mod envelope;
@@ -230,7 +230,11 @@ pub fn install_panic_hook() {
 
 /// From setup: what this launch says, and the schedule that sends it.
 pub fn setup(app: &AppHandle) {
-    let version = app.package_info().version.to_string();
+    // The whole version (version.rs): a release's `X.Y.Z`, which is its
+    // package's, or a track build's `X.Y.Z-beta.N`, so the service counts a
+    // beta's reports apart from the release's
+    // (docs/engineering/services-and-feedback.md#SERV-272).
+    let version = crate::version::whole(app);
     let data_dir = app.path().app_data_dir().ok();
     let (os_name, os_version) = operating_system();
     if let Some(dir) = &data_dir {
@@ -311,7 +315,9 @@ pub fn switched_off(app: &AppHandle) {
     }
 }
 
-/// The version that ran last, replaced by this one; the pair when they differ.
+/// The version that ran last, replaced by this one; the pair when they differ
+/// and both are releases. A move to or from a track build is kept, and not
+/// reported: `update_installed` names releases alone.
 fn version_change(file: &Path, now: &str) -> Option<(Version, Version)> {
     let before = std::fs::read_to_string(file)
         .ok()
@@ -339,9 +345,67 @@ pub(crate) fn operating_system() -> (&'static str, String) {
     ("macOS", version)
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Windows' version and build, `10.0.<build>`, from where Windows keeps them
+/// (`HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion`): the build is what
+/// tells Windows 11 (22000 and later) from Windows 10. Never the monthly patch
+/// number, which says more about a PC than a report needs
+/// (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-15).
+#[cfg(windows)]
+pub(crate) fn operating_system() -> (&'static str, String) {
+    use crate::registry::{dword, string, Root};
+    let at = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion";
+    let version = match (
+        dword(Root::Machine, at, "CurrentMajorVersionNumber"),
+        dword(Root::Machine, at, "CurrentMinorVersionNumber"),
+        string(Root::Machine, at, "CurrentBuildNumber"),
+    ) {
+        (Some(major), Some(minor), Some(build))
+            if !build.is_empty() && build.bytes().all(|b| b.is_ascii_digit()) =>
+        {
+            format!("{major}.{minor}.{build}")
+        }
+        _ => String::new(),
+    };
+    ("Windows", version)
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 pub(crate) fn operating_system() -> (&'static str, String) {
     (std::env::consts::OS, String::new())
+}
+
+/// One system's version for the tests, as the system says it and as a
+/// report sends it: a Mac's `15.6.1` sends `15.6`, Windows' `10.0.26100`
+/// sends itself.
+#[cfg(test)]
+pub(crate) mod example {
+    pub const NAME: &str = if cfg!(windows) { "Windows" } else { "macOS" };
+    pub const FULL: &str = if cfg!(windows) {
+        "10.0.26100"
+    } else {
+        "15.6.1"
+    };
+    pub const SENT: &str = if cfg!(windows) { "10.0.26100" } else { "15.6" };
+    /// What Copy Diagnostics says of the system and its chip.
+    pub const LINE: &str = if cfg!(windows) {
+        "Windows 10.0.26100, Arm64 (aarch64)"
+    } else {
+        "macOS 15.6.1, Apple silicon (aarch64)"
+    };
+    pub const SYSTEM: &str = if cfg!(windows) {
+        "Windows 10.0.26100"
+    } else {
+        "macOS 15.6.1"
+    };
+}
+
+/// The platform every report and the update check name: `darwin` or `windows`.
+pub(crate) const fn platform() -> &'static str {
+    if cfg!(windows) {
+        "windows"
+    } else {
+        "darwin"
+    }
 }
 
 fn with_telemetry<T>(app: &AppHandle, f: impl FnOnce(&Telemetry) -> T) -> Option<T> {
@@ -403,7 +467,8 @@ fn diagnostics_text(app: &AppHandle, formats_in_use: &[String]) -> Result<String
 }
 
 /// Where this copy came from, as Copy Diagnostics names it: `developer-id`,
-/// `app-store` or `local`.
+/// `app-store` or `local` on a Mac; `download`, `microsoft-store` or `local`
+/// on Windows.
 pub fn channel() -> &'static str {
     Channel::of_this_build().as_str()
 }
@@ -495,7 +560,7 @@ mod tests {
             context: Context {
                 app_version: "1.0.0".into(),
                 os_name: "macOS",
-                os_version: "15.6".into(),
+                os_version: example::SENT.into(),
                 arch: "aarch64",
                 channel: Channel::DeveloperId,
             },
@@ -653,7 +718,7 @@ mod tests {
                 colno: Some(2),
             }],
             "1.0.0",
-            "15.6",
+            example::SENT,
             "aarch64",
             chrono::Utc::now(),
         );
@@ -700,7 +765,7 @@ mod tests {
                 colno: Some(2),
             }],
             "1.0.0",
-            "15.6",
+            example::SENT,
             "aarch64",
             chrono::Utc::now(),
         );
@@ -749,6 +814,53 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "1.0.0");
         std::fs::write(&file, "garbage").unwrap();
         assert_eq!(version_change(&file, "1.0.1"), None);
+    }
+
+    /// A track build reports its whole version (docs/engineering/services-and-feedback.md#SERV-272):
+    /// its batches and crashes say `X.Y.Z-beta.N`, and its moves to and from
+    /// a release are no `update_installed`, which names releases alone.
+    #[test]
+    fn a_beta_build_says_its_whole_version_and_names_no_update_but_releases() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join(LAST_VERSION);
+        assert_eq!(version_change(&file, "1.0.0"), None);
+        assert_eq!(version_change(&file, "1.0.1-beta.2"), None);
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "1.0.1-beta.2");
+        assert_eq!(version_change(&file, "1.0.1-beta.3"), None);
+        assert_eq!(version_change(&file, "1.0.1"), None);
+        let (from, to) = version_change(&file, "1.0.2").unwrap();
+        assert_eq!((from.as_str(), to.as_str()), ("1.0.1", "1.0.2"));
+
+        let beta = Context {
+            app_version: "1.0.1-beta.2".into(),
+            os_name: example::NAME,
+            os_version: example::FULL.into(),
+            arch: "aarch64",
+            channel: Channel::DeveloperId,
+        };
+        let pending = [client::Pending {
+            event: Event::AppLaunched,
+            at: chrono::Utc::now(),
+        }];
+        let sent: serde_json::Value = serde_json::from_str(&client::body(&pending, &beta)).unwrap();
+        assert_eq!(sent["version"], "1.0.1-beta.2");
+        assert_eq!(sent["channel"], "developer-id");
+        assert_eq!(sent["os"], example::SENT);
+        let record = crash::make_record(
+            events::CrashKind::JsError,
+            "TypeError",
+            vec![crash::Frame {
+                function: None,
+                lineno: Some(1),
+                colno: Some(2),
+            }],
+            &beta.app_version,
+            &beta.os_version,
+            beta.arch,
+            chrono::Utc::now(),
+        );
+        assert!(record.valid());
+        assert_eq!(record.version, "1.0.1-beta.2");
     }
 
     /// A batch already taken out of the queue when the switch

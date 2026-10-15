@@ -18,6 +18,7 @@
  * that had the old word would be a guarded write per play, and a play on
  * another device would keep it anyway.
  */
+import { ariaKeys, pressed } from "../../ui/keys";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, Button, IconButton, TrashIcon, announce } from "../../ui";
 import { MAX_STATUSES, MAX_STATUS_CHARS } from "../../storage/settings-model";
@@ -282,7 +283,7 @@ function StatusRow({
         value={draft}
         maxLength={MAX_STATUS_CHARS}
         aria-label={`Status ${index + 1} of ${count}: ${name}`}
-        aria-keyshortcuts="Control+Meta+ArrowUp Control+Meta+ArrowDown"
+        aria-keyshortcuts={ariaKeys("⌃⌘↑ / ⌃⌘↓")}
         onChange={(e) => {
           setDraft(e.target.value);
           onTyping();
@@ -292,7 +293,7 @@ function StatusRow({
           if (e.key === "Enter") {
             e.preventDefault();
             commit(true);
-          } else if (e.ctrlKey && e.metaKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+          } else if (pressed(e, "⌃⌘↑") || pressed(e, "⌃⌘↓")) {
             e.preventDefault();
             onMove(index + (e.key === "ArrowUp" ? -1 : 1), "name", typed);
           }

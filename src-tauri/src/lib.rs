@@ -10,6 +10,7 @@
 
 mod accent;
 mod authority;
+mod caret;
 mod conflict;
 mod export;
 mod feedback;
@@ -20,17 +21,30 @@ mod formats;
 #[cfg(desktop)]
 mod menu;
 mod opens;
+/// Windows: what differs when the app runs from its MSIX package (the
+/// Microsoft Store's copy).
+#[cfg(windows)]
+mod packaged;
 mod providers;
 /// Desktop-only: a quit asks the page to keep its words first (docs/app/keeping-work/storage-and-file-format.md#STOR-D13).
 /// iOS ends an app from the background, where the page's hide flush runs.
 #[cfg(desktop)]
 mod quit;
+/// Windows: what it keeps in its registry, which the app only reads.
+#[cfg(windows)]
+mod registry;
 mod scope;
 /// The native self-test (docs/engineering/release-engineering.md#REL-D4). Exists only with the Cargo
 /// feature; a release build has no trace of it (scripts/check-bundle.mjs).
-#[cfg(feature = "selftest")]
+#[cfg(all(feature = "selftest", target_os = "macos"))]
+mod selftest;
+/// Its Windows half: the test build a driver attaches to from outside.
+#[cfg(all(feature = "selftest", windows))]
+#[path = "selftest_windows.rs"]
 mod selftest;
 mod settings;
+#[cfg(desktop)]
+mod shell;
 mod smartsubs;
 mod store;
 mod symbols;
@@ -51,9 +65,12 @@ mod version;
 /// carries no dead watcher code.
 #[cfg(desktop)]
 mod watcher;
+/// Windows: WebView2's resource filter, the page's network fence.
+#[cfg(windows)]
+mod webview_fence;
 #[cfg(target_os = "macos")]
 mod webview_policy;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 mod window_color;
 
 use std::path::PathBuf;
@@ -87,7 +104,15 @@ type ManagerState<'a> = State<'a, Mutex<VaultManager>>;
 #[derive(Default)]
 struct PickedFolder(Mutex<Option<(PathBuf, Option<String>)>>);
 
-fn estr<E: std::fmt::Display>(e: E) -> String {
+/// An error as the page is given it. On Windows an operating system's error
+/// is put in the app's own words first ([`vault::in_app_words`]): Windows'
+/// text is in the writer's language and its numbers are not Darwin's, and the
+/// page reads neither (docs/app/keeping-work/storage-and-file-format.md#STOR-D9).
+fn estr<E: std::fmt::Display + 'static>(e: E) -> String {
+    #[cfg(windows)]
+    if let Some(io) = (&e as &dyn std::any::Any).downcast_ref::<std::io::Error>() {
+        return vault::in_app_words(io);
+    }
     e.to_string()
 }
 
@@ -270,7 +295,7 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
     // A saved path is only a hint, never permission. Without a valid bookmark only an
     // app-owned folder can reopen without a fresh native selection.
     let stored = settings::last_vault_path(&app)?;
-    let path = std::path::Path::new(&stored).canonicalize().ok()?;
+    let path = dunce::canonicalize(std::path::Path::new(&stored)).ok()?;
     let mut own_roots = vec![app.path().app_data_dir().ok()];
     if let Some(cloud) = scope::cloud_root() {
         own_roots.push(Some(PathBuf::from(cloud)));
@@ -280,7 +305,7 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
     let own = own_roots
         .into_iter()
         .flatten()
-        .filter_map(|p| p.canonicalize().ok())
+        .filter_map(|p| dunce::canonicalize(&p).ok())
         .any(|p| path.starts_with(p));
     if own {
         authority.grant(&path).ok()
@@ -313,6 +338,33 @@ async fn vault_cloud_root(app: AppHandle) -> Option<FolderGrant> {
     app.state::<Authority>()
         .grant(std::path::Path::new(&scope::cloud_root()?))
         .ok()
+}
+
+/// Windows' first door on the Welcome screen (docs/app/keeping-work/storage-and-file-format.md#STOR-D12):
+/// Documents › Plays, made if it is not there, granted, and remembered with
+/// its grant when it opens, as a folder the writer chose. Windows has no
+/// container to offer; a writer whose Documents is in OneDrive has their plays
+/// synced by it. Elsewhere there is no such door.
+#[tauri::command]
+async fn vault_documents_root(
+    app: AppHandle,
+    authority: State<'_, Authority>,
+    picked: State<'_, PickedFolder>,
+) -> Result<FolderGrant, String> {
+    #[cfg(windows)]
+    {
+        let plays = app.path().document_dir().map_err(estr)?.join("Plays");
+        std::fs::create_dir_all(&plays).map_err(estr)?;
+        let plays = dunce::canonicalize(&plays).map_err(estr)?;
+        let bookmark = scope::bookmark(&plays.to_string_lossy());
+        *picked.0.lock().unwrap_or_else(|p| p.into_inner()) = Some((plays.clone(), bookmark));
+        authority.grant(&plays)
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = (app, authority, picked);
+        Err("this system offers no Documents folder for plays".into())
+    }
 }
 
 #[tauri::command]
@@ -405,10 +457,10 @@ async fn vault_open(
     if play_id.is_none() {
         if let Some((granted, bookmark)) = picked.0.lock().unwrap_or_else(|p| p.into_inner()).take()
         {
-            if granted.canonicalize().unwrap_or(granted) == root {
-                #[cfg(target_os = "macos")]
+            if dunce::canonicalize(&granted).unwrap_or(granted) == root {
+                #[cfg(any(target_os = "macos", windows))]
                 let problem = bookmark.is_none().then(|| "Proscenium could not make a bookmark for this folder. Choose it again to retain access.".into());
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(not(any(target_os = "macos", windows)))]
                 let problem = None;
                 let _ = folder_access::retain(
                     &app,
@@ -662,17 +714,10 @@ async fn vault_reveal(state: ManagerState<'_>, rel: Option<String>) -> Result<()
     ) {
         return Ok(());
     }
-    let mut cmd = std::process::Command::new("open");
     match target {
-        Some(path) => {
-            cmd.arg("-R").arg(path);
-        }
-        None => {
-            cmd.arg(&root);
-        }
+        Some(path) => shell::reveal(&path),
+        None => shell::open(&root),
     }
-    cmd.spawn().map_err(estr)?;
-    Ok(())
 }
 
 /// There is no file manager to reveal into on mobile, and no `open` to spawn.
@@ -710,6 +755,33 @@ struct Capabilities {
     /// rescan carries the external-change contract instead — the conflict floor
     /// (docs/app/keeping-work/storage-and-file-format.md#STOR-D9) makes a missed event safe either way.
     can_watch_files: bool,
+    /// How a shortcut is written for this system: `mac`, in its glyphs (⌘⇧E),
+    /// or `pc`, in words (Ctrl+Shift+E). The one formatter reads it
+    /// (src/ui/keys.ts); no component asks which system it is on.
+    keys: &'static str,
+    /// What this system calls the things a writer is told about.
+    words: Words,
+    /// The first door on the Welcome screen: the app's iCloud Drive container
+    /// (`icloud`), or Documents › Plays (`documents`), where there is no
+    /// container; null where neither is offered.
+    suggested_folder: Option<&'static str>,
+    /// How File › Print… prints: in this system's print panel (`panel`), or
+    /// by opening the exported PDF in the writer's PDF app (`pdf-app`).
+    print: &'static str,
+}
+
+/// The system's own names, for the words the page shows (docs/engineering/cross-platform.md#PLAT-35).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Words {
+    /// `Mac` or `PC`: "this Mac", "your other PCs".
+    machine: &'static str,
+    /// `macOS` or `Windows`.
+    system: &'static str,
+    /// `Finder` or `File Explorer`.
+    file_manager: &'static str,
+    /// `Trash` or `Recycle Bin`.
+    trash: &'static str,
 }
 
 #[tauri::command]
@@ -723,6 +795,30 @@ async fn capabilities() -> Capabilities {
         can_reveal: desktop,
         can_export_anywhere: desktop,
         can_watch_files: desktop,
+        keys: if cfg!(windows) { "pc" } else { "mac" },
+        words: if cfg!(windows) {
+            Words {
+                machine: "PC",
+                system: "Windows",
+                file_manager: "File Explorer",
+                trash: "Recycle Bin",
+            }
+        } else {
+            Words {
+                machine: "Mac",
+                system: "macOS",
+                file_manager: "Finder",
+                trash: "Trash",
+            }
+        },
+        suggested_folder: if cfg!(windows) {
+            Some("documents")
+        } else if cfg!(target_os = "macos") {
+            Some("icloud")
+        } else {
+            None
+        },
+        print: if cfg!(windows) { "pdf-app" } else { "panel" },
     }
 }
 
@@ -923,10 +1019,10 @@ async fn vault_folder_facts(
     path: String,
 ) -> Result<FolderFacts, String> {
     let dir = PathBuf::from(&path);
-    let resolved = dir.canonicalize().ok();
+    let resolved = dunce::canonicalize(&dir).ok();
     let canonical = resolved.clone().unwrap_or(dir);
     let same = |other: &std::path::Path| {
-        other.canonicalize().unwrap_or_else(|_| other.to_path_buf()) == canonical
+        dunce::canonicalize(other).unwrap_or_else(|_| other.to_path_buf()) == canonical
     };
     let is_picked = picked
         .0
@@ -962,6 +1058,7 @@ async fn vault_folder_facts(
             &providers::Environment {
                 home: home.clone(),
                 is_icloud_item: &is_icloud,
+                sync_roots: providers::sync_roots(),
             },
         ),
         path: here,
@@ -1072,13 +1169,10 @@ async fn opened_read_package(
 }
 
 /// Where the main window may navigate: its own origin only. Production serves
-/// the page as `tauri://localhost`; development, from Vite on localhost.
+/// the page as `tauri://localhost` on a Mac and `http://tauri.localhost` on
+/// Windows; development, from Vite on localhost.
 fn navigation_allowed(url: &tauri::Url) -> bool {
-    match url.scheme() {
-        "tauri" => true,
-        "http" => cfg!(dev) && url.host_str() == Some("localhost"),
-        _ => false,
-    }
+    telemetry::allowlist::is_page_origin(url)
 }
 
 /// The page has painted its first frame (main.tsx): WebKit may draw its own
@@ -1093,6 +1187,21 @@ fn page_painted(webview: tauri::Webview) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // A release build honours none of WebView2's override variables, before
+    // anything can start WebView2: nothing in a writer's environment may open
+    // a debugging port into their copy, move its data, or point it at another
+    // runtime. A self-test build leaves them to its driver, which attaches
+    // through that port (docs/engineering/release-engineering.md#REL-D4).
+    #[cfg(all(windows, not(feature = "selftest")))]
+    for (name, _) in std::env::vars_os() {
+        if name
+            .to_string_lossy()
+            .to_ascii_uppercase()
+            .starts_with("WEBVIEW2_")
+        {
+            std::env::remove_var(name);
+        }
+    }
     // Crash files for any panic from here on: its place, never its message
     // (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D4). Where they go is known once setup runs.
     telemetry::install_panic_hook();
@@ -1106,6 +1215,21 @@ pub fn run() {
     let builder = builder.plugin(selftest::plugin());
     #[cfg(all(desktop, feature = "updater"))]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    let context = tauri::generate_context!();
+    // A file opened from File Explorer while a copy runs goes to that copy,
+    // and this process ends here (opens.rs).
+    #[cfg(windows)]
+    let launch_paths = opens::launch_paths(std::env::args_os());
+    #[cfg(windows)]
+    if opens::handoff::to_running(&context.config().identifier, &launch_paths) {
+        return;
+    }
+    // An update proof given a stand-in of the update service: the updater's
+    // address, before the plugin reads it (selftest.rs, selftest_windows.rs).
+    // Only an update-proof build has this line; the self-test's plugin above
+    // has read the proof's variables by now.
+    #[cfg(feature = "update-proof")]
+    let context = selftest::proof_context(context);
     builder
         // Before anything can open a file: a launch caused by a double-click
         // delivers its paths before the webview exists (opens.rs).
@@ -1113,7 +1237,7 @@ pub fn run() {
         .manage(Authority::default())
         .manage(folder_access::Access::default())
         .manage(PickedFolder::default())
-        .setup(|app| {
+        .setup(move |app| {
             // The one window, made here rather than by the config (`create:
             // false`) so it can carry a navigation veto: the page may go
             // nowhere but its own origin. The CSP fences
@@ -1139,9 +1263,45 @@ pub fn run() {
                     .map_err(std::io::Error::other)?;
             }
             #[cfg(not(target_os = "macos"))]
-            tauri::WebviewWindowBuilder::from_config(app.handle(), &main)?
-                .on_navigation(navigation_allowed)
-                .build()?;
+            {
+                let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &main)?
+                    .on_navigation(navigation_allowed);
+                // A packaged copy keeps WebView2's data inside its package (packaged.rs).
+                #[cfg(windows)]
+                let builder = match packaged::webview_data(app.handle()) {
+                    Some(dir) => builder.data_directory(dir),
+                    None => builder,
+                };
+                // A test build opens WebView2's DevTools port for its driver
+                // (selftest_windows.rs); a release build has no such thing.
+                #[cfg(all(windows, feature = "selftest"))]
+                let builder = match selftest::browser_args() {
+                    Some(args) => builder.additional_browser_args(&args),
+                    None => builder,
+                };
+                #[cfg(all(windows, feature = "selftest"))]
+                let builder = match selftest::webview_data() {
+                    Some(dir) => builder.data_directory(dir),
+                    None => builder,
+                };
+                // The desk, light or dark, from the first instant, and the
+                // title bar Windows draws in the same scheme (window_color.rs).
+                #[cfg(windows)]
+                let builder = {
+                    let appearance = settings::current(app.handle()).appearance;
+                    builder
+                        .background_color(window_color::desk(
+                            &appearance,
+                            window_color::system_is_dark(),
+                        ))
+                        .theme(window_color::theme(&appearance))
+                };
+                let window = builder.build()?;
+                #[cfg(windows)]
+                webview_fence::install(&window).map_err(std::io::Error::other)?;
+                #[cfg(not(windows))]
+                let _ = window;
+            }
             // The native menu bar (docs/engineering/design-system.md#UI-D107). Every item forwards its id to the
             // webview, which is the single place that says what an id means.
             #[cfg(desktop)]
@@ -1153,6 +1313,18 @@ pub fn run() {
                 });
                 // Every quit asks the page to keep its words first (quit.rs).
                 quit::setup(app.handle());
+            }
+            // What File Explorer opened this launch with waits for the page,
+            // as a Mac's launch open does; later opens arrive by hand-off.
+            #[cfg(windows)]
+            {
+                if !launch_paths.is_empty() {
+                    app.state::<opens::PendingOpens>().push(launch_paths);
+                }
+                let identifier = app.config().identifier.clone();
+                if let Err(error) = opens::handoff::listen(app.handle(), &identifier) {
+                    eprintln!("Proscenium will not receive files opened while it runs: {error}");
+                }
             }
             // A fresh launch has no unsaved edits; also clears a stale dirty
             // flag left by a crash, which would hold every update back.
@@ -1179,6 +1351,7 @@ pub fn run() {
             vault_pick_folder,
             vault_cloud_root,
             vault_default_root,
+            vault_documents_root,
             vault_folder_below,
             vault_reopen_last,
             capabilities,
@@ -1222,6 +1395,7 @@ pub fn run() {
             settings::open_privacy,
             symbols::formatting_symbols,
             accent::system_accent,
+            caret::steady_caret,
             tutorials::tutorials_root,
             tutorials::tutorials_session,
             tutorials::tutorials_sessions,
@@ -1263,27 +1437,27 @@ pub fn run() {
             updates::update_restart,
             #[cfg(all(desktop, feature = "updater"))]
             updates::update_release_notes,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_context,
             #[cfg(feature = "selftest")]
             selftest::selftest_log,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_check,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_reload,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_key,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_click,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_resize,
             #[cfg(feature = "selftest")]
             selftest::selftest_input_facts,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_capture,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_ax,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_aria,
             #[cfg(feature = "selftest")]
             selftest::selftest_exported,
@@ -1295,8 +1469,10 @@ pub fn run() {
             selftest::selftest_proof_context,
             #[cfg(feature = "selftest")]
             selftest::selftest_proof_log,
-            #[cfg(feature = "selftest")]
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_done,
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
+            selftest::selftest_act_done,
             opens_take,
             opened_facts,
             opened_read,
@@ -1304,7 +1480,7 @@ pub fn run() {
             opened_read_package,
             vault_folder_facts,
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         // Nothing runs before this: a builder that cannot make the app has no
         // window to say so in, so the process ends here with the reason on stderr.
         .expect("error while building the Proscenium application")
@@ -1349,5 +1525,12 @@ mod navigation_tests {
             navigation_allowed(&url("http://localhost:1420/")),
             cfg!(dev)
         );
+        // WebView2 serves a release build's page from its own host.
+        assert_eq!(
+            navigation_allowed(&url("http://tauri.localhost/index.html")),
+            cfg!(windows)
+        );
+        assert!(!navigation_allowed(&url("http://tauri.localhost.example/")));
+        assert!(!navigation_allowed(&url("https://tauri.localhost/")));
     }
 }

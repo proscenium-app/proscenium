@@ -46,9 +46,10 @@ const HARNESS: &str = include_str!(env!("PROSCENIUM_SELFTEST_HARNESS"));
 /// Smoke runs every check in both schemes; so does this.
 const PASSES: [(&str, Theme); 2] = [("light", Theme::Light), ("dark", Theme::Dark)];
 
-/// Long enough for the slowest runner to do both passes, short enough that a
-/// page that never loads fails in minutes rather than at the job's timeout.
-const DEFAULT_TIMEOUT_SECS: u64 = 420;
+/// How long an act may go without reporting back: long enough for the slowest
+/// act on a loaded runner, short enough that a page that never loads fails in
+/// minutes rather than at the job's timeout, however many acts a pass runs.
+const DEFAULT_TIMEOUT_SECS: u64 = 300;
 
 struct Run {
     report: PathBuf,
@@ -59,8 +60,16 @@ struct Run {
     /// Only the checks whose names contain this (`selftest.mjs --only`).
     only: Option<String>,
     /// The features a narrowed run keeps (`selftest.mjs --features`, the
-    /// pipeline's plan): smoke-checks.mjs's `selected` decides which checks run.
+    /// pipeline's plan), for the report: the acts below are what it chose.
     features: Option<String>,
+    /// The acts each pass runs, in order (scripts/smoke-checks.mjs ACTS,
+    /// `selftest.mjs --acts`): one per page load, each from a fresh first launch.
+    acts: Vec<String>,
+    /// Whether an act with a failing check runs once more from its start.
+    retry: bool,
+    /// Surfaces whose tree a commit declared changed (`ARIA:` trailers): their
+    /// WebKit trees are recorded on first read, not held.
+    aria: Vec<String>,
     started: Instant,
     state: Mutex<State>,
 }
@@ -79,6 +88,13 @@ struct State {
     carried_console: Vec<Value>,
     carried_advisories: serde_json::Map<String, Value>,
     finished: bool,
+    /// The act running, by its place in `Run::acts`, and which try of it (0 is the first).
+    act: usize,
+    retried: bool,
+    /// Fresh first launches so far: each gets a vault of its own.
+    resets: usize,
+    /// When the running act began (none: the run's start), for the watchdog.
+    act_began: Option<Instant>,
 }
 
 static RUN: OnceLock<Run> = OnceLock::new();
@@ -163,11 +179,17 @@ const PROOF_DRIVE: &str = include_str!("../../scripts/update-proof/drive.js");
 /// from, started with `PROSCENIUM_UPDATE_PROOF=<log>` by the build host's proof
 /// script, which checks what the copy comes back as once the update is done. Unlike a self-test, its updater asks the real
 /// update service, which is the point, and the home it runs in is the one it
-/// was given, with the scratch play the script put there.
+/// was given, with the scratch play the script put there. An update-proof
+/// build may be given a stand-in of the service instead
+/// (`PROSCENIUM_UPDATE_PROOF_ORIGIN`, telemetry/allowlist.rs `proof`), which
+/// it then asks alone.
 struct Proof {
     log: PathBuf,
     line: String,
     started: Instant,
+    /// The stand-in's origin, when the proof asks one rather than the real service.
+    #[cfg(feature = "update-proof")]
+    origin: Option<reqwest::Url>,
 }
 
 static PROOF: OnceLock<Proof> = OnceLock::new();
@@ -175,6 +197,12 @@ static PROOF: OnceLock<Proof> = OnceLock::new();
 /// Whether this process is the update proof, whose updater asks the real service.
 pub fn proving_update() -> bool {
     PROOF.get().is_some()
+}
+
+/// The stand-in an update proof asks, given at launch; none, for the real service.
+#[cfg(feature = "update-proof")]
+pub fn proof_origin() -> Option<&'static reqwest::Url> {
+    PROOF.get().and_then(|proof| proof.origin.as_ref())
 }
 
 fn begin_proof() -> bool {
@@ -190,10 +218,33 @@ fn begin_proof() -> bool {
         eprintln!("[update-proof] PROSCENIUM_UPDATE_PROOF_LINE must be letters, digits, spaces and hyphens");
         std::process::exit(2);
     }
+    // A stand-in's origin, or nothing: one that is not a loopback address and
+    // a port ends the run rather than be ignored, since the proof would then
+    // ask the real service.
+    #[cfg(feature = "update-proof")]
+    let origin = {
+        use crate::telemetry::allowlist::proof;
+        match std::env::var(proof::ORIGIN_VAR) {
+            Ok(given) if !given.is_empty() => match proof::loopback_origin(&given) {
+                Some(origin) => Some(origin),
+                None => {
+                    eprintln!(
+                        "[update-proof] {} must be {}",
+                        proof::ORIGIN_VAR,
+                        proof::SHAPE
+                    );
+                    std::process::exit(2);
+                }
+            },
+            _ => None,
+        }
+    };
     let _ = PROOF.set(Proof {
         log,
         line,
         started: Instant::now(),
+        #[cfg(feature = "update-proof")]
+        origin,
     });
     proof_say(&format!(
         "v{} {} · macOS {} · HOME {}",
@@ -203,6 +254,37 @@ fn begin_proof() -> bool {
         std::env::var("HOME").unwrap_or_default()
     ));
     true
+}
+
+/// The app's configuration, for a proof that asks a stand-in: the updater's one
+/// address is the stand-in's (telemetry/allowlist.rs `proof::point_updater`),
+/// and nothing else changes, the key an update is verified with least of all,
+/// so the stand-in serves the release's own signed archive. Called before the
+/// app is built, since the plugin reads its configuration once, as it starts.
+#[cfg(feature = "update-proof")]
+pub fn proof_context<R: Runtime>(mut context: tauri::Context<R>) -> tauri::Context<R> {
+    let Some(origin) = proof_origin() else {
+        return context;
+    };
+    match context
+        .config_mut()
+        .plugins
+        .0
+        .get_mut("updater")
+        .and_then(Value::as_object_mut)
+    {
+        Some(updater) => {
+            let endpoint = crate::telemetry::allowlist::proof::point_updater(updater, origin);
+            proof_say(&format!(
+                "the updater asks a stand-in of the service: {endpoint}"
+            ));
+        }
+        None => {
+            proof_say("FAILED: this build has no updater configuration to point at the stand-in");
+            std::process::exit(2);
+        }
+    }
+    context
 }
 
 /// One line of the proof's log, which the script reads after this process is gone.
@@ -297,6 +379,22 @@ fn begin() -> bool {
     let features = std::env::var("PROSCENIUM_SELFTEST_FEATURES")
         .ok()
         .filter(|f| !f.is_empty());
+    // The acts, as JSON: names hold spaces, never a list separator.
+    let acts: Vec<String> = std::env::var("PROSCENIUM_SELFTEST_ACTS")
+        .ok()
+        .and_then(|a| serde_json::from_str(&a).ok())
+        .unwrap_or_default();
+    if acts.is_empty() {
+        eprintln!(
+            "[selftest] PROSCENIUM_SELFTEST_ACTS names no act: scripts/selftest.mjs names them"
+        );
+        std::process::exit(2);
+    }
+    let retry = std::env::var("PROSCENIUM_SELFTEST_RETRY").map_or(true, |r| r != "0");
+    let aria: Vec<String> = std::env::var("PROSCENIUM_SELFTEST_ARIA_DECLARED")
+        .ok()
+        .and_then(|a| serde_json::from_str(&a).ok())
+        .unwrap_or_default();
     let run = RUN.get_or_init(|| Run {
         report,
         shots,
@@ -305,6 +403,9 @@ fn begin() -> bool {
         brk,
         only,
         features,
+        acts,
+        retry,
+        aria,
         started: Instant::now(),
         state: Mutex::new(State::default()),
     });
@@ -328,30 +429,63 @@ fn start_watchdog() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_TIMEOUT_SECS);
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(timeout));
-        let pass = run()
-            .map(|r| r.state.lock().unwrap_or_else(|p| p.into_inner()).pass)
-            .unwrap_or(0);
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(5));
+        let Ok(run) = run() else { return };
+        let (quiet, pass, act) = {
+            let state = run.state.lock().unwrap_or_else(|p| p.into_inner());
+            if state.finished {
+                return;
+            }
+            (
+                state.act_began.unwrap_or(run.started).elapsed(),
+                state.pass,
+                state.act,
+            )
+        };
+        if quiet < Duration::from_secs(timeout) {
+            continue;
+        }
         // The window only, never the whole screen: on a desktop the screen is
         // someone's other work.
-        if let (Ok(run), Some(number)) = (run(), WINDOW_NUMBER.get()) {
+        if let Some(number) = WINDOW_NUMBER.get() {
             let _ = std::process::Command::new("/usr/sbin/screencapture")
                 .args(["-x", "-o", "-l", &number.to_string()])
                 .arg(run.shots.join("timeout.window.png"))
                 .status();
         }
         finish(Some(format!(
-            "timed out after {timeout}s in the {} pass — the page never reported back",
+            "timed out: the act {} reported nothing for {timeout}s in the {} pass — the page never reported back",
+            run.acts.get(act).map(String::as_str).unwrap_or("?"),
             PASSES.get(pass).map(|p| p.0).unwrap_or("last")
         )));
     });
 }
 
-/// Each pass gets its own copy of the vault, so a watcher still holding the
-/// last one never sees this one's files move.
-fn plays_dir(run: &Run, pass: usize) -> PathBuf {
-    run.root.join(format!("plays-{}", PASSES[pass].0))
+/// Each fresh first launch (a pass, an act, an act's second try) gets its own
+/// copy of the vault, so a watcher still holding the last one never sees this
+/// one's files move.
+fn plays_dir(run: &Run, launch: usize) -> PathBuf {
+    run.root.join(format!("plays-{launch}"))
+}
+
+/// A fresh first launch, as smoke's fresh browser context is: no settings, no
+/// play stores, no remembered Plays folder, no local storage, and an untouched
+/// copy of the vault; then the page loads again.
+fn fresh_launch(run: &Run, window: &WebviewWindow, launch: usize) -> Result<(), String> {
+    run.state
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .act_began = Some(Instant::now());
+    for dir in [run.home.join("Library"), run.home.join("Documents")] {
+        if dir.starts_with(&run.root) {
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+    copy_vault(&plays_dir(run, launch)).map_err(|e| e.to_string())?;
+    window
+        .eval("try { localStorage.clear(); sessionStorage.clear(); } catch {} location.reload();")
+        .map_err(|e| e.to_string())
 }
 
 fn copy_vault(dest: &Path) -> std::io::Result<()> {
@@ -370,12 +504,8 @@ fn copy_vault(dest: &Path) -> std::io::Result<()> {
 /// after it — the bookmark, the stored path, the open — runs for real.
 pub fn picked_folder() -> Option<String> {
     let run = RUN.get()?;
-    let pass = run.state.lock().ok()?.pass;
-    Some(
-        plays_dir(run, pass.min(PASSES.len() - 1))
-            .to_string_lossy()
-            .to_string(),
-    )
+    let launch = run.state.lock().ok()?.resets;
+    Some(plays_dir(run, launch).to_string_lossy().to_string())
 }
 
 /// Where an export goes in a self-test: the save panel is the one thing that
@@ -465,8 +595,59 @@ pub fn selftest_context() -> Result<Value, String> {
         "break": run.brk,
         "only": run.only,
         "features": run.features,
+        "acts": run.acts,
+        "aria": run.aria,
+        "act": state.act,
+        "attempt": if state.retried { 2 } else { 1 },
         "resumeAt": state.resume_at,
     }))
+}
+
+/// An act is done: once
+/// more from its start when a check failed and it has not had its second try,
+/// else the next act, from a fresh first launch; after the last, the pass is
+/// done. A stop (a deliberate break, the Mac taken) ends the pass here.
+#[tauri::command]
+pub fn selftest_act_done(window: WebviewWindow, result: Value) -> Result<(), String> {
+    let run = run()?;
+    if result["stop"] == true {
+        return selftest_done(window, result);
+    }
+    let failed = result["failed"] == true;
+    let (pass_over, launch) = {
+        let mut state = run.state.lock().unwrap_or_else(|p| p.into_inner());
+        let again = failed && run.retry && !state.retried;
+        // What the page said belongs to the pass, but a first try that the
+        // second makes good is a flake: its console stays with its checks.
+        if !again {
+            state
+                .carried_console
+                .extend(result["console"].as_array().cloned().unwrap_or_default());
+        }
+        if let Some(Value::Object(seen)) = result.get("advisories").cloned() {
+            merge_advisories(&mut state.carried_advisories, seen);
+        }
+        if again {
+            state.retried = true;
+        } else {
+            state.retried = false;
+            state.act += 1;
+        }
+        state.resume_at = 0;
+        let over = state.act >= run.acts.len();
+        if !over {
+            state.resets += 1;
+        }
+        (over, state.resets)
+    };
+    if pass_over {
+        // The pass's own result carries nothing more: each act's was carried.
+        let mut done = result;
+        done["console"] = Value::Array(Vec::new());
+        done["advisories"] = Value::Object(serde_json::Map::new());
+        return selftest_done(window, done);
+    }
+    fresh_launch(run, &window, launch)
 }
 
 #[tauri::command]
@@ -547,11 +728,14 @@ pub async fn selftest_click(
     x: f64,
     y: f64,
     press: Option<bool>,
+    clicks: Option<u8>,
 ) -> Result<(), String> {
     // `press: false` only moves the pointer there: where it rests decides hover.
     let press = press.unwrap_or(true);
+    // `clicks: 2` is a double-click: two presses, the second counted as such.
+    let clicks = clicks.unwrap_or(1).clamp(1, 3);
     on_webview(&window, move |webview, ns_window| {
-        native::click(webview, ns_window, x, y, press)
+        native::click(webview, ns_window, x, y, press, clicks)
     })
     .await
 }
@@ -742,6 +926,9 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
         }
         result["advisories"] = Value::Object(advisories);
         state.resume_at = 0;
+        state.act = 0;
+        state.retried = false;
+        state.resets += 1;
         state.results.push(result);
         state.pass += 1;
         state.pass
@@ -756,22 +943,12 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
     if next >= PASSES.len() || stop {
         finish(None);
     }
-    // A fresh first launch, as smoke's fresh browser context is: no settings,
-    // no play stores, no remembered Plays folder, no local storage, and an
-    // untouched copy of the vault.
-    for dir in [run.home.join("Library"), run.home.join("Documents")] {
-        if dir.starts_with(&run.root) {
-            let _ = std::fs::remove_dir_all(&dir);
-        }
-    }
-    copy_vault(&plays_dir(run, next)).map_err(|e| e.to_string())?;
+    let launch = run.state.lock().unwrap_or_else(|p| p.into_inner()).resets;
     window
         .set_theme(Some(PASSES[next].1))
         .map_err(|e| e.to_string())?;
     say(&format!("starting the {} pass", PASSES[next].0));
-    window
-        .eval("try { localStorage.clear(); sessionStorage.clear(); } catch {} location.reload();")
-        .map_err(|e| e.to_string())
+    fresh_launch(run, &window, launch)
 }
 
 /// Write the report and exit: 0 only when both passes ran and nothing failed.
@@ -803,6 +980,8 @@ fn finish(error: Option<String>) -> ! {
     };
 
     let mut failures: Vec<String> = Vec::new();
+    let mut failed: Vec<Value> = Vec::new();
+    let mut flakes: Vec<Value> = Vec::new();
     for pass in &results {
         let scheme = pass["scheme"].as_str().unwrap_or("?");
         if let Some(crash) = pass["crash"].as_str() {
@@ -812,19 +991,59 @@ fn finish(error: Option<String>) -> ! {
                 crash.lines().next().unwrap_or("")
             ));
         }
-        for check in pass["checks"].as_array().into_iter().flatten() {
-            if check["ok"] != true {
-                failures.push(format!(
-                    "{scheme} · {}: {}",
-                    check["name"].as_str().unwrap_or("?"),
-                    check["error"]
-                        .as_str()
-                        .unwrap_or("")
-                        .lines()
-                        .next()
-                        .unwrap_or("")
-                ));
+        let checks: Vec<&Value> = pass["checks"].as_array().into_iter().flatten().collect();
+        // Only an act's last try counts. A check that failed in a first try
+        // the second made good is a flake, named apart, and fails nothing.
+        let last_try = |act: &str| {
+            checks
+                .iter()
+                .filter(|c| c["act"].as_str() == Some(act))
+                .filter_map(|c| c["attempt"].as_u64())
+                .max()
+                .unwrap_or(1)
+        };
+        for check in &checks {
+            if check["ok"] == true {
+                continue;
             }
+            let act = check["act"].as_str().unwrap_or("");
+            let first_line = check["error"]
+                .as_str()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string();
+            let last = last_try(act);
+            if check["attempt"].as_u64().unwrap_or(1) < last {
+                // An earlier try never counts: the last try's own entry decides.
+                // It is a flake only if the same check passed there.
+                let passed_later = checks.iter().any(|c| {
+                    c["act"].as_str() == Some(act)
+                        && c["name"] == check["name"]
+                        && c["attempt"].as_u64().unwrap_or(1) == last
+                        && c["ok"] == true
+                });
+                if passed_later {
+                    flakes.push(json!({
+                        "scheme": scheme,
+                        "act": act,
+                        "check": check["name"],
+                        "first": first_line,
+                    }));
+                }
+                continue;
+            }
+            failures.push(format!(
+                "{scheme} · {}: {first_line}",
+                check["name"].as_str().unwrap_or("?"),
+            ));
+            failed.push(json!({
+                "scheme": scheme,
+                "act": act,
+                "check": check["name"],
+                "error": check["error"],
+            }));
         }
         // Smoke fails a scheme on any console error, and so does this.
         if pass["console"].as_array().is_some_and(|c| !c.is_empty()) {
@@ -846,6 +1065,9 @@ fn finish(error: Option<String>) -> ! {
     let report = json!({
         "ok": ok,
         "failures": failures,
+        "failed": failed,
+        "flakes": flakes,
+        "acts": run.acts,
         "app": {
             "version": env!("CARGO_PKG_VERSION"),
             "arch": std::env::consts::ARCH,
@@ -1238,6 +1460,7 @@ mod native {
         x: f64,
         y: f64,
         press: bool,
+        clicks: u8,
     ) -> Result<(), String> {
         let mtm = MainThreadMarker::new().ok_or("not on the main thread")?;
         let window = unsafe { &*(ns_window as *const NSWindow) };
@@ -1254,16 +1477,16 @@ mod native {
         );
         let point = view.convertPoint_toView(local, None);
         let app = NSApplication::sharedApplication(mtm);
-        let kinds: &[NSEventType] = if press {
-            &[
-                NSEventType::MouseMoved,
-                NSEventType::LeftMouseDown,
-                NSEventType::LeftMouseUp,
-            ]
-        } else {
-            &[NSEventType::MouseMoved]
-        };
-        for &kind in kinds {
+        // Each press carries its place in a run of clicks, as AppKit counts
+        // them: the page's `detail`, and its dblclick after the second.
+        let mut events = vec![(NSEventType::MouseMoved, 0)];
+        if press {
+            for n in 1..=isize::from(clicks) {
+                events.push((NSEventType::LeftMouseDown, n));
+                events.push((NSEventType::LeftMouseUp, n));
+            }
+        }
+        for (kind, count) in events {
             PRESSED.store(
                 usize::from(kind == NSEventType::LeftMouseDown),
                 Ordering::Relaxed,
@@ -1276,7 +1499,7 @@ mod native {
                 window.windowNumber(),
                 None,
                 EVENT_NUMBER.fetch_add(1, Ordering::Relaxed),
-                if kind == NSEventType::MouseMoved { 0 } else { 1 },
+                count,
                 if kind == NSEventType::LeftMouseDown { 1.0 } else { 0.0 },
             )
             .ok_or("AppKit would not make the mouse event")?;
@@ -1291,9 +1514,6 @@ mod native {
             || error.contains("Can't find variable: WI")
             || error.contains("mainTarget")
     }
-
-    /// Whether the inspector's page has been held in the foreground (ax_tree).
-    static FRONTEND_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
     /// Run `script` (scripts/selftest/ax-walk.js) in this webview's own Web
     /// Inspector, connecting it the first time, and deliver what it returns.
@@ -1336,28 +1556,6 @@ mod native {
             if frontend.respondsToSelector(sel!(_setWindowOcclusionDetectionEnabled:)) {
                 let _: () = msg_send![frontend, _setWindowOcclusionDetectionEnabled: false];
             }
-        }
-        // That is not enough on its own. The page is in no window, so after a
-        // stretch with no read (the tutorial checks audit nothing for a
-        // minute) WebKit suspends its process, and the next read waited 13 to
-        // 35 s for it to run again: timed while one hung, the app's main thread
-        // and the inspected page answered at once, the inspector's page ran
-        // nothing, and the walk itself took 12 ms. Its process is held in the
-        // foreground for the run, the way WebKit's own tests hold one (2 is
-        // ProcessThrottleState::Foreground; the hold outlasts later changes).
-        if !FRONTEND_HELD.swap(true, Ordering::Relaxed) {
-            let held = frontend.respondsToSelector(sel!(_setThrottleStateForTesting:));
-            if held {
-                let _: () = unsafe { msg_send![frontend, _setThrottleStateForTesting: 2i32] };
-            }
-            super::say(&format!(
-                "the inspector's page {}",
-                if held {
-                    "is held in the foreground"
-                } else {
-                    "cannot be held in the foreground: this WebKit has no _setThrottleStateForTesting:"
-                }
-            ));
         }
         let body = NSString::from_str(script);
         let arguments = NSDictionary::<NSString, AnyObject>::new();

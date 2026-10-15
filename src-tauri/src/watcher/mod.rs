@@ -316,7 +316,7 @@ pub fn classify(
     if path.is_dir() || crate::vault::icloud::unavailable(path) {
         return WatchDecision::Uncertain;
     }
-    if !path.exists() {
+    if !present(path) {
         last_emitted.remove(&key);
         return WatchDecision::Removed;
     }
@@ -352,6 +352,25 @@ pub fn classify(
         },
     );
     WatchDecision::External(hash)
+}
+
+/// Whether a file is there. On Windows a file being replaced can be missing
+/// for an instant: `ReplaceFileW`, which a save that keeps the displaced copy
+/// uses (vault/atomic_file.rs), moves the old file aside before the new one
+/// takes its name. A file back within a quarter of a second was replaced, and
+/// reporting it removed would tell the page its own save was someone else's.
+fn present(path: &Path) -> bool {
+    if path.exists() {
+        return true;
+    }
+    #[cfg(windows)]
+    for _ in 0..10 {
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        if path.exists() {
+            return true;
+        }
+    }
+    false
 }
 
 fn emit_decision(

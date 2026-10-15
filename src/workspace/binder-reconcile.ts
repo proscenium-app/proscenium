@@ -35,7 +35,7 @@ import { split as splitFrontMatter } from "./front-matter";
 import { flatten } from "./binder";
 import { isPlayFileName, type BinderItem, type BinderItemType } from "./play-file";
 import { isProviderConflictCopy } from "./sync-names";
-import { isUlid, ulid } from "./ulid";
+import { isUlid, ulid } from "../storage/ulid";
 
 /**
  * The atomic-write temp sibling (docs/app/keeping-work/storage-and-file-format.md#STOR-D9): `.<name>.<random>.tmp`, hidden,

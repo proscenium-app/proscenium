@@ -20,7 +20,7 @@
   - group [live=polite]: Page 1 of 2
   - button "Next page"
   - none
-    - checkbox "Anonymous copy" [checked]
+    - checkbox "Anonymous copy"
   - none
     - textbox "Play language"
   - button "Cancel"

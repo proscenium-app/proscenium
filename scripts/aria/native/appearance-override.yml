@@ -19,10 +19,10 @@
     - heading "ACCENT COLOR" [level=4]
     - radiogroup "Accent color"
       - radio "Gilt" [checked]
-      - radio "Velvet" [checked]
-      - radio "Ink" [checked]
-      - radio "Iris" [checked]
-      - radio "Follow Mac" [checked]
+      - radio "Velvet"
+      - radio "Ink"
+      - radio "Iris"
+      - radio "Follow Mac"
     - paragraph
     - heading "LIGHT AND DARK" [level=4]
     - button "Appearance: Dark" [haspopup]
