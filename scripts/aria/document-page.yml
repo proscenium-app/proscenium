@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
@@ -38,13 +38,6 @@
   - text: in Research
 - main "Play":
   - list "Open in this pane":
-    - listitem "Cast":
-      - button "Cast"
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-    - listitem "1953 North Sea Flood":
-      - button "1953 North Sea Flood"
-      - button "Close 1953 North Sea Flood"
   - button "Add a surface to this pane"
   - textbox "File name"
   - text: water history image-system
@@ -75,9 +68,18 @@
   - paragraph: "Useful for the play's central image: water as the thing that arrives without being invited and stays without being asked — same shape as grief, same shape as a brother in the doorway. Mara measures it now for a living; she's been trying to put a number on what once just came in under the door."
   - blockquote:
     - paragraph: A reference file like a PDF or image would sit beside this note untouched; the app opens it read-only.
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Sheet" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: Sheet
+  - heading "1953 North Sea Flood" [level=2]
+  - text: Research/1953 North Sea Flood.md
+  - paragraph: A document is a blank page — it carries no front matter to edit. The whole file is yours.
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
-  - text: 1 format warning Saved · <time>
+  - text: <save status>
   - button "Zoom out"
   - 'button "Zoom: 100%"': 100%
   - button "Zoom in"

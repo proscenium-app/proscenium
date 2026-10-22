@@ -1,0 +1,8 @@
+- dialog "Open “Lear”?"
+  - heading "Open “Lear”?" [level=2]
+  - paragraph
+  - paragraph "/dev/elsewhere"
+  - button "Cancel"
+  - button "Use Its Folder as the Plays Folder"
+  - status [live=polite]
+  - alert [live=assertive]

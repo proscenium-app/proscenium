@@ -66,10 +66,17 @@ pub struct WatchHandle {
 
 impl WatchHandle {
     pub fn health(&self) -> WatchHealth {
-        self.health
+        let health = self
+            .health
             .lock()
             .unwrap_or_else(|p| p.into_inner())
-            .clone()
+            .clone();
+        // A check's staged health, held until the check ends it (selftest_fixture.rs).
+        #[cfg(feature = "selftest")]
+        if let Some(status) = crate::selftest_fixture::staged_health() {
+            return WatchHealth { status, ..health };
+        }
+        health
     }
 }
 
@@ -108,6 +115,11 @@ pub fn start(
         let mut retry_at = Instant::now();
         let mut scan_at = Instant::now();
         let say = |status| {
+            // While a check holds a staged health, the watcher says nothing over it.
+            #[cfg(feature = "selftest")]
+            if crate::selftest_fixture::staged_health().is_some() {
+                return;
+            }
             let mut current = health.lock().unwrap_or_else(|p| p.into_inner());
             if current.status != status {
                 current.status = status;
@@ -127,8 +139,11 @@ pub fn start(
                             let _ = tx.send(event);
                         })
                         .map_err(|_| ())?;
+                        // A folder past Windows' old limit is watched in the
+                        // `\\?\` form, which the watch does not make itself
+                        // (long_path.rs); its events are read back plain.
                         fresh
-                            .watch(&root, RecursiveMode::Recursive)
+                            .watch(&crate::long_path::verbatim(&root), RecursiveMode::Recursive)
                             .map_err(|_| ())?;
                         watcher = Some(fresh);
                         scan_at = Instant::now();
@@ -160,6 +175,7 @@ pub fn start(
                                 if stop.load(Ordering::Acquire) {
                                     return Ok(());
                                 }
+                                let path = crate::long_path::plain(&path);
                                 let mut observed = last_emitted.clone();
                                 let decision = classify(&self_writes, &mut observed, &path);
                                 if decision == WatchDecision::Uncertain {
@@ -316,7 +332,7 @@ pub fn classify(
     if path.is_dir() || crate::vault::icloud::unavailable(path) {
         return WatchDecision::Uncertain;
     }
-    if !path.exists() {
+    if !present(path) {
         last_emitted.remove(&key);
         return WatchDecision::Removed;
     }
@@ -352,6 +368,25 @@ pub fn classify(
         },
     );
     WatchDecision::External(hash)
+}
+
+/// Whether a file is there. On Windows a file being replaced can be missing
+/// for an instant: `ReplaceFileW`, which a save that keeps the displaced copy
+/// uses (vault/atomic_file.rs), moves the old file aside before the new one
+/// takes its name. A file back within a quarter of a second was replaced, and
+/// reporting it removed would tell the page its own save was someone else's.
+fn present(path: &Path) -> bool {
+    if path.exists() {
+        return true;
+    }
+    #[cfg(windows)]
+    for _ in 0..10 {
+        std::thread::sleep(std::time::Duration::from_millis(25));
+        if path.exists() {
+            return true;
+        }
+    }
+    false
 }
 
 fn emit_decision(

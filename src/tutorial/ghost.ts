@@ -12,6 +12,7 @@
  * what is drawn with a meta-only transaction (`showGhost`), which changes
  * neither the document nor the selection.
  */
+import { keyCap } from "../ui/keys";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 
@@ -51,7 +52,7 @@ function widget(ghost: Ghost): HTMLElement {
   if (ghost.key) {
     const key = document.createElement("kbd");
     key.className = "tutorial-ghost__key";
-    key.textContent = ghost.key === "Return" ? "⏎ Return" : ghost.key;
+    key.textContent = keyCap(ghost.key);
     span.append(key);
   }
   return span;

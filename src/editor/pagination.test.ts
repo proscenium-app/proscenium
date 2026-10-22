@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "bun:test";
+import dgModernRaw from "../../formats/dg-modern.json";
+import type { BlockNode } from "../fountain/model";
+import { validateFormatSpec } from "../format/validate";
+import { paginateDoc } from "../layout/engine";
+import { pageTopSources } from "./pagination";
 
 /**
  * The re-printed "(CONT'D)" cue is a chrome widget carrying `pl-character`, so
@@ -74,5 +79,64 @@ describe("dual-dialogue halves are laid out to top-align", () => {
     expect(body).toMatch(/height:\s*0/);
     // If the widget carried a margin it would double the gap the next block brings.
     expect(body).not.toMatch(/margin/);
+  });
+});
+
+/**
+ * A forced break starts a new page, and the line under it sits on that page's
+ * first row: the engine gives it no gap. In page view the block straight after
+ * the page chrome was the break itself (collapsed, it prints nothing), so the
+ * line below kept its spacing and drew a blank line the PDF does not have. The
+ * page's first block is read from the layout and marked instead.
+ */
+describe("the block that opens a page hugs its top margin", () => {
+  const spec = (() => {
+    const v = validateFormatSpec(dgModernRaw);
+    if (!v.ok) throw new Error(v.errors.join("\n"));
+    return v.spec;
+  })();
+  const b = (type: BlockNode["type"], text = ""): BlockNode => ({
+    type,
+    content: text ? [{ type: "text", text }] : [],
+  });
+
+  it("marks the line after a forced break, not the break", () => {
+    const { pages } = paginateDoc(
+      { type: "doc", content: [b("action", "Before."), b("pageBreak"), b("action", "After.")] },
+      spec,
+    );
+    expect(pages).toHaveLength(2);
+    expect(pageTopSources(pages, -1)).toEqual([0, 2]);
+  });
+
+  it("marks the first printed block under a hidden one", () => {
+    const { pages } = paginateDoc(
+      { type: "doc", content: [b("synopsis", "A leak."), b("action", "AT RISE: a kitchen.")] },
+      spec,
+    );
+    expect(pageTopSources(pages, -1)).toEqual([1]);
+  });
+
+  it("leaves a page that opens partway through a block alone", () => {
+    const long = Array.from({ length: 200 }, (_, i) => `line ${i + 1}`).join("\n");
+    const { pages } = paginateDoc({ type: "doc", content: [b("action", long)] }, spec);
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pageTopSources(pages, -1)).toEqual([0]);
+  });
+
+  it("skips the page under the intro, which marks its own first block", () => {
+    const { pages } = paginateDoc(
+      { type: "doc", content: [b("action", "Before."), b("pageBreak"), b("action", "After.")] },
+      spec,
+    );
+    expect(pageTopSources(pages, 0)).toEqual([2]);
+  });
+
+  it("zeroes the marked block's top margin in page view", async () => {
+    const css = await Bun.file(new URL("./stage-format.css", import.meta.url)).text();
+    const rule = css.match(/([^{}]*\.pm-page-top[^{}]*)\{([^}]*)\}/);
+    expect(rule).not.toBeNull();
+    expect(rule![1]).toContain(".play-page .pl.pm-page-top");
+    expect(rule![2]).toMatch(/margin-top:\s*0/);
   });
 });

@@ -1,90 +1,223 @@
 {
   "app": {
-    "paths": ["src/app/**", "src/main.tsx", "src/vite-env.d.ts", "index.html", "public/**"],
-    "narrowable": false
+    "paths": [
+      "src/app/*",
+      "src/app/formats/**",
+      "src/app/settings/**",
+      "src/app/styles/binder.css",
+      "src/app/styles/board.css",
+      "src/app/styles/cast-tiers.css",
+      "src/app/styles/cast.css",
+      "src/app/styles/composer.css",
+      "src/app/styles/diagnostics.css",
+      "src/app/styles/export.css",
+      "src/app/styles/focus.css",
+      "src/app/styles/format-designer.css",
+      "src/app/styles/help.css",
+      "src/app/styles/history.css",
+      "src/app/styles/inspector.css",
+      "src/app/styles/panes.css",
+      "src/app/styles/plays.css",
+      "src/app/styles/presence.css",
+      "src/app/styles/script-shell.css",
+      "src/app/styles/settings.css",
+      "src/app/styles/status-controls.css",
+      "src/app/styles/title-page.css",
+      "src/app/styles/version-compare.css",
+      "src/app/styles/window-shell.css",
+      "src/main.tsx",
+      "src/vite-env.d.ts",
+      "index.html",
+      "public/**"
+    ],
+    "narrowable": false,
+    "uses": [
+      "comments",
+      "diagnostics",
+      "editor",
+      "feedback",
+      "format",
+      "fountain",
+      "import",
+      "layout",
+      "markdown",
+      "materials",
+      "pdf",
+      "review",
+      "storage",
+      "tokens",
+      "tutorial",
+      "ui",
+      "wordproc",
+      "workspace"
+    ]
   },
   "build": {
     "paths": ["package.json", "bun.lock", "tsconfig.json", "vite.config.ts"],
-    "narrowable": false
+    "narrowable": false,
+    "uses": ["tokens"]
   },
   "comments": {
-    "paths": ["src/comments/**"],
-    "narrowable": false
+    "paths": ["src/comments/**", "src/editor/stage-format.css"],
+    "narrowable": true,
+    "uses": ["tokens", "ui"]
   },
   "diagnostics": {
     "paths": ["src/diagnostics/**"],
-    "narrowable": false
+    "narrowable": true,
+    "uses": ["format", "storage", "tokens"]
   },
   "editor": {
-    "paths": ["src/editor/**"],
-    "narrowable": false
+    "paths": [
+      "src/editor/**",
+      "src/app/styles/changes.css",
+      "src/app/styles/find.css",
+      "src/app/styles/help.css",
+      "src/app/styles/outline.css",
+      "src/app/styles/panes.css"
+    ],
+    "narrowable": true,
+    "uses": [
+      "comments",
+      "format",
+      "fountain",
+      "layout",
+      "pdf",
+      "review",
+      "spell",
+      "tokens",
+      "ui",
+      "workspace"
+    ]
   },
   "feedback": {
-    "paths": ["src/feedback/**"],
-    "narrowable": true
+    "paths": ["src/feedback/**", "src/app/styles/diagnostics.css"],
+    "narrowable": true,
+    "uses": ["storage", "tokens", "ui"]
   },
   "fixture": {
     "paths": ["sample-vault/**"],
-    "narrowable": false
+    "narrowable": false,
+    "uses": ["tokens"]
   },
   "format": {
     "paths": ["src/format/**", "formats/**"],
-    "narrowable": false
+    "narrowable": true,
+    "uses": ["storage", "tokens"]
   },
   "fountain": {
     "paths": ["src/fountain/**"],
-    "narrowable": false
+    "narrowable": true,
+    "uses": ["storage", "tokens"]
   },
   "import": {
-    "paths": ["src/import/**"],
-    "narrowable": true
+    "paths": ["src/import/**", "src/app/styles/import.css"],
+    "narrowable": true,
+    "uses": ["fountain", "markdown", "storage", "tokens", "ui"]
   },
   "layout": {
     "paths": ["src/layout/**"],
-    "narrowable": false
+    "narrowable": true,
+    "uses": ["format", "fountain", "markdown", "tokens"]
   },
   "markdown": {
-    "paths": ["src/markdown/**"],
-    "narrowable": false
+    "paths": [
+      "src/markdown/**",
+      "src/app/styles/help.css",
+      "src/app/styles/markdown.css",
+      "src/app/styles/materials.css",
+      "src/app/styles/outline.css"
+    ],
+    "narrowable": true,
+    "uses": ["materials", "storage", "tokens", "ui"]
   },
   "materials": {
     "paths": ["src/materials/**"],
-    "narrowable": false
+    "narrowable": true,
+    "uses": ["storage", "tokens", "workspace"]
   },
   "pdf": {
     "paths": ["src/pdf/**"],
-    "narrowable": false
+    "narrowable": true,
+    "uses": ["format", "fountain", "layout", "storage", "tokens", "workspace"]
   },
   "review": {
-    "paths": ["src/review/**"],
-    "narrowable": false
+    "paths": [
+      "src/review/**",
+      "src/app/styles/changes.css",
+      "src/app/styles/diagnostics.css",
+      "src/app/styles/panes.css"
+    ],
+    "narrowable": true,
+    "uses": ["markdown", "storage", "tokens", "ui", "workspace"]
   },
   "spell": {
     "paths": ["src/spell/**", "dictionaries/**"],
-    "narrowable": true
+    "narrowable": true,
+    "uses": ["tokens", "workspace"]
   },
   "storage": {
     "paths": ["src/storage/**"],
-    "narrowable": false
+    "narrowable": false,
+    "uses": ["build", "fixture", "tokens"]
   },
-  "styles": {
-    "paths": ["**/*.css"],
-    "narrowable": false
+  "tokens": {
+    "paths": [
+      "src/app/styles/accessibility.css",
+      "src/app/styles/base.css",
+      "src/app/styles/tokens.css",
+      "src/app/styles/touch-controls.css",
+      "src/ui/fonts/**"
+    ],
+    "narrowable": false,
+    "uses": []
   },
   "tutorial": {
-    "paths": ["src/tutorial/**"],
-    "narrowable": true
+    "paths": ["src/tutorial/**", "src/app/styles/help.css"],
+    "narrowable": true,
+    "uses": ["editor", "markdown", "storage", "tokens", "ui", "workspace"]
   },
   "ui": {
-    "paths": ["src/ui/**"],
-    "narrowable": false
+    "paths": [
+      "src/ui/*",
+      "src/app/styles/controls.css",
+      "src/app/styles/help.css",
+      "src/editor/stage-format.css"
+    ],
+    "narrowable": true,
+    "uses": ["storage", "tokens"]
   },
   "wordproc": {
     "paths": ["src/wordproc/**"],
-    "narrowable": true
+    "narrowable": true,
+    "uses": ["format", "layout", "pdf", "storage", "tokens"]
   },
   "workspace": {
-    "paths": ["src/workspace/**"],
-    "narrowable": false
+    "paths": [
+      "src/workspace/**",
+      "src/app/styles/binder-scenes.css",
+      "src/app/styles/binder.css",
+      "src/app/styles/board.css",
+      "src/app/styles/changes.css",
+      "src/app/styles/material-conflict.css",
+      "src/app/styles/materials.css",
+      "src/app/styles/outline.css",
+      "src/app/styles/panes.css",
+      "src/app/styles/settings.css",
+      "src/app/styles/status-controls.css",
+      "src/app/styles/title-page.css"
+    ],
+    "narrowable": true,
+    "uses": [
+      "build",
+      "format",
+      "fountain",
+      "layout",
+      "markdown",
+      "materials",
+      "storage",
+      "tokens",
+      "ui"
+    ]
   }
 }

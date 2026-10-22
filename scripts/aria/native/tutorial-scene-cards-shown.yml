@@ -27,13 +27,16 @@
   - sectionfooter
     - button "New" [haspopup]
 - main "Play"
+  - tablist "Arrange scenes"
+    - tab "Across" [selected]
+    - tab "Down"
   - group "SCENE 1"
     - group "Drag to move scene"
     - button "SCENE 1"
     - textbox "Summary — SCENE 1"
     - group
-      - none "Details"
-    - button "Scene status — SCENE 1: No Status" [haspopup]
+      - none "Notes"
+    - button "Color — SCENE 1: No Color" [haspopup]
     - button "Move earlier — SCENE 1" [disabled]
     - button "Move later — SCENE 1"
   - group "SCENE 2"
@@ -41,23 +44,35 @@
     - button "SCENE 2"
     - textbox "Summary — SCENE 2"
     - group
-      - none "Details"
-    - button "Scene status — SCENE 2: No Status" [haspopup]
+      - none "Notes"
+    - button "Color — SCENE 2: No Color" [haspopup]
     - button "Move earlier — SCENE 2"
     - button "Move later — SCENE 2" [disabled]
   - button "New Scene"
 - complementary "Inspector"
   - tablist "Inspector"
-    - tab "Scene"
-    - tab "Comments" [selected]
+    - tab "Scene" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - sectionheader
-    - heading "0 comments" [level=2]
-    - button "Filter comments: All Comments" [haspopup]
+  - generic
+  - heading "SCENE 2" [level=2]
+  - generic
+  - generic
+  - textbox "Summary"
+  - generic
+  - radiogroup "Scene color"
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+  - generic
+  - textbox "Notes"
+  - generic
+  - button "Show"
   - paragraph
-    - none
-    - code
-  - group
 - contentinfo
   - button "<self-test home>/home/Library/Application Support/org.habiby.proscenium.selftest/tutorials/sessions/<id>/Practice Play"
   - button "Zoom out"

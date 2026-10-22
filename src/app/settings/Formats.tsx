@@ -8,6 +8,7 @@
  * (Export…), throw one away (Move to Trash), and choose the one new plays start
  * in. The document menu's Edit Formats… opens the designer directly.
  */
+import { moveToTrash, theTrash } from "../../ui/system-words";
 import { useRef, useState } from "react";
 import {
   DEFAULT_FORMAT_ID,
@@ -35,7 +36,7 @@ import { listInWords } from "../formats/draft";
 import type { DesignerRequest } from "../formats/open";
 import { useFormatRegistry } from "../formats/use-formats";
 import { Group, Note, SectionBody } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 export function FormatsSlot({
   canReveal,
@@ -258,7 +259,7 @@ function FormatRow(props: {
       const names = props.usedBy.map((p) => `“${p.title}”`);
       toast({
         kind: "trash",
-        title: `“${spec.name}” moved to the Trash`,
+        title: `“${spec.name}” moved to ${theTrash()}`,
         detail: names.length
           ? `${listInWords(names)} ${names.length === 1 ? "uses" : "use"} ${props.fallbackName} until you choose another format.`
           : "No play in this folder was using it.",
@@ -281,7 +282,7 @@ function FormatRow(props: {
     } catch (e) {
       toast({
         kind: "error",
-        title: `“${spec.name}” could not be moved to the Trash.`,
+        title: `“${spec.name}” could not be moved to ${theTrash()}.`,
         detail: String(e),
         code: "E-FORMAT-TRASH",
       });
@@ -392,7 +393,7 @@ function FormatRow(props: {
                   },
                   { label: "Export…", onSelect: () => void exportFormat() },
                   { kind: "sep" },
-                  { label: "Move to Trash", destructive: true, onSelect: () => void trash() },
+                  { label: moveToTrash(), destructive: true, onSelect: () => void trash() },
                 ]
           }
         />

@@ -1,0 +1,11 @@
+- dialog "Keep access to your Plays folder"
+  - heading "Keep access to your Plays folder" [level=2]
+  - paragraph
+  - paragraph
+  - paragraph
+  - status [live=polite]
+  - button "Close"
+  - button "Choose Folder…"
+  - button "Try Again"
+  - status [live=polite]
+  - alert [live=assertive]

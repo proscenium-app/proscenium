@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Habiby LLC
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+The Microsoft Store's package of Proscenium, as scripts/windows/release-build.mjs
+fills it in: the identity Partner Center gives the reserved name
+(store-identity.json, or a test identity until there is one), the version in
+four parts, and the chip, which `winapp pack` sets from the executable.
+
+The package's own display name is the name reserved in Partner Center, which
+it must be ("Proscenium: Playwriting", since "Proscenium" was taken). The
+app's, in Start and on its window, stays Proscenium.
+
+A full-trust desktop app (runFullTrust), as the installer's build is. It reads
+the same files the installer registers: the play as an owner, every other type
+it opens as one choice among others in Open With, never a type's default.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+  <Identity Name="{{IDENTITY_NAME}}" Publisher="{{PUBLISHER}}" Version="{{VERSION}}" ProcessorArchitecture="{{ARCH}}" />
+  <Properties>
+    <DisplayName>{{DISPLAY_NAME}}</DisplayName>
+    <PublisherDisplayName>{{PUBLISHER_DISPLAY_NAME}}</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19045.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Proscenium" Executable="proscenium.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Proscenium"
+        Description="Playwriting software: Fountain-native, local files."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="proscenium">
+            <uap:DisplayName>Proscenium Play</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.proscenium</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="draft">
+            <uap:DisplayName>Draft for Proscenium</uap:DisplayName>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.fountain</uap:FileType>
+              <uap:FileType>.fdx</uap:FileType>
+              <uap:FileType>.docx</uap:FileType>
+              <uap:FileType>.odt</uap:FileType>
+              <uap:FileType>.rtf</uap:FileType>
+              <uap:FileType>.txt</uap:FileType>
+              <uap:FileType>.md</uap:FileType>
+              <uap:FileType>.pages</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

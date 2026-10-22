@@ -137,6 +137,17 @@ function indentOf(line: string): number {
   return n;
 }
 
+/**
+ * The line without its hard-break mark, or null when it has none. An even run
+ * of backslashes is escaped backslashes, which end nothing.
+ */
+function hardEnd(line: string): string | null {
+  let slashes = 0;
+  while (slashes < line.length && line[line.length - 1 - slashes] === "\\") slashes += 1;
+  if (slashes % 2 === 1) return line.slice(0, -1);
+  return line.endsWith("  ") ? line.trimEnd() : null;
+}
+
 function isItem(line: string): boolean {
   return ITEM.test(line) && !RULE.test(line);
 }
@@ -330,11 +341,18 @@ function readList(
       !isItem(lines[i]!) &&
       !isBlockStart(lines[i]!)
     ) {
-      parts.push(lines[i]!.trim());
+      // A wrapped line reflows into the one above. A line the writer ended on
+      // purpose says so, with a backslash or two spaces, and stays a line of
+      // its own inside the item.
+      const ended = hardEnd(parts[parts.length - 1]!);
+      if (ended === null) parts.splice(-1, 1, parts[parts.length - 1]!.trimEnd(), " ");
+      else parts.splice(-1, 1, ended, "\n");
+      parts.push(lines[i]!.trimStart());
       i += 1;
     }
     spend(budget);
-    items.push({ spans: scanSpans(parts.join(" "), budget), children: [] });
+    const text = parts.length > 1 ? parts.join("").trimEnd() : parts[0]!;
+    items.push({ spans: scanSpans(text, budget), children: [] });
   }
 
   return [{ kind: "list", ordered, start: startNum, items }, i];

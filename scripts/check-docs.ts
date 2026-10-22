@@ -179,7 +179,7 @@ export function checkTree(): string[] {
         const prose = line.replace(/docs\/[\w./-]+\.md#[\w-]+/g, "");
         if (
           !prose.includes("<a id=") &&
-          /\b(?:A[1-8]-\d{2}|(?:STOR|PRIV|EDIT|COMM|WORK|FMT|SET|IMPT|PLAT|SERV|UI|A11Y|PROD|TUT|REL|BKL|CICD)-(?:D)?\d+)\b/.test(
+          /\b(?:A[1-8]-\d{2}|(?:STOR|PRIV|EDIT|COMM|WORK|FMT|SET|IMPT|PLAT|SERV|UI|A11Y|PROD|TUT|REL|BKL|CICD|OPS|OPER)-(?:D)?\d+)\b/.test(
             prose,
           )
         )
@@ -227,7 +227,9 @@ export function checkTree(): string[] {
       !referencePages.has(p) &&
       (/^docs\/(app|engineering)\//.test(p) ||
         (p.startsWith("docs/backstage/") &&
-          ["ci-cd-and-update-tracks.md", "mac-mini-development.md"].includes(basename(p)))),
+          ["ci-cd-and-update-tracks.md", "mac-mini-development.md", "operations.md"].includes(
+            basename(p),
+          ))),
   )) {
     const content = readFileSync(resolve(ROOT, path), "utf8");
     const headings = [...content.matchAll(/^## (.+)$/gm)].map((m) => m[1]);

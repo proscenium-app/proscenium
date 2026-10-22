@@ -18,6 +18,7 @@
  * that had the old word would be a guarded write per play, and a play on
  * another device would keep it anyway.
  */
+import { ariaKeys, pressed } from "../../ui/keys";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, Button, IconButton, TrashIcon, announce } from "../../ui";
 import { MAX_STATUSES, MAX_STATUS_CHARS } from "../../storage/settings-model";
@@ -31,10 +32,8 @@ const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 export function StatusList({
   statuses,
   onChange,
-  subject = "Plays",
 }: {
   statuses: readonly string[];
-  subject?: string;
   onChange: (next: string[]) => void;
 }) {
   const [adding, setAdding] = useState("");
@@ -90,7 +89,7 @@ export function StatusList({
     onChange(list);
     setProblem("");
     if (refocusName) setRefocus({ name: list[index], part: "name" });
-    announce(`Renamed “${was}” to “${list[index]}”. ${subject} that have “${was}” keep it.`);
+    announce(`Renamed “${was}” to “${list[index]}”. Plays that have “${was}” keep it.`);
     return true;
   };
 
@@ -114,7 +113,7 @@ export function StatusList({
     setProblem("");
     const neighbour = list[index] ?? list[index - 1];
     setRefocus(neighbour ? { name: neighbour, part: "name" } : { part: "add" });
-    announce(`Deleted “${name}”. ${subject} that have it keep it.`);
+    announce(`Deleted “${name}”. Plays that have it keep it.`);
   };
 
   const full = statuses.length >= MAX_STATUSES;
@@ -282,7 +281,7 @@ function StatusRow({
         value={draft}
         maxLength={MAX_STATUS_CHARS}
         aria-label={`Status ${index + 1} of ${count}: ${name}`}
-        aria-keyshortcuts="Control+Meta+ArrowUp Control+Meta+ArrowDown"
+        aria-keyshortcuts={ariaKeys("⌃⌘↑ / ⌃⌘↓")}
         onChange={(e) => {
           setDraft(e.target.value);
           onTyping();
@@ -292,7 +291,7 @@ function StatusRow({
           if (e.key === "Enter") {
             e.preventDefault();
             commit(true);
-          } else if (e.ctrlKey && e.metaKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+          } else if (pressed(e, "⌃⌘↑") || pressed(e, "⌃⌘↓")) {
             e.preventDefault();
             onMove(index + (e.key === "ArrowUp" ? -1 : 1), "name", typed);
           }

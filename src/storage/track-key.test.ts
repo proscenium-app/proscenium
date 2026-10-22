@@ -6,20 +6,24 @@
  * accept, and writes it into settings.json without disturbing anything else
  * there.
  */
-import { describe, expect, it } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, statSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, writeFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { holdsKey, keyHash, mintKey, writeKey } from "../../scripts/track-key.mjs";
 import { isUpdateTrackKey, readSettings } from "./settings-model";
+
+/** Every folder these tests make is in this one, which goes when they are done. */
+const TOP = mkdtempSync(join(tmpdir(), "track-key-"));
+afterAll(() => rmSync(TOP, { recursive: true, force: true }));
 
 /** The Worker's own pattern, read from its source: its types are the Worker's, not the app's. */
 const worker = readFileSync(new URL("../../services/edge/src/updates.ts", import.meta.url), "utf8");
 const TRACK_KEY = new RegExp(/export const TRACK_KEY = \/(.+)\/;/.exec(worker)![1]);
 
 function settingsFile(contents: string) {
-  const dir = mkdtempSync(join(tmpdir(), "track-key-"));
+  const dir = mkdtempSync(join(TOP, "home-"));
   const path = join(dir, "settings.json");
   writeFileSync(path, contents, { mode: 0o600 });
   return { dir, path };

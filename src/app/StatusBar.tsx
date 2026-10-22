@@ -9,6 +9,7 @@
  * whether the work is saved. The save state stopped being a coloured pill —
  * "Saved · 2:14 AM" is a fact, and a fact does not need a badge.
  */
+import { systemWords } from "../ui/system-words";
 import { vault } from "../storage";
 import { Chip, WarnIcon } from "../ui";
 import type { SaveStatus } from "./useWorkspace";
@@ -62,7 +63,7 @@ export function StatusBar({
           type="button"
           className="statusbar__path"
           onClick={() => void vault.reveal()}
-          title="Reveal in Finder"
+          title={`Reveal in ${systemWords().fileManager}`}
         >
           {root}
         </button>

@@ -4,9 +4,9 @@
 /**
  * The outliner (docs/app/organizing/workspace-model.md#WORK-D3) — two halves of the same job.
  *
- * The TABLE is what the play is: acts, scenes, synopses, status, in order.
- * Editing a synopsis writes the `=` line to the script; status/label write the
- * play file; reordering rows reorders scenes exactly as the board.
+ * The TABLE is what the play is: acts, scenes, synopses, in order.
+ * Editing a synopsis writes the `=` line to the script; the note and the color
+ * write the play file; reordering rows reorders scenes exactly as the board.
  *
  * The SCRATCHPAD above it is what the play might be. Structure has no room for
  * "what if the brother arrives in act two" — so that goes here, in freeform
@@ -21,8 +21,8 @@ import type { SceneCard } from "./card-reconcile";
 import { useFieldDraft } from "./field-draft";
 import { AutosaveScheduler, DEFAULT_AUTOSAVE } from "../storage/autosave";
 import type { BufferLease, MaterialBuffer, ParkedWords } from "./material-buffer";
-import { useSceneStatusOptions } from "../app/settings/scene-statuses";
-import type { Card } from "./play-file";
+import { colorOptions } from "./card-colors";
+import type { Card, CardColor } from "./play-file";
 import { ArrowDownIcon, ArrowUpIcon, OutlineIcon, PopupButton } from "../ui";
 
 /** Collapsed state is a view preference, so it rides along app-level. */
@@ -54,8 +54,6 @@ export interface OutlinerProps {
   onResolveNotesGate?: (choice: "mine" | "theirs") => void;
   /** The scratchpad's buffer, leased like a sheet's (material-buffer.ts). */
   onRegisterNotesBuffer?: (buffer: MaterialBuffer) => BufferLease<ParkedWords>;
-  /** Scenes touched by a change that arrived from outside. */
-  changedScenes?: Set<number>;
 }
 
 export function OutlinerView({
@@ -74,7 +72,6 @@ export function OutlinerView({
   notesGate = null,
   onResolveNotesGate,
   onRegisterNotesBuffer,
-  changedScenes,
 }: OutlinerProps) {
   const ordered = [...cards].sort((a, b) => a.anchor.ordinal - b.anchor.ordinal);
   const pagesFor = new Map((scenePages?.scenes ?? []).map((s) => [s.ordinal, s]));
@@ -117,8 +114,7 @@ export function OutlinerView({
               <th>Pages</th>
               <th>Summary</th>
               <th>Notes</th>
-              <th>Status</th>
-              <th>Label</th>
+              <th>Color</th>
             </tr>
           </thead>
           <tbody>
@@ -134,7 +130,6 @@ export function OutlinerView({
                 onEditSynopsis={(t) => onEditSynopsis(rec.anchor.ordinal, t)}
                 onOpen={() => onOpenScene(rec.anchor.ordinal)}
                 pages={pagesFor.get(rec.anchor.ordinal)}
-                changed={changedScenes?.has(rec.anchor.ordinal) ?? false}
                 /* An act change takes the hairline, so the table's own groups
                    are visible without a band row breaking the columns. */
                 actStart={i > 0 && rec.act !== ordered[i - 1].act}
@@ -371,7 +366,6 @@ interface RowProps {
   onEditSynopsis: (t: string) => void;
   onOpen: () => void;
   pages?: ScenePages;
-  changed: boolean;
   actStart: boolean;
 }
 
@@ -385,21 +379,14 @@ function OutlineRow({
   onEditSynopsis,
   onOpen,
   pages,
-  changed,
   actStart,
 }: RowProps) {
-  const statusOptions = useSceneStatusOptions(rec.card.status);
   const sceneName = `${rec.act ? `${rec.act} · ` : ""}${rec.heading || `Scene ${rec.anchor.ordinal + 1}`}`;
   const synopsis = useFieldDraft(rec.synopsis ?? "");
-  const label = useFieldDraft(rec.card.label ?? "");
   // Follows a note written from outside the app (the play file is live-adopted).
   const note = useFieldDraft(rec.card.boardNote ?? "");
   return (
-    <tr
-      className={`outliner__row card--${rec.card.color}${changed ? " is-changed" : ""}${
-        actStart ? " is-actstart" : ""
-      }`}
-    >
+    <tr className={`outliner__row card--${rec.card.color}${actStart ? " is-actstart" : ""}`}>
       <td className="outliner__move">
         <button
           disabled={!canUp}
@@ -426,11 +413,6 @@ function OutlineRow({
           {rec.act && <span className="sr-only">{rec.act} · </span>}
           {rec.heading || `Scene ${rec.anchor.ordinal + 1}`}
         </button>
-        {changed && (
-          <span className="outliner__changed" title="Changed from outside the app — see Changes">
-            changed
-          </span>
-        )}
       </th>
       {/* Length beside the structure: this column is how the table answers "is
           act one running long?". Its count was a minute estimate, one page to
@@ -484,26 +466,13 @@ function OutlineRow({
         />
       </td>
       <td>
-        <PopupButton
+        <PopupButton<CardColor>
           size="mini"
-          label={`Scene status — ${sceneName}`}
-          options={statusOptions}
-          value={rec.card.status}
-          onChange={(v) => onSetCard({ status: v })}
+          label={`Color — ${sceneName}`}
+          options={colorOptions()}
+          value={rec.card.color}
+          onChange={(color) => onSetCard({ color })}
           menuWidth={150}
-        />
-      </td>
-      <td>
-        <input
-          aria-label={`Label — ${sceneName}`}
-          className="outliner__label"
-          value={label.draft}
-          placeholder="label"
-          onChange={(e) => label.change(e.target.value)}
-          onBlur={() => {
-            const next = label.take();
-            if (next !== null) onSetCard({ label: next });
-          }}
         />
       </td>
     </tr>

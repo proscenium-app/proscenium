@@ -33,6 +33,7 @@ import {
   type FrontMatterLine,
   type LayoutBlock,
   type LayoutMeta,
+  type LayoutPage,
   type LayoutResult,
   type RawPiece,
 } from "../layout";
@@ -45,6 +46,12 @@ export interface PaginationConfig {
   frontMatter?: FrontMatter | null;
   /** Clicking the title sheet opens the Title Page editor. */
   onTitlePageClick?: (() => void) | null;
+  /**
+   * Double-clicking the Characters sheet opens where it is edited. Gets the
+   * engine's id of the paragraph hit (`cast-2`, `characters-prose-1`), or null
+   * between lines.
+   */
+  onCharactersPageOpen?: ((paragraphId: string | null) => void) | null;
 }
 
 export interface PaginationStorage {
@@ -250,6 +257,7 @@ function frontMatterWidget(
   page: FrontMatterPage,
   spec: FormatSpec,
   onClick: (() => void) | null,
+  onCharactersOpen: ((paragraphId: string | null) => void) | null,
 ): HTMLElement {
   const root = el(`pgchrome pgchrome--${page.kind === "title" ? "title" : "front"}`);
   root.contentEditable = "false";
@@ -261,6 +269,22 @@ function frontMatterWidget(
     sheet.addEventListener("mousedown", (event) => {
       event.preventDefault();
       onClick();
+    });
+  }
+  // A double-click, not a click: this sheet sits in the scroll path above the
+  // first scene, and a stray click should not take the writer out of the script.
+  if (page.kind === "characters" && onCharactersOpen) {
+    sheet.classList.add("frontsheet--editable");
+    sheet.title = "Double-click to edit the characters";
+    // The second press would select a word of the sheet's text.
+    sheet.addEventListener("mousedown", (event) => {
+      if (event.detail > 1) event.preventDefault();
+    });
+    sheet.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      const hit = event.target instanceof Element ? event.target : null;
+      const line = hit?.closest<HTMLElement>("[data-front-paragraph]");
+      onCharactersOpen(line?.dataset.frontParagraph ?? null);
     });
   }
   frontMatterLines(page.lines, sheet, spec);
@@ -339,6 +363,29 @@ function edgeWidget(
     if (args.footer) marginSlots("pgchrome__footer", args.footer, el("pgchrome__lastfooter", root));
   }
   return root;
+}
+
+/**
+ * The blocks whose first line opens a page: each hugs its page's top margin
+ * (`pm-page-top`), as the engine placed it, with no gap above row 0.
+ *
+ * Read from the layout because the DOM cannot say it: after a forced break the
+ * block under the page's chrome is the break itself, which prints nothing and
+ * page view collapses, so `.pgchrome + .pl` took the break and the line below
+ * kept its gap, a blank line at the top of the page that the PDF does not
+ * have. A synopsis or a boneyard at a page's top hid the same way. A page that
+ * opens partway through a block is left alone: its gap is on the page before.
+ * `skipPage` is the page under the intro, whose first block it marks itself.
+ */
+export function pageTopSources(pages: LayoutPage[], skipPage: number): number[] {
+  const sources: number[] = [];
+  for (const [i, page] of pages.entries()) {
+    if (i === skipPage) continue;
+    const first = page.lines[0];
+    if (first?.kind === "text" && first.start === 0 && first.sourceIndex >= 0)
+      sources.push(first.sourceIndex);
+  }
+  return sources;
 }
 
 function computeLayout(
@@ -462,7 +509,13 @@ function computeLayout(
     decorations.push(
       Decoration.widget(
         0,
-        () => frontMatterWidget(page, config.spec!, config.onTitlePageClick ?? null),
+        () =>
+          frontMatterWidget(
+            page,
+            config.spec!,
+            config.onTitlePageClick ?? null,
+            config.onCharactersPageOpen ?? null,
+          ),
         { side: -1, key: `pg-front-${index}-${JSON.stringify(page)}` },
       ),
     );
@@ -494,6 +547,12 @@ function computeLayout(
         }),
       );
     }
+  }
+  for (const source of pageTopSources(pages, hasIntro ? bodyPage : -1)) {
+    const at = blockPos[source];
+    decorations.push(
+      Decoration.node(at, at + doc.child(source).nodeSize, { class: "pm-page-top" }),
+    );
   }
   for (let i = hasIntro ? bodyPage + 1 : 1; i < pages.length; i++) {
     const page = pages[i];

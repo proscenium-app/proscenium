@@ -4,7 +4,7 @@ import { vault } from "../storage";
 import { tutorials, type PracticeSource } from "../storage/ipc";
 import { fileName, uniqueFileName } from "../workspace/filename";
 import { readPlayFile, serializePlay } from "../workspace/play-file";
-import { ulid } from "../workspace/ulid";
+import { ulid } from "../storage/ulid";
 
 /** Capture only after every practice buffer has landed, while its vault is open. */
 export const copyPractice = {

@@ -6,12 +6,12 @@
     - tab "Board"
     - tab "Outline"
     - tab "Cast"
-    - tab "Changes, <n> pending" [selected]: Changes
+    - tab "Changes" [selected]
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
@@ -42,21 +42,43 @@
   - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "Cast":
-      - button "Cast"
-    - listitem "Changes":
-      - button "Changes"
-      - button "Close Changes"
-    - listitem "Jonah":
-      - button "Jonah"
-    - listitem "Structure":
-      - button "Structure"
-    - listitem "Mara":
-      - button "Mara"
   - button "Add a surface to this pane"
   - heading "Recovered document copies" [level=3]
   - button "Saved copy of Characters/Mara.md <date>, <time>"
   - button "Saved copy of Notes/Outline.md <date>, <time>"
+  - tablist "Whose changes":
+    - tab "All" [selected]
+    - tab "Mine"
+    - tab "From Outside"
+  - tablist "How changes are shown":
+    - tab "On the Page" [selected]
+    - tab "Line by Line"
+  - navigation "Changes, newest first":
+    - paragraph: Nothing here yet.
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage MARA 3 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: <save status>

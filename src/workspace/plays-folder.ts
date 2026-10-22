@@ -28,6 +28,8 @@
  *
  * Vocabulary (docs/app/keeping-work/storage-and-file-format.md#STOR-D1): Plays folder, play — never vault, never sync.
  */
+import { baseName } from "../storage/path-key";
+import { systemWords } from "../ui/system-words";
 import type { FolderFacts } from "../storage";
 import { isInside } from "./open-route";
 
@@ -54,10 +56,7 @@ export function providerName(id: string): string {
   return NAMES[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
 
-function nameOf(path: string): string {
-  const trimmed = path.replace(/\/+$/, "");
-  return trimmed.slice(trimmed.lastIndexOf("/") + 1);
-}
+const nameOf = baseName;
 
 /**
  * Why `facts` cannot be the Plays folder, or null when it can. `open` is the
@@ -142,7 +141,7 @@ export function providerKind(providers: string[]): string {
 export function wherePlaysLive(providers: string[]): string {
   const id = providers[0];
   if (!id) {
-    return "Your plays live in a folder on this Mac only. They will not appear on other devices.";
+    return `Your plays live in a folder on this ${systemWords().machine} only. They will not appear on other devices.`;
   }
   if (id === "syncthing") {
     return "Your plays live in a Syncthing folder and appear on the devices it shares with.";

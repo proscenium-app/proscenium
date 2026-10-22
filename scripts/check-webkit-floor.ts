@@ -28,9 +28,16 @@
  *        do not cross a function boundary or bless other uses in the file. Syntax is esbuild's: the build fails on syntax it
  *        cannot lower for the target.
  *
- * A finding fails the run. A deliberate exception goes in ALLOWED below with
- * the reason it is safe on the floor — the gate exists to make that a decision,
- * because nothing said no is how thirty type sizes happened.
+ * The same bundle runs in WebView2 on Windows, so it is read a second time,
+ * against the oldest WebView2 promised there (WEBVIEW2_FLOOR in
+ * webkit-floor.ts), with the compat data's Edge statements: WebView2 is Edge's
+ * engine, numbered as Edge is. Each engine is its own pass, with its own
+ * exceptions and its own canary.
+ *
+ * A finding fails the run. A deliberate exception goes in the engine's
+ * `allowed` below with the reason it is safe on the floor — the gate exists to
+ * make that a decision, because nothing said no is how thirty type sizes
+ * happened.
  *
  * Before checking anything it proves it can still fail: a canary of features
  * newer than the floor must be caught, or the check reports itself broken. A
@@ -45,27 +52,93 @@ import * as acorn from "acorn";
 import * as walk from "acorn-walk";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { webkitFloor } from "./webkit-floor.ts";
+import { WEBVIEW2_FLOOR, webkitFloor } from "./webkit-floor.ts";
 
 const ROOT = resolve(import.meta.dir, "..");
 const DIST = join(ROOT, "dist/assets");
 const VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose");
 
+const floor = webkitFloor();
+
 /**
- * Deliberate exceptions, each with why it is safe on the floor. Keyed by the
- * compat path the finding reports. Keep the reason honest: "degrades" is only
- * a reason if the degraded look was checked.
+ * One engine the bundle runs in: its compat data, its floor, its deliberate
+ * exceptions and its canary.
+ *
+ * `allowed` holds each exception with why it is safe on the floor, keyed by the
+ * compat path the finding reports. Keep the reason honest: "degrades" is only a
+ * reason if the degraded look was checked.
+ *
+ * `canary` names features newer than the floor, which must be caught; `api`
+ * and `colour` stand in the guard fixtures for a static method and a colour
+ * function the floor lacks.
  */
-const ALLOWED: Record<string, string> = {
-  "css.properties.scrollbar-width":
-    "Hides the tab strip's scrollbar (styles.css .pane__tabs). Below Safari 18.2 the " +
-    "rule beside it, ::-webkit-scrollbar { display: none }, does the same job.",
-  "css.at-rules.media.prefers-reduced-transparency":
-    "WebKit has never shipped this media feature (webkit.org/b/175497), so the opaque-menu " +
-    "rule is a no-op in the app on every macOS, not only the floor. The honest fix is " +
-    "native (NSWorkspace.accessibilityDisplayShouldReduceTransparency → an attribute on " +
-    "the document), and until then this is a known gap.",
+type Engine = {
+  key: "safari" | "edge";
+  version: number;
+  label: string;
+  allowed: Record<string, string>;
+  canary: { css: string; js: string; expected: string[]; api: string; colour: string };
 };
+
+const ENGINES: Engine[] = [
+  {
+    key: "safari",
+    version: floor.safari,
+    label: `Safari ${floor.safari}.0 (macOS ${floor.macos})`,
+    allowed: {
+      "css.properties.scrollbar-width":
+        "Hides the tab strip's scrollbar (styles.css .pane__tabs). Below Safari 18.2 the " +
+        "rule beside it, ::-webkit-scrollbar { display: none }, does the same job.",
+      "css.properties.scrollbar-gutter":
+        "Keeps a pane's room for a scroll bar that takes room (panes.css .pane__body), which " +
+        "Windows' does. Below Safari 18.2 it is ignored, and a pane is as it was: a Mac's " +
+        "overlay scroll bar takes no room.",
+      "css.at-rules.media.prefers-reduced-transparency":
+        "WebKit has never shipped this media feature (webkit.org/b/175497), so the opaque-menu " +
+        "rule is a no-op in the app on every macOS, not only the floor. The honest fix is " +
+        "native (NSWorkspace.accessibilityDisplayShouldReduceTransparency → an attribute on " +
+        "the document), and until then this is a known gap.",
+      "css.properties.forced-color-adjust":
+        "Used only inside @media (forced-colors: active) (accessibility.css), Windows' high " +
+        "contrast themes, which no Mac has: WebKit never matches the query, so the rule is " +
+        "never applied there, on the floor or above it.",
+    },
+    canary: {
+      css: `.a{field-sizing:content}@starting-style{.b{opacity:0}}.c{text-wrap:balance}`,
+      js: `const {promise} = Promise.withResolvers(); Object.groupBy([], (x) => x);`,
+      expected: [
+        "css.properties.field-sizing",
+        "css.at-rules.starting-style",
+        "css.properties.text-wrap",
+        "javascript.builtins.Promise.withResolvers",
+        "javascript.builtins.Object.groupBy",
+      ],
+      api: "Promise.withResolvers",
+      colour: "light-dark(black,white)",
+    },
+  },
+  {
+    key: "edge",
+    version: WEBVIEW2_FLOOR,
+    label: `WebView2 ${WEBVIEW2_FLOOR}.0 (Windows)`,
+    allowed: {},
+    canary: {
+      css: `.a{corner-shape:squircle}.b:open{opacity:0}.c{reading-flow:normal}`,
+      js: `RegExp.escape("x"); Error.isError(e);`,
+      expected: [
+        "css.properties.corner-shape",
+        "css.selectors.open",
+        "css.properties.reading-flow",
+        "javascript.builtins.RegExp.escape",
+        "javascript.builtins.Error.isError",
+      ],
+      api: "RegExp.escape",
+      colour: "contrast-color(black)",
+    },
+  },
+];
+
+let engine: Engine = ENGINES[0];
 
 // ---------------------------------------------------------------------------
 // Versions and support statements
@@ -78,11 +151,13 @@ type Statement = {
   flags?: unknown[];
   partial_implementation?: boolean;
 };
-type Compat = { support: { safari?: Statement | Statement[] }; spec_url?: string | string[] };
+type Compat = {
+  support: { safari?: Statement | Statement[]; edge?: Statement | Statement[] };
+  spec_url?: string | string[];
+};
 type Node = { __compat?: Compat; [key: string]: unknown };
 
-const floor = webkitFloor();
-const FLOOR = [floor.safari, 0];
+let FLOOR = [engine.version, 0];
 
 function parseVersion(v: string): number[] {
   return v.replace(/^≤/, "").split(".").map(Number);
@@ -102,7 +177,7 @@ type Verdict = { ok: true; partial: boolean } | { ok: false; since: string };
  * is the prefix in use ("" for none) or, for a renamed feature, its old name.
  */
 function supportedAtFloor(compat: Compat | undefined, form = ""): Verdict | null {
-  const raw = compat?.support?.safari;
+  const raw = compat?.support?.[engine.key];
   if (!raw) return null; // no data: nothing to judge, so no finding
   let since: string | null = null;
   for (const s of Array.isArray(raw) ? raw : [raw]) {
@@ -155,7 +230,7 @@ function report(path: string, verdict: Verdict | null, where: string, what: stri
   }
   // An allowed feature covers its own values: allowing scrollbar-width allows
   // `scrollbar-width: none`.
-  const allowed = Object.keys(ALLOWED).find((a) => path === a || path.startsWith(`${a}.`));
+  const allowed = Object.keys(engine.allowed).find((a) => path === a || path.startsWith(`${a}.`));
   if (allowed) {
     allowedHits.set(allowed, (allowedHits.get(allowed) ?? 0) + 1);
     return;
@@ -179,12 +254,17 @@ const TYPE_INDEX = new Map<string, string[]>();
   }
 })(at("css.types")!, "css.types");
 
-/** Old spellings BCD records as an alternative_name, e.g. -webkit-font-smoothing. */
+/**
+ * Old spellings BCD records as an alternative_name, e.g. -webkit-font-smoothing,
+ * in either engine: the verdict for the spelling is still each engine's own.
+ */
 const ALT_PROPERTY = new Map<string, string>();
 for (const [name, node] of Object.entries(at("css.properties")!)) {
-  const raw = (node as Node).__compat?.support?.safari;
-  for (const s of Array.isArray(raw) ? raw : raw ? [raw] : []) {
-    if (s.alternative_name) ALT_PROPERTY.set(s.alternative_name, name);
+  for (const { key } of ENGINES) {
+    const raw = (node as Node).__compat?.support?.[key];
+    for (const s of Array.isArray(raw) ? raw : raw ? [raw] : []) {
+      if (s.alternative_name) ALT_PROPERTY.set(s.alternative_name, name);
+    }
   }
 }
 
@@ -395,9 +475,11 @@ const isInstanceMember = (c?: Compat) => /\.prototype\./i.test(specUrls(c));
  * call `x.name()` can only be that method, because no built-in the floor
  * supports has a member of the same name. `toSorted` would not be here even if
  * it were new — too many objects answer to `.at()` for a name to prove anything.
+ * Each engine has its own, made when its pass begins.
  */
-const NEWER_INSTANCE_NAMES = new Map<string, string>();
-{
+let NEWER_INSTANCE_NAMES = new Map<string, string>();
+function newerInstanceNames(): Map<string, string> {
+  const out = new Map<string, string>();
   const supportedNames = new Set<string>();
   const newer = new Map<string, string>();
   for (const [ctor, node] of Object.entries(BUILTINS)) {
@@ -409,8 +491,18 @@ const NEWER_INSTANCE_NAMES = new Map<string, string>();
       else if (!newer.has(member)) newer.set(member, `javascript.builtins.${ctor}.${member}`);
     }
   }
-  for (const [name, path] of newer)
-    if (!supportedNames.has(name)) NEWER_INSTANCE_NAMES.set(name, path);
+  for (const [name, path] of newer) if (!supportedNames.has(name)) out.set(name, path);
+  return out;
+}
+
+/** The pass for one engine begins: its floor, its exceptions, its newer names. */
+function beginPass(next: Engine) {
+  engine = next;
+  FLOOR = [next.version, 0];
+  NEWER_INSTANCE_NAMES = newerInstanceNames();
+  findings.length = 0;
+  allowedHits.clear();
+  notes.length = 0;
 }
 
 function checkJs(code: string, file: string) {
@@ -679,92 +771,54 @@ function checkJs(code: string, file: string) {
 // ---------------------------------------------------------------------------
 // The canary: the checker must still be able to say no.
 
+// ---------------------------------------------------------------------------
+// The canary: the checker must still be able to say no.
+
 function canary() {
   const before = findings.length;
-  const saved = { ...ALLOWED };
-  for (const k of Object.keys(ALLOWED)) delete ALLOWED[k];
-  checkCss(
-    `.a{field-sizing:content}@starting-style{.b{opacity:0}}.c{text-wrap:balance}`,
-    "canary.css",
-  );
-  checkJs(`const {promise} = Promise.withResolvers(); Object.groupBy([], (x) => x);`, "canary.js");
+  const saved = engine.allowed;
+  engine.allowed = {};
+  checkCss(engine.canary.css, "canary.css");
+  checkJs(engine.canary.js, "canary.js");
   const caught = new Set(findings.slice(before).map((f) => f.path));
   findings.length = before;
-  Object.assign(ALLOWED, saved);
-  const expected = [
-    "css.properties.field-sizing",
-    "css.at-rules.starting-style",
-    "css.properties.text-wrap",
-    "javascript.builtins.Promise.withResolvers",
-    "javascript.builtins.Object.groupBy",
-  ];
-  const missed = expected.filter((p) => !caught.has(p));
-  // Each fixture reproduces a false pass this gate once had: keep each reproduction separate. One caught Promise call must not
-  // hide a false pass of the same API in another fixture.
+  engine.allowed = saved;
+  const missed = engine.canary.expected.filter((p) => !caught.has(p));
+  // Each fixture reproduces a false pass this gate once had: keep each reproduction separate. One caught call must not
+  // hide a false pass of the same API in another fixture. API is a static method the floor lacks, and COLOUR a colour
+  // function it lacks.
+  const api = engine.canary.api;
+  const member = api.split(".").at(-1);
+  const colour = engine.canary.colour;
   const fixtures = [
-    ["unguarded method", "js", "Promise.withResolvers();", true],
+    ["unguarded method", "js", `${api}();`, true],
     [
       "unrelated function guard",
       "js",
-      "function unusedGuard(){return typeof Promise.withResolvers;} Promise.withResolvers();",
+      `function unusedGuard(){return typeof ${api};} ${api}();`,
       true,
     ],
-    ["different receiver guard", "js", "if (other.withResolvers) Promise.withResolvers();", true],
-    [
-      "guard's absent branch",
-      "js",
-      "if (typeof Promise.withResolvers === 'undefined') Promise.withResolvers();",
-      true,
-    ],
-    [
-      "strict null is not presence",
-      "js",
-      "if (Promise.withResolvers !== null) Promise.withResolvers();",
-      true,
-    ],
-    ["optional use elsewhere", "js", "Promise.withResolvers?.(); Promise.withResolvers();", true],
-    [
-      "guard cannot cross function",
-      "js",
-      "if (Promise.withResolvers) { callback = () => Promise.withResolvers(); }",
-      true,
-    ],
-    ["call used as condition", "js", "if (Promise.withResolvers()) {}", true],
-    ["direct colour function", "css", ".audit{color:light-dark(black,white)}", true],
-    [
-      "custom property function",
-      "css",
-      ".audit{--ink:light-dark(black,white);color:var(--ink)}",
-      true,
-    ],
+    ["different receiver guard", "js", `if (other.${member}) ${api}();`, true],
+    ["guard's absent branch", "js", `if (typeof ${api} === 'undefined') ${api}();`, true],
+    ["strict null is not presence", "js", `if (${api} !== null) ${api}();`, true],
+    ["optional use elsewhere", "js", `${api}?.(); ${api}();`, true],
+    ["guard cannot cross function", "js", `if (${api}) { callback = () => ${api}(); }`, true],
+    ["call used as condition", "js", `if (${api}()) {}`, true],
+    ["direct colour function", "css", `.audit{color:${colour}}`, true],
+    ["custom property function", "css", `.audit{--ink:${colour};color:var(--ink)}`, true],
     [
       "custom assignment is no fallback",
       "css",
-      ".audit{--ink:black;--ink:light-dark(black,white);color:var(--ink)}",
+      `.audit{--ink:black;--ink:${colour};color:var(--ink)}`,
       true,
     ],
-    [
-      "local presence guard",
-      "js",
-      "if (typeof Promise.withResolvers === 'function') Promise.withResolvers();",
-      false,
-    ],
-    [
-      "local else guard",
-      "js",
-      "if (typeof Promise.withResolvers === 'undefined') {} else Promise.withResolvers();",
-      false,
-    ],
-    ["local logical guard", "js", "Promise.withResolvers && Promise.withResolvers();", false],
-    ["local optional call", "js", "Promise.withResolvers?.();", false],
-    [
-      "local nullish guard",
-      "js",
-      "if (Promise.withResolvers != null) Promise.withResolvers();",
-      false,
-    ],
-    ["probe alone", "js", "function probe(){return typeof Promise.withResolvers;}", false],
-    ["ordinary colour fallback", "css", ".audit{color:black;color:light-dark(black,white)}", false],
+    ["local presence guard", "js", `if (typeof ${api} === 'function') ${api}();`, false],
+    ["local else guard", "js", `if (typeof ${api} === 'undefined') {} else ${api}();`, false],
+    ["local logical guard", "js", `${api} && ${api}();`, false],
+    ["local optional call", "js", `${api}?.();`, false],
+    ["local nullish guard", "js", `if (${api} != null) ${api}();`, false],
+    ["probe alone", "js", `function probe(){return typeof ${api};}`, false],
+    ["ordinary colour fallback", "css", `.audit{color:black;color:${colour}}`, false],
   ] as const;
   for (const [label, kind, source, shouldFail] of fixtures) {
     if (kind === "css") checkCss(source, `canary-${label}.css`);
@@ -776,7 +830,7 @@ function canary() {
   }
   if (missed.length) {
     console.error(
-      `check:webkit-floor: BROKEN — the canary features newer than Safari ${floor.safari} were not caught:\n  ` +
+      `check:webkit-floor: BROKEN — the canary features newer than ${engine.label} were not caught:\n  ` +
         missed.join("\n  "),
     );
     process.exit(2);
@@ -784,6 +838,48 @@ function canary() {
 }
 
 // ---------------------------------------------------------------------------
+
+/** One engine's pass over dist/: true when it is clean. */
+function checkEngine(files: string[]): boolean {
+  canary();
+  for (const f of files) {
+    const text = readFileSync(join(DIST, f), "utf8");
+    if (f.endsWith(".css")) checkCss(text, `dist/assets/${f}`);
+    else checkJs(text, `dist/assets/${f}`);
+  }
+
+  if (VERBOSE) {
+    console.log(`${engine.label}:`);
+    for (const n of notes) console.log(`  ${n}`);
+    for (const [path, count] of allowedHits)
+      console.log(`  allowed  ${path} ×${count} — ${engine.allowed[path]}`);
+  }
+  for (const path of Object.keys(engine.allowed)) {
+    if (!allowedHits.has(path)) {
+      console.log(
+        `  note: ${engine.label}'s allowed entry ${path} no longer matches anything — delete it`,
+      );
+    }
+  }
+
+  if (!findings.length) return true;
+  const grouped = new Map<string, Finding[]>();
+  for (const f of findings) grouped.set(f.path, [...(grouped.get(f.path) ?? []), f]);
+  console.error(
+    `check:webkit-floor: ${grouped.size} feature${grouped.size === 1 ? "" : "s"} newer than ` +
+      `${engine.label}:`,
+  );
+  for (const [path, list] of grouped) {
+    console.error(`  ${path} — ${engine.key === "edge" ? "WebView2" : "Safari"} ${list[0].since}`);
+    for (const f of list.slice(0, 4)) console.error(`      ${f.what}  ${f.where}`);
+    if (list.length > 4) console.error(`      … and ${list.length - 4} more`);
+  }
+  console.error(
+    "  Use something the floor supports, pair it with a fallback in the same rule, " +
+      "or add it to the engine's allowed list in scripts/check-webkit-floor.ts with the reason it is safe.",
+  );
+  return false;
+}
 
 async function main() {
   // Vite must build for the same floor this checks, or esbuild lowers syntax
@@ -797,8 +893,6 @@ async function main() {
     process.exit(1);
   }
 
-  canary();
-
   if (!existsSync(DIST)) {
     console.error(
       "check:webkit-floor: no dist/ — run `bun run check:webkit-floor`, which builds it first",
@@ -806,43 +900,15 @@ async function main() {
     process.exit(1);
   }
   const files = readdirSync(DIST).filter((f) => f.endsWith(".css") || f.endsWith(".js"));
-  for (const f of files) {
-    const text = readFileSync(join(DIST, f), "utf8");
-    if (f.endsWith(".css")) checkCss(text, `dist/assets/${f}`);
-    else checkJs(text, `dist/assets/${f}`);
-  }
 
-  if (VERBOSE) {
-    for (const n of notes) console.log(`  ${n}`);
-    for (const [path, count] of allowedHits)
-      console.log(`  allowed  ${path} ×${count} — ${ALLOWED[path]}`);
+  let clean = true;
+  for (const next of ENGINES) {
+    beginPass(next);
+    clean = checkEngine(files) && clean;
   }
-  for (const path of Object.keys(ALLOWED)) {
-    if (!allowedHits.has(path)) {
-      console.log(`  note: ALLOWED entry ${path} no longer matches anything — delete it`);
-    }
-  }
-
-  if (findings.length) {
-    const grouped = new Map<string, Finding[]>();
-    for (const f of findings) grouped.set(f.path, [...(grouped.get(f.path) ?? []), f]);
-    console.error(
-      `check:webkit-floor: ${grouped.size} feature${grouped.size === 1 ? "" : "s"} newer than ` +
-        `Safari ${floor.safari}.0 (macOS ${floor.macos}):`,
-    );
-    for (const [path, list] of grouped) {
-      console.error(`  ${path} — Safari ${list[0].since}`);
-      for (const f of list.slice(0, 4)) console.error(`      ${f.what}  ${f.where}`);
-      if (list.length > 4) console.error(`      … and ${list.length - 4} more`);
-    }
-    console.error(
-      "  Use something the floor supports, pair it with a fallback in the same rule, " +
-        "or add it to ALLOWED in scripts/check-webkit-floor.ts with the reason it is safe.",
-    );
-    process.exit(1);
-  }
+  if (!clean) process.exit(1);
   console.log(
-    `webkit-floor check: clean (${files.length} files against Safari ${floor.safari}.0 = macOS ${floor.macos}, ` +
+    `webkit-floor check: clean (${files.length} files against ${ENGINES.map((e) => e.label).join(" and ")}, ` +
       `compat data ${(bcd as { __meta: { version: string } }).__meta.version})`,
   );
 }

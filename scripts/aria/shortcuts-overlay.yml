@@ -1,8 +1,8 @@
 - banner:
   - button "Hide the binder" [pressed]
-  - button "1953 North Sea Flood"
+  - button "The Weight of Water"
   - tablist "What this pane shows":
-    - tab "Script"
+    - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
     - tab "Cast"
@@ -11,13 +11,20 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
   - searchbox "Filter the binder"
   - tree "Binder items":
-    - treeitem "The Weight of Water" [level=1]
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]
@@ -25,11 +32,6 @@
     - treeitem "Research" [expanded] [level=1]
     - group "Research":
       - treeitem "1953 North Sea Flood" [level=2]
-      - treeitem "Untitled" [level=2]
-      - treeitem "Wren Thackeray Rename “Wren Thackeray” Actions for “Wren Thackeray”" [level=2] [selected]:
-        - text: Wren Thackeray
-        - button "Rename “Wren Thackeray”"
-        - button "Actions for “Wren Thackeray”"
     - treeitem "Notes" [expanded] [level=1]
     - group "Notes":
       - treeitem "Structure" [level=2]
@@ -37,49 +39,31 @@
     - group "Loglines":
       - treeitem "Logline" [level=2]
   - button "New"
-  - text: in Research
+  - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "Cast":
-      - button "Cast"
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-    - listitem "1953 North Sea Flood":
-      - button "1953 North Sea Flood"
-      - button "Close 1953 North Sea Flood"
   - button "Add a surface to this pane"
-  - textbox "File name"
-  - text: water history image-system
-  - button "Edit Tags"
-  - status
-  - group "View":
-    - button "Page" [pressed]
-    - button "Source"
-  - toolbar "Formatting":
-    - 'button "Paragraph style: Heading 1"': Heading 1
-    - button "Bold"
-    - button "Italic"
-    - button "Inline code":
-      - img
-    - button "Link":
-      - img
-    - button "Bulleted list":
-      - img
-    - button "Numbered list":
-      - img
-    - button "Insert table":
-      - img
-    - button "Insert divider":
-      - img
-  - heading "1953 North Sea Flood" [level=1]
-  - paragraph: Reference material for the family's relationship to the marsh and "the water."
-  - paragraph: The night of 31 January 1953, a storm tide overwhelmed sea defenses around the North Sea. Water came in the dark, through the floors, before anyone decided anything. People woke already inside it.
-  - paragraph: "Useful for the play's central image: water as the thing that arrives without being invited and stays without being asked — same shape as grief, same shape as a brother in the doorway. Mara measures it now for a living; she's been trying to put a number on what once just came in under the door."
-  - blockquote:
-    - paragraph: A reference file like a PDF or image would sit beside this note untouched; the app opens it read-only.
+  - 'button "What this line is: Act"': Act
+  - button "Bold" [disabled]: ⌘B
+  - button "Italic" [disabled]: ⌘I
+  - button "Underline" [disabled]: ⌘U
+  - button "Line Break ⇧⏎" [disabled]
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 1 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - paragraph: No scene here
+  - paragraph: "Put the caret in a scene, or type ## Scene in the script, and its card appears here."
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
-  - text: 1 format warning Saved · <time>
+  - text: <save status>
   - button "Zoom out"
   - 'button "Zoom: 100%"': 100%
   - button "Zoom in"

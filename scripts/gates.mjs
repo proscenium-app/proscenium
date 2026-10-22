@@ -22,6 +22,31 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+/**
+ * How long one test of the scripts' suite may take, in milliseconds.
+ *
+ * Bun's own limit is five seconds. About two dozen of these test files drive a
+ * real git over scratch repositories: around a second a test while the build
+ * host is idle, and several times that while other work there has the
+ * processor. On 2026-10-06 three of them ran past five seconds beside another
+ * job on the host, were cut off in the middle of a push, and failed a
+ * release's test run; the unit tests and the typecheck that followed took
+ * about ten times their usual time. Ten times the suite's slowest test, about
+ * two seconds idle, is under half a minute, and this is twice that. A test
+ * that hangs still fails, a minute in.
+ *
+ * It rides on the command because bun 1.3 has no other place that reaches
+ * every file: bunfig.toml has no key for it, and `setDefaultTimeout` reaches
+ * one file only, whether a test file, a module the files share or a preload
+ * calls it. A file's own `setDefaultTimeout` also wins over the command's, so
+ * no test file here calls it; a test that needs longer says so as `test`'s
+ * third argument.
+ */
+export const SCRIPT_TEST_LIMIT_MS = 60_000;
+
+/** The scripts' own tests, as everything that runs the whole suite runs them. */
+export const SCRIPT_TESTS = ["bun", "test", "./scripts", "--timeout", String(SCRIPT_TEST_LIMIT_MS)];
+
 /** The gates, in the order a failure is most useful first. */
 export function gateCommands(pkg) {
   const checks = Object.keys(pkg.scripts ?? {})
@@ -31,7 +56,7 @@ export function gateCommands(pkg) {
     .sort();
   return [
     ["bun test ./src", ["bun", "test", "./src"]],
-    ["bun test ./scripts", ["bun", "test", "./scripts"]],
+    ["bun test ./scripts", SCRIPT_TESTS],
     ["typecheck", ["bun", "run", "typecheck"]],
     // Biome's rules and its formatting, and rustfmt's (docs/engineering/release-engineering.md#REL-102).
     ["lint", ["bun", "run", "lint"]],

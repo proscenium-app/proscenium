@@ -26,20 +26,51 @@
  *   page.reload() — only as a check's LAST statement: in the real app it
  *                   replaces the page the harness runs in, which resumes at
  *                   the next check
+ *   page.addInitScript(fn) — fn one of INIT_SCRIPTS, below: the Mac's harness
+ *                   cannot carry a check's own function into the next page,
+ *                   so it carries the name and runs the export
+ *
+ *   page.host — the real Windows app's run alone (scripts/smoke-pc-host.mjs):
+ *               the PC around the app, for an act that runs only there (ACTS `engines`)
  *
  * Plain CSS selectors only: Playwright's own selector engines (`>> text=`) have
  * no WebKit counterpart. A check that needs more than this list extends the
  * harness in the same commit.
  *
- * A check marked `devMock: true` drives the in-memory vault's own test hooks —
- * an outside write to the script, Finder's open event, a crash that keeps a
- * recovery snapshot in sessionStorage — which the real app does not have. The
- * harness reports it as skipped, never as a pass.
+ * A check waits for what it waits for, never for a time: for a condition in
+ * the page (`until`, or `eventually` where the assertion after it speaks), a
+ * selector's state, a focus, the page's own frames (`drawn`). A fixed wait is
+ * either too long, which costs every run, or too short, which is a flake. The
+ * one kind left is `elapse`, where the check itself is that something does NOT
+ * happen within a time, and it says why. `page.waitForTimeout` is called in
+ * two places alone: the poll of `eventually` (and so of `until`), and `elapse`.
+ *
+ * A check stages a fault through hooks on `window` (`__prosceniumGate`,
+ * `__prosceniumExternalChange`, `__prosceniumQuit`, …): the in-memory vault's
+ * in a browser (src/storage/dev-mock.ts), a test build's in the apps, which
+ * answer them on the real vault (scripts/selftest/fixture.mjs,
+ * docs/engineering/release-engineering.md#REL-129). There a hook answers a
+ * promise, so a check awaits what it reads; scripts/selftest/fixture.test.ts
+ * holds every check to it. No check is the browser's alone.
  */
 
 import { harborPackage, harborPackageZip, harborPages, toBase64 } from "./pages-sample.mjs";
 
 export const AUDIT_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+
+/**
+ * The system the checks run against: a Mac's words and keys, or a PC's, when
+ * smoke drives the real Windows app (scripts/smoke-webview2.mjs). A check
+ * presses a Mac's keys whatever the system, and the driver presses the PC's;
+ * what a check reads that a PC says otherwise, it reads through `said`.
+ */
+let SYSTEM = "mac";
+export function setSmokeSystem(system) {
+  SYSTEM = system;
+}
+export const onPC = () => SYSTEM === "pc";
+/** A Mac's words, or a PC's. */
+export const said = (mac, pc) => (SYSTEM === "pc" ? pc : mac);
 
 /**
  * How much longer every wait may take on a slow host: `SMOKE_TIME_SCALE`, 1 by
@@ -51,43 +82,558 @@ export const TIME_SCALE = Math.max(1, Number(globalThis.process?.env?.SMOKE_TIME
 
 /**
  * A check's feature tags: the part of the app it is about, named as
- * ci/features.json names the folders of src/. A pipeline run whose changes
- * all sit in leaf features leaves out the DETACHABLE blocks it did not touch;
- * `smoke.mjs --only` and `selftest.mjs --features` take the same names.
- * A check with no tag runs in every pass, however narrowed: those set the
- * stage the others stand on (the Welcome screen, the Plays screen, a play
- * open, the writer's play back after the tutorials).
+ * ci/features.json names the folders of src/. Each act (below) names the
+ * features of its checks, and a run chooses its acts by them.
  */
 export function checkFeatures(check) {
   return check.feature == null ? [] : [].concat(check.feature);
 }
 
 /**
- * The features whose checks a narrowed pass may leave out: none yet.
+ * The acts: every check, in exactly one act, grouped by feature.
  *
- * Checks run in one page, in order, and most stand on what the ones before
- * them left: which play is open, which panes show, what a sheet remembers. A
- * surface's accessibility tree is the whole page, so leaving out a check that
- * changes any of that changes what every later check holds, and a pass that
- * left it out would fail, or pass, against a page no full pass ever sees. A
- * feature joins this list only when a full pass with its checks left out is
- * green in both engines and both schemes: its block then leaves the app as it
- * found it. A Chromium pass with the tutorial, feedback, wordproc, spell and
- * import checks left out had 63 failures after them in its two schemes, the
- * first because the tutorials leave a pane empty that is otherwise showing a
- * document.
+ * The checks used to run in one page, in order, each standing on what the
+ * ones before it left, so none could be left out: a pass without the tutorial,
+ * feedback, wordproc, spell and import checks had 63 failures after them. An
+ * act owes nothing to the act before it. It begins from a fresh first launch,
+ * as a new browser context or the native self-test's reset is, and makes the
+ * state it starts from: `fresh` is the Welcome screen; `plays` runs the
+ * opening act's first two checks first, to the Plays screen; `play` runs all
+ * three, to a play open; `inspector` runs them and then the play's chrome
+ * act's inspector check, to the inspector open beside the play (STARTS).
+ * Those checks run quietly there (no audit, no tree held), and loudly once,
+ * in their own act. So a run may execute any
+ * set of acts, in any order, and each act sees what it sees in a whole run.
+ *
+ * `what` says in a line what the act is about; a run's plan names the acts it
+ * chose and why (scripts/ci-plan.mjs).
  */
-export const DETACHABLE = [];
+export const ACTS = [
+  {
+    name: "opening",
+    start: "fresh",
+    features: [],
+    what: "The first run: the Welcome screen, the Plays screen, and a play open. Every other act starts from its state, or from part of it.",
+    checks: ["welcome", "plays screen", "one play open"],
+  },
+  {
+    name: "plays",
+    start: "plays",
+    features: ["app"],
+    what: "The Plays screen's own keys and search.",
+    checks: [
+      "plays screen · ⌘N names a new play",
+      "Plays search announces empty and restored results",
+    ],
+  },
+  {
+    name: "plays folder",
+    start: "plays",
+    features: ["storage"],
+    what: "A Plays folder chosen too high, and a damaged play.",
+    checks: [
+      "plays screen · a Plays folder one level too high",
+      "a damaged play opens its protected original file",
+    ],
+  },
+  {
+    name: "import from the Plays screen",
+    start: "plays",
+    features: ["import"],
+    what: "The document import tool, from the Plays screen.",
+    checks: [
+      "document import · window chrome, source guides and enlarged text",
+      "document import · review, correction, cancellation and export guidance",
+      "document import · a Pages document reads directly, in either form",
+    ],
+  },
+  {
+    name: "watcher",
+    start: "play",
+    features: ["storage"],
+    what: "Outside writes reaching the open play.",
+    checks: [
+      "alternate watcher spelling reaches the open script and keeps its identity",
+      "a typed sheet's embedded identity follows an external move",
+      "an outside change heard while the app's own write is unanswered stays on screen",
+      "watcher · foreground catches a missed edit and health stays visible",
+    ],
+  },
+  {
+    name: "the play's chrome",
+    start: "play",
+    features: ["app", "editor"],
+    what: "The play's window: Finder, the inspector and the element bar beside it, the document menu, Go to Scene, the areas, Tab's order, Find's status, the shortcuts.",
+    checks: [
+      "reveal in Finder · the status bar's path and a binder row",
+      "inspector",
+      "element bar · fits its pane at every width",
+      "document menu",
+      "keyboard · go to scene",
+      "Go to Scene connects its combobox to selectable listbox results",
+      "keyboard · areas",
+      "accessibility tree · focus order under Tab",
+      "seeded Find and export results use premounted status regions",
+      "shortcuts overlay",
+    ],
+  },
+  {
+    name: "panes",
+    start: "play",
+    features: ["app"],
+    what: "A play in several panes: one closed by its box, its key and its divider, and a window with no room for one.",
+    checks: [
+      "panes · a pane of several closes by its box, its key and a divider dragged across it",
+      "panes · a window with no room hides a pane, says so, and makes no new one",
+    ],
+  },
+  {
+    name: "editor",
+    start: "inspector",
+    features: ["editor"],
+    what: "The script: keys, Undo, Find, the text box a screen reader reads, the caret's popups.",
+    checks: [
+      "a cue's extension stays on the page and is written once",
+      "keyboard · element bar",
+      "editor · page break before a scene",
+      "keyboard · focus mode",
+      "keyboard · a key reaches Undo",
+      "keyboard · sigil after a soft break",
+      "find · replace leaves comments alone",
+      "screen reader · element kind",
+      "accessibility tree · the script is a text box that follows typing, and says the kind",
+      "caret popups activate with clicks and conventional menu keys",
+      "a second Enter opens the element menu, and Shift+Enter still breaks the line",
+      "characters page · a double-click opens Cast at the line",
+    ],
+  },
+  {
+    name: "keyboard and sheets",
+    start: "inspector",
+    features: ["ui"],
+    what: "Menus and sheets by the keyboard, the modal scope, enlarged text, writing suggestions.",
+    checks: [
+      "keyboard · menu",
+      "keyboard · sheet",
+      "dialog menus and announcements stay in the active modal scope",
+      "keyboard · cancel means cancel",
+      "keyboard · window keys wait for a menu or sheet",
+      "interface text reaches 200 percent without changing the page",
+      "text fields · writing suggestions are off wherever words are typed",
+    ],
+  },
+  {
+    name: "export",
+    start: "inspector",
+    features: ["pdf", "wordproc", "layout"],
+    what: "The PDF, the .docx and .odt, print, and the pages they are counted in.",
+    checks: [
+      "export · a PDF written and read back",
+      "export validates the play language before saving",
+      "exported bytes carry tags and the saved per-play language",
+      "docs/app/formatting/formats-and-layout.md#FMT-145 · Export .docx and .odt from the document menu",
+      "docs/app/formatting/formats-and-layout.md#FMT-157 · the .docx and .odt downloads hold the play in its styles",
+      "export · the preview holds only what goes out, front sheets included",
+      "print · Print… sends exactly the sheets the preview showed",
+      "long front matter continues on bounded sheets and export counts them",
+      "sketch opening edits and overflow share editor and export sheets",
+      "lengths are pages, never minutes",
+    ],
+  },
+  {
+    name: "comments",
+    start: "inspector",
+    features: ["comments"],
+    what: "Comment actions, a comment typed where there is no room for a card, replies and the name they are signed with, selecting a comment's words, and a comment made on a selection.",
+    checks: [
+      "comment actions retain focus and announce the remaining count",
+      "a comment with no room for a card is typed in the feed, signed and answered",
+      "a comment with room is typed in its card, and its words can be selected",
+      "a comment made on a selection is about the words selected",
+    ],
+  },
+  {
+    name: "workspace",
+    start: "inspector",
+    features: ["workspace"],
+    what: "The binder, the board, the outline and cast, statuses and Progress.",
+    checks: [
+      "keyboard · binder",
+      "binder Move files by folder and position without dragging",
+      "binder arrows reach and activate scenes without filing them",
+      "board",
+      "outline and cast",
+      "editing fields identify their scene or character",
+      "a scene's color is chosen on its card and its rail row, and the board runs across or down",
+      "a new character is named, then ⏎ puts the cursor on its page",
+      "statuses and Progress are set in Settings",
+    ],
+  },
+  {
+    name: "spelling",
+    start: "inspector",
+    features: ["spell"],
+    what: "Spelling and the play's language.",
+    checks: [
+      "keyboard · spelling",
+      "settings · spell check in step",
+      "play language is keyboard accessible and persists",
+      "changing language rechecks spelling without changing the script",
+    ],
+  },
+  {
+    name: "tutorials",
+    start: "inspector",
+    features: ["tutorial"],
+    what: "The guided lessons and their practice play, ending with the writer's own play back.",
+    checks: [
+      "tutorials · the guide shows where to type, catches a wrong turn and moves on by itself",
+      "tutorials · every lesson, by hand, continues the same play",
+      "tutorials · a new note's first line stays clear of its format bar in the app's own window",
+      "tutorials · Show Me and Skip work at every step, in place, and keep the writer's words",
+      "tutorials · stop returns to the play, Continue returns to the same place, and the keyboard reaches the guide",
+      "tutorials · Stop gives the keyboard back to the play's script, at the writer's place",
+      "tutorials · ⌘⇧O reaches All Plays with the keyboard on <body>, as it is when Stop's card goes",
+      "tutorials · ⌘⇧O reaches All Plays while the play Stop returned to is still reading its script",
+      "tutorials · narrow windows keep the guide on screen and its target clear, and a failed save waits",
+      "tutorials · reset keeps every practice play, and Saved Practice opens them",
+      "tutorials · Keep as a Play makes a complete same-name copy with its own identity",
+      "tutorials · retained practice waits for an explicit resume after relaunch",
+      "tutorials · relaunch resumes the same play without another invitation",
+      "tutorials · stale progress is refused and changes no practice words",
+      "tutorials · a reset of damaged progress preserves it and every practice play",
+      "tutorials · partial copy keeps the original and retries into a new folder",
+      "tutorials · practice as an earlier version kept it",
+      "tutorials · legacy practice resumes and copies without moving its original",
+      "tutorials · a newer practice manifest holds the step and keeps Stop reachable",
+      "tutorials · a writer who wanders off is led back, and Take Me There goes there",
+      "tutorials · a new invitation, for the next check",
+      "tutorials · Try the Tutorial opens the first lesson at the work",
+      "tutorials · the writer's own play is back after the tutorial checks",
+    ],
+  },
+  {
+    name: "settings",
+    start: "inspector",
+    features: ["app"],
+    what: "Settings, updates and privacy.",
+    checks: [
+      "usability · tutorials, appearance, dictionary and formats",
+      "usability · add and reorder cast independently of the printed page",
+      "settings · every section",
+      "settings · deep link",
+      "keyboard · accent",
+      "settings · Follow Mac takes the Mac's accent",
+      "settings · updates",
+      "settings · updates, alpha's key",
+      "settings · privacy",
+      "settings · a store copy offers no update controls",
+      "settings · a refused status or word says why",
+      "an installing update holds edits and a failure releases them",
+    ],
+  },
+  {
+    name: "formats",
+    start: "inspector",
+    features: ["format"],
+    what: "The formats and their designer.",
+    checks: [
+      "published formats share editor and print geometry",
+      "formats · settings",
+      "formats · designer",
+      "formats · unsaved changes and built-ins",
+      "formats · move to trash",
+    ],
+  },
+  {
+    name: "review",
+    start: "inspector",
+    features: ["review"],
+    what: "Versions and Changes.",
+    checks: [
+      "a failed version read is spoken in Changes",
+      "Changes speaks delayed and unavailable comparisons",
+      "versions",
+      "changes · looking clears the count, and a burst is one entry",
+      "changes · Changes in text draws the newest burst, each change once",
+      "changes · a change heard while the one before is recorded joins its burst",
+      "changes · a document's change is read on its own page",
+    ],
+  },
+  {
+    name: "documents",
+    start: "inspector",
+    features: ["markdown"],
+    what: "A play's documents.",
+    checks: [
+      "sheets · a document is the script's page",
+      "sheets · a fit solves for the document's pane",
+      "New ▸ Document puts the cursor on its page",
+      "a list in a document holds together",
+      "a document's caret and list markers stand where the words are",
+      "a document's caret holds steady when the Mac asks for one that does not blink",
+    ],
+  },
+  {
+    name: "feedback",
+    start: "inspector",
+    features: ["feedback", "diagnostics"],
+    what: "Send Feedback, and what reports carry.",
+    checks: [
+      "feedback · keyboard draft and character limit",
+      "feedback · three entry points and the acceptance message",
+      "feedback · drafts, offline retry, details, and enlarged text",
+      "feedback · diagnostics failure does not block a message",
+      "privacy · reports carry nothing of the play",
+    ],
+  },
+  {
+    name: "launch",
+    start: "inspector",
+    features: ["app"],
+    what: "What a relaunch opens, and the notices it shows once.",
+    checks: [
+      "launch · a writer back on the Plays screen has left off there",
+      "launch · the relaunch opens on the Plays screen it was left on",
+      "launch · watch every relaunch from its first frame",
+      "launch · the script in front, the caret on its last page",
+      "launch · the play is in place before the launch screen goes",
+      "settings · open at launch",
+      "settings · relaunch opens the last play",
+      "launch · the relaunch opens into the play, with nothing on the way",
+      "a relaunch into a play shows the privacy toast once",
+      "a seen notice stays seen on the next launch",
+      "a build without a key leaves the workspace notice pending",
+    ],
+  },
+  {
+    name: "from Finder",
+    start: "inspector",
+    features: ["workspace", "import"],
+    what: "Files opened from Finder.",
+    checks: [
+      "finder · a script in a play opens its play",
+      "finder · a play elsewhere asks first",
+      "finder · a loose script becomes a play when asked",
+      "finder · an .fdx becomes a play and is kept",
+      "finder · a package-form Pages document becomes a play and is kept zipped",
+      "finder · a file that is not there says so",
+    ],
+  },
+  {
+    name: "writes in flight",
+    start: "inspector",
+    features: ["storage", "review", "markdown", "workspace"],
+    what: "Writes still out while the writer works on: a slow open, copies kept during a save, Keep this, a restore, a sheet left, an op, a move and a note held behind a write.",
+    checks: [
+      "scripts · a slow open never mixes two scripts",
+      "copies kept during a save are readable in Changes",
+      "alternate event spelling gates unsaved words and Keep this preserves theirs",
+      "versions · a restore lands in the script it was chosen from, or nowhere",
+      "sheets · leaving the play keeps a sheet's last words",
+      "binder · an op waiting on a slow write never runs in the Plays folder",
+      "board · a scene moved while the writer types keeps both",
+      "outline · a note made while the binder is walked keeps every word",
+      "outline · the scratchpad comes back with its latest words",
+      "changes · coming back to the app lists nothing that did not change outside",
+    ],
+  },
+  {
+    name: "saving",
+    start: "inspector",
+    features: ["storage"],
+    what: "Folder access retried, saves refused and retried, and what opening writes.",
+    checks: [
+      "saving · opening a play saves nothing and keeps no version",
+      "folder access can be retried and reauthorised",
+      "saving · a refused save is said once, plainly, and lands when it can",
+      "leaving waits for sheet saves already accepted by this play",
+      "saving · a refused sheet says where its words went",
+      "saving · a refused first outline note names the folder it goes in",
+      "saving · opening a document writes nothing",
+    ],
+  },
+  {
+    name: "recovery",
+    start: "inspector",
+    features: ["storage"],
+    what: "Crashes and quits, and the words they keep.",
+    checks: [
+      "sheet and outline recovery survive a crash",
+      "sheet and outline recovery remain readable after a crash",
+      "recovery · words behind the banner are kept through a crash",
+      "recovery · the reopened script offers the words back",
+      "quit · the words a quit waits on land, or are kept for the next launch",
+      "quit · the play says where a quit kept the words, when it opens again",
+      "quit · words that can be kept nowhere hold the quit, and ⏎ does not quit",
+    ],
+  },
+  {
+    name: "import into a play",
+    start: "inspector",
+    features: ["import"],
+    what: "The document import tool, into the open play.",
+    checks: ["document import · into the open play, as a script and as a document"],
+  },
+  {
+    name: "files another program holds",
+    start: "play",
+    features: ["storage"],
+    engines: ["webview2"],
+    elsewhere:
+      "another program holding a file open, and Windows' Read-only, are a PC's; only the real Windows app's run stages them, from a process of its own on that PC",
+    what: "A script another program holds open while the app saves it, for a moment and for longer, and a script marked Read-only: the save waits, or says why in Windows' words, and lands once it can.",
+    checks: [
+      "Windows · a script held open for a moment is waited out, and nothing is said",
+      "Windows · a script another program keeps open is said once, and saves when it is let go",
+      "Windows · a script marked Read-only says so in File Explorer's words, and saves once it is cleared",
+    ],
+  },
+  {
+    name: "plays OneDrive keeps",
+    start: "fresh",
+    features: ["storage"],
+    engines: ["webview2"],
+    elsewhere:
+      "OneDrive's own record of its folder, Windows' Documents and its file attributes are a PC's; only the real Windows app's run stages them, and writes the files a sync client would",
+    // Documents inside OneDrive, as Windows' Known Folder Move leaves it, and
+    // the plays still on the writer's other device (scripts/smoke-pc-host.mjs).
+    launch: { oneDrive: true },
+    what: "A writer whose Documents OneDrive keeps: the Welcome screen's first door, plays the sync client brings in after the app has opened, a play kept online only, and a script replaced by another device's version while it is open.",
+    checks: [
+      "Windows · Documents in OneDrive: Documents › Plays is made there, and said to be kept by OneDrive",
+      "Windows · plays a sync client brings in later appear, and nothing is written beside them",
+      "Windows · a play OneDrive keeps online only opens and saves",
+      "Windows · a script the sync client replaces while it is open shows the other device's words",
+    ],
+  },
+  {
+    name: "long paths and names",
+    start: "plays",
+    features: ["storage"],
+    engines: ["webview2"],
+    elsewhere:
+      "Windows' 260-character paths, the names it forbids and NTFS's keeping of two spellings of one name are a PC's; only the real Windows app's run stages them",
+    // A Plays folder deep in the disk, named in other scripts (scripts/smoke-pc-host.mjs).
+    launch: { deep: true },
+    what: "A Plays folder named in other scripts deep in the disk; a play whose long name in other scripts takes its paths past 260 characters; names Windows forbids; and a play whose name a Mac wrote decomposed.",
+    checks: [
+      "Windows · a Plays folder deep in the disk, named in other scripts, opens a play that saves",
+      "Windows · a play named in other scripts, its paths past 260 characters, is made, saved and opened again",
+      "Windows · names Windows forbids become names it takes, and those plays save",
+      "Windows · a play whose name a Mac wrote decomposed saves in its own folder, never a twin",
+    ],
+  },
+  {
+    name: "forced colours",
+    start: "play",
+    features: ["ui"],
+    engines: ["chromium", "webview2"],
+    elsewhere:
+      "forced colours are Windows' high contrast themes, which a Mac has no counterpart of; Chromium and the real Windows app's WebView2 emulate them, and WebKit cannot",
+    what: "Windows' high contrast themes, which force every colour: keyboard focus, and what is chosen, are still seen.",
+    checks: [
+      "forced colours · keyboard focus is seen on every control the keys reach",
+      "forced colours · what is chosen is told apart from what is not",
+    ],
+  },
+];
 
 /**
- * Whether a check runs in a pass narrowed to `features`; no list is every
- * check. A check runs when it is untagged, when one of its features is asked
- * for, or when one of them is not DETACHABLE.
+ * The engines a run may drive: smoke's Chromium and WebKit, the real Windows
+ * app's WebView2 (scripts/smoke-webview2.mjs), and the Mac's own WKWebView in
+ * the native self-test (scripts/selftest.mjs).
  */
-export function selected(check, features, detachable = DETACHABLE) {
-  if (!features?.length) return true;
-  const tags = checkFeatures(check);
-  return tags.length === 0 || tags.some((t) => features.includes(t) || !detachable.includes(t));
+export const ENGINES = ["chromium", "webkit", "webview2", "native"];
+
+/**
+ * Whether an act runs in an engine. Most run in every one. An act that names
+ * its `engines` runs in those alone, and says in `elsewhere` why the others
+ * cannot run it: a driver skips it there, with that reason, rather than pass
+ * checks it never ran.
+ */
+export function actRunsIn(act, engine) {
+  return !act.engines || act.engines.includes(engine);
+}
+
+/**
+ * The engines an act's checks are proven in (scripts/smoke-proofs.mjs): smoke's
+ * own two, where the act runs there, as every check has been; otherwise the
+ * engines it runs in, the real Windows app's for an act that runs only there.
+ */
+export function proofEngines(act) {
+  const smoke = ["chromium", "webkit"].filter((e) => actRunsIn(act, e));
+  return smoke.length ? smoke : [...act.engines];
+}
+
+/**
+ * What each start runs first, quietly, by check name: the opening act's own
+ * checks, and for `inspector` the play's chrome act's inspector check too,
+ * which every act after it stood on in a whole run.
+ */
+export const STARTS = {
+  fresh: [],
+  plays: ["welcome", "plays screen"],
+  play: ["welcome", "plays screen", "one play open"],
+  inspector: ["welcome", "plays screen", "one play open", "inspector"],
+};
+
+/** An act by name, or an error naming the ones there are. */
+export function actNamed(name) {
+  const act = ACTS.find((a) => a.name === name);
+  if (!act) throw new Error(`no act "${name}": the acts are ${ACTS.map((a) => a.name).join(", ")}`);
+  return act;
+}
+
+/**
+ * The acts, each with its check objects, in the order `names` gives (every
+ * act, in ACTS's order, by default). Throws when a check is in no act or in
+ * two, or an act names a check there is not: every check is in exactly one.
+ */
+export function actsOf(checks, names = ACTS.map((a) => a.name)) {
+  const byName = new Map(checks.map((c) => [c.name, c]));
+  const seen = new Map();
+  for (const act of ACTS)
+    for (const name of act.checks) {
+      if (!byName.has(name))
+        throw new Error(`the act "${act.name}" names a check there is not: ${name}`);
+      if (seen.has(name))
+        throw new Error(`"${name}" is in two acts: ${seen.get(name)} and ${act.name}`);
+      seen.set(name, act.name);
+    }
+  const loose = checks.filter((c) => !seen.has(c.name)).map((c) => c.name);
+  if (loose.length) throw new Error(`checks in no act: ${loose.join("; ")}`);
+  return names.map((n) => {
+    const act = actNamed(n);
+    return { ...act, checks: act.checks.map((c) => byName.get(c)) };
+  });
+}
+
+/** The checks an act's start runs first, quietly. Throws for a start there is not. */
+export function startOf(act, checks) {
+  const names = STARTS[act.start];
+  if (!names)
+    throw new Error(
+      `the act "${act.name}" starts at "${act.start}": the starts are ${Object.keys(STARTS).join(", ")}`,
+    );
+  const byName = new Map(checks.map((c) => [c.name, c]));
+  return names.map((n) => {
+    const check = byName.get(n);
+    if (!check) throw new Error(`the start "${act.start}" names a check there is not: ${n}`);
+    return check;
+  });
+}
+
+/**
+ * The acts a list of features chooses: the opening act, and every act one
+ * of whose features is named. The plan gives this the features the batch
+ * touched and every feature that uses them; none is every act.
+ */
+export function actsFor(features) {
+  if (!features?.length) return ACTS.map((a) => a.name);
+  return ACTS.filter(
+    (a) => a.name === "opening" || a.features.some((f) => features.includes(f)),
+  ).map((a) => a.name);
 }
 
 /**
@@ -98,6 +644,53 @@ export function selected(check, features, detachable = DETACHABLE) {
  *   against its checked-in expectation; `hold` holds any other text a check
  *   reads off the tree against one (scripts/aria-snapshots.mjs)
  */
+/**
+ * Watch every launch from its first mutation (the launch act): each screen
+ * that is VISIBLE, in order (under the launch screen, only the launch screen
+ * is), the first frame's light or dark and launch screen, and what the script
+ * showed in the frame the launch screen went. Self-contained: Playwright
+ * carries its source into each new page, and the Mac's harness runs it there.
+ */
+export function watchLaunches() {
+  const seen = [];
+  window.__prosceniumLaunchScreens = seen;
+  const screens = [
+    [".welcome", "welcome"],
+    [".vault-screen", "plays"],
+    [".paneroot", "play"],
+  ];
+  new MutationObserver(() => {
+    // The first frame: #root as the parser made it, before any module
+    // has run. Light or dark has to be settled already, and the launch
+    // screen already drawn (boot-theme.js, index.html).
+    if (!window.__prosceniumFirstFrame && document.getElementById("root")) {
+      window.__prosceniumFirstFrame = {
+        theme: document.documentElement.dataset.theme ?? null,
+        launch: !!document.querySelector("#root > .launch-screen"),
+      };
+    }
+    const shown = document.querySelector(".launch-screen")
+      ? "launch"
+      : screens
+          .filter(([selector]) => document.querySelector(selector))
+          .map(([, name]) => name)
+          .join("+");
+    if (!shown || seen.at(-1) === shown) return;
+    if (seen.at(-1) === "launch") {
+      const scroller = document.querySelector(".play-page")?.closest(".pane__body");
+      window.__prosceniumAtReveal = {
+        text: document.querySelector(".play-page .ProseMirror")?.textContent?.length ?? 0,
+        scroll: scroller?.scrollTop ?? null,
+        height: scroller?.scrollHeight ?? null,
+      };
+    }
+    seen.push(shown);
+  }).observe(document, { childList: true, subtree: true });
+}
+
+/** The functions a check may hand `page.addInitScript`, by name (the Mac's harness runs them). */
+export const INIT_SCRIPTS = { watchLaunches };
+
 export function smokeChecks({ audit, hold }) {
   /** Every check is about what a person would SEE, not what the DOM contains. */
   return [
@@ -125,7 +718,9 @@ export function smokeChecks({ audit, hold }) {
         if (notes !== choices) throw new Error(`${choices} choices but ${notes} explanations`);
         // The window moves by its top bar, on every screen.
         if ((await dragsWindow(page, ".toolbar")) !== true) {
-          throw new Error("pressing the empty toolbar does not drag the window");
+          throw new Error(
+            `pressing the empty toolbar does not drag the window (${dragsWindow.last ?? "not a drag region"})`,
+          );
         }
         // Once, one sentence: reports are sent, never the writing, and where
         // to switch them off (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3). It waits for the
@@ -191,7 +786,9 @@ export function smokeChecks({ audit, hold }) {
         // Both bars move the window from their empty space, and New Play is
         // still a button rather than a handle.
         if ((await dragsWindow(page, ".toolbar")) !== true) {
-          throw new Error("pressing the empty toolbar does not drag the window");
+          throw new Error(
+            `pressing the empty toolbar does not drag the window (${dragsWindow.last ?? "not a drag region"})`,
+          );
         }
         if ((await dragsWindow(page, ".vault-screen__spacer")) !== true) {
           throw new Error("pressing the Plays bar's empty middle does not drag the window");
@@ -254,7 +851,6 @@ export function smokeChecks({ audit, hold }) {
       // once went into such a folder from this screen.
       name: "plays screen · a Plays folder one level too high",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const choose = async (path) => {
           await page.evaluate((p) => window.__prosceniumNextPick(p), path);
@@ -287,6 +883,12 @@ export function smokeChecks({ audit, hold }) {
           return enabled;
         };
 
+        // The Plays folder's own name: "sample-vault" in the browser, the
+        // test build's copy's name in the app (scripts/selftest/fixture.mjs).
+        const plays = (await page.evaluate(() => window.__prosceniumWhere("/dev/sample-vault")))
+          .split(/[\\/]/)
+          .pop();
+
         // A folder iCloud has not brought down yet: the look inside "/dev" is
         // held on one listing. The screen settles anyway and offers no sample
         // play while it looks, and the next choice does not wait for it either.
@@ -297,7 +899,7 @@ export function smokeChecks({ audit, hold }) {
           await until(
             page,
             "the look inside held on a listing",
-            () => window.__prosceniumHeld("list") > 0,
+            async () => (await window.__prosceniumHeld("list")) > 0,
           );
           await absent(
             page,
@@ -315,7 +917,11 @@ export function smokeChecks({ audit, hold }) {
           await page.evaluate(() => window.__prosceniumOpenGates("list"));
         }
         // The held answer was about "/dev", and never shows up under another folder.
-        await page.waitForTimeout(500);
+        await elapse(
+          page,
+          500,
+          "the held look inside “/dev”, let go, answers for a folder the screen has left: it is dropped, and a dropped answer shows nothing",
+        );
         await absent(
           page,
           ".vault-screen__ask",
@@ -329,12 +935,11 @@ export function smokeChecks({ audit, hold }) {
           minWidth: 60,
           minHeight: 20,
         });
-        const said = await page.locator(".vault-screen__asktext").innerText();
+        const told = await page.locator(".vault-screen__asktext").innerText();
         if (
-          said !==
-          "Your plays look like they are in “sample-vault” and “elsewhere” inside this folder."
+          told !== `Your plays look like they are in “${plays}” and “elsewhere” inside this folder.`
         ) {
-          throw new Error(`the Plays screen says "${said}"`);
+          throw new Error(`the Plays screen says "${told}"`);
         }
         await absent(
           page,
@@ -348,7 +953,7 @@ export function smokeChecks({ audit, hold }) {
         await audit(page, "plays screen · one level too high");
 
         // The folder with the most plays is the primary answer; one click uses it.
-        await page.getByRole("button", { name: /^Use “sample-vault”$/ }).click();
+        await page.getByRole("button", { name: `Use “${plays}”`, exact: true }).click();
         await until(
           page,
           "the sample Plays folder's two plays",
@@ -393,7 +998,6 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "a damaged play opens its protected original file",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const key = "The Lighthouse/The Lighthouse.proscenium";
         const original = await page.evaluate((key) => window.__prosceniumPeekKey(key), key);
@@ -758,12 +1362,186 @@ export function smokeChecks({ audit, hold }) {
           const sc = document.querySelector(".pane__body");
           sc.scrollTop = sc.scrollHeight - sc.clientHeight;
         });
-        await page.waitForTimeout(300);
+        // The strip follows on the scroll's own event: wait for its marker to move.
+        await eventually(
+          page,
+          (top) =>
+            [...document.querySelectorAll(".rts__seg")].findIndex((s) =>
+              s.classList.contains("is-here"),
+            ) > top,
+          top,
+        );
         const bottom = await marked();
         if (bottom <= top) {
           throw new Error(`strip did not follow the scroll: ${top} at top, ${bottom} at bottom`);
         }
         await audit(page, "script");
+      },
+    },
+    {
+      // Every pane of several can be closed
+      // (docs/app/organizing/workspace-model.md#WORK-78). A pane made by Split
+      // holds one tab, and the strip that carries the close box was drawn for
+      // two tabs or more: nothing in the window could close such a pane, and
+      // no check had ever split one. So: split, and close the new pane every
+      // way there is. The divider is driven by the pointer events a drag
+      // sends, in the page, as both drivers can.
+      name: "panes · a pane of several closes by its box, its key and a divider dragged across it",
+      feature: "app",
+      async run(page) {
+        const count = (n, what) =>
+          until(page, what, (n) => document.querySelectorAll(".pane").length === n, n);
+        const split = async () => {
+          await page.locator('button[aria-label="Split side by side"]').click();
+          await count(2, "Split to make a second pane");
+        };
+        // The keyboard follows a pane that had it: its close box and its tab
+        // are in the pane they close. A divider is not, so that close leaves
+        // the keyboard where it was.
+        const keyboardInPlay = (after) =>
+          until(
+            page,
+            `the keyboard in the play after ${after}`,
+            () => !!document.activeElement?.closest("main.paneroot"),
+          );
+        await count(1, "the play in one pane");
+
+        // Its box. The pane Split made is the one without the focus.
+        await split();
+        const made = await page.evaluate(() => {
+          const panes = [...document.querySelectorAll(".pane")];
+          const box = document.querySelector(".pane:not(.is-focused) .pane__tabclose");
+          return {
+            strips: panes.filter((p) => p.querySelector(".pane__tabs")).length,
+            name: document.querySelector(".pane:not(.is-focused) .pane__tablabel")?.textContent,
+            box: box && getComputedStyle(box).visibility,
+          };
+        });
+        if (made.strips !== 2)
+          throw new Error(
+            `2 panes drew ${made.strips} tab strips: a pane with no strip has no close box`,
+          );
+        if (made.box !== "visible")
+          throw new Error(`the new pane's close box is ${made.box ?? "not there"}`);
+        const name = made.name.trim();
+        await visible(page, ".pane:not(.is-focused) .pane__tabclose", {
+          minWidth: 24,
+          minHeight: 24,
+        });
+        await audit(page, "split panes");
+        await page.locator(".pane:not(.is-focused) .pane__tabclose").first().click();
+        await count(1, `the ${name} pane to close by its close box`);
+        await keyboardInPlay("its close box closed a pane");
+
+        // Its key: ⌫ on the tab.
+        await split();
+        await page.locator(".pane:not(.is-focused) .pane__tabbtn").first().focus();
+        await page.keyboard.press("Backspace");
+        await count(1, `⌫ on the ${name} tab to close its pane`);
+        await keyboardInPlay("⌫ closed a pane");
+
+        // Its divider (docs/app/organizing/workspace-model.md#WORK-79): it stops
+        // at the pane's least width, the pane gives way past half of that, comes
+        // back with the pointer, and closes when the pointer lets go.
+        await split();
+        const drag = (type, fromRight) =>
+          page.evaluate(
+            ({ type, fromRight }) => {
+              const divider = document.querySelector(".paneroot .panedivider");
+              const root = document.querySelector(".paneroot").getBoundingClientRect();
+              const at = divider.getBoundingClientRect();
+              divider.dispatchEvent(
+                new PointerEvent(type, {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 1,
+                  button: 0,
+                  clientX: fromRight == null ? at.left + at.width / 2 : root.right - fromRight,
+                  clientY: at.top + at.height / 2,
+                }),
+              );
+            },
+            { type, fromRight },
+          );
+        const atFloor = () => {
+          const widths = [...document.querySelectorAll(".pane")].map(
+            (p) => p.getBoundingClientRect().width,
+          );
+          return (
+            !document.querySelector(".panesplit__cell.is-leaving") &&
+            widths.length === 2 &&
+            Math.abs(widths[1] - 180) < 1.5
+          );
+        };
+        const gaveWay = () => {
+          const root = document.querySelector(".paneroot").getBoundingClientRect();
+          const kept = document.querySelector(".pane").getBoundingClientRect();
+          return (
+            !!document.querySelector(".panesplit__cell.is-leaving") &&
+            Math.abs(kept.width - root.width) < 1.5
+          );
+        };
+        await drag("pointerdown", null);
+        await drag("pointermove", 150);
+        await until(page, "the divider to stop at a pane's least width, 180px", atFloor);
+        await drag("pointermove", 40);
+        await until(page, "the pane to give way to a divider dragged across it", gaveWay);
+        await drag("pointermove", 150);
+        await until(page, "the pane to come back when the pointer does", atFloor);
+        await drag("pointermove", 40);
+        await until(page, "the pane to give way a second time", gaveWay);
+        await recordAnnouncements(page);
+        await drag("pointerup", 40);
+        await count(1, "the pane to close when the divider is let go");
+        await announced(page, `Closed ${name}.`);
+      },
+    },
+    {
+      // A window with no room for a pane hides it and closes nothing, and no
+      // pane is made that would not be drawn
+      // (docs/app/organizing/workspace-model.md#WORK-80,
+      // docs/app/organizing/workspace-model.md#WORK-81). The play's area is
+      // narrowed as the element bar's check narrows it; two panes need 360px.
+      name: "panes · a window with no room hides a pane, says so, and makes no new one",
+      feature: "app",
+      async run(page) {
+        const count = (n, what) =>
+          until(page, what, (n) => document.querySelectorAll(".pane").length === n, n);
+        const room = (flex) =>
+          page.evaluate((flex) => {
+            document.querySelector(".paneroot").style.flex = flex;
+          }, flex);
+        await count(1, "the play in one pane");
+        await page.locator('button[aria-label="Split side by side"]').click();
+        await count(2, "Split to make a second pane");
+        const name = (
+          await page.locator(".pane:not(.is-focused) .pane__tablabel").first().innerText()
+        ).trim();
+        try {
+          await recordAnnouncements(page);
+          await room("0 0 300px");
+          await count(1, "the pane with no room to be left out");
+          await announced(page, `No room for ${name}.`);
+          // Left out, not closed: the pane that is drawn is still one of
+          // several, and keeps the strip that says so.
+          await visible(page, ".pane > .pane__tabs", { minHeight: 20 });
+
+          await page.locator('button[aria-label="Split side by side"]').click();
+          await page.waitForSelector(".toast", { timeout: 5000 });
+          const refused = await page.locator(".toast").first().innerText();
+          if (!/No room for another pane/.test(refused))
+            throw new Error(`Split with no room said: ${refused.replace(/\n/g, " · ")}`);
+          await dismissToasts(page);
+
+          await recordAnnouncements(page);
+          await room("");
+          await count(2, "the pane to come back when there is room, and no third with it");
+          await announced(page, `${name} back.`);
+        } finally {
+          await room("");
+        }
+        await page.locator(".pane:not(.is-focused) .pane__tabclose").first().click();
+        await count(1, `the ${name} pane to close`);
       },
     },
     {
@@ -814,7 +1592,12 @@ export function smokeChecks({ audit, hold }) {
           await page.locator('.binder [role="treeitem"]').first().focus();
           await page.keyboard.press("Shift+F10");
           await page.waitForSelector(".menu", { timeout: 5000 });
-          await page.locator(".menu .menu__item", { hasText: "Reveal in Finder" }).first().click();
+          await page
+            .locator(".menu .menu__item", {
+              hasText: said("Reveal in Finder", "Reveal in File Explorer"),
+            })
+            .first()
+            .click();
           await page.waitForSelector(".menu", { state: "detached", timeout: 5000 });
           const asked = await next(count, "the binder row's reveal");
           if (asked.how !== "open -R" || !asked.exists || asked.isDir)
@@ -835,15 +1618,13 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "alternate watcher spelling reaches the open script and keeps its identity",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
-        await until(page, "the script to settle", () =>
-          /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
-        );
+        await until(page, "the script to settle", saveSettled);
         const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
         const binder = await page.evaluate(
-          () => JSON.parse(window.__prosceniumPeek("The Weight of Water.proscenium")).binder,
+          async () =>
+            JSON.parse(await window.__prosceniumPeek("The Weight of Water.proscenium")).binder,
         );
         try {
           await page.evaluate(
@@ -860,9 +1641,14 @@ export function smokeChecks({ audit, hold }) {
               .querySelector(".ProseMirror")
               ?.textContent.includes("A220 alternate spelling marker"),
           );
-          await page.waitForTimeout(500);
+          await elapse(
+            page,
+            500,
+            "a split identity is a second binder entry written after the edit lands, and nothing says none is coming",
+          );
           const after = await page.evaluate(
-            () => JSON.parse(window.__prosceniumPeek("The Weight of Water.proscenium")).binder,
+            async () =>
+              JSON.parse(await window.__prosceniumPeek("The Weight of Water.proscenium")).binder,
           );
           if (JSON.stringify(after) !== JSON.stringify(binder))
             throw new Error("an alternate event spelling split a binder identity");
@@ -881,20 +1667,8 @@ export function smokeChecks({ audit, hold }) {
           );
           await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
           await page.waitForSelector(".changes");
-          await page.waitForTimeout(300);
-          const keep = page.locator(".changes button", { hasText: /^Keep$/ });
-          for (let count = await keep.count(); count > 0; count = await keep.count()) {
-            await keep.first().click();
-            await until(
-              page,
-              "the alias comparison to settle",
-              (before) =>
-                [...document.querySelectorAll(".changes button")].filter(
-                  (b) => b.textContent.trim() === "Keep",
-                ).length < before,
-              count,
-            );
-          }
+          // The alias's change and the one putting the script back, seen.
+          await changesListed(page, 2);
           await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         }
       },
@@ -902,23 +1676,23 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "a typed sheet's embedded identity follows an external move",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const from = "Characters/Mara.md",
           to = "Research/Mara moved.md";
         const text = await page.evaluate((rel) => window.__prosceniumPeek(rel), from);
-        const order = await page.evaluate(() => {
+        const order = await page.evaluate(async () => {
           const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
-          return walk(JSON.parse(window.__prosceniumPeek("The Weight of Water.proscenium")).binder)
+          const play = JSON.parse(await window.__prosceniumPeek("The Weight of Water.proscenium"));
+          return walk(play.binder)
             .find((row) => row.path === "Characters")
             .children.map((row) => row.id);
         });
         const id = /^id: (.+)$/m.exec(text)?.[1];
         if (!id) throw new Error("the sample sheet has no embedded identity");
-        const at = ({ id, path }) => {
+        const at = async ({ id, path }) => {
           const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
           const rows = walk(
-            JSON.parse(window.__prosceniumPeek("The Weight of Water.proscenium")).binder,
+            JSON.parse(await window.__prosceniumPeek("The Weight of Water.proscenium")).binder,
           );
           return (
             rows.filter((row) => row.id === id).length === 1 &&
@@ -928,7 +1702,7 @@ export function smokeChecks({ audit, hold }) {
         try {
           await page.evaluate(
             async ({ from, to, text }) => {
-              window.__prosceniumExternalRemove(from);
+              await window.__prosceniumExternalRemove(from);
               await window.__prosceniumExternalChange(to, text);
             },
             { from, to, text },
@@ -942,7 +1716,7 @@ export function smokeChecks({ audit, hold }) {
         } finally {
           await page.evaluate(
             async ({ from, to, text }) => {
-              window.__prosceniumExternalRemove(to);
+              await window.__prosceniumExternalRemove(to);
               await window.__prosceniumExternalChange(from, text);
             },
             { from, to, text },
@@ -953,27 +1727,108 @@ export function smokeChecks({ audit, hold }) {
           });
           // An external relocation is appended to its destination by design.
           // Restore this fixture's original sibling order for later key checks.
-          await page.evaluate(async (order) => {
-            const name = "The Weight of Water.proscenium";
-            const play = JSON.parse(window.__prosceniumPeek(name));
-            const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
-            const parent = walk(play.binder).find((row) => row.path === "Characters");
-            parent.children.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
-            await window.__prosceniumExternalChange(name, JSON.stringify(play));
-          }, order);
-          await page.waitForTimeout(350);
+          await restoreCharacterOrder(page, order);
+        }
+      },
+    },
+    {
+      // docs/app/keeping-work/storage-and-file-format.md#STOR-188
+      name: "an outside change heard while the app's own write is unanswered stays on screen",
+      feature: "storage",
+      async run(page) {
+        const name = "The Weight of Water.proscenium",
+          marker = "Research/Held answer.pdf";
+        const order = await page.evaluate(characterOrderOnDisk);
+        const theirs = [...order].reverse();
+        try {
+          // A file arrives, and the app files it: its write of the play file
+          // lands, and its answer waits, as one does while the disk makes the
+          // bytes durable.
+          await page.evaluate(
+            async ({ name, marker }) => {
+              await window.__prosceniumGate("answer", name);
+              await window.__prosceniumExternalChange(marker, "%PDF-1.4\n");
+            },
+            { name, marker },
+          );
+          await until(
+            page,
+            "the app's write of the play file to land with its answer held",
+            async ({ name, marker }) => {
+              const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
+              const play = JSON.parse(await window.__prosceniumPeek(name));
+              return (
+                walk(play.binder).some((row) => row.path === marker) &&
+                (await window.__prosceniumHeld("answer")) > 0
+              );
+            },
+            { name, marker },
+          );
+          // Another writer puts the characters in another order meanwhile,
+          // and the binder shows theirs.
+          await page.evaluate(
+            async ({ name, theirs }) => {
+              const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
+              const play = JSON.parse(await window.__prosceniumPeek(name));
+              walk(play.binder)
+                .find((row) => row.path === "Characters")
+                .children.sort((a, b) => theirs.indexOf(a.id) - theirs.indexOf(b.id));
+              await window.__prosceniumExternalChange(name, JSON.stringify(play));
+            },
+            { name, theirs },
+          );
+          await until(page, "the binder to show the other writer's order", binderInOrder, theirs);
+          // The app's answer comes: what it wrote is older than what it shows.
+          await page.evaluate(() => window.__prosceniumOpenGates("answer"));
+          await until(
+            page,
+            "the held answer to be given",
+            async () => (await window.__prosceniumHeld("answer")) === 0,
+          );
+          await elapse(
+            page,
+            500,
+            "the older version put back is a render after the answer, and nothing says none is coming",
+          );
+          if (!(await page.evaluate(binderInOrder, theirs)))
+            throw new Error(
+              "the app's answer put its own older order back over the other writer's",
+            );
+          const kept = await page.evaluate(characterOrderOnDisk);
+          if (JSON.stringify(kept) !== JSON.stringify(theirs))
+            throw new Error(`the play file lost the other writer's order: ${kept.join(", ")}`);
+        } finally {
+          await page.evaluate(() => window.__prosceniumOpenGates("answer"));
+          await page.evaluate((rel) => window.__prosceniumExternalRemove(rel), marker);
+          await until(
+            page,
+            "the marker's row to go with its file",
+            async ({ name, marker }) => {
+              const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
+              const play = JSON.parse(await window.__prosceniumPeek(name));
+              return !walk(play.binder).some((row) => row.path === marker);
+            },
+            { name, marker },
+          );
+          // The binder said it filed the marker; the writer clears that, and
+          // the checks after see the binder as this one found it.
+          const filed = page.locator(".binder__filed");
+          if (await filed.count()) await filed.click();
+          await until(
+            page,
+            "the filed notice to be cleared",
+            () => !document.querySelector(".binder__filed"),
+          );
+          await restoreCharacterOrder(page, order);
         }
       },
     },
     {
       name: "watcher · foreground catches a missed edit and health stays visible",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
-        await until(page, "the displayed script to finish saving", () =>
-          /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
-        );
+        await until(page, "the displayed script to finish saving", saveSettled);
         const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), script);
         await page.evaluate(
           async ({ rel, content }) => {
@@ -998,14 +1853,11 @@ export function smokeChecks({ audit, hold }) {
         );
         await visible(page, "[data-watcher-status]", { minWidth: 100, minHeight: 12 });
         await audit(page, "file watcher status");
-        await page.waitForTimeout(300);
-        await until(page, "the reloaded script to settle", () =>
-          /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
-        );
+        await until(page, "the reloaded script to settle", saveSettled);
         await page.evaluate(
           async ({ rel, content }) => {
             await window.__prosceniumQuietWrite("The Weight of Water/" + rel, content);
-            window.__prosceniumWatcherHealth("watching");
+            await window.__prosceniumWatcherHealth("watching");
           },
           { rel: script, content: original },
         );
@@ -1022,24 +1874,12 @@ export function smokeChecks({ audit, hold }) {
           "the file-checking status to clear",
           () => document.querySelector("[data-watcher-status]")?.textContent === "",
         );
-        // Settle the two deliberate fixture edits through the normal review
-        // action, so later surface checks begin without pending change marks.
+        // Look at the two deliberate fixture edits in Changes, which sees them
+        // (docs/app/keeping-work/storage-and-file-format.md#STOR-183), so later
+        // surface checks begin with no change unseen and no marks.
         await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
         await page.waitForSelector(".changes");
-        await page.waitForTimeout(500);
-        const keep = page.locator(".changes").getByRole("button", { name: "Keep", exact: true });
-        for (let count = await keep.count(); count > 0; count = await keep.count()) {
-          await keep.first().click();
-          await until(
-            page,
-            "the reviewed change to settle",
-            (before) =>
-              [...document.querySelectorAll(".changes button")].filter(
-                (button) => button.textContent.trim() === "Keep",
-              ).length < before,
-            count,
-          );
-        }
+        await changesListed(page, 2);
         await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         await page.waitForSelector(".play-page");
       },
@@ -1083,8 +1923,11 @@ export function smokeChecks({ audit, hold }) {
               .join(),
           );
         const before = await lefts();
-        await page.evaluate(() =>
-          window.dispatchEvent(new KeyboardEvent("keydown", { key: "Meta" })),
+        // ⌘ on a Mac, Ctrl on a PC.
+        const held = said("Meta", "Control");
+        await page.evaluate(
+          (key) => window.dispatchEvent(new KeyboardEvent("keydown", { key })),
+          held,
         );
         try {
           await until(page, "every shown button's shortcut on ⌘-hold", () => {
@@ -1102,8 +1945,9 @@ export function smokeChecks({ audit, hold }) {
           if ((await lefts()) !== before)
             throw new Error("holding ⌘ moved the element bar's buttons");
         } finally {
-          await page.evaluate(() =>
-            window.dispatchEvent(new KeyboardEvent("keyup", { key: "Meta" })),
+          await page.evaluate(
+            (key) => window.dispatchEvent(new KeyboardEvent("keyup", { key })),
+            held,
           );
         }
 
@@ -1279,7 +2123,7 @@ export function smokeChecks({ audit, hold }) {
           await page.evaluate(() => {
             window.__exportCreateURL = URL.createObjectURL;
             window.__exportPdf = null;
-            URL.createObjectURL = function (blob) {
+            URL.createObjectURL = (blob) => {
               if (blob.type === "application/pdf") window.__exportPdf = blob;
               return window.__exportCreateURL(blob);
             };
@@ -1387,18 +2231,11 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "exported bytes carry tags and the saved per-play language",
       feature: "pdf",
-      devMock: true,
       async run(page) {
-        // Capture the browser's actual download Blob; no alternate renderer or
-        // test-only export implementation. Native Save panels stay a human check.
-        await page.evaluate(() => {
-          window.__a623CreateURL = URL.createObjectURL;
-          window.__a623Pdf = null;
-          URL.createObjectURL = function (blob) {
-            if (blob.type === "application/pdf") window.__a623Pdf = blob;
-            return window.__a623CreateURL(blob);
-          };
-        });
+        // The file the export made: the browser's download, or what the app
+        // wrote where its save panel's answer was (scripts/selftest/fixture.mjs).
+        const exported = () => page.evaluate(() => window.__prosceniumExported());
+        const before = (await exported()).length;
         try {
           const otherBefore = await page.evaluate(() =>
             window.__prosceniumPeekKey("The Lighthouse/The Lighthouse.proscenium"),
@@ -1416,24 +2253,29 @@ export function smokeChecks({ audit, hold }) {
               document.querySelector("#export-language-help")?.textContent ?? "",
             ),
           );
-          if (await page.evaluate(() => !!window.__a623Pdf))
+          if ((await exported()).length !== before)
             throw new Error("a refused language save exported anyway");
           await page.evaluate(() => window.__prosceniumOpenGates("write"));
           await page.getByRole("button", { name: "Export PDF…", exact: true }).click();
-          await until(page, "the exported PDF", () => !!window.__a623Pdf);
-          const bytes = await page.evaluate(async () => [
-            ...new Uint8Array(await window.__a623Pdf.arrayBuffer()),
-          ]);
+          const file = await until(
+            page,
+            "the exported PDF",
+            async (n) => (await window.__prosceniumExported())[n] ?? null,
+            before,
+            30000,
+          );
           const { PDFDocument, PDFDict, PDFName } = await import("pdf-lib");
-          const pdf = await PDFDocument.load(Uint8Array.from(bytes));
+          const pdf = await PDFDocument.load(
+            Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0)),
+          );
           if (!String(pdf.catalog.get(PDFName.of("Lang"))).includes("fr-CA"))
             throw new Error("export lost the play language");
           const tree = pdf.catalog.lookup(PDFName.of("StructTreeRoot"), PDFDict);
           if (!tree.get(PDFName.of("ParentTree")))
             throw new Error("export has no linked reading structure");
           const stored = await page.evaluate(
-            () =>
-              JSON.parse(window.__prosceniumPeek("The Weight of Water.proscenium")).settings
+            async () =>
+              JSON.parse(await window.__prosceniumPeek("The Weight of Water.proscenium")).settings
                 .language,
           );
           if (stored !== "fr-CA") throw new Error("the play file did not retain its language");
@@ -1455,11 +2297,6 @@ export function smokeChecks({ audit, hold }) {
           );
         } finally {
           await page.evaluate(() => window.__prosceniumOpenGates("write"));
-          await page.evaluate(() => {
-            URL.createObjectURL = window.__a623CreateURL;
-            delete window.__a623CreateURL;
-            delete window.__a623Pdf;
-          });
         }
       },
     },
@@ -1515,34 +2352,33 @@ export function smokeChecks({ audit, hold }) {
       // its styles, and the embedded type (docs/app/formatting/formats-and-layout.md#FMT-157).
       name: "docs/app/formatting/formats-and-layout.md#FMT-157 · the .docx and .odt downloads hold the play in its styles",
       feature: "wordproc",
-      devMock: true,
       async run(page) {
-        await page.evaluate(() => {
-          window.__wpCreateURL = URL.createObjectURL;
-          window.__wpFiles = [];
-          URL.createObjectURL = function (blob) {
-            if (/wordprocessingml|opendocument/.test(blob.type)) window.__wpFiles.push(blob);
-            return window.__wpCreateURL(blob);
-          };
-        });
-        try {
-          for (const [row, type, count] of [
-            [/Export \.docx/, "docx", 1],
-            [/Export \.odt/, "odt", 2],
-          ]) {
-            await openFromDocumentMenu(page, row);
-            await page.waitForSelector(".exportpanel__body");
-            await page.getByRole("button", { name: `Export .${type}…`, exact: true }).click();
-            await until(page, `the .${type} download`, (n) => window.__wpFiles.length >= n, count);
-            await page.waitForSelector(".sheet", { state: "detached", timeout: 10000 });
-          }
-          const files = await page.evaluate(async () =>
-            Promise.all(
-              window.__wpFiles.map(async (blob) => [...new Uint8Array(await blob.arrayBuffer())]),
-            ),
+        // The files the exports made: the browser's downloads, or what the app
+        // wrote where its save panel's answer was (scripts/selftest/fixture.mjs).
+        const before = (await page.evaluate(() => window.__prosceniumExported())).length;
+        const files = [];
+        for (const [row, type] of [
+          [/Export \.docx/, "docx"],
+          [/Export \.odt/, "odt"],
+        ]) {
+          await openFromDocumentMenu(page, row);
+          await page.waitForSelector(".exportpanel__body");
+          await page.getByRole("button", { name: `Export .${type}…`, exact: true }).click();
+          const file = await until(
+            page,
+            `the .${type} file`,
+            async (n) => (await window.__prosceniumExported())[n] ?? null,
+            before + files.length,
+            30000,
           );
+          if (!file.name.endsWith(`.${type}`))
+            throw new Error(`the .${type} export made ${JSON.stringify(file.name)}`);
+          files.push(Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0)));
+          await page.waitForSelector(".sheet", { state: "detached", timeout: 10000 });
+        }
+        {
           const { unzipSync, strFromU8 } = await import("fflate");
-          const docx = unzipSync(Uint8Array.from(files[0]));
+          const docx = unzipSync(files[0]);
           const body = strFromU8(docx["word/document.xml"]);
           const styles = strFromU8(docx["word/styles.xml"]);
           if (!body.includes('<w:pStyle w:val="Character"/>') || !body.includes("crying all night"))
@@ -1554,7 +2390,7 @@ export function smokeChecks({ audit, hold }) {
             throw new Error("the .docx has no Dialogue style or no language");
           if (!docx["word/fonts/font1.odttf"])
             throw new Error("the .docx carries no embedded type");
-          const odtBytes = Uint8Array.from(files[1]);
+          const odtBytes = files[1];
           if (strFromU8(odtBytes.slice(30, 38)) !== "mimetype")
             throw new Error("the .odt does not start with its media type");
           const odt = unzipSync(odtBytes);
@@ -1564,12 +2400,6 @@ export function smokeChecks({ audit, hold }) {
             throw new Error("the .odt has no Character style");
           if (!odt["Fonts/CourierPrime-Regular.ttf"])
             throw new Error("the .odt carries no embedded type");
-        } finally {
-          await page.evaluate(() => {
-            URL.createObjectURL = window.__wpCreateURL;
-            delete window.__wpCreateURL;
-            delete window.__wpFiles;
-          });
         }
       },
     },
@@ -1697,33 +2527,19 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       // Print hands the export's own bytes on. Natively they go to PDFKit's
-      // print panel, which takes the Mac, so that stays a human check; the
-      // browser build opens them in a tab instead, and this reads what it opened.
+      // print panel on a Mac and to the PDF app on a PC; a test build keeps them
+      // instead, as it answers the save panel, and the browser build opens them
+      // in a tab. This reads what was handed on (scripts/selftest/fixture.mjs).
       name: "print · Print… sends exactly the sheets the preview showed",
       feature: "pdf",
-      devMock: true,
       async run(page) {
+        const exported = (await page.evaluate(() => window.__prosceniumExported())).length;
+        const printed = (await page.evaluate(() => window.__prosceniumPrinted())).length;
+        // The browser build's tab, kept from opening: what it was handed is read
+        // where it was handed.
         await page.evaluate(() => {
-          window.__printCreateURL = URL.createObjectURL;
           window.__printOpen = window.open;
-          window.__printPdf = null;
-          window.__printOpened = [];
-          window.__printDownloads = 0;
-          URL.createObjectURL = function (blob) {
-            if (blob.type === "application/pdf") window.__printPdf = blob;
-            return window.__printCreateURL(blob);
-          };
-          window.open = (url) => {
-            window.__printOpened.push(String(url));
-            return null;
-          };
-          // The export's download link is never attached, so its click is
-          // counted where it is made rather than where it would bubble.
-          window.__printAnchorClick = HTMLAnchorElement.prototype.click;
-          HTMLAnchorElement.prototype.click = function () {
-            if (this.download) window.__printDownloads++;
-            return window.__printAnchorClick.call(this);
-          };
+          window.open = () => null;
         });
         try {
           await page.keyboard.press("Meta+KeyP");
@@ -1740,39 +2556,32 @@ export function smokeChecks({ audit, hold }) {
           );
           await audit(page, "print sheet");
           await page.getByRole("button", { name: "Print…", exact: true }).click();
-          await until(
+          const file = await until(
             page,
             "the PDF handed to the print route",
-            () => !!window.__printPdf && window.__printOpened.length === 1,
+            async (n) => (await window.__prosceniumPrinted())[n] ?? null,
+            printed,
+            30000,
           );
           await until(
             page,
             "the sheet to close on the way out",
             () => !document.querySelector(".sheet"),
           );
-          if (await page.evaluate(() => window.__printDownloads))
-            throw new Error("printing saved a download");
-          const bytes = await page.evaluate(async () => [
-            ...new Uint8Array(await window.__printPdf.arrayBuffer()),
-          ]);
+          if ((await page.evaluate(() => window.__prosceniumPrinted())).length !== printed + 1)
+            throw new Error("one Print… handed on more than one PDF");
+          if ((await page.evaluate(() => window.__prosceniumExported())).length !== exported)
+            throw new Error("printing saved an export");
           const { PDFDocument } = await import("pdf-lib");
-          const pdf = await PDFDocument.load(Uint8Array.from(bytes));
+          const pdf = await PDFDocument.load(
+            Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0)),
+          );
           if (pdf.getPageCount() !== 2)
             throw new Error(`printed ${pdf.getPageCount()} pages, not the cast page and page 2`);
         } finally {
           await page.evaluate(() => {
-            URL.createObjectURL = window.__printCreateURL;
             window.open = window.__printOpen;
-            HTMLAnchorElement.prototype.click = window.__printAnchorClick;
-            for (const key of [
-              "__printCreateURL",
-              "__printOpen",
-              "__printPdf",
-              "__printOpened",
-              "__printDownloads",
-              "__printAnchorClick",
-            ])
-              delete window[key];
+            delete window.__printOpen;
           });
         }
       },
@@ -1780,12 +2589,9 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "long front matter continues on bounded sheets and export counts them",
       feature: "layout",
-      devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
-        await until(page, "the script to finish saving", () =>
-          /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
-        );
+        await until(page, "the script to finish saving", saveSettled);
         const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
         const cast = Array.from(
           { length: 40 },
@@ -1806,7 +2612,11 @@ export function smokeChecks({ audit, hold }) {
           );
           // Reload restores the caret over two renders. Let that restoration
           // finish before a modal takes focus over the newly inserted sheets.
-          await page.waitForTimeout(250);
+          await elapse(
+            page,
+            250,
+            "the reload's second caret pass runs on a timer once the pages are laid out, and nothing marks it done",
+          );
           const count = await page.evaluate(() => {
             const sheets = [...document.querySelectorAll("[data-front-kind]")];
             for (const kind of ["characters", "setting"])
@@ -1843,9 +2653,7 @@ export function smokeChecks({ audit, hold }) {
           await audit(page, "long front-matter export");
           await page.keyboard.press("Escape");
           await page.waitForSelector(".sheet", { state: "detached" });
-          await until(page, "the front-matter fixture to settle before restoration", () =>
-            /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
-          );
+          await until(page, "the front-matter fixture to settle before restoration", saveSettled);
         } catch (error) {
           console.log(`long front matter fixture check failed before cleanup: ${String(error)}`);
           throw error;
@@ -1864,20 +2672,8 @@ export function smokeChecks({ audit, hold }) {
           );
           await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
           await page.waitForSelector(".changes");
-          await page.waitForTimeout(300);
-          const keep = page.locator(".changes").getByRole("button", { name: "Keep", exact: true });
-          for (let n = await keep.count(); n > 0; n = await keep.count()) {
-            await keep.first().click();
-            await until(
-              page,
-              "the restored fixture's review to settle",
-              (before) =>
-                [...document.querySelectorAll(".changes button")].filter(
-                  (button) => button.textContent.trim() === "Keep",
-                ).length < before,
-              n,
-            );
-          }
+          // The fixture's change and the one putting the script back, seen.
+          await changesListed(page, 2);
           await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         }
       },
@@ -1890,13 +2686,9 @@ export function smokeChecks({ audit, hold }) {
       // is what makes the next save write the whole script back.
       name: "a cue's extension stays on the page and is written once",
       feature: "editor",
-      devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
-        const settled = () =>
-          until(page, "the script to finish saving", () =>
-            /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
-          );
+        const settled = () => until(page, "the script to finish saving", saveSettled);
         await settled();
         const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
         const fixture = original.replace(/^MARA$/m, "MARA (V.O.)");
@@ -1914,7 +2706,11 @@ export function smokeChecks({ audit, hold }) {
           );
           await settled();
           // Showing the extension is not an edit: nothing may be written for it.
-          await page.waitForTimeout(800);
+          await elapse(
+            page,
+            800,
+            "a write the reload set off would come after the autosave's 600 ms pause, and nothing says none is coming",
+          );
           if ((await page.evaluate((rel) => window.__prosceniumPeek(rel), path)) !== fixture) {
             throw new Error("opening a cue with an extension rewrote the script");
           }
@@ -1938,12 +2734,23 @@ export function smokeChecks({ audit, hold }) {
             selection.removeAllRanges();
             selection.addRange(range);
           });
-          await page.waitForTimeout(100);
+          // The editor takes a selection made in the page on its selectionchange.
+          await until(page, "the editor to take the caret at the speech's end", () => {
+            const selection = getSelection();
+            const view =
+              selection?.anchorNode?.parentElement?.closest(".ProseMirror")?.editor?.view;
+            return (
+              !!view &&
+              view.hasFocus() &&
+              view.state.selection.head ===
+                view.posAtDOM(selection.anchorNode, selection.anchorOffset)
+            );
+          });
           await page.keyboard.type(" Again.");
           await until(
             page,
             "the typed words to reach the file",
-            (rel) => !!window.__prosceniumPeek(rel)?.includes("Again."),
+            async (rel) => !!(await window.__prosceniumPeek(rel))?.includes("Again."),
             path,
           );
           const saved = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
@@ -1976,20 +2783,8 @@ export function smokeChecks({ audit, hold }) {
           );
           await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
           await page.waitForSelector(".changes");
-          await page.waitForTimeout(300);
-          const keep = page.locator(".changes").getByRole("button", { name: "Keep", exact: true });
-          for (let n = await keep.count(); n > 0; n = await keep.count()) {
-            await keep.first().click();
-            await until(
-              page,
-              "the fixture's review to settle",
-              (before) =>
-                [...document.querySelectorAll(".changes button")].filter(
-                  (button) => button.textContent.trim() === "Keep",
-                ).length < before,
-              n,
-            );
-          }
+          // The fixture's change and the one putting the script back, seen.
+          await changesListed(page, 2);
           await page.locator(".seg__btn", { hasText: "Script" }).first().click();
           await page.waitForSelector(".play-page");
         }
@@ -2123,7 +2918,11 @@ export function smokeChecks({ audit, hold }) {
         await page.keyboard.type("zzzz no such scene");
         await page.keyboard.press("Enter");
         await page.keyboard.press("ArrowRight");
-        await page.waitForTimeout(100);
+        await elapse(
+          page,
+          100,
+          "⏎ and → must not close or break the menu, and nothing says they did nothing",
+        );
         if ((await page.locator(".gotoscene__field").count()) !== 1) {
           throw new Error("⏎ on an empty Go to Scene closed or broke the menu");
         }
@@ -2180,20 +2979,131 @@ export function smokeChecks({ audit, hold }) {
       feature: "editor",
       async run(page) {
         await page.locator(".ProseMirror").first().focus();
+        // The caret as the check finds it, put back when the check is done. ⌘↓
+        // pressed as the editor takes focus races the editor's own putting
+        // back of its selection, so whether the caret moves to the end is the
+        // host's timing; the checks after this one read the scene at the caret.
+        const caret = await page.evaluate(
+          () => document.querySelector(".ProseMirror").editor.state.selection.from,
+        );
         await page.keyboard.press("Meta+ArrowDown");
         const breaks = () =>
           page.evaluate(() => document.querySelectorAll(".ProseMirror .pl-pageBreak").length);
         const before = await breaks();
         await page.locator(".elementbar__btn", { hasText: "Page Break" }).first().focus();
         await page.keyboard.press("Enter");
-        await page.waitForTimeout(150);
+        // The break, and a frame drawn after it, so a second one would be here too.
+        await eventually(
+          page,
+          (n) => document.querySelectorAll(".ProseMirror .pl-pageBreak").length > n,
+          before,
+        );
+        await drawn(page);
         const after = await breaks();
         if (after !== before + 1)
           throw new Error(`⏎ on Page Break made ${after - before} page breaks`);
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+KeyZ");
-        await page.waitForTimeout(150);
+        await eventually(
+          page,
+          (n) => document.querySelectorAll(".ProseMirror .pl-pageBreak").length === n,
+          before,
+        );
         if ((await breaks()) !== before) throw new Error("⌘Z did not take the page break back");
+        await page.evaluate(
+          (at) => document.querySelector(".ProseMirror").editor.commands.setTextSelection(at),
+          caret,
+        );
+      },
+    },
+    {
+      // A break at the end of a scene opens the next scene's page with its
+      // title on the first line. The break used to bring an empty Action
+      // every time, which drew a blank line at the top of the new page above
+      // the title; and in page view the line after a break kept its spacing
+      // because the block under the page's edge was the collapsed break.
+      name: "editor · page break before a scene",
+      feature: "editor",
+      async run(page) {
+        const caret = await page.evaluate(
+          () => document.querySelector(".ProseMirror").editor.state.selection.from,
+        );
+        // The end of the line before a scene that no act heads.
+        const end = await page.evaluate(() => {
+          const { state } = document.querySelector(".ProseMirror").editor;
+          let at = null;
+          let prev = null;
+          state.doc.forEach((node, offset) => {
+            if (at === null && node.type.name === "scene" && prev && prev.node.isTextblock)
+              if (prev.node.type.name !== "act") at = prev.offset + prev.node.nodeSize - 1;
+            prev = { node, offset };
+          });
+          return at;
+        });
+        if (end === null) throw new Error("the play has no scene to break before");
+        await page.evaluate((at) => {
+          const editor = document.querySelector(".ProseMirror").editor;
+          editor.commands.setTextSelection(at);
+          editor.view.focus();
+        }, end);
+        const breaks = () =>
+          page.evaluate(() => document.querySelectorAll(".ProseMirror .pl-pageBreak").length);
+        const before = await breaks();
+        await page.keyboard.press("Meta+Enter");
+        await eventually(
+          page,
+          (n) => document.querySelectorAll(".ProseMirror .pl-pageBreak").length > n,
+          before,
+        );
+        const shape = await page.evaluate((at) => {
+          const { state } = document.querySelector(".ProseMirror").editor;
+          const $at = state.doc.resolve(at);
+          const after = state.doc.resolve($at.after()).nodeAfter;
+          const next = state.doc.resolve($at.after() + (after?.nodeSize ?? 0)).nodeAfter;
+          return {
+            after: after?.type.name,
+            next: next?.type.name,
+            caret: state.selection.$from.parent.type.name,
+            offset: state.selection.$from.parentOffset,
+          };
+        }, end);
+        if (shape.after !== "pageBreak" || shape.next !== "scene")
+          throw new Error(`the break left ${shape.after}, then ${shape.next}, before the scene`);
+        if (shape.caret !== "scene" || shape.offset !== 0)
+          throw new Error(`the caret went to a ${shape.caret} at ${shape.offset}, not the scene`);
+        // In page view the scene title is the new page's first line: flush
+        // with the bottom of the page's chrome, as the PDF prints it.
+        const paged = await page.evaluate(
+          () => !!document.querySelector(".play-page.is-paginated"),
+        );
+        if (paged) {
+          await eventually(page, () => {
+            const scene = document.querySelector(".ProseMirror .pl-pageBreak + .pl-scene");
+            return !!scene?.classList.contains("pm-page-top");
+          });
+          await drawn(page);
+          const gap = await page.evaluate(() => {
+            const scene = document.querySelector(".ProseMirror .pl-pageBreak + .pl-scene");
+            const chromes = [...document.querySelectorAll(".ProseMirror .pgchrome")].filter(
+              (c) => c.compareDocumentPosition(scene) & Node.DOCUMENT_POSITION_FOLLOWING,
+            );
+            const edge = chromes[chromes.length - 1];
+            return scene.getBoundingClientRect().top - edge.getBoundingClientRect().bottom;
+          });
+          if (Math.abs(gap) > 1)
+            throw new Error(`the scene title sat ${Math.round(gap)}px below the page's top`);
+        }
+        await page.keyboard.press("Meta+KeyZ");
+        await eventually(
+          page,
+          (n) => document.querySelectorAll(".ProseMirror .pl-pageBreak").length === n,
+          before,
+        );
+        if ((await breaks()) !== before) throw new Error("⌘Z did not take the page break back");
+        await page.evaluate(
+          (at) => document.querySelector(".ProseMirror").editor.commands.setTextSelection(at),
+          caret,
+        );
       },
     },
     {
@@ -2205,7 +3115,8 @@ export function smokeChecks({ audit, hold }) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Control+Meta+KeyF");
         await page.waitForSelector(".app-shell.is-focus", { timeout: 5000 });
-        await page.waitForTimeout(100);
+        // Focus mode drawn, and whatever its render set off rendered after it.
+        await drawn(page);
         for (let i = 0; i < 4; i++) {
           await page.keyboard.press("Control+Tab");
           const where = await page.evaluate(() => {
@@ -2252,25 +3163,40 @@ export function smokeChecks({ audit, hold }) {
       name: "keyboard · binder",
       feature: "workspace",
       async run(page) {
-        const order = () =>
-          page.evaluate(() =>
-            [...document.querySelectorAll('.binder [role="treeitem"][aria-level="1"]')].map(
-              (r) => r.querySelector(".binder__label")?.textContent ?? "",
-            ),
+        const rows = () =>
+          [...document.querySelectorAll('.binder [role="treeitem"][aria-level="1"]')].map(
+            (r) => r.querySelector(".binder__label")?.textContent ?? "",
           );
+        const order = () => page.evaluate(rows);
         const before = await order();
         if (before.length < 3) throw new Error(`the binder shows ${before.length} top-level rows`);
         await page.locator(".binder__scroll").focus();
         await page.keyboard.press("Home");
         await page.keyboard.type(before[1]);
         await page.keyboard.press("Control+Meta+ArrowDown");
-        await page.waitForTimeout(400);
+        await eventually(
+          page,
+          (before) => {
+            const now = [
+              ...document.querySelectorAll('.binder [role="treeitem"][aria-level="1"]'),
+            ].map((r) => r.querySelector(".binder__label")?.textContent ?? "");
+            return now[1] === before[2] && now[2] === before[1];
+          },
+          before,
+        );
         const moved = await order();
         if (moved[1] !== before[2] || moved[2] !== before[1]) {
           throw new Error(`⌃⌘↓ did not move "${before[1]}": ${moved.slice(0, 4).join(" · ")}`);
         }
         await page.keyboard.press("Control+Meta+ArrowUp");
-        await page.waitForTimeout(400);
+        await eventually(
+          page,
+          (before) =>
+            [...document.querySelectorAll('.binder [role="treeitem"][aria-level="1"]')]
+              .map((r) => r.querySelector(".binder__label")?.textContent ?? "")
+              .join("|") === before.join("|"),
+          before,
+        );
         const restored = await order();
         if (restored.join("|") !== before.join("|")) {
           throw new Error(`⌃⌘↑ did not put it back: ${restored.slice(0, 4).join(" · ")}`);
@@ -2400,7 +3326,9 @@ export function smokeChecks({ audit, hold }) {
         await openFromDocumentMenu(page, /Export PDF/);
         await page.waitForSelector(".sheet", { timeout: 10000 });
         await page.keyboard.press("Meta+2");
-        await page.waitForTimeout(300);
+        const declined =
+          "⌘2 must not switch the pane under it: in the app the key comes back from the menu bar as an event, and nothing says a declined key was declined";
+        await elapse(page, 300, declined);
         const underSheet = await onBoard();
         await page.keyboard.press("Escape");
         await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
@@ -2408,7 +3336,7 @@ export function smokeChecks({ audit, hold }) {
         await page.locator(".doctitle").click();
         await page.waitForSelector(".menu", { timeout: 5000 });
         await page.keyboard.press("Meta+2");
-        await page.waitForTimeout(300);
+        await elapse(page, 300, declined);
         const underMenu = await onBoard();
         await page.keyboard.press("Escape");
         await page.waitForSelector(".menu", { state: "detached", timeout: 5000 });
@@ -2431,11 +3359,11 @@ export function smokeChecks({ audit, hold }) {
     {
       // A key for the last toast's action (docs/app/preferences-and-help/accessibility.md#A11Y-18): after Move to Trash,
       // ⌃⇥ lands on Undo from wherever the writer is, ⏎ undoes it, and focus
-      // goes back to the binder it came from. Dev-mock only: in the app it
-      // would put a fixture document in the Trash of whoever runs the self-test.
+      // goes back to the binder it came from. In the apps the document goes to
+      // the test machine's real Trash, as "formats · move to trash" sends a
+      // format there: the system's own trash is part of what is proven.
       name: "keyboard · a key reaches Undo",
       feature: "editor",
-      devMock: true,
       async run(page) {
         const labels = () =>
           page.evaluate(() =>
@@ -2448,15 +3376,38 @@ export function smokeChecks({ audit, hold }) {
                 ?.textContent ?? ""
             );
           });
+        // The binder's cursor: its row, and whether that row is open.
+        const cursor = () => {
+          const row = document.activeElement?.closest('[role="treeitem"]');
+          return `${row?.querySelector(".binder__label")?.textContent ?? ""}|${row?.getAttribute("aria-expanded") ?? ""}`;
+        };
         await page.locator(".binder__scroll").focus();
         await page.keyboard.press("Home");
         await page.keyboard.type("Loglines");
-        await page.waitForTimeout(150);
+        await eventually(page, () =>
+          /^Logline/.test(
+            document.activeElement?.closest('[role="treeitem"]')?.querySelector(".binder__label")
+              ?.textContent ?? "",
+          ),
+        );
         for (let i = 0; i < 4 && (await cursorLabel()) !== "Logline"; i++) {
+          const was = await page.evaluate(cursor);
           await page.keyboard.press(
             (await cursorLabel()) === "Loglines" ? "ArrowRight" : "ArrowDown",
           );
-          await page.waitForTimeout(120);
+          // → opens the folder, or ↓ moves the cursor: either way, it changes.
+          await eventually(
+            page,
+            (was) => {
+              const row = document.activeElement?.closest('[role="treeitem"]');
+              return (
+                `${row?.querySelector(".binder__label")?.textContent ?? ""}|${row?.getAttribute("aria-expanded") ?? ""}` !==
+                was
+              );
+            },
+            was,
+            2000,
+          );
         }
         if ((await cursorLabel()) !== "Logline") {
           throw new Error(
@@ -2500,6 +3451,10 @@ export function smokeChecks({ audit, hold }) {
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" wrold");
         await page.waitForSelector(".pl-misspelled", { timeout: 10000 });
+        // The typing's save recomputes the page under the word, which can move
+        // it a pixel: that lands before the menu opens over the word, so the
+        // scroll event below is the only thing that could move it.
+        await saveOfEdit(page);
         await page.keyboard.press("Meta+Home");
         await page.keyboard.press("Meta+Semicolon");
         await page.waitForSelector(".menu", { timeout: 5000 });
@@ -2516,7 +3471,11 @@ export function smokeChecks({ audit, hold }) {
             pane.dispatchEvent(new Event("scroll"));
           }, by);
         await scrollScript(0);
-        await page.waitForTimeout(150);
+        await elapse(
+          page,
+          150,
+          "a scroll event that moved nothing must not shut the menu, and nothing says it was let be",
+        );
         if (!(await page.locator(".menu").count())) {
           throw new Error("a scroll event that moved nothing shut the spelling menu");
         }
@@ -2557,12 +3516,15 @@ export function smokeChecks({ audit, hold }) {
         });
         await page.keyboard.press("Shift+Enter");
         await page.keyboard.type("@Sam");
-        await page.waitForTimeout(300);
+        await eventually(page, () => {
+          const lines = [...document.querySelectorAll(".ProseMirror [data-pl]")];
+          const last = lines[lines.length - 1];
+          return `${last?.getAttribute("data-pl")}:${last?.textContent}` === "character:Sam";
+        });
         const after = await blocks();
         await page.keyboard.press("Escape"); // the cue autocomplete, if it opened
         for (let i = 0; i < 8 && (await blocks()).join("|") !== before.join("|"); i++) {
-          await page.keyboard.press("Meta+KeyZ");
-          await page.waitForTimeout(60);
+          await undo(page);
         }
         const tail = after.slice(-2).join(" · ");
         if (after[after.length - 1] !== "character:Sam") {
@@ -2615,13 +3577,14 @@ export function smokeChecks({ audit, hold }) {
         }
         await page.locator('.findbar__field[aria-label="Replace with"]').fill("Ebb");
         await page.locator(".findbar__btn", { hasText: "Replace All" }).click();
-        await page.waitForTimeout(200);
+        await eventually(page, () =>
+          document.querySelector(".ProseMirror")?.textContent.includes("Ebb."),
+        );
         const replaced = await script();
         await page.locator(".findbar__close").click();
         await page.locator(".ProseMirror").first().focus();
         for (let i = 0; i < 10 && (await script()) !== before; i++) {
-          await page.keyboard.press("Meta+KeyZ");
-          await page.waitForTimeout(60);
+          await undo(page);
         }
         if (!replaced.includes("Ebb.") || !replaced.includes("tide on the stair")) {
           throw new Error(
@@ -2669,7 +3632,11 @@ export function smokeChecks({ audit, hold }) {
           );
           // A delayed element-kind announcement must not overwrite the result
           // after focus has returned to the comment's Edit control.
-          await page.waitForTimeout(300);
+          await elapse(
+            page,
+            300,
+            "the element kind is spoken 250 ms after the caret's line changes, and the announcer's 40 ms after that: it must not replace this result",
+          );
           await until(
             page,
             `${action}, ${count} remaining, to be announced`,
@@ -2683,7 +3650,7 @@ export function smokeChecks({ audit, hold }) {
           );
         };
         // Margin Save and Cancel return to the same comment's Edit control.
-        let row = page.locator(".comment-card", { hasText: "A607 first" }).first();
+        const row = page.locator(".comment-card", { hasText: "A607 first" }).first();
         const firstId = await row.getAttribute("data-comment-id");
         let scope = ".comments-margin",
           currentId = firstId;
@@ -2748,8 +3715,7 @@ export function smokeChecks({ audit, hold }) {
             ))
           )
             break;
-          await page.keyboard.press("Meta+KeyZ");
-          await page.waitForTimeout(60);
+          await undo(page);
         }
         if (size.width < 1280) await page.setViewportSize(size);
         if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
@@ -2757,54 +3723,628 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      // At the app's own window size the margin has no room for a card, and
+      // ⌘⌥M there left a hidden placeholder in the script and no field to type
+      // in. The comment is typed in the feed
+      // (docs/app/writing/comments.md#COMM-56), signed with the name its field
+      // asks for once (docs/app/writing/comments.md#COMM-52), and answered
+      // there (docs/app/writing/comments.md#COMM-54); Settings › Writing holds
+      // the same name (docs/app/preferences-and-help/settings.md#SET-41).
+      name: "a comment with no room for a card is typed in the feed, signed and answered",
+      feature: "comments",
+      async run(page) {
+        const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+        const hadInspector = (await page.locator(".inspector").count()) > 0;
+        const sceneTab = () => page.locator(".inspector").getByRole("tab", { name: "Scene" });
+        const onScene = hadInspector && (await sceneTab().getAttribute("aria-selected")) === "true";
+        // The app's own window, narrower than smoke's: the margin stands down.
+        await page.setViewportSize({ width: 1100, height: 760 });
+        const script = () =>
+          page.evaluate(() => document.querySelector(".ProseMirror")?.textContent ?? "");
+        // Every comment in the script, with whether it stands directly after
+        // the one before it: that adjacency is all a reply is in the file.
+        const comments = () =>
+          page.evaluate(() => {
+            const out = [];
+            let end = -1;
+            document.querySelector(".ProseMirror")?.editor?.state.doc.descendants((node, pos) => {
+              if (node.type.name !== "note") return true;
+              out.push({ text: node.textContent, joined: pos === end });
+              end = pos + node.nodeSize;
+              return false;
+            });
+            return out;
+          });
+        const commentsAre = (what, expected) =>
+          until(
+            page,
+            what,
+            (expected) => {
+              const out = [];
+              let end = -1;
+              document.querySelector(".ProseMirror")?.editor?.state.doc.descendants((node, pos) => {
+                if (node.type.name !== "note") return true;
+                out.push(`${pos === end ? "+" : ""}${node.textContent}`);
+                end = pos + node.nodeSize;
+                return false;
+              });
+              return out.join(" | ") === expected;
+            },
+            expected,
+          );
+        const focusOn = (what, selector) =>
+          until(page, what, (selector) => !!document.activeElement?.matches(selector), selector);
+        const before = await script();
+        if ((await comments()).length)
+          throw new Error("this check starts from a script with no comments in it");
+        await page.locator(".ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.type(" Tidewater");
+        await until(
+          page,
+          "the margin to have measured that it has no room for a card",
+          () =>
+            document.querySelector(".ProseMirror")?.editor?.storage.comments.marginRoom === false,
+        );
+
+        // ⌘⌥M: the feed opens, and the new comment's field has the keyboard.
+        await page.keyboard.press("Meta+Alt+KeyM");
+        await focusOn(
+          "the new comment's field in the feed",
+          '.commentsfeed textarea[aria-label="New comment"]',
+        );
+        const name = page.locator('.commentsfeed input[aria-label="Your name"]');
+        if ((await name.inputValue()) !== "")
+          throw new Error(`the name field opened holding "${await name.inputValue()}"`);
+        await audit(page, "new comment in the feed");
+        // The field keeps only what a signature can carry.
+        await name.fill("Robin: [");
+        if ((await name.inputValue()) !== "Robin ")
+          throw new Error(`the name field kept "${await name.inputValue()}"`);
+        await recordAnnouncements(page);
+        await page
+          .locator('.commentsfeed textarea[aria-label="New comment"]')
+          .fill("is this earned?");
+        await page.keyboard.press("Meta+Enter");
+        await commentsAre("the comment in the script, signed", "Robin: is this earned?");
+        await announced(page, "Comment saved. 1 comment remaining.");
+        await focusOn("focus on the comment's Edit", '.commentsfeed [aria-label="Edit comment"]');
+
+        // Answer it: the name is remembered, and the reply stands directly
+        // after its comment, in the same row, counted with it.
+        await page.locator('.commentsfeed button[aria-label="Reply to comment"]').click();
+        await focusOn("the reply's field", '.commentsfeed textarea[aria-label="Reply"]');
+        if ((await name.inputValue()) !== "Robin")
+          throw new Error(`the reply's name field held "${await name.inputValue()}", not Robin`);
+        await recordAnnouncements(page);
+        await page
+          .locator('.commentsfeed textarea[aria-label="Reply"]')
+          .fill("it is, by the ledger");
+        await page.keyboard.press("Meta+Enter");
+        await commentsAre(
+          "the reply directly after its comment",
+          "Robin: is this earned? | +Robin: it is, by the ledger",
+        );
+        await announced(page, "Reply added.");
+        await focusOn("focus on Reply", '.commentsfeed [aria-label="Reply to comment"]');
+        const counted = await page.evaluate(() => ({
+          rows: document.querySelectorAll(".commentsfeed__row").length,
+          heading: document.querySelector(".commentsfeed__count")?.textContent,
+          bar: document.querySelector(".ProseMirror")?.editor?.storage.comments.count,
+        }));
+        if (counted.rows !== 1 || counted.heading !== "1 comment" || counted.bar !== 1)
+          throw new Error(`a comment and its reply were not one: ${JSON.stringify(counted)}`);
+        await audit(page, "comment thread in the feed");
+
+        // ⌘⌥M where the comment already is answers it: a note put in front of
+        // it would turn the comment into the reply.
+        await page.locator(".ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.press("Meta+Alt+KeyM");
+        await focusOn(
+          "the reply's field, asked for from the script",
+          '.commentsfeed textarea[aria-label="Reply"]',
+        );
+        await recordAnnouncements(page);
+        await page.keyboard.press("Escape");
+        await announced(page, "Reply cancelled.");
+        await commentsAre(
+          "nothing added by a reply cancelled",
+          "Robin: is this earned? | +Robin: it is, by the ledger",
+        );
+        await recordAnnouncements(page);
+        await page.locator('.commentsfeed button[aria-label="Delete reply"]').click();
+        await commentsAre("the reply deleted alone", "Robin: is this earned?");
+        await announced(page, "Reply deleted.");
+        await focusOn("focus on Reply", '.commentsfeed [aria-label="Reply to comment"]');
+
+        // Settings › Writing holds the same name, and clearing it there stops
+        // the signing. Settings is left on the section it was on.
+        await page.keyboard.press("Meta+Comma");
+        await page.waitForSelector(".prefs", { timeout: 5000 });
+        const section = await page.locator('.prefs__nav [aria-selected="true"]').innerText();
+        await page.locator('.prefs__nav [role="tab"]', { hasText: "Writing" }).click();
+        const setting = page.locator('.prefs input[aria-label="Your name"]');
+        await until(
+          page,
+          "the name in Settings",
+          () => document.querySelector('.prefs input[aria-label="Your name"]')?.value === "Robin",
+        );
+        await recordAnnouncements(page);
+        await setting.fill("");
+        await page.keyboard.press("Enter");
+        await announced(page, "Comments will not be signed.");
+        await page.locator('.prefs__nav [role="tab"]', { hasText: section }).click();
+        await page.keyboard.press("Escape");
+        await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+        await page.locator('.commentsfeed button[aria-label="Reply to comment"]').click();
+        await focusOn("the reply's field", '.commentsfeed textarea[aria-label="Reply"]');
+        if ((await name.inputValue()) !== "")
+          throw new Error(
+            `a name cleared in Settings still filled the field: "${await name.inputValue()}"`,
+          );
+        await page.locator('.commentsfeed textarea[aria-label="Reply"]').fill("unsigned now");
+        await page.keyboard.press("Meta+Enter");
+        await commentsAre("a reply with no name", "Robin: is this earned? | +unsigned now");
+
+        // Resolve takes the comment and its reply together.
+        await recordAnnouncements(page);
+        await page.locator('.commentsfeed button[aria-label="Resolve comment"]').click();
+        await commentsAre("the conversation resolved whole", "");
+        await announced(page, "Comment resolved. 0 comments remaining.");
+        await focusOn("focus on the feed's count", ".commentsfeed [data-comment-fallback]");
+
+        // Leave the script, the inspector and the window as they were.
+        await page.locator(".ProseMirror").first().focus();
+        for (let i = 0; i < 30 && (await script()) !== before; i++) await undo(page);
+        if ((await script()) !== before) throw new Error("undo did not restore the script");
+        if (onScene) await sceneTab().click();
+        else if (!hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+        await page.setViewportSize(size);
+      },
+    },
+    {
+      // With room beside the page a new comment is typed in its card and
+      // nowhere else (docs/app/writing/comments.md#COMM-56), and a comment's
+      // words are text (docs/app/writing/comments.md#COMM-57): a double-click
+      // selects one, in the card and in the feed, where a press on a card used
+      // to be swallowed and the feed's words were a button's. A press that
+      // selects nothing still does what it did.
+      name: "a comment with room is typed in its card, and its words can be selected",
+      feature: "comments",
+      async run(page) {
+        const hadInspector = (await page.locator(".inspector").count()) > 0;
+        const hadBinder = (await page.locator(".binder").count()) > 0;
+        const sceneTab = () => page.locator(".inspector").getByRole("tab", { name: "Scene" });
+        const onScene = hadInspector && (await sceneTab().getAttribute("aria-selected")) === "true";
+        if (hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+        // As the check of comment actions does: the side panels closed and
+        // smoke's width give the margin its room.
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
+        const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+        if (size.width < 1280)
+          await page.setViewportSize({ width: 1280, height: Math.max(size.height, 800) });
+        const script = () =>
+          page.evaluate(() => document.querySelector(".ProseMirror")?.textContent ?? "");
+        const before = await script();
+        try {
+          // One long word: the middle of the line it is on is always on it,
+          // whether or not it wraps, and that is where a double-click lands.
+          const word = "Tidewaterselectabilityandcopyability";
+          // When the word is not selected, the error says what is, and who
+          // has the keyboard: a selection lost to the script and one never
+          // made read the same from outside.
+          const selected = async (where) => {
+            const found = await eventually(
+              page,
+              ({ where, word }) => {
+                const picked = getSelection();
+                return (
+                  !!picked &&
+                  picked.toString().trim() === word &&
+                  !!picked.anchorNode?.parentElement?.closest(where)
+                );
+              },
+              { where, word },
+            );
+            if (found) return;
+            const state = await page.evaluate(() => {
+              const picked = getSelection();
+              const active = document.activeElement;
+              const editor = document.querySelector(".ProseMirror")?.editor;
+              return {
+                selected: picked?.toString() ?? null,
+                in: picked?.anchorNode?.parentElement?.className ?? null,
+                keyboard:
+                  active?.getAttribute("aria-label") || active?.className || active?.tagName,
+                scriptHasFocus: !!editor?.view.hasFocus(),
+                reading: editor?.storage.comments.focusPos ?? null,
+              };
+            });
+            throw new Error(`the word was not selected in ${where}: ${JSON.stringify(state)}`);
+          };
+          await page.locator(".ProseMirror").first().focus();
+          await toScriptEnd(page);
+          await page.keyboard.type(" Tidewater");
+          await until(
+            page,
+            "the margin to have measured that it has room for a card",
+            () =>
+              document.querySelector(".ProseMirror")?.editor?.storage.comments.marginRoom === true,
+          );
+
+          // ⌘⌥M: the card opens for typing, and the feed stays as it was.
+          await page.keyboard.press("Meta+Alt+KeyM");
+          await until(
+            page,
+            "the new comment's field in its card",
+            () =>
+              !!document.activeElement?.matches('.comment-card textarea[aria-label="New comment"]'),
+          );
+          if (await page.locator(".commentsfeed").count())
+            throw new Error("the feed opened for a comment the margin had room for");
+          await audit(page, "new comment in its card");
+          await page.locator('.comment-card textarea[aria-label="New comment"]').fill(word);
+          await page.keyboard.press("Meta+Enter");
+          await until(
+            page,
+            "the comment in the script, unsigned",
+            (word) =>
+              [...document.querySelectorAll(".ProseMirror .pl-note")]
+                .map((n) => n.textContent)
+                .join("|") === word,
+            word,
+          );
+
+          // The margin measures after every change of the editor, and must not
+          // be one: it once told the editor its room on each measure, which was
+          // a change, so it measured again every frame and the page layout,
+          // which waits for quiet, never ran. The pages are laid out again
+          // after the edit, and then the editor is still.
+          await until(
+            page,
+            "the pages laid out again after the comment",
+            () => !!document.querySelector(".elementbar__pages"),
+          );
+          await page.evaluate(() => {
+            const editor = document.querySelector(".ProseMirror").editor;
+            window.__smokeChanges = 0;
+            window.__smokeCount = () => window.__smokeChanges++;
+            editor.on("transaction", window.__smokeCount);
+          });
+          await elapse(
+            page,
+            300,
+            "a card measuring itself in a loop changes the editor on every frame, eighteen times in this long; an editor at rest changes at most once or twice",
+          );
+          const changes = await page.evaluate(() => {
+            document.querySelector(".ProseMirror").editor.off("transaction", window.__smokeCount);
+            return window.__smokeChanges;
+          });
+          if (changes > 3)
+            throw new Error(`the editor changed ${changes} times in 300 ms with nothing happening`);
+
+          // In the card: a double-click selects the word, and a plain click
+          // leaves the caret in the script, where it was.
+          const words = page.locator(".comment-card .cthread__body").first();
+          await words.dblclick();
+          await selected(".comment-card");
+          await page.locator(".ProseMirror").first().focus();
+          await toScriptEnd(page);
+          await words.click();
+          await until(
+            page,
+            "the card read, and the caret still in the script",
+            () =>
+              !!document.querySelector(".comment-card.is-active") &&
+              !!document.activeElement?.matches(".editor-surface .ProseMirror") &&
+              getSelection()?.isCollapsed === true,
+          );
+
+          // In the feed: a double-click selects the word there too, and a plain
+          // click still goes to the comment in the script.
+          await page.keyboard.press("Meta+Shift+KeyC");
+          await page.waitForSelector(".commentsfeed");
+          const row = page.locator(".commentsfeed .cthread__body").first();
+          // The first press of a double-click on a comment's words is a click,
+          // which goes to the comment a task later; the second selects the
+          // word. Whichever comes first, the word stays selected. As it comes:
+          await row.dblclick();
+          await selected(".commentsfeed");
+          // With frames late. Behind a locked screen the real app draws
+          // seconds apart, and the jump once focused the script on its next
+          // frame, which came after the second press and took the word back
+          // out of the feed's selection. Frames are held back 400 ms, and the
+          // selection is read after they came.
+          await page.evaluate(() => {
+            getSelection()?.removeAllRanges();
+            window.__smokeFrame = window.requestAnimationFrame;
+            window.requestAnimationFrame = (run) =>
+              setTimeout(() => window.__smokeFrame.call(window, run), 400);
+          });
+          await row.dblclick();
+          await elapse(
+            page,
+            900,
+            "a frame the first press asked for is held back 400 ms and has come by now: it must not have taken the selection",
+          );
+          await selected(".commentsfeed");
+          // With the jump late. On a busy host the jump's own task ran after
+          // the second press, with the word selected already, and the test
+          // for that looked at the selection's anchor: WebKit anchors a whole
+          // paragraph's word on the paragraph, the test missed it, and the
+          // script took the selection. Tasks asked for at once are held back
+          // 300 ms, so the jump comes after the double-click.
+          await page.evaluate(() => {
+            window.requestAnimationFrame = window.__smokeFrame;
+            delete window.__smokeFrame;
+            getSelection()?.removeAllRanges();
+            window.__smokeTimeout = window.setTimeout;
+            window.setTimeout = (run, ms, ...rest) =>
+              window.__smokeTimeout.call(window, run, ms || 300, ...rest);
+          });
+          await row.dblclick();
+          await elapse(
+            page,
+            700,
+            "the first press's jump is held back 300 ms and has run by now, with the word selected: it must have left the selection",
+          );
+          await selected(".commentsfeed");
+          await page.evaluate(() => {
+            window.setTimeout = window.__smokeTimeout;
+            delete window.__smokeTimeout;
+          });
+          // A press that selects nothing: the word is let go first, and the
+          // keyboard is in the feed, so the click is what moves it.
+          await page
+            .locator('.commentsfeed button[aria-label="Show comment in the script"]')
+            .focus();
+          await page.evaluate(() => getSelection()?.removeAllRanges());
+          await row.click();
+          await until(
+            page,
+            "the feed's click to put the caret in the script, at the comment",
+            () =>
+              !!document.activeElement?.matches(".editor-surface .ProseMirror") &&
+              getSelection()?.isCollapsed === true &&
+              document.querySelector(".ProseMirror")?.editor?.storage.comments.focusPos !== null,
+          );
+
+          // Leave the script, the panels and the window as they were: the feed
+          // came up in the inspector, which goes back to the tab it was on, and
+          // closes again if it was closed.
+          await page.locator(".ProseMirror").first().focus();
+          for (let i = 0; i < 20 && (await script()) !== before; i++) await undo(page);
+          if ((await script()) !== before) throw new Error("undo did not restore the script");
+          if (onScene) await sceneTab().click();
+          if (!hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+        } finally {
+          // Whatever happened above, the window goes back to its size and the
+          // page to its own frames and timers. This check once stopped half way in the
+          // real app and left the window wide: every tutorial after it then
+          // fitted its page to the wrong width, and a pane's bar did not fold.
+          await page.evaluate(() => {
+            if (window.__smokeFrame) window.requestAnimationFrame = window.__smokeFrame;
+            if (window.__smokeTimeout) window.setTimeout = window.__smokeTimeout;
+            delete window.__smokeFrame;
+            delete window.__smokeTimeout;
+          });
+          if (size.width < 1280) await page.setViewportSize(size);
+        }
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
+      },
+    },
+    {
+      // A comment made on a selection is about the words selected
+      // (docs/app/writing/comments.md#COMM-60): the highlight paints those and
+      // no more, where it used to run back to the last full stop, and the
+      // script says so with a marker either side of them
+      // (docs/app/writing/comments.md#COMM-61). The stretch is the writer's to
+      // edit (docs/app/writing/comments.md#COMM-62): a word typed inside it
+      // or at its end is in it, one typed in front of it is not, and words
+      // typed over all of it are what the comment is about from then on, with
+      // the comment still there (docs/app/writing/comments.md#COMM-65). The
+      // typing is the keyboard's, because what a browser does to marked words
+      // and a hidden comment under the caret is the thing that could lose
+      // them.
+      name: "a comment made on a selection is about the words selected",
+      feature: "comments",
+      async run(page) {
+        const hadInspector = (await page.locator(".inspector").count()) > 0;
+        const hadBinder = (await page.locator(".binder").count()) > 0;
+        if (hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+        // As the check before this one does: the side panels closed and
+        // smoke's width give the margin its room.
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
+        const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+        if (size.width < 1280)
+          await page.setViewportSize({ width: 1280, height: Math.max(size.height, 800) });
+        const script = () =>
+          page.evaluate(() => document.querySelector(".ProseMirror")?.textContent ?? "");
+        const before = await script();
+        try {
+          // Select these words in the script, as a drag across them would, or
+          // put the caret at one end of them.
+          const select = (words, edge) =>
+            page.evaluate(
+              ({ words, edge }) => {
+                const editor = document.querySelector(".ProseMirror").editor;
+                let from = -1;
+                editor.state.doc.descendants((node, pos) => {
+                  if (from >= 0 || node.type.name === "note") return false;
+                  const at = node.isText ? node.text.indexOf(words) : -1;
+                  if (at >= 0) from = pos + at;
+                  return true;
+                });
+                if (from < 0) throw new Error(`"${words}" is not in the script`);
+                const to = from + words.length;
+                editor.commands.setTextSelection(
+                  edge === "end" ? to : edge === "start" ? from : { from, to },
+                );
+              },
+              { words, edge },
+            );
+          // What the highlight paints, and how the saved script holds the line.
+          const painted = (what, expected) =>
+            until(
+              page,
+              what,
+              (expected) =>
+                [...document.querySelectorAll(".ProseMirror .pl-comment-anchor")]
+                  .map((el) => el.textContent)
+                  .join("") === expected,
+              expected,
+            );
+          const saved = (what, line) =>
+            until(page, what, onDisk, { file: "The Weight of Water.fountain", word: line });
+          if (await page.locator(".ProseMirror .pl-comment-anchor").count())
+            throw new Error("this check starts from a script with no comments in it");
+          await page.locator(".ProseMirror").first().focus();
+          await until(
+            page,
+            "the margin to have measured that it has room for a card",
+            () =>
+              document.querySelector(".ProseMirror")?.editor?.storage.comments.marginRoom === true,
+          );
+
+          // Three words in the middle of a speech. The phrase before the
+          // comment runs back to the start of the line: the selection is less.
+          await select("been crying");
+          await page.keyboard.press("Meta+Alt+KeyM");
+          await until(
+            page,
+            "the new comment's field in its card",
+            () =>
+              !!document.activeElement?.matches('.comment-card textarea[aria-label="New comment"]'),
+          );
+          await page.locator('.comment-card textarea[aria-label="New comment"]').fill("weeping?");
+          await page.keyboard.press("Meta+Enter");
+          await painted("the highlight on the words selected, and no more", "been crying");
+          await saved(
+            "the script to say what the comment is about",
+            "The pipe's [[{]]been crying[[}]][[weeping?]] all night.",
+          );
+
+          // A word typed inside the stretch is part of it, and so is one typed
+          // at its end: the stretch runs up to its comment.
+          await page.locator(".ProseMirror").first().focus();
+          await select("been", "end");
+          await page.keyboard.type(" long");
+          await painted("the highlight to take in a word typed inside it", "been long crying");
+          await select("been long crying", "end");
+          await page.keyboard.type(" out");
+          await painted("the highlight to take in a word typed at its end", "been long crying out");
+
+          // A word typed in front of it is before it.
+          await select("been long crying out", "start");
+          await page.keyboard.type("has ");
+          await saved(
+            "a word typed in front of the stretch to stand before its marker",
+            "The pipe's has [[{]]been long crying out[[}]][[weeping?]] all night.",
+          );
+          await painted(
+            "the highlight as it was, with a word typed before it",
+            "been long crying out",
+          );
+
+          // Typed over, every word of it: the comment is still there, and is
+          // about the new words. The selection ends where the comment stands,
+          // and a browser that is left to end it between the marker and the
+          // hidden comment deletes the comment with the words.
+          await select("been long crying out");
+          await page.keyboard.type("wept");
+          await painted("the highlight on the words typed over the old ones", "wept");
+          await saved(
+            "the script to hold the new words between the markers",
+            "The pipe's has [[{]]wept[[}]][[weeping?]] all night.",
+          );
+
+          // Resolved, the comment takes its markers with it.
+          await page.locator('.comment-card button[aria-label="Resolve comment"]').click();
+          await saved("the script with no marker left in it", "The pipe's has wept all night.");
+          const marks = await page
+            .locator(".ProseMirror [data-comment-range], .ProseMirror [data-comment-range-end]")
+            .count();
+          if (marks) throw new Error(`${marks} marked stretches were left on the page`);
+
+          // Leave the script, the panels and the window as they were.
+          await page.locator(".ProseMirror").first().focus();
+          for (let i = 0; i < 30 && (await script()) !== before; i++) await undo(page);
+          if ((await script()) !== before) throw new Error("undo did not restore the script");
+          await saved("the script as it was", "The pipe's been crying all night.");
+        } finally {
+          if (size.width < 1280) await page.setViewportSize(size);
+        }
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
+        if (hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+      },
+    },
+    {
       // What the line IS reaches a screen reader: Enter's guess and a Tab through
-      // the ring are each spoken through the announcer's polite region.
+      // the ring are each spoken through the announcer's polite region. Only a
+      // change of kind is spoken (docs/app/preferences-and-help/accessibility.md#A11Y-10),
+      // so Enter is pressed where its guess changes the line: a name in
+      // capitals on a new line, which Enter makes a cue, and the line after it
+      // dialogue (docs/app/writing/editor-ux.md#EDIT-D100). The script ends on
+      // action, where Enter makes action again and rightly says nothing; the
+      // check once pressed Enter there, and passed only on a word the check
+      // before it had left still to come.
       name: "screen reader · element kind",
       feature: "editor",
       async run(page) {
-        const said = () =>
-          page.evaluate(
-            () => document.querySelector('[data-announcer="polite"]')?.textContent ?? "",
-          );
+        const script = () =>
+          page.evaluate(() => document.querySelector(".ProseMirror")?.textContent ?? "");
+        // What the region says and the caret's line is, for a failure to name.
+        const where = () =>
+          page.evaluate(() => {
+            const region = document.querySelector('[data-announcer="polite"]');
+            const kind =
+              document.querySelector(".ProseMirror")?.editor?.state.selection.$from.parent.type
+                .name;
+            return `the region says "${region?.textContent ?? ""}", the caret's line is ${kind ?? "unknown"}`;
+          });
         const kinds =
           /^(Act|Scene|Scene Heading|Action|Character|Parenthetical|Dialogue|Transition|Lyric|Centered Text|Scene Summary \(Not Printed\)|Comment)$/;
+        const before = await script();
         await page.locator(".ProseMirror").first().focus();
-        await page.keyboard.press("Meta+ArrowDown");
-        // The announcer speaks once the guess has settled, and how long that takes
-        // is the machine's: wait for the words, never for a fixed half second.
-        const spoken = async (unlike) => {
-          try {
-            return await until(
-              page,
-              "an element kind to be announced",
-              ({ source, unlike }) => {
-                const text = document.querySelector('[data-announcer="polite"]')?.textContent ?? "";
-                return new RegExp(source).test(text) && text !== unlike ? text : null;
-              },
-              { source: kinds.source, unlike },
-              5000,
-            );
-          } catch {
-            return { missed: await said() };
-          }
-        };
-        // Words an earlier check left in the region must not stand in for Enter's.
+        await toScriptEnd(page);
+        await page.keyboard.press("Enter");
+        await page.keyboard.type("NOBODY");
+        // Words an earlier check or the focus left in the region must not
+        // stand in for Enter's.
         await page.evaluate(() => {
           const region = document.querySelector('[data-announcer="polite"]');
           if (region) region.textContent = "";
         });
         await page.keyboard.press("Enter");
-        const first = await spoken(null);
+        // The announcer speaks once the guess has settled, and how long that
+        // takes is the machine's: wait for the words, never for a fixed time.
+        const first = await eventually(
+          page,
+          () => document.querySelector('[data-announcer="polite"]')?.textContent === "Dialogue",
+          undefined,
+          5000,
+        );
+        const afterEnter = first ? null : await where();
         // A character first: Tab on an EMPTY line opens the element menu
         // (docs/app/writing/editor-ux.md#EDIT-58), which speaks its alphabet instead of a kind.
         await page.keyboard.type("x");
         await page.keyboard.press("Tab");
-        const second = await spoken(first);
-        for (let i = 0; i < 4; i++) await page.keyboard.press("Meta+KeyZ");
-        if (typeof first !== "string")
-          throw new Error(`Enter announced "${first.missed}", not an element kind`);
-        if (typeof second !== "string")
-          throw new Error(`Tab announced "${second.missed}" after "${first}"`);
+        const second = await eventually(
+          page,
+          ({ source }) => {
+            const text = document.querySelector('[data-announcer="polite"]')?.textContent ?? "";
+            return new RegExp(source).test(text) && text !== "Dialogue" ? text : null;
+          },
+          { source: kinds.source },
+          5000,
+        );
+        const afterTab = second ? null : await where();
+        for (let i = 0; i < 12 && (await script()) !== before; i++) await undo(page);
+        if (!first)
+          throw new Error(`Enter on a name in capitals did not say Dialogue: ${afterEnter}`);
+        if (!second) throw new Error(`Tab after Dialogue said no other kind: ${afterTab}`);
+        if ((await script()) !== before) throw new Error("undo did not restore the script");
       },
     },
     {
@@ -2820,8 +4360,7 @@ export function smokeChecks({ audit, hold }) {
         const editor = page.locator(".editor-surface .ProseMirror").first();
         const before = await editor.innerText();
         await editor.focus();
-        await page.keyboard.press("Meta+ArrowDown");
-        await page.waitForTimeout(100);
+        await toScriptEnd(page);
         await page.keyboard.press("Enter");
         await page.keyboard.type("Zephyrine");
         try {
@@ -2834,7 +4373,8 @@ export function smokeChecks({ audit, hold }) {
           // Playwright's snapshot gives an editable element no value at all —
           // it keeps only CSS content — so in smoke the words are read from
           // the element that is the text box.
-          const native = await page.evaluate(() => !!window.__TAURI_INTERNALS__);
+          // Playwright reads from outside on a PC too, as in smoke.
+          const native = !onPC() && (await page.evaluate(() => !!window.__TAURI_INTERNALS__));
           const value = native ? tree : await editor.innerText();
           if (!value.includes("Zephyrine"))
             throw new Error(
@@ -2861,8 +4401,7 @@ export function smokeChecks({ audit, hold }) {
           }
         } finally {
           for (let i = 0; i < 10 && (await editor.innerText()) !== before; i++) {
-            await page.keyboard.press("Meta+KeyZ");
-            await page.waitForTimeout(60);
+            await undo(page);
           }
         }
         if ((await editor.innerText()) !== before)
@@ -2947,8 +4486,7 @@ export function smokeChecks({ audit, hold }) {
       async run(page) {
         const before = await page.locator(".ProseMirror").first().innerText();
         await page.locator(".ProseMirror").first().focus();
-        await page.keyboard.press("Meta+ArrowDown");
-        await page.waitForTimeout(100);
+        await toScriptEnd(page);
         await page.keyboard.press("Enter");
         await page.keyboard.press("Escape");
         await page.keyboard.press("Meta+Alt+KeyA");
@@ -3024,8 +4562,7 @@ export function smokeChecks({ audit, hold }) {
           i < 20 && (await page.locator(".ProseMirror").first().innerText()) !== before;
           i++
         ) {
-          await page.keyboard.press("Meta+KeyZ");
-          await page.waitForTimeout(60);
+          await undo(page);
         }
         await page.keyboard.press("Escape");
         if ((await page.locator(".ProseMirror").first().innerText()) !== before)
@@ -3045,16 +4582,18 @@ export function smokeChecks({ audit, hold }) {
           document.querySelector(".savestatus")?.textContent.startsWith("Saved"),
         );
         const original = await scriptLines(page);
-        const personalFiles = await page.evaluate(() =>
-          window.__prosceniumStoreKeys
-            ? JSON.stringify(
-                window
-                  .__prosceniumStoreKeys()
-                  .filter((k) => k.endsWith(".fountain"))
-                  .map((k) => [k, window.__prosceniumPeekKey(k)]),
-              )
-            : null,
-        );
+        // Every script in the Plays folder, with what it holds: practice is
+        // written in app data, and none of these may change.
+        const personalScripts = () =>
+          page.evaluate(async () => {
+            const keys = (await window.__prosceniumStoreKeys()).filter((k) =>
+              k.endsWith(".fountain"),
+            );
+            return JSON.stringify(
+              await Promise.all(keys.map(async (k) => [k, await window.__prosceniumPeekKey(k)])),
+            );
+          });
+        const personalFiles = await personalScripts();
         const personalZoom = await page.evaluate(() => localStorage.getItem("proscenium:zoomMode"));
         await recordAnnouncements(page);
         await tutorialStart(page, "Write Your First Exchange");
@@ -3065,12 +4604,13 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "the empty line shows what to type",
-          () =>
+          (key) =>
             document.querySelector(".editor-surface .tutorial-line .tutorial-ghost__text")
               ?.textContent === "MARA" &&
             document
               .querySelector(".editor-surface .tutorial-line .tutorial-ghost__key")
-              ?.textContent.includes("Return"),
+              ?.textContent.includes(key),
+          said("Return", "Enter"),
         );
         await beside(page, "the lit line");
         if (
@@ -3186,17 +4726,7 @@ export function smokeChecks({ audit, hold }) {
             ) === text,
           original,
         );
-        if (
-          personalFiles !== null &&
-          (await page.evaluate(() =>
-            JSON.stringify(
-              window
-                .__prosceniumStoreKeys()
-                .filter((k) => k.endsWith(".fountain"))
-                .map((k) => [k, window.__prosceniumPeekKey(k)]),
-            ),
-          )) !== personalFiles
-        )
+        if ((await personalScripts()) !== personalFiles)
           throw new Error("Practice wrote to a personal script");
         if (
           (await page.evaluate(() => localStorage.getItem("proscenium:zoomMode"))) !== personalZoom
@@ -3324,7 +4854,13 @@ export function smokeChecks({ audit, hold }) {
           document.querySelector(".tutorial-cue")?.textContent.includes("That's the whole course"),
         );
         // One play holds every lesson's work, and the guide recorded each step as the writer's own.
-        const progress = await tutorialProgress(page);
+        const progress = await tutorialSaved(page, play, [
+          "format",
+          "scene-cards",
+          "characters",
+          "files",
+          "export",
+        ]);
         if (progress.course.id !== play) throw new Error("a lesson moved to another play");
         const course = progress.attempts.filter((a) => a.id === play);
         for (const lesson of ["format", "scene-cards", "characters", "files", "export"]) {
@@ -3493,7 +5029,7 @@ export function smokeChecks({ audit, hold }) {
                   const script = (titled ? rest : [first, ...rest]).join("\n\n");
                   return ["JUNIPER", "IVO"].every(
                     (name) =>
-                      !new RegExp(`^${name}[ \t]*\n[ \t]*[^\s(]`, "m").test(script) ||
+                      !new RegExp(`^${name}[ \t]*\n[ \t]*[^s(]`, "m").test(script) ||
                       titlePage.includes(name),
                   );
                 },
@@ -3514,7 +5050,14 @@ export function smokeChecks({ audit, hold }) {
           );
           if (lesson !== "export") await nextLesson(page);
         }
-        const progress = await tutorialProgress(page);
+        const progress = await tutorialSaved(page, before, [
+          "first-exchange",
+          "format",
+          "scene-cards",
+          "characters",
+          "files",
+          "export",
+        ]);
         if (progress.course.id === before) {
           /* expected: one play */
         } else throw new Error("Show Me moved to another play");
@@ -3657,7 +5200,11 @@ export function smokeChecks({ audit, hold }) {
         const place = await page.evaluate(
           () => document.querySelector(".editor-surface .ProseMirror").editor.state.selection.from,
         );
-        await page.waitForTimeout(900);
+        await elapse(
+          page,
+          900,
+          "a caret that moved is written down 600 ms later by one pending write, which the practice's caret would take over if it moved first, and nothing says whether one is pending",
+        );
         // By pointer, by the keyboard inside the card, and from Help & Tutorials,
         // whose sheet hands the keyboard to its own button as it closes.
         const stops = [
@@ -3746,7 +5293,6 @@ export function smokeChecks({ audit, hold }) {
       // ⌘⇧O in that moment: the window keymap left it for want of a script, and behind the
       // locked screen the menu bar never got it back. All Plays wants a play, not a script.
       name: "tutorials · ⌘⇧O reaches All Plays while the play Stop returned to is still reading its script",
-      devMock: true,
       feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
@@ -3755,7 +5301,7 @@ export function smokeChecks({ audit, hold }) {
           "the writer's own play",
           () => document.querySelector(".doctitle__label")?.textContent === "The Weight of Water",
         );
-        // Named while the play is open: the dev vault keys a gate by the folder open then.
+        // Named while the play is open: a gate is keyed by the folder open then.
         await page.evaluate(() => window.__prosceniumGate("read", "The Weight of Water.fountain"));
         try {
           await tutorialStart(page, "Write Your First Exchange");
@@ -3763,8 +5309,8 @@ export function smokeChecks({ audit, hold }) {
           await until(
             page,
             "the script's read held",
-            () =>
-              window.__prosceniumHeld("read") > 0 &&
+            async () =>
+              (await window.__prosceniumHeld("read")) > 0 &&
               !!document.querySelector(".paneroot") &&
               !document.querySelector(".doctitle__label"),
           );
@@ -3782,7 +5328,6 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · narrow windows keep the guide on screen and its target clear, and a failed save waits",
-      devMock: true,
       feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
@@ -3792,8 +5337,12 @@ export function smokeChecks({ audit, hold }) {
         // 640 this used to ask for, which no window can be, the toolbar's centre switcher
         // lies over "Hide the binder": Playwright's WebKit measured what was left of it at
         // 18.5px and axe failed it (docs/app/preferences-and-help/accessibility.md#A11Y-11).
+        // Put back as it was found: the app's own window opens at 1100, smoke's at 1280.
+        const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
         await page.setViewportSize({ width: 820, height: 600 });
-        await page.waitForTimeout(300);
+        // The narrower window drawn, and the guide moved to it and holding still.
+        await drawn(page);
+        await guideStill(page);
         await beside(page, "the lit line, in a narrow window");
         await audit(page, "tutorial · narrow");
         await page
@@ -3801,7 +5350,7 @@ export function smokeChecks({ audit, hold }) {
           .getByRole("button", { name: "More Help", exact: true })
           .click();
         await beside(page, "the lit line, with More Help open");
-        await page.setViewportSize({ width: 1280, height: 800 });
+        await page.setViewportSize(size);
         await page
           .locator(".tutorial-cue")
           .getByRole("button", { name: "Skip Step", exact: true })
@@ -3819,7 +5368,7 @@ export function smokeChecks({ audit, hold }) {
         await page.evaluate(() =>
           window.__prosceniumGate(
             "write",
-            document.querySelector(".statusbar__path").textContent.split("/").pop() + ".fountain",
+            `${document.querySelector(".statusbar__path").textContent.split(/[\\/]/).pop()}.fountain`,
             { fail: "Tutorial save test" },
           ),
         );
@@ -3829,7 +5378,11 @@ export function smokeChecks({ audit, hold }) {
           "save failure is surfaced",
           () => document.querySelector(".savestatus")?.textContent === "Not saved",
         );
-        await page.waitForTimeout(2500);
+        await elapse(
+          page,
+          2500,
+          "the reply step would move on 1.6 s after the typing stops, were a failed save taken for a saved one",
+        );
         if (
           (await page.evaluate(
             () => document.querySelector(".tutorial-cue__count")?.textContent,
@@ -3911,9 +5464,7 @@ export function smokeChecks({ audit, hold }) {
           throw new Error("Reset changed the earlier practice");
         void original;
         await audit(page, "retained practice after reset");
-        await tutorialOpen(page);
-        await page.getByRole("button", { name: "Return to My Play", exact: true }).click();
-        await page.waitForSelector(".paneroot");
+        await returnToMyPlay(page);
       },
     },
     {
@@ -4103,8 +5654,11 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
-      name: "tutorials · stale progress and damaged reset preserve practice",
-      devMock: true,
+      // Progress another window changed under this one: the next checkpoint is
+      // refused, and reloading it changes no practice words. Then the progress
+      // file is damaged, and the reload that ends the check is the relaunch
+      // that finds it so.
+      name: "tutorials · stale progress is refused and changes no practice words",
       feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
@@ -4112,11 +5666,10 @@ export function smokeChecks({ audit, hold }) {
         await cueStep(page, 1, 5);
         await tutorialType(page, "PROGRESS CONFLICT");
         const original = await tutorialRead(page, "Practice Play.fountain");
-        await page.evaluate(() => {
-          const key = "proscenium:dev:tutorial-progress";
-          const v = JSON.parse(localStorage.getItem(key));
+        await page.evaluate(async () => {
+          const v = JSON.parse(await window.__prosceniumTutorialProgress());
           v.moreHelp = !v.moreHelp;
-          localStorage.setItem(key, JSON.stringify(v));
+          await window.__prosceniumTutorialProgress(JSON.stringify(v));
         });
         await page
           .locator(".tutorial-cue")
@@ -4141,12 +5694,17 @@ export function smokeChecks({ audit, hold }) {
         );
         if ((await tutorialRead(page, "Practice Play.fountain")) !== original)
           throw new Error("Stale progress changed words");
-        await page.getByRole("button", { name: "Return to My Play", exact: true }).click();
-        await page.waitForSelector(".paneroot");
-        await page.evaluate(() =>
-          localStorage.setItem("proscenium:dev:tutorial-progress", "damaged progress"),
-        );
+        await returnToMyPlay(page);
+        await page.evaluate(() => window.__prosceniumTutorialProgress("damaged progress"));
         await page.reload();
+      },
+    },
+    {
+      // After the relaunch above: Reset Progress keeps the damaged progress,
+      // and every practice play is still found.
+      name: "tutorials · a reset of damaged progress preserves it and every practice play",
+      feature: "tutorial",
+      async run(page) {
         await walkIntoPlay(page);
         await tutorialOpen(page);
         await page.getByRole("button", { name: "Reset Progress…", exact: true }).click();
@@ -4156,12 +5714,8 @@ export function smokeChecks({ audit, hold }) {
           .click();
         await until(page, "reset done", () => !!document.querySelector(".tutorials"));
         if (
-          !(await page.evaluate(() =>
-            Object.keys(localStorage).some(
-              (k) =>
-                k.startsWith("proscenium:dev:tutorial-progress:preserved:") &&
-                localStorage.getItem(k) === "damaged progress",
-            ),
+          !(await page.evaluate(async () =>
+            (await window.__prosceniumPreservedProgress()).includes("damaged progress"),
           ))
         )
           throw new Error("Reset did not preserve damaged progress");
@@ -4172,14 +5726,11 @@ export function smokeChecks({ audit, hold }) {
           "orphan practice independently discovered",
           () => !!document.querySelector(".editor-surface .ProseMirror"),
         );
-        await tutorialOpen(page);
-        await page.getByRole("button", { name: "Return to My Play", exact: true }).click();
-        await page.waitForSelector(".paneroot");
+        await returnToMyPlay(page);
       },
     },
     {
       name: "tutorials · partial copy keeps the original and retries into a new folder",
-      devMock: true,
       feature: "tutorial",
       async run(page) {
         await tutorialStart(page, "Write Your First Exchange");
@@ -4203,16 +5754,17 @@ export function smokeChecks({ audit, hold }) {
           await until(
             page,
             "first copy write held in Plays folder",
-            () =>
-              window.__prosceniumHeld("write") > 0 &&
-              window.__prosceniumPeek("Practice Play.fountain") === null,
+            async () =>
+              (await window.__prosceniumHeld("write")) > 0 &&
+              (await window.__prosceniumPeek("Practice Play.fountain")) === null,
           );
-          await page.evaluate(() => {
-            window.__prosceniumOpenGates("write");
-            window.__prosceniumGate("write", null, {
-              fail: "No space left on device (os error 28)",
-            });
-          });
+          await page.evaluate(
+            async (fail) => {
+              await window.__prosceniumOpenGates("write");
+              await window.__prosceniumGate("write", null, { fail });
+            },
+            said("No space left on device (os error 28)", "No space left on device"),
+          );
           await until(page, "copy failure shown", () =>
             /space|disk/i.test(
               document.querySelector('.tutorials__dialog [role="alert"]')?.textContent ?? "",
@@ -4220,8 +5772,10 @@ export function smokeChecks({ audit, hold }) {
           );
           if ((await tutorialRead(page, "Practice Play.fountain")) !== original)
             throw new Error("Failed copy changed retained words");
-          const keys = await page.evaluate(() =>
-            window.__prosceniumStoreKeys().filter((k) => k.startsWith("Partial Practice Copy/")),
+          const keys = await page.evaluate(async () =>
+            (await window.__prosceniumStoreKeys()).filter((k) =>
+              k.startsWith("Partial Practice Copy/"),
+            ),
           );
           if (!keys.length || keys.some((k) => k.endsWith(".proscenium")))
             throw new Error("Partial copy was absent or published as a complete play");
@@ -4248,26 +5802,25 @@ export function smokeChecks({ audit, hold }) {
           .locator(".sheet__foot")
           .getByRole("button", { name: "Cancel", exact: true })
           .click();
-        await tutorialOpen(page);
-        await page.getByRole("button", { name: "Return to My Play", exact: true }).click();
-        await page.waitForSelector(".paneroot");
+        await returnToMyPlay(page);
       },
     },
     {
-      name: "tutorials · legacy practice resumes and copies without moving its original",
-      devMock: true,
+      // Practice as a version before courses kept it: the attempt's folder
+      // under practice/, named for it, and progress with no course. The
+      // reload that ends the check is the relaunch that finds it so.
+      name: "tutorials · practice as an earlier version kept it",
       feature: "tutorial",
       async run(page) {
         await tutorialStart(page, "Write Your First Exchange", "Write the reply");
         await tutorialType(page, "LEGACY WORDS");
-        await page.evaluate(() => {
-          const key = "proscenium:dev:tutorial-progress";
-          const progress = JSON.parse(localStorage.getItem(key));
+        const legacy = await page.evaluate(async () => {
+          const progress = JSON.parse(await window.__prosceniumTutorialProgress());
           const a = progress.attempts.at(-1);
-          const files = JSON.parse(localStorage.getItem("proscenium:dev:tutorial-files"));
-          const from = "/dev/app-data/tutorials/sessions/" + a.session + "/Practice Play/";
+          const from = `/dev/app-data/tutorials/sessions/${a.session}/Practice Play/`;
           const to = "/dev/app-data/tutorials/practice/Legacy Practice/";
-          for (const [path, text] of Object.entries(files))
+          const files = {};
+          for (const [path, text] of Object.entries(await window.__prosceniumTutorialFiles()))
             if (path.startsWith(from))
               files[
                 to +
@@ -4275,12 +5828,10 @@ export function smokeChecks({ audit, hold }) {
                     .slice(from.length)
                     .replace("Practice Play.proscenium", "Legacy Practice.proscenium")
               ] = text;
-          localStorage.setItem("proscenium:dev:tutorial-files", JSON.stringify(files));
           const legacyId = "01J00000000000000000000077";
-          const manifest = JSON.parse(files[to + "Legacy Practice.proscenium"]);
+          const manifest = JSON.parse(files[`${to}Legacy Practice.proscenium`]);
           manifest.id = legacyId;
-          files[to + "Legacy Practice.proscenium"] = JSON.stringify(manifest);
-          localStorage.setItem("proscenium:dev:tutorial-files", JSON.stringify(files));
+          files[`${to}Legacy Practice.proscenium`] = JSON.stringify(manifest);
           // Before the course: no course pointer, one attempt in its own folder.
           a.id = legacyId;
           delete a.session;
@@ -4288,32 +5839,41 @@ export function smokeChecks({ audit, hold }) {
           a.status = "paused";
           delete progress.invitation;
           delete progress.course;
-          localStorage.setItem(key, JSON.stringify({ ...progress, attempts: [a] }));
+          const fixture = { progress: JSON.stringify({ ...progress, attempts: [a] }), files };
+          await window.__prosceniumTutorialFiles(fixture.files);
+          await window.__prosceniumTutorialProgress(fixture.progress);
+          return fixture;
         });
-        // Stop checkpoints the current model, and the dev vault writes its whole
-        // practice folder back to storage whenever it saves a practice file
-        // (persistPractice). So both halves of the legacy fixture are installed
-        // again after stopping, and the relaunch waits until they hold: on a slow
-        // host a save landing after the fixture wiped its folder, and Continue
-        // then found no practice to open.
-        const legacy = await page.evaluate(() =>
-          ["proscenium:dev:tutorial-progress", "proscenium:dev:tutorial-files"].map((k) => [
-            k,
-            localStorage.getItem(k),
-          ]),
-        );
+        // Stop checkpoints the current model and saves the practice play. So
+        // both halves of the legacy fixture are installed again after stopping,
+        // and the relaunch waits until they hold: on a slow host a save landing
+        // after the fixture was written, and Continue then found no practice to
+        // open.
         await tutorialStop(page);
         await until(
           page,
           "the legacy fixture holds",
-          async (pairs) => {
-            for (const [k, v] of pairs) localStorage.setItem(k, v);
+          async ({ progress, files }) => {
+            await window.__prosceniumTutorialFiles(files);
+            await window.__prosceniumTutorialProgress(progress);
             for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
-            return pairs.every(([k, v]) => localStorage.getItem(k) === v);
+            const now = await window.__prosceniumTutorialFiles();
+            return (
+              (await window.__prosceniumTutorialProgress()) === progress &&
+              Object.entries(files).every(([path, text]) => now[path] === text)
+            );
           },
           legacy,
         );
         await page.reload();
+      },
+    },
+    {
+      // After the relaunch above: the earlier version's practice resumes, and
+      // Keep as a Play copies it, leaving it where it was.
+      name: "tutorials · legacy practice resumes and copies without moving its original",
+      feature: "tutorial",
+      async run(page) {
         await walkIntoPlay(page);
         await tutorialOpen(page);
         await page.getByRole("button", { name: /^Continue: Write Your First Exchange/ }).click();
@@ -4323,6 +5883,21 @@ export function smokeChecks({ audit, hold }) {
             ?.textContent.includes("LEGACY WORDS"),
         );
         await cueReady(page);
+        // The practice an earlier version kept lists no cast on its title
+        // page, and the app lists its speaker there as it opens it: an edit
+        // of its own, saved a moment later. Keep as a Play saves the latest
+        // words before it copies (docs/app/keeping-work/storage-and-file-format.md#STOR-171),
+        // so the original is read once that edit has landed. In the Mac app
+        // it was still being saved when the check read it.
+        await until(page, "the practice's own edit saved", async () => {
+          if (!/^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""))
+            return false;
+          const rel = "Practice Play.fountain";
+          const text = window.__TAURI_INTERNALS__
+            ? (await window.__TAURI_INTERNALS__.invoke("vault_read", { rel })).content
+            : await window.__prosceniumPeek(rel);
+          return /^Characters:/m.test(text);
+        });
         const original = await tutorialRead(page, "Practice Play.fountain");
         await tutorialOpen(page);
         await page.getByRole("button", { name: "Keep as a Play…", exact: true }).click();
@@ -4355,7 +5930,6 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · a newer practice manifest holds the step and keeps Stop reachable",
-      devMock: true,
       feature: "tutorial",
       async run(page) {
         await tutorialOpen(page);
@@ -4452,22 +6026,23 @@ export function smokeChecks({ audit, hold }) {
     },
     {
       name: "tutorials · a new invitation, for the next check",
-      devMock: true,
       feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
-        await page.evaluate(() => {
-          const key = "proscenium:dev:tutorial-progress";
-          const v = JSON.parse(localStorage.getItem(key));
-          v.invitation = "new";
-          localStorage.setItem(key, JSON.stringify(v));
+        // Held until it stays: the Stop before this may still be writing its
+        // checkpoint, and one landing after this would put back what it holds.
+        await until(page, "a new invitation stored, and staying so", async () => {
+          const v = JSON.parse(await window.__prosceniumTutorialProgress());
+          if (v.invitation !== "new")
+            await window.__prosceniumTutorialProgress(JSON.stringify({ ...v, invitation: "new" }));
+          for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
+          return JSON.parse(await window.__prosceniumTutorialProgress()).invitation === "new";
         });
         await page.reload();
       },
     },
     {
       name: "tutorials · Try the Tutorial opens the first lesson at the work",
-      devMock: true,
       feature: "tutorial",
       async run(page) {
         await walkIntoPlay(page);
@@ -4541,7 +6116,9 @@ export function smokeChecks({ audit, hold }) {
         );
         await audit(page, "appearance override");
         await page.getByRole("button", { name: /^Appearance:/ }).click();
-        await page.getByRole("menuitemradio", { name: "Follow Mac", exact: true }).click();
+        await page
+          .getByRole("menuitemradio", { name: said("Follow Mac", "Follow Windows"), exact: true })
+          .click();
         await until(
           page,
           "system appearance restored",
@@ -4554,9 +6131,6 @@ export function smokeChecks({ audit, hold }) {
           .fill("Smokewordling");
         await page.getByRole("button", { name: "Add Word", exact: true }).click();
         await page.getByRole("button", { name: "Remove “Smokewordling”", exact: true }).click();
-        await page.getByRole("textbox", { name: "New status", exact: true }).fill("Table read");
-        await page.getByRole("button", { name: "Add Status", exact: true }).click();
-        await page.getByRole("button", { name: "Delete “Table read”", exact: true }).click();
         await page.locator('.prefs__nav [role="tab"]', { hasText: "Formats" }).click();
         const first = await page.locator(".formatlist__name").first().innerText();
         await page.getByRole("button", { name: `Move “${first}” down`, exact: true }).click();
@@ -4633,6 +6207,7 @@ export function smokeChecks({ audit, hold }) {
       name: "settings · every section",
       feature: "app",
       async run(page) {
+        const intel = await onIntel(page);
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".sheet .prefs", { timeout: 5000 });
         await visible(page, ".prefs__nav", { minWidth: 120, minHeight: 200 });
@@ -4683,7 +6258,10 @@ export function smokeChecks({ audit, hold }) {
           const stops = await page.locator('.prefs__nav [role="tab"][tabindex="0"]').count();
           if (stops !== 1) throw new Error(`${stops} sections are Tab stops; the list is one`);
           await visible(page, ".prefs__panel .settings", { minWidth: 300, minHeight: 60 });
-          await audit(page, `settings · ${expected[i].toLowerCase()}`);
+          await audit(
+            page,
+            `settings · ${expected[i].toLowerCase()}${expected[i] === "Updates" && intel ? " on an Intel Mac" : ""}`,
+          );
         }
         await page.keyboard.press("ArrowDown");
         if ((await focused(page)).text !== "General")
@@ -4779,25 +6357,29 @@ export function smokeChecks({ audit, hold }) {
       // audited, so a derivation that lets text slip under 4.5:1 fails here.
       name: "settings · Follow Mac takes the Mac's accent",
       feature: "app",
-      devMock: true,
       async run(page) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
         await page.locator('.prefs__nav [role="tab"]', { hasText: "Appearance" }).click();
         await page.locator('.settings__swatches [role="radio"][aria-checked="true"]').focus();
         await page.keyboard.press("End");
+        // "Follow Windows" on a PC (src/ui/system-words.ts).
+        const follow = said("Follow Mac", "Follow Windows");
         const root = () =>
-          page.evaluate(() => ({
-            accent: document.documentElement.dataset.accent,
-            warm: document.documentElement.dataset.accentWarm ?? null,
-            fill: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(),
-            swatch: getComputedStyle(
-              document.querySelector('.settings__swatches [aria-label="Follow Mac"]'),
-            ).backgroundColor,
-            name: document.querySelector(".settings__accentname")?.textContent ?? "",
-          }));
-        if ((await root()).accent !== "system" || !/^Follow Mac/.test((await root()).name)) {
-          throw new Error(`End chose ${JSON.stringify(await root())}, not Follow Mac`);
+          page.evaluate(
+            (label) => ({
+              accent: document.documentElement.dataset.accent,
+              warm: document.documentElement.dataset.accentWarm ?? null,
+              fill: getComputedStyle(document.documentElement).getPropertyValue("--accent").trim(),
+              swatch: getComputedStyle(
+                document.querySelector(`.settings__swatches [aria-label="${label}"]`),
+              ).backgroundColor,
+              name: document.querySelector(".settings__accentname")?.textContent ?? "",
+            }),
+            follow,
+          );
+        if ((await root()).accent !== "system" || !(await root()).name.startsWith(follow)) {
+          throw new Error(`End chose ${JSON.stringify(await root())}, not ${follow}`);
         }
         try {
           for (const [hex, warm] of [
@@ -4811,11 +6393,11 @@ export function smokeChecks({ audit, hold }) {
             await until(
               page,
               `the swatch in ${hex}`,
-              (want) =>
+              ([want, label]) =>
                 getComputedStyle(
-                  document.querySelector('.settings__swatches [aria-label="Follow Mac"]'),
+                  document.querySelector(`.settings__swatches [aria-label="${label}"]`),
                 ).backgroundColor === want,
-              rgb,
+              [rgb, follow],
             );
             const now = await root();
             if ((now.warm === "true") !== warm) throw new Error(`${hex} left warm=${now.warm}`);
@@ -4996,30 +6578,76 @@ export function smokeChecks({ audit, hold }) {
         // The note says what the switch does whichever way it is set; off is its opposite.
         const note = await page.locator(".prefs__panel .settings__note").first().innerText();
         if (!/once a day/.test(note)) throw new Error(`with checks off, the note reads "${note}"`);
-        await audit(page, "settings · updates, automatic off");
+        const intel = await onIntel(page);
+        await audit(page, `settings · updates, automatic off${intel ? ", on an Intel Mac" : ""}`);
         await page.keyboard.press("Space");
         if ((await automatic().getAttribute("aria-checked")) !== "true") {
           throw new Error("Space did not switch automatic update checks back on");
         }
+        // An Intel Mac takes Stable alone (docs/app/preferences-and-help/settings.md#SET-40).
+        if (intel) await intelTrack(page);
         // The track (docs/app/preferences-and-help/settings.md#SET-37): stable unless chosen, a sentence
         // saying what each brings, and Alpha not offered to a copy with no key
         // (docs/app/preferences-and-help/settings.md#SET-37).
-        if (!/Stable/.test(await trackLabel(page)))
-          throw new Error(`the update track does not start on Stable: "${await trackLabel(page)}"`);
-        if (!(await page.evaluate(settingsSays, "Each new release.")))
-          throw new Error("Stable does not say what it brings");
-        if ((await trackChoices(page)).join() !== "Stable,Beta")
-          throw new Error(`with no key, the track menu offers ${await trackChoices(page)}`);
-        await chooseTrack(page, "Beta");
-        await until(
-          page,
-          "beta's sentence",
-          settingsSays,
-          "Each new release, and test versions of it before it comes out.",
-        );
-        await chooseTrack(page, "Stable");
+        if (!intel) {
+          if (!/Stable/.test(await trackLabel(page)))
+            throw new Error(
+              `the update track does not start on Stable: "${await trackLabel(page)}"`,
+            );
+          if (!(await page.evaluate(settingsSays, "Each new release.")))
+            throw new Error("Stable does not say what it brings");
+          if ((await trackChoices(page)).join() !== "Stable,Beta")
+            throw new Error(`with no key, the track menu offers ${await trackChoices(page)}`);
+          await chooseTrack(page, "Beta");
+          await until(
+            page,
+            "beta's sentence",
+            settingsSays,
+            "Each new release, and test versions of it before it comes out.",
+          );
+          await chooseTrack(page, "Stable");
+        }
         await page.keyboard.press("Escape");
         await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+        if (intel) {
+          // An Intel Mac refuses a patch to another track, and keeps what its
+          // settings file holds (docs/app/preferences-and-help/settings.md#SET-40).
+          const refused = await page.evaluate(() =>
+            window.__TAURI_INTERNALS__
+              .invoke("update_settings", { patch: { updateTrack: "alpha" } })
+              .then(
+                () => null,
+                (e) => String(e),
+              ),
+          );
+          if (refused !== "An Intel Mac takes stable releases only")
+            throw new Error(
+              refused === null
+                ? "an Intel Mac took a patch to alpha"
+                : `an Intel Mac refused a patch to alpha, but said "${refused}"`,
+            );
+          return;
+        }
+        if (onPC()) {
+          // Windows takes Stable and Beta: no Windows alpha is published
+          // (docs/app/preferences-and-help/settings.md#SET-37), so a patch to
+          // alpha is refused, and nothing is stored.
+          const refused = await page.evaluate(() =>
+            window.__TAURI_INTERNALS__
+              .invoke("update_settings", { patch: { updateTrack: "alpha" } })
+              .then(
+                () => null,
+                (e) => String(e),
+              ),
+          );
+          if (refused !== "This build is not published on that track")
+            throw new Error(
+              refused === null
+                ? "Windows took a patch to alpha"
+                : `a patch to alpha said "${refused}"`,
+            );
+          return;
+        }
         // A copy already on alpha keeps it without a key, so nobody's choice vanishes,
         // which only a relaunch reads: the next check picks it up.
         await page.evaluate(async () => {
@@ -5050,6 +6678,25 @@ export function smokeChecks({ audit, hold }) {
         await page.keyboard.press("Meta+Comma");
         await page.waitForSelector(".prefs", { timeout: 5000 });
         await page.locator('.prefs__nav [role="tab"]', { hasText: "Updates" }).click();
+        if (await onIntel(page)) {
+          // An Intel Mac has no key to ask for and nothing to offer instead
+          // (docs/app/preferences-and-help/settings.md#SET-40): the section
+          // audited by the checks before is the one it shows here too.
+          await intelTrack(page);
+          await page.keyboard.press("Escape");
+          await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+          return;
+        }
+        if (onPC()) {
+          // Windows has no alpha, so no key to ask for (docs/app/preferences-and-help/settings.md#SET-37).
+          if ((await trackChoices(page)).join() !== "Stable,Beta")
+            throw new Error(`Windows' track menu offers ${await trackChoices(page)}`);
+          if (await page.getByRole("button", { name: /Have a key/ }).count())
+            throw new Error("Windows asks for a key to a track it has none of");
+          await page.keyboard.press("Escape");
+          await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+          return;
+        }
         await until(page, "the track to be Alpha", () =>
           (
             document
@@ -5178,11 +6825,11 @@ export function smokeChecks({ audit, hold }) {
     {
       // A store copy has no updater (Updates.tsx): the store updates it, so it
       // shows no switch, no Check Now and no note about where checks go, and
-      // Privacy points it at no update setting. Mock-only: the state is the
-      // dev vault's to choose; the check puts back the one it found.
+      // Privacy points it at no update setting. The check stands in for a store
+      // copy's state, the in-memory vault's or a test build's updater's, and
+      // puts back the one it found.
       name: "settings · a store copy offers no update controls",
       feature: "app",
-      devMock: true,
       async run(page) {
         const was = await page.evaluate(() =>
           window.__prosceniumUpdateState({ kind: "unavailable" }),
@@ -5191,10 +6838,11 @@ export function smokeChecks({ audit, hold }) {
           await page.keyboard.press("Meta+Comma");
           await page.waitForSelector(".prefs", { timeout: 5000 });
           await page.locator('.prefs__nav [role="tab"]', { hasText: "Updates" }).click();
-          await until(page, "the store copy's sentence", () =>
-            /come from the App Store/.test(
-              document.querySelector(".prefs__panel")?.textContent ?? "",
-            ),
+          await until(
+            page,
+            "the store copy's sentence",
+            (store) => (document.querySelector(".prefs__panel")?.textContent ?? "").includes(store),
+            said("come from the App Store", "come from the Microsoft Store"),
           );
           if (await page.locator('.prefs__panel [role="switch"]').count())
             throw new Error("a store copy offers the automatic switch");
@@ -5324,7 +6972,7 @@ export function smokeChecks({ audit, hold }) {
           "Sketch Comedy — Sketchworks",
         ]) {
           await openFromDocumentMenu(page, name);
-          await page.waitForTimeout(300);
+          await laidOutIn(page, name);
           await visible(page, ".play-page", { minWidth: 300, minHeight: 200 });
           if (name.startsWith("UK")) {
             const joins = await page.evaluate(() =>
@@ -5888,9 +7536,13 @@ export function smokeChecks({ audit, hold }) {
         await page.locator('.prefs__nav [role="tab"]', { hasText: "Formats" }).click();
         await page.getByRole("button", { name: "More actions for “Smoke House”" }).click();
         await page.waitForSelector(".menu", { timeout: 5000 });
-        await page.locator(".menu__item", { hasText: "Move to Trash" }).click();
+        await page
+          .locator(".menu__item", { hasText: said("Move to Trash", "Move to the Recycle Bin") })
+          .click();
         await until(page, "the Trash toast", () =>
-          /moved to the Trash/.test(document.querySelector(".toast__title")?.textContent ?? ""),
+          /moved to the (Trash|Recycle Bin)/.test(
+            document.querySelector(".toast__title")?.textContent ?? "",
+          ),
         );
         const detail = await page.locator(".toast__detail").innerText();
         if (!/The Weight of Water/.test(detail) || !/Dramatists Guild — Modern/.test(detail)) {
@@ -5901,6 +7553,33 @@ export function smokeChecks({ audit, hold }) {
           throw new Error("Smoke House is still listed after Move to Trash");
         await page.keyboard.press("Escape");
         await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+      },
+    },
+    {
+      // The Characters sheet in page view opens where its lines are edited: a
+      // double-click on a character's line puts the cursor in that character's
+      // description on Cast (docs/app/formatting/formats-and-layout.md#FMT-59).
+      // A double-click, not a click: the sheet is in the scroll path above the
+      // first scene, and a stray click should not take the writer away.
+      name: "characters page · a double-click opens Cast at the line",
+      feature: "editor",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        const line = page
+          .locator('[data-front-kind="characters"] [data-front-paragraph="cast-1"]')
+          .first();
+        await line.dblclick();
+        await page.waitForSelector(".castview", { timeout: 10000 });
+        await until(page, "the cursor in the second character's description", () => {
+          const on = document.activeElement;
+          return (
+            !!on &&
+            on === document.querySelectorAll(".castcard__desc")[1] &&
+            /^Description — /.test(on.getAttribute("aria-label") ?? "")
+          );
+        });
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        await page.waitForSelector(".play-page", { timeout: 10000 });
       },
     },
     {
@@ -5935,8 +7614,7 @@ export function smokeChecks({ audit, hold }) {
           });
         const menuOpen = () => page.locator('.pl-elementmenu [role="menuitem"]').count();
         await script.focus();
-        await page.keyboard.press("Meta+ArrowDown");
-        await page.waitForTimeout(100);
+        await toScriptEnd(page);
         try {
           await page.keyboard.press("Enter");
           await page.keyboard.press("Meta+Alt+KeyA");
@@ -5948,7 +7626,14 @@ export function smokeChecks({ audit, hold }) {
             );
           }
           await page.keyboard.press("p");
-          await page.waitForTimeout(100);
+          // The menu's choice made, and the keyboard back in the script.
+          await eventually(page, () => {
+            const view = document.querySelector(".ProseMirror");
+            return (
+              view.editor.state.selection.$from.parent.type.name === "parenthetical" &&
+              document.activeElement === view
+            );
+          });
           const chosen = await where();
           if (chosen.type !== "parenthetical" || chosen.size !== 0 || !chosen.inScript) {
             throw new Error(`choosing p left ${JSON.stringify(chosen)}`);
@@ -6003,7 +7688,15 @@ export function smokeChecks({ audit, hold }) {
           await page.keyboard.press("Enter");
           await page.waitForSelector('.pl-elementmenu [role="menuitem"]');
           await page.keyboard.press("Shift+Enter");
-          await page.waitForTimeout(150);
+          // The menu gone, the break in, and the keyboard in the script.
+          await eventually(page, () => {
+            const view = document.querySelector(".ProseMirror");
+            return (
+              !document.querySelector('.pl-elementmenu [role="menuitem"]') &&
+              view.editor.state.selection.$from.nodeBefore?.type.name === "lineBreak" &&
+              document.activeElement === view
+            );
+          });
           const held = await where();
           if ((await menuOpen()) || held.type !== "action" || !held.broke || !held.inScript) {
             throw new Error(
@@ -6014,8 +7707,7 @@ export function smokeChecks({ audit, hold }) {
           if (await menuOpen()) await page.keyboard.press("Escape");
           await script.focus();
           for (let i = 0; i < 40 && (await doc()) !== before; i++) {
-            await page.keyboard.press("Meta+KeyZ");
-            await page.waitForTimeout(60);
+            await undo(page);
           }
         }
         if ((await doc()) !== before)
@@ -6080,49 +7772,66 @@ export function smokeChecks({ audit, hold }) {
         });
         await audit(page, "export range feedback");
         await page.keyboard.press("Escape");
+        // Versions… is Changes on the writer's own versions: what it found is said.
         await openFromDocumentMenu(page, /Versions/);
         await until(page, "versions completion to be spoken", () =>
-          /^(Version ready:|No saved versions yet)/.test(
-            document.querySelector('[aria-modal="true"] [data-announcer="polite"]')?.textContent ??
-              "",
+          /^(Your versions|No versions of your own)/.test(
+            document.querySelector('[data-announcer="polite"]')?.textContent ?? "",
           ),
         );
-        await page.keyboard.press("Escape");
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
       },
     },
     {
-      name: "a failed version read is spoken inside Versions",
+      name: "a failed version read is spoken in Changes",
       feature: "review",
-      devMock: true,
       async run(page) {
+        // A version to read, of the writer's own: opening a play keeps none,
+        // so a word is typed and its save keeps one.
+        await page.locator(".ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.type(" Still.");
+        await saveOfEdit(page);
+        await until(page, "a version of the script to read", async () =>
+          (await window.__prosceniumVersionsWith("")).some((v) => v.reason === "save"),
+        );
         await page.evaluate(() =>
           window.__prosceniumGate("versionRead", null, { fail: "A619 version unavailable" }),
         );
         try {
+          // Everything said, in order: Changes opens on the sitting and reads
+          // it at once, and says what Versions… found as well.
+          await page.evaluate(() => {
+            const said = [];
+            window.__prosceniumSaid = said;
+            new MutationObserver(() => {
+              const text = document.querySelector('[data-announcer="polite"]')?.textContent;
+              if (text) said.push(text);
+            }).observe(document.body, { childList: true, subtree: true, characterData: true });
+          });
+          // Versions… is Changes, on the writer's own versions of the script.
           await openFromDocumentMenu(page, /Versions/);
+          await page.waitForSelector(".changes .changerow--sitting", { timeout: 5000 });
+          await page.locator(".changes .changerow--sitting").first().click();
           await until(page, "the version read failure to be spoken", () =>
-            /Could not read versions.*A619 version unavailable/.test(
-              document.querySelector('[aria-modal="true"] [data-announcer="polite"]')
-                ?.textContent ?? "",
+            (window.__prosceniumSaid ?? []).some((text) =>
+              /Could not read the changes to .*A619 version unavailable/.test(text),
             ),
           );
           await audit(page, "version read failure");
-          await page.keyboard.press("Escape");
         } finally {
           await page.evaluate(() => window.__prosceniumOpenGates("versionRead"));
+          await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         }
       },
     },
     {
       name: "Changes speaks delayed and unavailable comparisons",
       feature: "review",
-      devMock: true,
       async run(page) {
         const path = "The Weight of Water.fountain";
         const before = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
-        await until(page, "the script to finish saving", () =>
-          /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
-        );
+        await until(page, "the script to finish saving", saveSettled);
         try {
           await page.evaluate(
             ({ rel, text }) =>
@@ -6132,10 +7841,12 @@ export function smokeChecks({ audit, hold }) {
           await until(page, "the external comparison fixture to arrive", () =>
             document.querySelector(".ProseMirror")?.textContent.includes("A619 comparison marker"),
           );
+          // Changes opens on the newest change it has not shown the writer, and
+          // reads it at once: the read of what was there before it, kept in
+          // app data, is held before it opens.
+          await page.evaluate(() => window.__prosceniumGate("storeRead", "changes/before/*"));
           await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
           await page.waitForSelector(".change__summary");
-          await page.evaluate((rel) => window.__prosceniumGate("read", rel), path);
-          await page.locator(".change__summary").first().click();
           await until(page, "a slow comparison to speak its loading state", () =>
             /Reading changes in/.test(
               document.querySelector('[data-announcer="polite"]')?.textContent ?? "",
@@ -6143,19 +7854,20 @@ export function smokeChecks({ audit, hold }) {
           );
           if (!(await page.locator('.change__diff[aria-busy="true"]').count()))
             throw new Error("the slow comparison was not marked busy");
-          await page.evaluate(() => window.__prosceniumOpenGates("read"));
+          await page.evaluate(() => window.__prosceniumOpenGates("storeRead"));
           await until(page, "comparison completion to be spoken", () =>
             /Comparison ready for/.test(
               document.querySelector('[data-announcer="polite"]')?.textContent ?? "",
             ),
           );
           await page.locator(".seg__btn", { hasText: "Script" }).first().click();
-          await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
-          await page.evaluate(
-            (rel) => window.__prosceniumGate("read", rel, { fail: "A619 comparison unavailable" }),
-            path,
+          await page.evaluate(() =>
+            window.__prosceniumGate("storeRead", "changes/before/*", {
+              fail: "A619 comparison unavailable",
+            }),
           );
-          await page.locator(".change__summary").first().click();
+          // Opened again, it reads the change it opens on again.
+          await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
           await until(page, "an unavailable comparison to be spoken", () =>
             /No comparison available for/.test(
               document.querySelector('[data-announcer="polite"]')?.textContent ?? "",
@@ -6165,7 +7877,7 @@ export function smokeChecks({ audit, hold }) {
             throw new Error("a finished unavailable comparison stayed busy");
           await audit(page, "comparison unavailable");
         } finally {
-          await page.evaluate(() => window.__prosceniumOpenGates("read"));
+          await page.evaluate(() => window.__prosceniumOpenGates("storeRead"));
           await page.locator(".seg__btn", { hasText: "Script" }).first().click();
           await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
             rel: path,
@@ -6179,20 +7891,437 @@ export function smokeChecks({ audit, hold }) {
                 .querySelector(".ProseMirror")
                 ?.textContent.includes("A619 comparison marker"),
           );
+          // The change putting the script back, seen.
           await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
-          const keep = page.locator(".changes button", { hasText: /^Keep$/ });
-          for (let n = await keep.count(); n > 0; n = await keep.count()) {
-            await keep.first().click();
+          await changesListed(page, 2);
+          await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        }
+      },
+    },
+    {
+      // Forty-four on the Changes tab of a writer who had read every one: each
+      // change from outside asked to be kept, one at a time, and a script an
+      // editor saved in six writes was six rows. Looking is seeing, and a burst
+      // is one entry (docs/app/keeping-work/storage-and-file-format.md#STOR-183,
+      // docs/app/keeping-work/storage-and-file-format.md#STOR-184).
+      name: "changes · looking clears the count, and a burst is one entry",
+      feature: "review",
+      async run(page) {
+        const path = "The Weight of Water.fountain";
+        const tab = () => page.locator(".seg__btn", { hasText: "Changes" }).first();
+        const counted = () =>
+          page.evaluate(() => {
+            const label =
+              [...document.querySelectorAll(".seg__btn")]
+                .find((b) => b.textContent.trim().startsWith("Changes"))
+                ?.getAttribute("aria-label") ?? "";
+            return Number(/, (\d+) pending$/.exec(label)?.[1] ?? 0);
+          });
+        await until(page, "the script to finish saving", saveSettled);
+        const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
+        const before = await counted();
+        let text = original;
+        try {
+          // Three writes from somewhere else, one after another.
+          for (const [from, to] of [
+            [
+              "The pipe's been crying all night.",
+              "The pipe's been crying all night. Like it knows.",
+            ],
+            ["You and that pipe.", "You and that."],
+            ["You weren't supposed to come.", "You weren't supposed to come back."],
+          ]) {
+            text = text.replace(from, to);
+            await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+              rel: path,
+              text,
+            });
             await until(
               page,
-              "the comparison to be reviewed",
-              (count) =>
-                [...document.querySelectorAll(".changes button")].filter(
-                  (button) => button.textContent.trim() === "Keep",
-                ).length < count,
-              n,
+              "the change to reach the page",
+              (words) => document.querySelector(".ProseMirror")?.textContent.includes(words),
+              to,
             );
           }
+          await until(
+            page,
+            "the tab to count the burst once",
+            (was) =>
+              [...document.querySelectorAll(".seg__btn")]
+                .find((b) => b.textContent.trim().startsWith("Changes"))
+                ?.getAttribute("aria-label") === `Changes, ${was + 1} pending`,
+            before,
+          );
+          // Changes in front: the count goes, and the burst is chosen, New,
+          // on the page, without a click.
+          await tab().click();
+          await until(page, "the count to go as Changes comes in front", () =>
+            [...document.querySelectorAll(".seg__btn")].some(
+              (b) => b.textContent.trim() === "Changes" && !b.getAttribute("aria-label"),
+            ),
+          );
+          const one = await eventually(page, () => {
+            const rows = [...document.querySelectorAll(".changes .changerow--new")];
+            return (
+              rows.length === 1 &&
+              /· 3 saves/.test(rows[0].textContent) &&
+              rows[0].getAttribute("aria-current") === "true"
+            );
+          });
+          if (!one)
+            throw new Error(
+              `not one entry, new and chosen, for the three saves: ${await page.evaluate(() =>
+                JSON.stringify(
+                  [...document.querySelectorAll(".changes .changerow")].map((row) => [
+                    row.className,
+                    row.getAttribute("aria-current"),
+                    row.textContent,
+                  ]),
+                ),
+              )}`,
+            );
+          await until(page, "the burst drawn on the page beside the list", () => {
+            const sheet = document.querySelector(".changes .redline__page");
+            return (
+              sheet &&
+              [...sheet.querySelectorAll("ins.redline-add")].some((el) =>
+                el.textContent.includes("Like it knows."),
+              ) &&
+              [...sheet.querySelectorAll("del.redline-del")].some((el) => el.textContent === "pipe")
+            );
+          });
+          await visible(page, ".changes .redline__page", { minWidth: 300, minHeight: 40 });
+          // With room, the list stands beside the page; the page stays chosen.
+          await page.locator('.iconbtn[aria-label="Hide the inspector"]').click();
+          await until(page, "the list beside the page", () => {
+            const detail = document.querySelector(".changes--split .changes__detail");
+            const list = document.querySelector(".changes--split .changes__list");
+            if (!detail || !list) return false;
+            const d = detail.getBoundingClientRect();
+            const l = list.getBoundingClientRect();
+            return l.right <= d.left && detail.querySelector(".redline__page ins.redline-add");
+          });
+          await visible(page, ".changes__detail .redline__page", { minWidth: 300, minHeight: 40 });
+          await audit(page, "changes, a burst chosen");
+          // Seen stays seen: back again, nothing is new, and the burst is listed.
+          await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+          await page.waitForSelector(".play-page");
+          if ((await counted()) !== before) throw new Error("the burst seen was counted again");
+          await tab().click();
+          await page.waitForSelector(".changes .changerow--outside");
+          if (await page.locator(".changes .changerow--new").count())
+            throw new Error("a change seen once was new again");
+        } finally {
+          // The inspector back as the act had it.
+          const shown = page.locator('.iconbtn[aria-label="Show the inspector"]');
+          if (await shown.count()) {
+            await shown.click();
+            await page.waitForSelector(".inspector");
+          }
+          await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+          await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+            rel: path,
+            text: original,
+          });
+          await until(
+            page,
+            "the script to be put back",
+            () => !document.querySelector(".ProseMirror")?.textContent.includes("Like it knows."),
+          );
+          // The change putting it back, seen.
+          await tab().click();
+          await changesListed(page, 4);
+          await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        }
+      },
+    },
+    {
+      // "Changes in text" laid every change the writer had not kept over the
+      // script at once: each cut line once for every change after it, in the
+      // file's own markup. It draws the newest burst, each change once, on the
+      // script's own page, and steps from one to the next
+      // (docs/app/keeping-work/storage-and-file-format.md#STOR-185).
+      name: "changes · Changes in text draws the newest burst, each change once",
+      feature: "review",
+      async run(page) {
+        const path = "The Weight of Water.fountain";
+        const cut = "She turns off the tap. It keeps dripping.";
+        const toggle = page.getByRole("switch", { name: /^Changes in text/ });
+        await until(page, "the script to finish saving", saveSettled);
+        const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
+        let text = original;
+        try {
+          // One element cut, then words added to another: two saves, one burst.
+          for (const [from, to, shown] of [
+            [`${cut}\n\n`, "", null],
+            ["You weren't supposed to come.", "You weren't supposed to come back.", "come back."],
+          ]) {
+            text = text.replace(from, to);
+            await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+              rel: path,
+              text,
+            });
+            await until(
+              page,
+              "the change to reach the page",
+              ({ shown, cut }) => {
+                const words = document.querySelector(".ProseMirror")?.textContent ?? "";
+                return shown ? words.includes(shown) : !words.includes(cut);
+              },
+              { shown, cut },
+            );
+          }
+          await toggle.click();
+          await until(
+            page,
+            "the burst drawn on the script, each change once",
+            (cut) => {
+              const editor = document.querySelector(".play-page .ProseMirror");
+              if (!editor) return false;
+              const cuts = [...editor.querySelectorAll('[data-redline="del"]')].filter((el) =>
+                el.textContent.includes(cut),
+              );
+              const added = [...editor.querySelectorAll("ins.redline-add")].map(
+                (el) => el.textContent,
+              );
+              return (
+                cuts.length === 1 &&
+                cuts[0].getAttribute("contenteditable") === "false" &&
+                cuts[0].querySelector("del") &&
+                added.length === 1 &&
+                added[0] === "back" &&
+                editor.querySelectorAll("[data-redline]").length === 2
+              );
+            },
+            cut,
+          );
+          // Turning it on goes to the first change; Next goes to the second.
+          const count = page.locator(".trackedswitch__count");
+          await until(
+            page,
+            "the first of two changes",
+            () => document.querySelector(".trackedswitch__count")?.textContent === "1 of 2",
+          );
+          await audit(page, "changes in text");
+          await page.getByRole("button", { name: "Next change" }).click();
+          await until(
+            page,
+            "the second of two changes",
+            () => document.querySelector(".trackedswitch__count")?.textContent === "2 of 2",
+          );
+          if (!(await count.isVisible())) throw new Error("the count of changes is not on screen");
+          // Nothing drawn is in the script.
+          const saved = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
+          if (saved !== text) throw new Error("drawing the change wrote to the script");
+          // Seen: turned off, the toolbar stops offering it.
+          await toggle.click();
+          await until(
+            page,
+            "the redline taken off, and the switch with it",
+            () =>
+              !document.querySelector(".play-page [data-redline]") &&
+              !document.querySelector(".trackedswitch"),
+          );
+        } finally {
+          await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+            rel: path,
+            text: original,
+          });
+          await until(
+            page,
+            "the script to be put back",
+            (cut) => document.querySelector(".ProseMirror")?.textContent.includes(cut),
+            cut,
+          );
+          await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
+          await changesListed(page, 3);
+          await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        }
+      },
+    },
+    {
+      // A change heard while the one before it to the same file was still
+      // being recorded was read against the text from before that one: the
+      // burst came apart, and each piece carried every change before it
+      // (docs/app/keeping-work/storage-and-file-format.md#STOR-184). A sheet
+      // that is not open has no reload to move its baseline sooner, so
+      // holding the ledger holds each record open.
+      name: "changes · a change heard while the one before is recorded joins its burst",
+      feature: "review",
+      async run(page) {
+        const path = "Characters/Jonah.md";
+        const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
+        // One word each. The first may only give the sheet its baseline, if
+        // the app has not read it yet; every one after it is a change. A Mac
+        // may tell quick writes as one event, the first two of them then only
+        // the baseline, so the burst holds two words or more, all added.
+        const lines = ["Second.", "Third.", "Fourth.", "Fifth."];
+        try {
+          await page.evaluate(() => window.__prosceniumGate("storeRead", "changes/ledger.jsonl"));
+          let text = original;
+          for (const [at, line] of lines.entries()) {
+            text = `${text}\n${line}\n`;
+            await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+              rel: path,
+              text,
+            });
+            // From the second on, a record is held at the ledger, and every
+            // change after it is heard while it is.
+            if (at > 0)
+              await eventually(
+                page,
+                async () => (await window.__prosceniumHeld("storeRead")) > 0,
+                undefined,
+                3000,
+              );
+          }
+        } finally {
+          await page.evaluate(() => window.__prosceniumOpenGates("storeRead"));
+        }
+        await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
+        // A browser stages this exactly: one entry, every word in it added
+        // (apart, each piece was a row, and carried the ones before it). A
+        // real app's file events come in the system's own order, which can
+        // part a burst; never by counting a change twice.
+        const inApp = await page.evaluate(() => !!window.__TAURI_INTERNALS__);
+        const one = await eventually(
+          page,
+          (inApp) => {
+            const rows = [...document.querySelectorAll(".changes .changerow--outside")].filter(
+              (row) => row.textContent.includes("Jonah"),
+            );
+            const counts = rows.map((row) => /\+(\d+) −(\d+) words/.exec(row.textContent));
+            if (!rows.length || counts.some((m) => !m || m[2] !== "0")) return false;
+            const words = counts.reduce((n, m) => n + Number(m[1]), 0);
+            return inApp ? words >= 2 && words <= 4 : rows.length === 1 && words >= 2;
+          },
+          inApp,
+        );
+        if (!one)
+          throw new Error(
+            `the changes were not one burst of their own words: ${await page.evaluate(() =>
+              JSON.stringify(
+                [...document.querySelectorAll(".changes .changerow--outside")].map(
+                  (row) => row.textContent,
+                ),
+              ),
+            )}`,
+          );
+        // Put back, and seen.
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+          rel: path,
+          text: original,
+        });
+        await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
+        await changesListed(page, 4);
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+      },
+    },
+    {
+      // A note's change was its Markdown, struck and underlined line by line:
+      // "## Wounds", "- She never learned to swim.", the asterisks round a
+      // bold word. It is read on the note's own page, headings, lists and
+      // emphasis as written (docs/app/keeping-work/storage-and-file-format.md#STOR-177).
+      name: "changes · a document's change is read on its own page",
+      feature: "review",
+      async run(page) {
+        const path = "Characters/Mara.md";
+        const original = await page.evaluate((rel) => window.__prosceniumPeek(rel), path);
+        const changed = `${original.replace(
+          "**Fears:** that quiet is just absence, not peace.\n",
+          "",
+        )}\n## Wounds\n\n- Her mother left the water to Jonah.\n- She never learned to swim.\n  - Her father drowned when she was nine.\n`;
+        try {
+          // A sheet the app has not read yet takes its first text as what it
+          // last saw, and a Mac may tell two quick writes as one event: the
+          // first is heard (its read of what was last seen held, then let
+          // go) before the second, the change, is written.
+          await page.evaluate(() => window.__prosceniumGate("storeRead", "changes/baseline/*"));
+          try {
+            await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+              rel: path,
+              text: `${original}\n`,
+            });
+            await until(
+              page,
+              "the first write to be heard",
+              async () => (await window.__prosceniumHeld("storeRead")) > 0,
+            );
+          } finally {
+            await page.evaluate(() => window.__prosceniumOpenGates("storeRead"));
+          }
+          await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+            rel: path,
+            text: changed,
+          });
+          await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
+          await page.waitForSelector(".changes .changerow--outside");
+          await page.locator(".changes .changerow--outside", { hasText: "Mara" }).first().click();
+          const drawn = () => {
+            const sheet = document.querySelector(".changes .redline__doc .prose");
+            if (!sheet) return { sheet: false };
+            const added = [...sheet.querySelectorAll("ins.redline-add")].map(
+              (el) => el.textContent,
+            );
+            const cut = [...sheet.querySelectorAll("del.redline-del")].map((el) => el.textContent);
+            const seen = {
+              heading: sheet.querySelector("h2[data-redline] ins")?.textContent === "Wounds",
+              nested: [...sheet.querySelectorAll("li li [data-redline] ins")].some(
+                (el) => el.textContent === "Her father drowned when she was nine.",
+              ),
+              item: added.includes("She never learned to swim."),
+              cut: cut.some((t) => t.includes("that quiet is just absence")),
+              bold: !!sheet.querySelector("del strong, strong del"),
+              noMarkup: !/(^|\n)#|\*\*|^- /m.test(sheet.innerText),
+            };
+            const nested = [...sheet.querySelectorAll("li li")].map((el) => el.outerHTML);
+            return Object.values(seen).every(Boolean) || { ...seen, added, cut, nested };
+          };
+          const shown = await eventually(page, () => {
+            const sheet = document.querySelector(".changes .redline__doc .prose");
+            if (!sheet) return false;
+            const added = [...sheet.querySelectorAll("ins.redline-add")].map(
+              (el) => el.textContent,
+            );
+            const cut = [...sheet.querySelectorAll("del.redline-del")].map((el) => el.textContent);
+            return (
+              sheet.querySelector("h2[data-redline] ins")?.textContent === "Wounds" &&
+              [...sheet.querySelectorAll("li li [data-redline] ins")].some(
+                (el) => el.textContent === "Her father drowned when she was nine.",
+              ) &&
+              added.includes("She never learned to swim.") &&
+              cut.some((t) => t.includes("that quiet is just absence")) &&
+              !!sheet.querySelector("del strong, strong del") &&
+              !/(^|\n)#|\*\*|^- /m.test(sheet.innerText)
+            );
+          });
+          if (!shown)
+            throw new Error(
+              `the sheet's change was not drawn on its page: ${JSON.stringify(await page.evaluate(drawn))}`,
+            );
+          await visible(page, ".changes .redline__doc", { minWidth: 300, minHeight: 40 });
+          await audit(page, "changes, a document on its page");
+          // Line by Line is the file itself, its markup and all.
+          const look = (name) =>
+            page.locator('.changes__bar [role="tab"]', { hasText: name }).first();
+          await look("Line by Line").click();
+          await until(page, "the sheet's lines, as the file holds them", () =>
+            [...document.querySelectorAll(".changes .diffline--add")].some((el) =>
+              el.textContent.includes("## Wounds"),
+            ),
+          );
+          await look("On the Page").click();
+          await page.waitForSelector(".changes .redline__doc");
+        } finally {
+          await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+          await page.evaluate(({ rel, text }) => window.__prosceniumExternalChange(rel, text), {
+            rel: path,
+            text: original,
+          });
+          // The change putting it back, seen.
+          await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
+          await changesListed(page, 2);
           await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         }
       },
@@ -6201,11 +8330,78 @@ export function smokeChecks({ audit, hold }) {
       name: "versions",
       feature: "review",
       async run(page) {
+        // Changes is one timeline: the writer's own sittings with what came
+        // from outside (docs/app/keeping-work/storage-and-file-format.md#STOR-119).
+        // Versions… opens it on their own versions of what is in front, a
+        // sitting chosen shows what changed in it, and ↓ ↑ step from one entry
+        // to the next, choosing each. Opening a play keeps no version, so a
+        // word is typed and its save keeps one.
+        await page.locator(".ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.type(" Still.");
+        await saveOfEdit(page);
         await openFromDocumentMenu(page, /Versions/);
-        await page.waitForSelector(".sheet", { timeout: 5000 });
-        await audit(page, "versions sheet");
-        await page.keyboard.press("Escape");
-        await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+        await page.waitForSelector(".changes .changerow--sitting", { timeout: 5000 });
+        const pressed = await page
+          .locator('.changes__bar [role="tab"][aria-selected="true"]')
+          .first()
+          .innerText();
+        if (pressed.trim() !== "Mine") throw new Error(`Versions… opened Changes on "${pressed}"`);
+        const summaries = page.locator(".changes .changerow--sitting");
+        await summaries.first().click();
+        await until(page, "the sitting's changes to be read", () => {
+          const diff = document.querySelector(".sitting__doc .change__diff");
+          return diff?.getAttribute("aria-busy") === "false" && /Still\./.test(diff.textContent);
+        });
+        // The change is read on the page
+        // (docs/app/keeping-work/storage-and-file-format.md#STOR-177): the
+        // script's own elements, drawn, with what the sitting added marked as
+        // added. Which words those are depends on what was kept before this
+        // check, so it holds that some are, on a page that has the typed one.
+        await visible(page, ".sitting__doc .redline__page", { minWidth: 300, minHeight: 40 });
+        await until(page, "added words to be marked on the page", () => {
+          const sheet = document.querySelector(".sitting__doc .redline__page");
+          return (
+            /Still\./.test(sheet?.textContent ?? "") &&
+            [...sheet.querySelectorAll(".pl ins.redline-add")].some((el) => el.textContent.trim())
+          );
+        });
+        await audit(page, "versions");
+        // Line by Line is one press away, and the page one press back.
+        const look = (name) =>
+          page.locator('.changes__bar [role="tab"]', { hasText: name }).first();
+        await look("Line by Line").click();
+        await until(page, "the added lines, as a list", () => {
+          const diff = document.querySelector(".sitting__doc .change__diff");
+          return (
+            diff &&
+            !diff.querySelector(".redline__page") &&
+            diff.querySelector(".diffline--add") &&
+            /Still\./.test(diff.textContent)
+          );
+        });
+        await look("On the Page").click();
+        await page.waitForSelector(".sitting__doc .redline__page", { timeout: 5000 });
+        // One key per step: ↓ moves to the next entry and chooses it.
+        if ((await summaries.count()) > 1) {
+          await summaries.first().focus();
+          await page.keyboard.press("ArrowDown");
+          await until(page, "↓ to choose the next sitting", () => {
+            const on = document.activeElement;
+            const all = [...document.querySelectorAll(".changes [data-step]")];
+            return all.indexOf(on) === 1 && on.getAttribute("aria-current") === "true";
+          });
+          await page.keyboard.press("ArrowUp");
+          await until(page, "↑ to choose the first again", () => {
+            const on = document.activeElement;
+            return (
+              document.querySelector(".changes [data-step]") === on &&
+              on.getAttribute("aria-current") === "true"
+            );
+          });
+        }
+        await page.locator(".changes__bar .seg__btn", { hasText: "All" }).first().click();
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
       },
     },
     {
@@ -6233,7 +8429,7 @@ export function smokeChecks({ audit, hold }) {
         await visible(page, ".castview__list", { minWidth: 300, minHeight: 40 });
         await audit(page, "cast");
         await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
-        await page.waitForTimeout(500);
+        await page.waitForSelector(".changes", { timeout: 10000 });
         await audit(page, "changes");
         await page.locator(".seg__btn", { hasText: "Cast" }).first().click();
         await page.waitForSelector(".castview", { timeout: 10000 });
@@ -6316,6 +8512,100 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      // docs/app/organizing/workspace-model.md#WORK-85 and docs/app/organizing/workspace-model.md#WORK-86. The color
+      // lived only in the inspector, so the dot beside every scene in the rail
+      // was a mark nothing near it could change. It ends as it began: the
+      // first scene's color put back, the board across.
+      name: "a scene's color is chosen on its card and its rail row, and the board runs across or down",
+      feature: "workspace",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: "Board" }).first().click();
+        await page.waitForSelector(".card[role=group]", { timeout: 10000 });
+        const button = page.locator(".card[role=group] .popupbtn").first();
+        const was = ((await button.getAttribute("aria-label")) ?? "").split(": ").pop();
+        if (!was) throw new Error("a card's color button does not say its color");
+        const colorOf = () =>
+          page.evaluate(() => ({
+            card: [...document.querySelector(".card[role=group]").classList].find(
+              (c) => c.startsWith("card--") && c !== "card--new",
+            ),
+            row: [...document.querySelector(".binder__row--scene .binder__huedot").classList].find(
+              (c) => c.startsWith("swatch--"),
+            ),
+          }));
+        const before = await colorOf();
+        const choice = was === "Interior" ? "Subplot" : "Interior";
+        const hue = choice === "Interior" ? "sea" : "moss";
+
+        await button.click();
+        await page.getByRole("menuitemradio", { name: choice, exact: true }).click();
+        await page.waitForSelector(".menu", { state: "detached", timeout: 5000 });
+        await until(
+          page,
+          "the card and its rail row to take the color",
+          (h) =>
+            document.querySelector(".card[role=group]")?.classList.contains(`card--${h}`) &&
+            document
+              .querySelector(".binder__row--scene .binder__huedot")
+              ?.classList.contains(`swatch--${h}`),
+          hue,
+        );
+
+        // The rail row's own menu, from the keyboard, says the color and puts it back.
+        await page.locator(".binder__row--scene").first().focus();
+        await page.keyboard.press("Shift+F10");
+        await page.waitForSelector(".menu", { timeout: 5000 });
+        const checked = await page
+          .locator('.menu [role="menuitemradio"][aria-checked="true"]')
+          .allInnerTexts();
+        if (checked.map((t) => t.trim()).join("|") !== choice)
+          throw new Error(
+            `the rail's menu has ${checked.join(", ") || "nothing"} checked, not ${choice}`,
+          );
+        await page.getByRole("menuitemradio", { name: was, exact: true }).click();
+        await page.waitForSelector(".menu", { state: "detached", timeout: 5000 });
+        await until(
+          page,
+          "the first scene's color to come back",
+          (b) =>
+            document.querySelector(".card[role=group]")?.classList.contains(b.card) &&
+            document
+              .querySelector(".binder__row--scene .binder__huedot")
+              ?.classList.contains(b.row),
+          before,
+        );
+
+        // Down: each act a column, side by side, its scenes one under another.
+        const lanes = () =>
+          page.evaluate(() =>
+            [...document.querySelectorAll(".board__lane")].map((lane) => {
+              const r = lane.getBoundingClientRect();
+              const cards = [...lane.querySelectorAll(".card")].map((c) => {
+                const b = c.getBoundingClientRect();
+                return { left: b.left, top: b.top, bottom: b.bottom };
+              });
+              return { left: r.left, top: r.top, bottom: r.bottom, cards };
+            }),
+          );
+        await page.locator('.board__bar [role="tab"]', { hasText: "Down" }).click();
+        await page.waitForSelector(".board--down", { timeout: 5000 });
+        const down = await lanes();
+        if (down.length < 2) throw new Error("the sample play's board has fewer than two acts");
+        if (Math.abs(down[0].top - down[1].top) > 1 || down[1].left <= down[0].left)
+          throw new Error("down, the acts are not columns side by side");
+        const [a, b] = down[0].cards;
+        if (!b || Math.abs(a.left - b.left) > 1 || b.top < a.bottom)
+          throw new Error("down, an act's scenes are not one under another");
+
+        // Across: each act a band, one under the next.
+        await page.locator('.board__bar [role="tab"]', { hasText: "Across" }).click();
+        await page.waitForSelector(".board--across", { timeout: 5000 });
+        const across = await lanes();
+        if (across[1].top < across[0].bottom)
+          throw new Error("across, the acts are not bands one under another");
+      },
+    },
+    {
       name: "editing fields identify their scene or character",
       feature: "workspace",
       async run(page) {
@@ -6335,7 +8625,8 @@ export function smokeChecks({ audit, hold }) {
           }),
         );
         if (!board) throw new Error("board fields lost their scene names");
-        await page.locator(".card__details summary").first().click();
+        // A card with a note opens on it; this opens one that has none.
+        await page.locator(".card__details:not([open]) summary").first().click();
         if (!(await page.locator('.card__note[aria-label^="Notes — "]').count()))
           throw new Error("new board note has no contextual name");
         await audit(page, "board field names");
@@ -6450,7 +8741,8 @@ export function smokeChecks({ audit, hold }) {
             await page.locator(".material__mode", { hasText: mode }).first().click();
           const selector = mode === "Page" ? ".material__page" : ".material__body";
           await page.waitForSelector(selector, { timeout: 5000 });
-          await page.waitForTimeout(150);
+          // Measured once the new view's sheet has taken its size and place.
+          await still(page, selector);
           const sheet = await measure(selector);
           if (!sheet) {
             problems.push(`${mode} drew no sheet in a pane`);
@@ -6749,6 +9041,538 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      // A list in a document, with the keys a writer presses
+      // (docs/app/organizing/workspace-model.md#WORK-71). Backspace at the
+      // start of an item tore the list in two, a numbered list cut by anything
+      // said 1 again below the cut, a line broken inside an item broke the list
+      // when the document was next opened, Tab on an item that could not indent
+      // sent the keyboard to the next control, and a click on the blank paper
+      // under a short document put the caret nowhere. So: press each, click
+      // there, and read the page, then the file, then the page read back from
+      // the file.
+      name: "a list in a document holds together",
+      feature: "markdown",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        await page.locator(".binder__add").first().click();
+        await page.waitForSelector(".menu", { timeout: 5000 });
+        await page.locator(".menu .menu__item", { hasText: "Document" }).first().click();
+        const typing = () => !!document.activeElement?.closest(".material .ProseMirror");
+        await until(page, "the new document's page to take the cursor", typing);
+        const name = await page.evaluate(
+          () =>
+            document.activeElement?.closest(".material")?.querySelector(".material__title")
+              ?.value ?? "",
+        );
+        if (!name) throw new Error("the page with the cursor has no name");
+
+        /* The page as a line: blocks by " / ", a list as its first number (or a
+           bullet) and its items by " | ", a line break inside an item as ⏎. */
+        const shape = ({ title, want }) => {
+          const sheet = [...document.querySelectorAll(".material")].find(
+            (m) => m.querySelector(".material__title")?.value === title,
+          );
+          const root = sheet?.querySelector(".ProseMirror");
+          if (!root) return want === undefined ? "no page" : false;
+          const line = (el) =>
+            [...el.childNodes]
+              .map((n) =>
+                n.nodeName !== "BR"
+                  ? n.textContent
+                  : n.classList.contains("ProseMirror-trailingBreak")
+                    ? ""
+                    : "⏎",
+              )
+              .join("");
+          const list = (el) =>
+            `${el.tagName === "OL" ? `${el.getAttribute("start") ?? 1}.` : "•"}[${[...el.children]
+              .map((li) =>
+                [...li.children].map((c) => (c.matches("ul,ol") ? list(c) : line(c))).join(" "),
+              )
+              .join(" | ")}]`;
+          const text = [...root.children]
+            .map((el) => (el.matches("ul,ol") ? list(el) : line(el)))
+            .join(" / ");
+          return want === undefined ? text : text === want;
+        };
+        const shows = async (what, want) => {
+          if (await eventually(page, shape, { title: name, want })) return;
+          const got = await page.evaluate(shape, { title: name });
+          throw new Error(`${what}: the page reads “${got}”, not “${want}”`);
+        };
+        const press = async (key, times = 1) => {
+          for (let i = 0; i < times; i++) await page.keyboard.press(key);
+        };
+        /* An arrow key moves the caret in the browser, and the editor hears of
+           it a moment later. A key pressed sooner than a person could press it
+           is answered from where the caret was, so each arrow waits to be
+           heard. And one can be undone before it is heard: 20 ms after it
+           takes focus, the editor puts the caret back where it last knew it,
+           which on a busy host can come between the key and the hearing. The
+           caret is then where it was, and the key is pressed again. */
+        const arrow = async (key, times = 1) => {
+          const at = () =>
+            document.activeElement?.closest(".ProseMirror")?.editor?.state.selection.from ?? -1;
+          const moved = (was) =>
+            (document.activeElement?.closest(".ProseMirror")?.editor?.state.selection.from ??
+              -1) !== was;
+          for (let i = 0; i < times; i++) {
+            const was = await page.evaluate(at);
+            let heard = false;
+            for (let tries = 0; tries < 3 && !heard; tries++) {
+              await page.keyboard.press(key);
+              heard = !!(await eventually(page, moved, was, 1000));
+            }
+            if (!heard) throw new Error(`the editor never heard ${key}`);
+          }
+        };
+        const caret = async (where) => {
+          const there = await eventually(
+            page,
+            (where) => {
+              const at =
+                document.activeElement?.closest(".ProseMirror")?.editor?.state.selection.$from;
+              if (!at) return false;
+              if (where === "in the first item") return at.depth === 3 && at.index(1) === 0;
+              const words = at.parent.content.size;
+              return where === "on an empty line"
+                ? words === 0
+                : words > 0 && at.parentOffset === 0;
+            },
+            where,
+          );
+          if (there) return;
+          const found = await page.evaluate(() => {
+            const editor = document.querySelector(".material .ProseMirror")?.editor;
+            const at = editor?.state.selection.$from;
+            const dom = getSelection();
+            return at
+              ? `the editor has it at ${at.parentOffset} in “${at.parent.textContent}”, the browser at ${dom?.anchorOffset} in “${dom?.anchorNode?.textContent}”, focus on ${document.activeElement?.className || document.activeElement?.tagName}`
+              : "no editor";
+          });
+          throw new Error(`the caret is not ${where}: ${found}`);
+        };
+        const kept = async (what) => {
+          if (!(await page.evaluate(typing)))
+            throw new Error(`${what} took the keyboard off the page`);
+        };
+
+        await page.keyboard.type("Shopping");
+        await press("Enter");
+        await page.keyboard.type("1. eggs");
+        await press("Enter");
+        await page.keyboard.type("milk");
+        await press("Enter");
+        await page.keyboard.type("bread");
+        await shows("three typed items", "Shopping / 1.[eggs | milk | bread]");
+
+        // Backspace at the start of an item: its number goes, its words stay
+        // in the list as a line of the item above.
+        await arrow("ArrowLeft", 5);
+        await caret("at the start of its line");
+        await press("Backspace");
+        await shows("Backspace at the start of the third item", "Shopping / 1.[eggs | milk⏎bread]");
+        await page.keyboard.type("rye ");
+        await shows("typing after that Backspace", "Shopping / 1.[eggs | milk⏎rye bread]");
+
+        // Tab and Shift-Tab indent and outdent, and are spent where they can do neither.
+        await press("Tab");
+        await shows("Tab", "Shopping / 1.[eggs 1.[milk⏎rye bread]]");
+        await press("Shift+Tab");
+        await shows("Shift-Tab", "Shopping / 1.[eggs | milk⏎rye bread]");
+        await press("Shift+Tab");
+        await kept("Shift-Tab at the top level");
+        await arrow("ArrowUp", 2);
+        await caret("in the first item");
+        await press("Tab");
+        await kept("Tab on the first item");
+        await shows("keys the list could not use", "Shopping / 1.[eggs | milk⏎rye bread]");
+
+        // The blank paper under the last line is the end of the document.
+        const paper = await page.evaluate((title) => {
+          const sheet = [...document.querySelectorAll(".material")].find(
+            (m) => m.querySelector(".material__title")?.value === title,
+          );
+          const root = sheet.querySelector(".ProseMirror");
+          const box = root.getBoundingClientRect();
+          return {
+            x: box.left + box.width / 2,
+            y: root.lastElementChild.getBoundingClientRect().bottom + 48,
+          };
+        }, name);
+        await page.mouse.click(paper.x, paper.y);
+        await until(page, "a click on the blank paper to put the cursor on the page", typing);
+        await press("Enter");
+        await page.keyboard.type("jam");
+        await shows(
+          "typing after a click under the list",
+          "Shopping / 1.[eggs | milk⏎rye bread | jam]",
+        );
+
+        // Return on an empty item leaves the list, and the list goes on
+        // counting below what interrupts it.
+        await arrow("ArrowLeft", 3);
+        await caret("at the start of its line");
+        await press("Enter");
+        await arrow("ArrowUp");
+        await caret("on an empty line");
+        await press("Enter");
+        await page.keyboard.type("Aside");
+        await shows(
+          "an aside in the middle",
+          "Shopping / 1.[eggs | milk⏎rye bread] / Aside / 3.[jam]",
+        );
+
+        const file = "Shopping\n\n1. eggs\n2. milk\\\n   rye bread\n\nAside\n\n";
+        const saved = async ({ file, text }) => {
+          const read = async (rel) => {
+            if (typeof window.__prosceniumPeek === "function") return window.__prosceniumPeek(rel);
+            try {
+              return (await window.__TAURI_INTERNALS__.invoke("vault_read", { rel })).content;
+            } catch {
+              return null;
+            }
+          };
+          const play = JSON.parse((await read("The Weight of Water.proscenium")) ?? "{}");
+          const walk = (items) => items.flatMap((it) => [it, ...walk(it.children ?? [])]);
+          const item = walk(play.binder ?? []).find((it) => it.path?.split("/").pop() === file);
+          return !!item && !!(await read(item.path))?.endsWith(text);
+        };
+        await until(page, "the list in the file, counting on at 3", saved, {
+          file: `${name}.md`,
+          text: `${file}3. jam\n`,
+        });
+
+        // The writer starts it again, and has it continue again.
+        await page.locator(".material .ProseMirror li", { hasText: "jam" }).first().click();
+        const counts = (label) =>
+          document.querySelector(".fmt__count")?.getAttribute("aria-label") === label;
+        await until(
+          page,
+          "the bar to say the list continues",
+          counts,
+          "List numbering: Continue Numbering",
+        );
+        const choose = async (row) => {
+          await page.locator(".fmt__count").click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          await page.locator(".menu .menu__item", { hasText: row }).first().click();
+          await page.waitForSelector(".menu", { state: "detached", timeout: 5000 });
+        };
+        await choose("Start at 1");
+        await shows("Start at 1", "Shopping / 1.[eggs | milk⏎rye bread] / Aside / 1.[jam]");
+        await kept("the numbering menu");
+        await until(page, "the list in the file, starting again at 1", saved, {
+          file: `${name}.md`,
+          text: `${file}1. jam\n`,
+        });
+        await choose("Continue Numbering");
+        await shows("Continue Numbering", "Shopping / 1.[eggs | milk⏎rye bread] / Aside / 3.[jam]");
+        await until(page, "the list in the file, continuing again", saved, {
+          file: `${name}.md`,
+          text: `${file}3. jam\n`,
+        });
+
+        // Read back from the file, the page is the same page.
+        await page.locator(".material__mode", { hasText: "Source" }).first().click();
+        await page.waitForSelector(".material__body", { timeout: 5000 });
+        await page.locator(".material__mode", { hasText: "Page" }).first().click();
+        await page.waitForSelector(".material .ProseMirror", { timeout: 5000 });
+        await shows(
+          "the page read back from the file",
+          "Shopping / 1.[eggs | milk⏎rye bread] / Aside / 3.[jam]",
+        );
+        await closeTab(page, name);
+      },
+    },
+    {
+      // The page draws its own caret and its own list markers (src/markdown/
+      // caret.ts, materials.css), because the engine's are wrong in ways CSS
+      // cannot reach: in the WebKit of macOS 26 a zoomed page laid the first
+      // line of every list item left of the lines wrapped under it and painted
+      // the caret on that line over the first letter, and every WebKit draws
+      // its caret as tall as the font on a block's first line and as tall as
+      // the whole line on each line under it. Off 100%, so the native pass
+      // meets the zoom the fault needs. Held here: an item's first line starts
+      // where its wrapped lines do; the caret stands on the letter boundary,
+      // one height on every line; at a wrap it is at the end of the line a key
+      // took it to; and a selection has no caret. Forced colours keep no
+      // `transparent`: there the engine's caret is painted in the page's own
+      // colour, so one caret is seen.
+      name: "a document's caret and list markers stand where the words are",
+      feature: "markdown",
+      async run(page) {
+        const label = () => page.locator(".zoomctl__label").innerText();
+        const step = async (name) => {
+          const was = await label();
+          await page.locator(`.zoomctl__step[aria-label="${name}"]`).click();
+          await until(
+            page,
+            `${name} to change the zoom`,
+            (w) => document.querySelector(".zoomctl__label")?.textContent !== w,
+            was,
+          );
+        };
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        await page.waitForSelector(".zoomctl__label", { timeout: 5000 });
+        const before = await label();
+        let steps = 0;
+        while (steps < 2 || ((await label()) === "100%" && steps < 3)) {
+          await step("Zoom in");
+          steps++;
+        }
+
+        await page.locator(".binder__add").first().click();
+        await page.waitForSelector(".menu", { timeout: 5000 });
+        await page.locator(".menu .menu__item", { hasText: "Document" }).first().click();
+        const typing = () => !!document.activeElement?.closest(".material .ProseMirror");
+        await until(page, "the new document's page to take the cursor", typing);
+        const name = await page.evaluate(
+          () =>
+            document.activeElement?.closest(".material")?.querySelector(".material__title")
+              ?.value ?? "",
+        );
+        if (!name) throw new Error("the page with the cursor has no name");
+
+        /* Where the caret is drawn and where the words are, in one reading.
+           Every box is read off the zoomed page, so they share whatever frame
+           this WebKit reports a zoomed box in. */
+        const read = () =>
+          page.evaluate(() => {
+            const root = document.activeElement?.closest(".ProseMirror");
+            const bar = root?.parentElement?.querySelector(".prose-caret__bar");
+            const view = root?.editor?.view;
+            if (!root || !bar || !view) return null;
+            const head = view.state.selection.head;
+            // At the end of its text the position is the paragraph's, not the text's.
+            let at = view.domAtPos(head, 1);
+            if (at.node.nodeType !== 3) at = view.domAtPos(head, -1);
+            const lines = [];
+            if (at.node.nodeType === 3) {
+              const all = document.createRange();
+              all.selectNodeContents(at.node);
+              for (const r of all.getClientRects()) {
+                const last = lines[lines.length - 1];
+                if (!last || r.top - last.top > r.height / 2)
+                  lines.push({ left: r.left, right: r.right, top: r.top, height: r.height });
+                else last.right = Math.max(last.right, r.right);
+              }
+            }
+            const box = bar.getBoundingClientRect();
+            const middle = box.left + box.width / 2;
+            const line = lines.findIndex((l) => Math.abs(l.top - box.top) <= l.height / 2);
+            return {
+              head,
+              hidden: bar.hidden,
+              native: getComputedStyle(root).caretColor,
+              // Forced colours keep no `transparent`, only a system colour:
+              // there the engine's caret is painted in the page's own
+              // (materials.css), and is there and not seen.
+              canvas: matchMedia("(forced-colors: active)").matches
+                ? (() => {
+                    const probe = document.createElement("span");
+                    probe.style.color = "Canvas";
+                    document.body.append(probe);
+                    const canvas = getComputedStyle(probe).color;
+                    probe.remove();
+                    return canvas;
+                  })()
+                : null,
+              width: box.width,
+              height: box.height,
+              lines: lines.length,
+              line,
+              // How far the caret's middle is from each end of the line it is on.
+              fromStart: line < 0 ? null : middle - lines[line].left,
+              fromEnd: line < 0 ? null : middle - lines[line].right,
+              firstLeft: lines[0]?.left ?? null,
+              nextLeft: lines[1]?.left ?? null,
+              lineHeight: lines[0]?.height ?? null,
+            };
+          });
+        const said = (c) =>
+          c
+            ? `at ${c.head}, ${c.hidden ? "hidden" : `on line ${c.line + 1} of ${c.lines}, ${c.fromStart?.toFixed(1)} from its start and ${c.fromEnd?.toFixed(1)} from its end, ${c.height.toFixed(1)} tall`}`
+            : "no caret layer";
+        /* A key that moves the caret, heard by the editor before the reading:
+           the browser moves it and the editor learns a moment later. */
+        const move = async (key) => {
+          const at = () =>
+            document.activeElement?.closest(".ProseMirror")?.editor?.state.selection.head ?? -1;
+          const was = await page.evaluate(at);
+          let heard = false;
+          for (let tries = 0; tries < 3 && !heard; tries++) {
+            await page.keyboard.press(key);
+            heard = !!(await eventually(
+              page,
+              (was) =>
+                (document.activeElement?.closest(".ProseMirror")?.editor?.state.selection.head ??
+                  -1) !== was,
+              was,
+              1000,
+            ));
+          }
+          if (!heard) throw new Error(`the editor never heard ${key}`);
+        };
+        const want = async (what, test) => {
+          const c = await read();
+          if (!c || !test(c)) throw new Error(`${what}: the caret is ${said(c)}`);
+          return c;
+        };
+        const near = (a, b = 0) => a !== null && Math.abs(a - b) <= 1;
+
+        await page.keyboard.type(
+          "1. The tide table for the week, copied out by hand from the harbour office window before the glass was painted over, with the two neap tides that the keeper marked twice and the one he would not mark at all.",
+        );
+        await until(page, "the item to wrap", () => {
+          const p = document.activeElement?.closest(".ProseMirror")?.querySelector("li > p");
+          if (!p?.firstChild) return false;
+          const all = document.createRange();
+          all.selectNodeContents(p.firstChild);
+          const tops = new Set([...all.getClientRects()].map((r) => Math.round(r.top)));
+          return tops.size >= 2;
+        });
+
+        // The end of the item, on its last wrapped line.
+        const last = await want(
+          "after typing a wrapped item",
+          (c) => !c.hidden && c.line === c.lines - 1 && near(c.fromEnd),
+        );
+        if (!/^rgba\(0, 0, 0, 0\)$|^transparent$/.test(last.native) && last.native !== last.canvas)
+          throw new Error(`the engine's own caret is still drawn, in ${last.native}`);
+        if (!near(last.firstLeft, last.nextLeft))
+          throw new Error(
+            `the item's first line starts at ${last.firstLeft?.toFixed(1)} and the line wrapped under it at ${last.nextLeft?.toFixed(1)}`,
+          );
+        if (last.height > last.lineHeight + 1)
+          throw new Error(
+            `on a wrapped line the caret is ${last.height.toFixed(1)} tall and the type ${last.lineHeight.toFixed(1)}`,
+          );
+
+        // The start of the item: on the boundary before its first letter, and
+        // as tall as it was on the wrapped line.
+        await move("Meta+ArrowUp");
+        const first = await want(
+          "at the start of the item",
+          (c) => !c.hidden && c.line === 0 && near(c.fromStart),
+        );
+        if (!near(first.height, last.height))
+          throw new Error(
+            `the caret is ${first.height.toFixed(1)} tall on the item's first line and ${last.height.toFixed(1)} on its last`,
+          );
+
+        // The end of the first line is the end of that line, not the start of
+        // the next, which is the same place in the document.
+        await move("Meta+ArrowRight");
+        const end = await want(
+          "after the key to the end of the first line",
+          (c) =>
+            !c.hidden && c.line === 0 && c.fromEnd !== null && c.fromEnd > -1 && c.fromEnd < 12,
+        );
+        // One character back and forward again is that place from the other
+        // side: the start of the second line.
+        await move("ArrowLeft");
+        await move("ArrowRight");
+        await want(
+          "back at the wrap by a character",
+          (c) => c.head === end.head && !c.hidden && c.line === 1 && near(c.fromStart),
+        );
+
+        // A selection has no caret; collapsed, it has one again.
+        await move("Shift+ArrowRight");
+        await want("with a letter selected", (c) => c.hidden);
+        await move("ArrowLeft");
+        await want("with the selection collapsed", (c) => !c.hidden);
+
+        await closeTab(page, name);
+        if (/^Fit /.test(before)) {
+          await page.locator(".zoomctl__label").click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          await page
+            .locator(".menu__item", {
+              hasText: /^Fit width/.test(before) ? "Fit Width" : "Fit Page",
+            })
+            .first()
+            .click();
+          await page.waitForSelector(".menu", { state: "detached", timeout: 5000 });
+        } else {
+          for (let i = 0; i < steps; i++) await step("Zoom out");
+        }
+      },
+    },
+    {
+      // The Mac has a setting for a text cursor that does not blink, and its
+      // note on it is for apps that draw their own. No media query carries it,
+      // so the app asks the system (caret.rs) and says the answer on the
+      // document. Held in both drivers: the caret a document draws blinks or
+      // holds as the system answered. In the browser, where there is no Mac to
+      // ask, the stand-in gives both answers in turn, as a writer coming back
+      // from System Settings would.
+      name: "a document's caret holds steady when the Mac asks for one that does not blink",
+      feature: "markdown",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+        await page.locator(".binder__add").first().click();
+        await page.waitForSelector(".menu", { timeout: 5000 });
+        await page.locator(".menu .menu__item", { hasText: "Document" }).first().click();
+        const typing = () => !!document.activeElement?.closest(".material .ProseMirror");
+        await until(page, "the new document's page to take the cursor", typing);
+        const name = await page.evaluate(
+          () =>
+            document.activeElement?.closest(".material")?.querySelector(".material__title")
+              ?.value ?? "",
+        );
+        if (!name) throw new Error("the page with the cursor has no name");
+
+        /* What the document says and what the caret does, once they agree
+           with `steady`; null while they do not. */
+        const agrees = (steady) => {
+          const bar = document.activeElement
+            ?.closest(".ProseMirror")
+            ?.parentElement?.querySelector(".prose-caret__bar");
+          if (!bar || bar.hidden) return null;
+          const said = document.documentElement.dataset.caret === "steady";
+          const blinks = getComputedStyle(bar).animationName !== "none";
+          return said === steady && blinks === !steady ? { said, blinks } : null;
+        };
+        const holds = async (steady, when) => {
+          if (await eventually(page, agrees, steady, 5000)) return;
+          const got = await page.evaluate(() => {
+            const bar = document.activeElement
+              ?.closest(".ProseMirror")
+              ?.parentElement?.querySelector(".prose-caret__bar");
+            return bar
+              ? `the document says ${document.documentElement.dataset.caret ?? "nothing"} and the caret's animation is ${getComputedStyle(bar).animationName}${bar.hidden ? ", hidden" : ""}`
+              : "no caret is drawn";
+          });
+          throw new Error(`${when}, the caret should ${steady ? "hold steady" : "blink"}: ${got}`);
+        };
+
+        const inApp = await page.evaluate(() => !!window.__TAURI_INTERNALS__);
+        if (inApp) {
+          const steady = await page.evaluate(() =>
+            window.__TAURI_INTERNALS__.invoke("steady_caret"),
+          );
+          if (typeof steady !== "boolean")
+            throw new Error(`the system answered ${JSON.stringify(steady)}`);
+          await holds(steady, `with the Mac's setting ${steady ? "on" : "off"}`);
+        } else {
+          await holds(false, "with no setting");
+          try {
+            await page.evaluate(() => window.__prosceniumSteadyCaret(true));
+            await holds(true, "with the setting turned on");
+            // Typing does not start it again.
+            await page.keyboard.type("Tide");
+            await holds(true, "after typing with the setting on");
+          } finally {
+            await page.evaluate(() => window.__prosceniumSteadyCaret(false));
+          }
+          await holds(false, "with the setting turned off again");
+        }
+        await closeTab(page, name);
+      },
+    },
+    {
       // A character is named first — the Cast finds a sheet by its name — and
       // then ⏎ in the name carries the cursor onto its page, under its first
       // heading rather than into it (docs/app/preferences-and-help/accessibility.md#A11Y-4).
@@ -6811,7 +9635,6 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "an installing update holds edits and a failure releases them",
       feature: "app",
-      devMock: true,
       async run(page) {
         await page.locator('.ProseMirror[contenteditable="true"]').first().click();
         await page.keyboard.press("Meta+End");
@@ -6820,9 +9643,7 @@ export function smokeChecks({ audit, hold }) {
         await page.evaluate(() => window.__prosceniumUpdate());
         await page.getByRole("button", { name: "Restart to Update" }).click();
         await page.waitForSelector('[aria-labelledby="update-install-title"]', { timeout: 5000 });
-        await until(page, "the mock installer to hold its swap", () =>
-          window.__prosceniumUpdateHeld(),
-        );
+        await until(page, "the installer to hold its swap", () => window.__prosceniumUpdateHeld());
         const held = await page.evaluate(() => {
           const input = new InputEvent("beforeinput", {
             bubbles: true,
@@ -6856,9 +9677,39 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      // Opening a play is no edit: its script stays as it opened, unsaved, and
+      // no version is kept of it. TipTap says "update" when an editor is made
+      // editable or read-only, with a transaction that changes nothing, and
+      // the script's editor took that for an edit: every play said
+      // "Editing…" as it opened, saved the same bytes back the autosave's
+      // pause later, and kept a version nobody made, which checks after it
+      // then leaned on. This act's start opened the play, and nothing since
+      // has touched it.
+      name: "saving · opening a play saves nothing and keeps no version",
+      feature: "storage",
+      async run(page) {
+        const status = () =>
+          page.evaluate(() => document.querySelector(".savestatus")?.textContent ?? "");
+        await elapse(
+          page,
+          1500,
+          "a save that opening had asked for would go within the autosave's pause, and none may",
+        );
+        // "Saved" is how a script that opened clean reads, with the time it
+        // opened; "Editing…" or "Saving…" would be a save on its way.
+        const said = await status();
+        if (/^(Editing…|Saving…)$/.test(said))
+          throw new Error(`the play just opened says "${said}", as if it were edited`);
+        const kept = await page.evaluate(
+          async () =>
+            (await window.__prosceniumVersionsWith("")).filter((v) => v.reason === "save").length,
+        );
+        if (kept) throw new Error(`the play just opened kept ${kept} version(s) of a save`);
+      },
+    },
+    {
       name: "folder access can be retried and reauthorised",
       feature: "storage",
-      devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumFolderAccess());
         await page.getByRole("button", { name: "Keep Folder Access…" }).click();
@@ -6926,17 +9777,12 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "feedback · three entry points and the acceptance message",
       feature: "feedback",
-      devMock: true,
       async run(page) {
         for (const entry of ["toolbar", "Help", "About"]) {
           if (entry === "toolbar")
             await page.getByRole("button", { name: "Feedback", exact: true }).click();
           if (entry === "Help")
-            await page.evaluate(() =>
-              window.dispatchEvent(
-                new CustomEvent("proscenium:fixture-menu", { detail: "report-problem" }),
-              ),
-            );
+            await page.evaluate(() => window.__prosceniumMenu("report-problem"));
           if (entry === "About") {
             await page.keyboard.press("Meta+Comma");
             await page.waitForSelector(".prefs");
@@ -6967,7 +9813,7 @@ export function smokeChecks({ audit, hold }) {
             await page.waitForSelector(".prefs", { state: "detached" });
           }
         }
-        const sent = await page.evaluate(() => window.__prosceniumFeedback().sent);
+        const sent = await page.evaluate(async () => (await window.__prosceniumFeedback()).sent);
         if (
           sent.length !== 3 ||
           sent.some(
@@ -6981,9 +9827,8 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "feedback · drafts, offline retry, details, and enlarged text",
       feature: "feedback",
-      devMock: true,
       async run(page) {
-        await page.evaluate(() => localStorage.setItem("proscenium:dev:feedback-fail", "true"));
+        await page.evaluate(() => window.__prosceniumFeedbackOffline(true));
         await page.getByRole("button", { name: "Feedback", exact: true }).click();
         await page.waitForSelector("#feedback-message:not(:disabled)");
         await page.keyboard.type("First paragraph");
@@ -7017,11 +9862,13 @@ export function smokeChecks({ audit, hold }) {
           throw new Error("draft lost checkbox");
         await page.keyboard.press("Meta+Enter");
         await page.waitForSelector(".feedback__failure");
-        const id = await page.evaluate(() => window.__prosceniumFeedback().saved.id);
+        const id = await page.evaluate(async () => (await window.__prosceniumFeedback()).saved.id);
         if ((await page.locator("#feedback-message").inputValue()) !== words)
           throw new Error("failure lost words");
         await page.getByRole("button", { name: "Copy Message", exact: true }).click();
-        if ((await page.evaluate(() => window.__prosceniumFeedback().copied)) !== words)
+        if (
+          (await page.evaluate(async () => (await window.__prosceniumFeedback()).copied)) !== words
+        )
           throw new Error("copy lost words");
         const prior = await page.evaluate(() => {
           const root = document.documentElement;
@@ -7050,8 +9897,8 @@ export function smokeChecks({ audit, hold }) {
           else root.style.removeProperty("--ui-scale");
           if (old.large === null) root.removeAttribute("data-large-text");
           else root.setAttribute("data-large-text", old.large);
-          localStorage.removeItem("proscenium:dev:feedback-fail");
         }, prior);
+        await page.evaluate(() => window.__prosceniumFeedbackOffline(false));
         await page.getByRole("button", { name: "Try Again", exact: true }).click();
         await page.waitForSelector("#feedback-message", { state: "detached" });
         const state = await page.evaluate(() => window.__prosceniumFeedback());
@@ -7068,11 +9915,8 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "feedback · diagnostics failure does not block a message",
       feature: "feedback",
-      devMock: true,
       async run(page) {
-        await page.evaluate(() =>
-          localStorage.setItem("proscenium:dev:feedback-details-fail", "true"),
-        );
+        await page.evaluate(() => window.__prosceniumDetailsUnavailable(true));
         await page.getByRole("button", { name: "Feedback", exact: true }).click();
         await page.waitForSelector("#feedback-message:not(:disabled)");
         await page.keyboard.type("A question without diagnostics");
@@ -7080,18 +9924,18 @@ export function smokeChecks({ audit, hold }) {
           throw new Error("unavailable details checkbox enabled");
         await page.keyboard.press("Meta+Enter");
         await page.waitForSelector("#feedback-message", { state: "detached" });
-        await page.evaluate(() => localStorage.removeItem("proscenium:dev:feedback-details-fail"));
+        await page.evaluate(() => window.__prosceniumDetailsUnavailable(false));
       },
     },
     {
       // What the reports would carry after a session of real work (privacy-and-
       // telemetry.md docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3, docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D6): only the listed events, nothing of the sample
       // plays in any of them, dropped the moment the switch goes off. And About's
-      // Copy Diagnostics says what it copied. Mock-only: the app's queue is in
-      // Rust, and its Copy Diagnostics writes the real clipboard.
+      // Copy Diagnostics says what it copied. In a test build the queue is
+      // Rust's, which holds what a distribution build would send and sends
+      // nothing, and Copy Diagnostics writes the test machine's clipboard.
       name: "privacy · reports carry nothing of the play",
       feature: "diagnostics",
-      devMock: true,
       async run(page) {
         const seen = () => page.evaluate(() => window.__prosceniumTelemetry());
         const { asked } = await seen();
@@ -7131,7 +9975,10 @@ export function smokeChecks({ audit, hold }) {
         // The switch reaches the backend, which drops what was waiting (in the
         // app that is telemetry/mod.rs, whose own tests send to a server).
         await reports().click();
-        await page.waitForTimeout(100);
+        await eventually(page, async () => {
+          const backend = await window.__prosceniumTelemetry();
+          return !backend.on && backend.queued.length === 0;
+        });
         const off = await seen();
         if (off.on || off.queued.length !== 0) {
           throw new Error(
@@ -7139,7 +9986,7 @@ export function smokeChecks({ audit, hold }) {
           );
         }
         await reports().click();
-        await page.waitForTimeout(100);
+        await eventually(page, async () => (await window.__prosceniumTelemetry()).on);
         if (!(await seen()).on)
           throw new Error("switching reports back on did not reach the backend");
 
@@ -7147,7 +9994,15 @@ export function smokeChecks({ audit, hold }) {
         await page.getByRole("button", { name: "Copy Diagnostics" }).click();
         // An earlier toast may still be up; this one replaces it when the copy lands.
         const copied = () => page.locator(".toast", { hasText: "Diagnostics copied" }).count();
-        for (let i = 0; i < 50 && !(await copied()); i++) await page.waitForTimeout(100);
+        await eventually(
+          page,
+          () =>
+            [...document.querySelectorAll(".toast")].some((t) =>
+              t.textContent.includes("Diagnostics copied"),
+            ),
+          undefined,
+          5000,
+        );
         if (!(await copied())) {
           const shown = (await page.locator(".toast").count())
             ? await page.locator(".toast").innerText()
@@ -7353,8 +10208,13 @@ export function smokeChecks({ audit, hold }) {
       async run(page) {
         await page.waitForSelector(".vault-list", { timeout: 20000 });
         // Launch walks into a play only once the folder and the settings have
-        // answered; give it longer than that takes to go the wrong way.
-        await page.waitForTimeout(1500);
+        // answered, and decides once: the app's shell says it is busy until the
+        // launch has arrived where it decided. Wait for that, then look.
+        await until(
+          page,
+          "the launch to arrive",
+          () => !document.querySelector(".app-shell[aria-busy]"),
+        );
         await absent(page, ".paneroot", "the writer left off on the Plays screen, not in a play");
         await visible(page, ".vault-list", { minHeight: 40 });
         await page.locator(".playrow__title", { hasText: /^The Weight of Water$/ }).click();
@@ -7371,48 +10231,12 @@ export function smokeChecks({ audit, hold }) {
       // later launch from its first mutation. It writes down each screen that
       // is VISIBLE, in order (under the launch screen, only the launch screen
       // is), and what the script showed in the frame the launch screen went.
-      // Playwright's init script is the only way in that early, hence the dev
-      // mock.
+      // An init script is the only way in that early: Playwright's, and on a
+      // Mac the harness's, which runs the same export as each page begins.
       name: "launch · watch every relaunch from its first frame",
       feature: "app",
-      devMock: true,
       async run(page) {
-        await page.addInitScript(() => {
-          const seen = [];
-          window.__prosceniumLaunchScreens = seen;
-          const screens = [
-            [".welcome", "welcome"],
-            [".vault-screen", "plays"],
-            [".paneroot", "play"],
-          ];
-          new MutationObserver(() => {
-            // The first frame: #root as the parser made it, before any module
-            // has run. Light or dark has to be settled already, and the launch
-            // screen already drawn (boot-theme.js, index.html).
-            if (!window.__prosceniumFirstFrame && document.getElementById("root")) {
-              window.__prosceniumFirstFrame = {
-                theme: document.documentElement.dataset.theme ?? null,
-                launch: !!document.querySelector("#root > .launch-screen"),
-              };
-            }
-            const shown = document.querySelector(".launch-screen")
-              ? "launch"
-              : screens
-                  .filter(([selector]) => document.querySelector(selector))
-                  .map(([, name]) => name)
-                  .join("+");
-            if (!shown || seen.at(-1) === shown) return;
-            if (seen.at(-1) === "launch") {
-              const scroller = document.querySelector(".play-page")?.closest(".pane__body");
-              window.__prosceniumAtReveal = {
-                text: document.querySelector(".play-page .ProseMirror")?.textContent?.length ?? 0,
-                scroll: scroller?.scrollTop ?? null,
-                height: scroller?.scrollHeight ?? null,
-              };
-            }
-            seen.push(shown);
-          }).observe(document, { childList: true, subtree: true });
-        });
+        await page.addInitScript(watchLaunches);
       },
     },
     {
@@ -7421,7 +10245,6 @@ export function smokeChecks({ audit, hold }) {
       // the play is FIRST seen, not somewhere it jumps to after.
       name: "launch · the script in front, the caret on its last page",
       feature: "app",
-      devMock: true,
       async run(page) {
         await page
           .locator(".binder .binder__label", { hasText: "The Weight of Water" })
@@ -7446,14 +10269,18 @@ export function smokeChecks({ audit, hold }) {
           );
           return editor && kept > 0 && kept >= editor.state.doc.content.size - 3;
         });
-        await page.waitForTimeout(300);
+        // And nothing of the script's still being written as the window goes.
+        await until(
+          page,
+          "nothing of the script waiting to be written",
+          () => !/^(Editing|Saving)/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+        );
         await page.reload();
       },
     },
     {
       name: "launch · the play is in place before the launch screen goes",
       feature: "app",
-      devMock: true,
       async run(page) {
         await page.waitForSelector(".launch-screen", { state: "detached", timeout: 15000 });
         const screens = await page.evaluate(() => window.__prosceniumLaunchScreens ?? null);
@@ -7482,7 +10309,11 @@ export function smokeChecks({ audit, hold }) {
           );
         // Longer than every settle the open does (caret, layout), so anything
         // still due has happened.
-        await page.waitForTimeout(800);
+        await elapse(
+          page,
+          800,
+          "nothing may move after the play is shown, and the open's settles (the caret's second pass, the layout) run on timers",
+        );
         const now = await page.evaluate(() => {
           const scroller = document.querySelector(".play-page")?.closest(".pane__body");
           return {
@@ -7542,16 +10373,20 @@ export function smokeChecks({ audit, hold }) {
           throw new Error(`the launch popup says "${popup}"`);
         await page.keyboard.press("Escape");
         await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
-        await page.waitForTimeout(300);
         // A reload ends a check: in the native self-test it replaces the page
         // the harness runs in, which resumes at the NEXT check. Nothing may
-        // follow it here, or it would never run in the real app.
-        await page.evaluate(() => {
-          if (!window.__prosceniumTelemetry) return;
-          for (const key of ["proscenium:dev:settings", "proscenium:settings"]) {
-            const stored = JSON.parse(localStorage.getItem(key) ?? "{}");
-            localStorage.setItem(key, JSON.stringify({ ...stored, privacyNoticeSeen: false }));
-          }
+        // follow it here, or it would never run in the real app. A build with
+        // a reports key, as a distribution build is (a test build's own has
+        // none), and the notice set back to unseen for the relaunch, and held
+        // there: the choice just made is written to the same settings a moment
+        // later, and a write landing after this one would put back what the
+        // app holds.
+        await page.evaluate(() => window.__prosceniumAnalyticsKey(true));
+        await until(page, "the notice set back to unseen, and staying so", async () => {
+          if ((await window.__prosceniumNoticeSeen()) !== false)
+            await window.__prosceniumNoticeSeen(false);
+          for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
+          return (await window.__prosceniumNoticeSeen()) === false;
         });
         await page.reload();
       },
@@ -7605,7 +10440,6 @@ export function smokeChecks({ audit, hold }) {
       // Straight after the relaunch, from what the watcher above wrote down.
       name: "launch · the relaunch opens into the play, with nothing on the way",
       feature: "app",
-      devMock: true,
       async run(page) {
         const screens = await page.evaluate(() => window.__prosceniumLaunchScreens ?? null);
         if (!screens) throw new Error("the launch watcher did not run");
@@ -7628,7 +10462,6 @@ export function smokeChecks({ audit, hold }) {
       // notice back to unseen before the relaunch above.
       name: "a relaunch into a play shows the privacy toast once",
       feature: "app",
-      devMock: true,
       async run(page) {
         await page.waitForSelector(".toast", { timeout: 5000 });
         await visible(page, ".toast", { minWidth: 200, minHeight: 24 });
@@ -7642,9 +10475,7 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "the displayed notice to be remembered",
-          () =>
-            JSON.parse(localStorage.getItem("proscenium:dev:settings") ?? "{}")
-              .privacyNoticeSeen === true,
+          async () => (await window.__prosceniumNoticeSeen()) === true,
         );
         await page.getByRole("button", { name: "Settings", exact: true }).click();
         await page.waitForSelector(".prefs", { timeout: 5000 });
@@ -7657,17 +10488,18 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "a seen notice stays seen on the next launch",
       feature: "app",
-      devMock: true,
       async run(page) {
         await page.waitForSelector(".binder", { timeout: 20000 });
-        await page.waitForTimeout(300);
+        await elapse(
+          page,
+          300,
+          "a repeated notice would come as the launch's settings and key answer, and nothing says none is coming",
+        );
         await absent(page, ".toast", "a seen privacy notice must not repeat");
-        await page.evaluate(() => {
-          localStorage.setItem("proscenium:dev:analytics-key", "false");
-          for (const key of ["proscenium:dev:settings", "proscenium:settings"]) {
-            const stored = JSON.parse(localStorage.getItem(key) ?? "{}");
-            localStorage.setItem(key, JSON.stringify({ ...stored, privacyNoticeSeen: false }));
-          }
+        // A build without a key, and the notice unseen, for the next launch.
+        await page.evaluate(async () => {
+          await window.__prosceniumAnalyticsKey(false);
+          await window.__prosceniumNoticeSeen(false);
         });
         await page.reload();
       },
@@ -7675,32 +10507,30 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "a build without a key leaves the workspace notice pending",
       feature: "app",
-      devMock: true,
       async run(page) {
         await page.waitForSelector(".binder", { timeout: 20000 });
-        await page.waitForTimeout(300);
-        await absent(page, ".toast", "a build without a key must not announce sending");
-        const seen = await page.evaluate(
-          () =>
-            JSON.parse(localStorage.getItem("proscenium:dev:settings") ?? "{}").privacyNoticeSeen,
+        await elapse(
+          page,
+          300,
+          "the notice would come as the launch's settings and key answer, and nothing says none is coming",
         );
+        await absent(page, ".toast", "a build without a key must not announce sending");
+        const seen = await page.evaluate(() => window.__prosceniumNoticeSeen());
         if (seen !== false) throw new Error("a build without a key consumed the notice");
-        await page.evaluate(() => {
-          localStorage.removeItem("proscenium:dev:analytics-key");
-          for (const key of ["proscenium:dev:settings", "proscenium:settings"]) {
-            const stored = JSON.parse(localStorage.getItem(key) ?? "{}");
-            localStorage.setItem(key, JSON.stringify({ ...stored, privacyNoticeSeen: true }));
-          }
+        // The build's own key again, and the notice seen.
+        await page.evaluate(async () => {
+          await window.__prosceniumAnalyticsKey(null);
+          await window.__prosceniumNoticeSeen(true);
         });
       },
     },
     {
       // Finder hands the app a script inside another play (docs/app/keeping-work/storage-and-file-format.md#STOR-D5): that play
-      // opens with that script in front. `__prosceniumOpenFiles` is the mock's
-      // stand-in for `RunEvent::Opened` — queue, then signal.
+      // opens with that script in front. `__prosceniumOpenFiles` stands in for
+      // the system's open event, `RunEvent::Opened`: queue, then signal; in a
+      // test build it is that queue (scripts/selftest/fixture.mjs).
       name: "finder · a script in a play opens its play",
       feature: "workspace",
-      devMock: true,
       async run(page) {
         await page.evaluate(() =>
           window.__prosceniumOpenFiles([
@@ -7718,7 +10548,6 @@ export function smokeChecks({ audit, hold }) {
       // changes nothing.
       name: "finder · a play elsewhere asks first",
       feature: "workspace",
-      devMock: true,
       async run(page) {
         await page.evaluate(() =>
           window.__prosceniumOpenFiles(["/dev/elsewhere/Lear/Lear.proscenium"]),
@@ -7740,7 +10569,6 @@ export function smokeChecks({ audit, hold }) {
       // A loose script offers to become a play, copied in (docs/app/keeping-work/storage-and-file-format.md#STOR-D12).
       name: "finder · a loose script becomes a play when asked",
       feature: "workspace",
-      devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumOpenFiles(["/dev/outside/Draft.fountain"]));
         await page.waitForSelector(".import-desk__review", { timeout: 10000 });
@@ -7763,7 +10591,6 @@ export function smokeChecks({ audit, hold }) {
       // becomes a new play, and the .fdx is kept beside the script.
       name: "finder · an .fdx becomes a play and is kept",
       feature: "import",
-      devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumOpenFiles(["/dev/outside/Hamlet.fdx"]));
         await page.waitForSelector(".import-desk__review", { timeout: 10000 });
@@ -7794,7 +10621,6 @@ export function smokeChecks({ audit, hold }) {
       // and the play keeps it zipped whole, as Harbor.pages.zip.
       name: "finder · a package-form Pages document becomes a play and is kept zipped",
       feature: "import",
-      devMock: true,
       async run(page) {
         for (const file of harborPackage())
           await page.evaluate(({ path, base64 }) => window.__prosceniumOutsideFile(path, base64), {
@@ -7824,7 +10650,6 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "finder · a file that is not there says so",
       feature: "workspace",
-      devMock: true,
       async run(page) {
         await page.evaluate(() => window.__prosceniumOpenFiles(["/dev/outside/Gone.fountain"]));
         await until(page, "the toast", () =>
@@ -7843,7 +10668,6 @@ export function smokeChecks({ audit, hold }) {
       // script takes back a click on another that is still reading.
       name: "scripts · a slow open never mixes two scripts",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const first = "The Weight of Water.fountain";
         const second = "Second Draft.fountain";
@@ -7879,7 +10703,7 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "the words typed during the open to reach the first script",
-          (rel) => (window.__prosceniumPeek(rel) ?? "").includes("Ebb and flow."),
+          async (rel) => ((await window.__prosceniumPeek(rel)) ?? "").includes("Ebb and flow."),
           first,
         );
         await page.evaluate(() => window.__prosceniumOpenGates());
@@ -7897,10 +10721,18 @@ export function smokeChecks({ audit, hold }) {
 
         await page.evaluate((rel) => window.__prosceniumGate("read", rel), first);
         await row("The Weight of Water").click();
-        await page.waitForTimeout(150);
+        await until(
+          page,
+          "the first script's read held",
+          async () => (await window.__prosceniumHeld("read")) > 0,
+        );
         await row("Second Draft").click();
         await page.evaluate(() => window.__prosceniumOpenGates());
-        await page.waitForTimeout(800);
+        await elapse(
+          page,
+          800,
+          "the first script's late read, let go, must not land over the one asked for last, and a read dropped shows nothing",
+        );
         const text = await page.evaluate(
           () => document.querySelector(".ProseMirror")?.textContent ?? "",
         );
@@ -7912,7 +10744,6 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "copies kept during a save are readable in Changes",
       feature: "review",
-      devMock: true,
       async run(page) {
         const rel = "Second Draft.fountain";
         const words = "ONLY COPY OF AN EXTERNAL EDIT\n".repeat(120);
@@ -7956,7 +10787,6 @@ export function smokeChecks({ audit, hold }) {
       // it can be read, Keep this pins it and writes ours.
       name: "alternate event spelling gates unsaved words and Keep this preserves theirs",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const second = "Second Draft.fountain";
         const peek = (rel) => page.evaluate((r) => window.__prosceniumPeek(r), rel);
@@ -8008,7 +10838,7 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "ours on disk",
-          (rel) => (window.__prosceniumPeek(rel) ?? "").includes("Ours, typed here."),
+          async (rel) => ((await window.__prosceniumPeek(rel)) ?? "").includes("Ours, typed here."),
           second,
         );
         await page.waitForSelector(".banner--conflict", { state: "detached", timeout: 5000 });
@@ -8027,7 +10857,6 @@ export function smokeChecks({ audit, hold }) {
       // version used to be written into the script that had just opened.
       name: "versions · a restore lands in the script it was chosen from, or nowhere",
       feature: "review",
-      devMock: true,
       async run(page) {
         const first = "The Weight of Water.fountain";
         const second = "Second Draft.fountain";
@@ -8040,13 +10869,20 @@ export function smokeChecks({ audit, hold }) {
           .first()
           .click();
         await openFromDocumentMenu(page, /Versions/);
-        await page.waitForSelector(".historypanel__preview", { timeout: 5000 });
-        await until(page, "a version's text", () => {
-          const text = document.querySelector(".historypanel__preview")?.textContent ?? "";
-          return text !== "" && !/Loading/.test(text);
-        });
+        await page.waitForSelector(".changes .changerow--sitting", { timeout: 5000 });
+        await page.locator(".changes .changerow--sitting").first().click();
+        // A version of its own, not the whole sitting: Restore This Version.
+        await page.locator(".sitting__version").nth(1).click();
+        await until(page, "a version's changes", () =>
+          [...document.querySelectorAll(".sitting__doc .change__diff")].some(
+            (d) => d.getAttribute("aria-busy") === "false",
+          ),
+        );
         await page.evaluate(() => window.__prosceniumGate("versionRead", null));
-        await page.locator(".sheet .btn", { hasText: "Restore…" }).first().click();
+        await page
+          .locator(".sitting__actions .btn", { hasText: "Restore This Version" })
+          .first()
+          .click();
         await page.waitForSelector(".alert", { timeout: 5000 });
         await page
           .locator(".alert .btn", { hasText: /^Restore$/ })
@@ -8055,7 +10891,7 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "the restore to be reading its version",
-          () => window.__prosceniumHeld("versionRead") > 0,
+          async () => (await window.__prosceniumHeld("versionRead")) > 0,
         );
         // The other script finishes opening, and only then is the version read.
         await page.evaluate(() => window.__prosceniumOpenGates("read"));
@@ -8069,8 +10905,14 @@ export function smokeChecks({ audit, hold }) {
           /nothing was replaced/.test(document.querySelector(".toast")?.textContent ?? ""),
         );
         for (let i = 0; i < 4 && (await page.locator(".alert, .sheet").count()); i++) {
+          const open = await page.locator(".alert, .sheet").count();
           await page.keyboard.press("Escape");
-          await page.waitForTimeout(150);
+          await eventually(
+            page,
+            (open) => document.querySelectorAll(".alert, .sheet").length < open,
+            open,
+            2000,
+          );
         }
         if ((await peek(first)) !== firstBefore) {
           throw new Error("the version went into the script that opened meanwhile");
@@ -8080,6 +10922,7 @@ export function smokeChecks({ audit, hold }) {
             "the script the version was chosen from changed without it being on screen",
           );
         }
+        await page.locator(".seg__btn", { hasText: "Script" }).first().click();
       },
     },
     {
@@ -8089,13 +10932,12 @@ export function smokeChecks({ audit, hold }) {
       // first land and the second are kept in Versions.
       name: "sheets · leaving the play keeps a sheet's last words",
       feature: "markdown",
-      devMock: true,
       async run(page) {
         const mara = "Characters/Mara.md";
         const openMara = async () => {
           await page.locator(".binder .binder__label", { hasText: "Mara" }).first().click();
           await page.waitForSelector(".material .ProseMirror", { timeout: 10000 });
-          await page.waitForTimeout(300);
+          await sheetReady(page);
           await page.locator(".material .ProseMirror").first().click();
           await page.keyboard.press("Meta+ArrowDown");
         };
@@ -8109,7 +10951,7 @@ export function smokeChecks({ audit, hold }) {
         await page.keyboard.press("Meta+Shift+KeyO");
         await page.waitForSelector(".vault-list", { timeout: 15000 });
         const landed = await page.evaluate(
-          (key) => window.__prosceniumPeekKey(key) ?? "",
+          async (key) => (await window.__prosceniumPeekKey(key)) ?? "",
           `The Weight of Water/${mara}`,
         );
         if (!landed.includes("LAST WORDS BEFORE LEAVING")) {
@@ -8147,7 +10989,6 @@ export function smokeChecks({ audit, hold }) {
       // refused itself as "a play".
       name: "binder · an op waiting on a slow write never runs in the Plays folder",
       feature: "workspace",
-      devMock: true,
       async run(page) {
         const second = "Second Draft.fountain";
         await page.locator(".binder .binder__label", { hasText: "Second Draft" }).first().click();
@@ -8162,20 +11003,39 @@ export function smokeChecks({ audit, hold }) {
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" words in flight");
-        await until(page, "the script's write held", () => window.__prosceniumHeld("write") > 0);
+        await until(
+          page,
+          "the script's write held",
+          async () => (await window.__prosceniumHeld("write")) > 0,
+        );
         await page.evaluate(() =>
           [...document.querySelectorAll("button")]
             .find((b) => b.getAttribute("aria-label") === "Actions for “Second Draft”")
             ?.click(),
         );
         await page.waitForSelector(".menu", { timeout: 5000 });
-        await page.locator(".menu__item", { hasText: "Move to Trash" }).first().click();
-        await page.waitForTimeout(200);
+        await page
+          .locator(".menu__item", { hasText: said("Move to Trash", "Move to the Recycle Bin") })
+          .first()
+          .click();
+        await elapse(
+          page,
+          200,
+          "the trash must be waiting behind the held save before the play is left, and nothing marks an op queued behind a write",
+        );
         await page.keyboard.press("Meta+Shift+KeyO");
-        await page.waitForTimeout(300);
+        await elapse(
+          page,
+          300,
+          "the leave must be under way, behind the same save, before the gates open, and nothing marks it",
+        );
         await page.evaluate(() => window.__prosceniumOpenGates());
         await page.waitForSelector(".vault-list", { timeout: 15000 });
-        await page.waitForTimeout(1000);
+        await elapse(
+          page,
+          1000,
+          "an op let loose in the Plays folder would write there after the gates open, and nothing says none will",
+        );
         const stray = (await page.evaluate(() => window.__prosceniumStoreKeys())).filter(
           (k) => !before.includes(k) && !k.includes("/"),
         );
@@ -8192,11 +11052,11 @@ export function smokeChecks({ audit, hold }) {
       // queued behind it wrote the page from before the move over the move.
       name: "board · a scene moved while the writer types keeps both",
       feature: "workspace",
-      devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
         const typed = " Typed while a scene moved.";
-        const disk = () => page.evaluate((r) => window.__prosceniumPeek(r) ?? "", script);
+        const disk = () =>
+          page.evaluate(async (r) => (await window.__prosceniumPeek(r)) ?? "", script);
         const moved = (text) =>
           text.indexOf("= Morning. The truce") < text.indexOf("= Mara, alone before dawn");
         await page
@@ -8207,20 +11067,26 @@ export function smokeChecks({ audit, hold }) {
         await page.waitForSelector(".outliner__row", { timeout: 10000 });
         await page.evaluate((r) => window.__prosceniumGate("write", r), script);
         await page.getByRole("button", { name: "Move SCENE 1 down" }).first().click();
-        await until(page, "the move's write held", () => window.__prosceniumHeld("write") > 0);
+        await until(
+          page,
+          "the move's write held",
+          async () => (await window.__prosceniumHeld("write")) > 0,
+        );
         await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         await page.waitForSelector(".play-page", { timeout: 10000 });
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(typed);
-        // Long enough for autosave to queue a save behind the move.
-        await page.waitForTimeout(900);
+        // Autosave has queued a save behind the move: the status says it is saving.
+        await until(page, "autosave to queue a save behind the move", () =>
+          /^Saving/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+        );
         await page.evaluate(() => window.__prosceniumOpenGates());
         await until(
           page,
           "both on disk",
-          (t) => {
-            const text = window.__prosceniumPeek("The Weight of Water.fountain") ?? "";
+          async (t) => {
+            const text = (await window.__prosceniumPeek("The Weight of Water.fountain")) ?? "";
             return (
               text.includes(t) &&
               text.indexOf("= Morning. The truce") < text.indexOf("= Mara, alone before dawn")
@@ -8245,8 +11111,8 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "the scene back in place",
-          () => {
-            const text = window.__prosceniumPeek("The Weight of Water.fountain") ?? "";
+          async () => {
+            const text = (await window.__prosceniumPeek("The Weight of Water.fountain")) ?? "";
             return text.indexOf("= Mara, alone before dawn") < text.indexOf("= Morning. The truce");
           },
           undefined,
@@ -8266,7 +11132,6 @@ export function smokeChecks({ audit, hold }) {
       // made in that window every time.
       name: "outline · a note made while the binder is walked keeps every word",
       feature: "workspace",
-      devMock: true,
       async run(page) {
         const notes = ".outline-notes .ProseMirror";
         const outlineRows = () =>
@@ -8287,12 +11152,20 @@ export function smokeChecks({ audit, hold }) {
         );
         await page.keyboard.type(" Salt");
         // The save makes the note's file; its entry in the play file is held.
-        await page.waitForTimeout(900);
+        await until(
+          page,
+          "the note's entry in the play file held",
+          async () => (await window.__prosceniumHeld("write")) > 0,
+        );
         await page.evaluate(() =>
           window.__prosceniumExternalChange("Research/Tide tables.md", "# Tide tables\n"),
         );
         // The walk's debounce, the walk, and its plan.
-        await page.waitForTimeout(1700);
+        await elapse(
+          page,
+          1700,
+          "the walk the file event starts plans 1.2 s later, behind the held write, and nothing marks its plan made",
+        );
         await page.evaluate(() => window.__prosceniumOpenGates());
         await page.keyboard.type(" in the tide tables.");
         await until(page, "the tide tables filed", () =>
@@ -8300,7 +11173,11 @@ export function smokeChecks({ audit, hold }) {
             (l) => l.textContent === "Tide tables",
           ),
         );
-        await page.waitForTimeout(1500);
+        await elapse(
+          page,
+          1500,
+          "a note read over the page would come as the plan and the saves land, and nothing says none is coming",
+        );
         const text = await page.evaluate(
           (sel) => document.querySelector(sel)?.textContent ?? "",
           notes,
@@ -8332,7 +11209,8 @@ export function smokeChecks({ audit, hold }) {
         await page.locator(notes).first().click();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" Tide turns at the stair.");
-        await page.waitForTimeout(1200);
+        // Saved: the note's file holds the words, filed in the play (Notes/Outline.md).
+        await eventually(page, onDisk, { file: "Outline.md", word: "Tide turns at the stair." });
         await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         await page.waitForSelector(".play-page", { timeout: 10000 });
         await page.locator(".seg__btn", { hasText: "Outline" }).first().click();
@@ -8347,7 +11225,13 @@ export function smokeChecks({ audit, hold }) {
         await page.locator(notes).first().click();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" And back.");
-        await page.waitForTimeout(1200);
+        // The page is read once the save of what was typed has landed, which is
+        // what a stale reading of the note would have come back over.
+        await eventually(page, onDisk, {
+          file: "Outline.md",
+          word: "Tide turns at the stair. And back.",
+        });
+        await drawn(page);
         const text = await shown();
         await page.locator(".seg__btn", { hasText: "Script" }).first().click();
         if (!text.includes("Tide turns at the stair. And back.")) {
@@ -8365,41 +11249,26 @@ export function smokeChecks({ audit, hold }) {
       // of the first kind and their own Appearances edits as the second.
       name: "changes · coming back to the app lists nothing that did not change outside",
       feature: "review",
-      devMock: true,
       async run(page) {
         const notes = ".outline-notes .ProseMirror";
         const show = async (surface, selector) => {
           await page.locator(".seg__btn", { hasText: surface }).first().click();
           await page.waitForSelector(selector, { timeout: 10000 });
         };
+        // What Changes shows as new: changes the writer had not seen when it opened.
         const waiting = () =>
-          page.evaluate(
-            () =>
-              [...document.querySelectorAll(".changes button")].filter(
-                (b) => b.textContent.trim() === "Keep",
-              ).length,
-          );
+          page.evaluate(() => document.querySelectorAll(".changes .changerow--new").length);
         // Every file the app reads on the way back, and every row it would add.
         const comeBack = async () => {
           await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-          await page.waitForTimeout(800);
-        };
-        await show("Changes", ".changes");
-        for (let count = await waiting(); count > 0; count = await waiting()) {
-          await page
-            .locator(".changes button", { hasText: /^Keep$/ })
-            .first()
-            .click();
-          await until(
+          await elapse(
             page,
-            "an earlier change to be kept",
-            (before) =>
-              [...document.querySelectorAll(".changes button")].filter(
-                (b) => b.textContent.trim() === "Keep",
-              ).length < before,
-            count,
+            800,
+            "each file re-read on the way back would be recorded as a change a moment after, and nothing says none will be",
           );
-        }
+        };
+        // Every earlier change seen, by looking.
+        await show("Changes", ".changes");
 
         await show("Script", ".play-page");
         await comeBack();
@@ -8416,10 +11285,11 @@ export function smokeChecks({ audit, hold }) {
           await until(
             page,
             "the outline note to be saved",
-            (w) =>
-              window
-                .__prosceniumStoreKeys()
-                .some((key) => (window.__prosceniumPeekKey(key) ?? "").includes(w)),
+            async (w) => {
+              for (const key of await window.__prosceniumStoreKeys())
+                if (((await window.__prosceniumPeekKey(key)) ?? "").includes(w)) return true;
+              return false;
+            },
             words,
           );
           await comeBack();
@@ -8483,7 +11353,6 @@ export function smokeChecks({ audit, hold }) {
       // window comes back into focus, with nothing more typed.
       name: "saving · a refused save is said once, plainly, and lands when it can",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
         const toastText = () =>
@@ -8494,9 +11363,9 @@ export function smokeChecks({ audit, hold }) {
           (await page.evaluate(() => window.__prosceniumTelemetry())).errors;
         const refuse = (fail) =>
           page.evaluate(
-            ([rel, f]) => {
-              window.__prosceniumOpenGates("write");
-              window.__prosceniumGate("write", rel, { fail: f });
+            async ([rel, f]) => {
+              await window.__prosceniumOpenGates("write");
+              await window.__prosceniumGate("write", rel, { fail: f });
             },
             [script, fail],
           );
@@ -8509,24 +11378,37 @@ export function smokeChecks({ audit, hold }) {
         await dismissToasts(page);
         const logged = (await errorCodes()).length;
 
-        await refuse("locked: Operation not permitted (os error 1)");
+        // The file locked: Finder's Locked on a Mac, Read-only on a PC, as each
+        // system's vault reports it (vault/mod.rs `refused`).
+        await refuse(
+          said("locked: Operation not permitted (os error 1)", "locked: Permission denied"),
+        );
         await page.locator(".ProseMirror").first().focus();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" Salt on the sill.");
-        await until(page, "the refusal to be said", () =>
-          /is locked in Finder/.test(document.querySelector(".toast")?.textContent ?? ""),
+        await until(
+          page,
+          "the refusal to be said",
+          (lock) => (document.querySelector(".toast")?.textContent ?? "").includes(lock),
+          said("is locked in Finder", "is marked Read-only"),
         );
-        const said = await toastText();
+        const told = await toastText();
         for (const words of [
-          "“The Weight of Water” is locked in Finder.",
+          said(
+            "“The Weight of Water” is locked in Finder.",
+            "“The Weight of Water” is marked Read-only.",
+          ),
           "Your words are still here, and a copy is being kept.",
-          "It will save once you unlock it in Finder's Get Info window.",
+          said(
+            "It will save once you unlock it in Finder's Get Info window.",
+            "It will save once you clear Read-only in its Properties in File Explorer.",
+          ),
         ]) {
-          if (!said.includes(words))
-            throw new Error(`the refused save said ${JSON.stringify(said)}, not "${words}"`);
+          if (!told.includes(words))
+            throw new Error(`the refused save said ${JSON.stringify(told)}, not "${words}"`);
         }
-        if (/os error|not permitted|locked:/i.test(said))
-          throw new Error(`the toast shows the OS's words: ${JSON.stringify(said)}`);
+        if (/os error|not permitted|permission denied|locked:/i.test(told))
+          throw new Error(`the toast shows the OS's words: ${JSON.stringify(told)}`);
         await visible(page, ".toast", { minWidth: 200, minHeight: 30 });
         await audit(page, "toast · a refused save");
         await until(
@@ -8540,16 +11422,27 @@ export function smokeChecks({ audit, hold }) {
         await dismissToasts(page);
         const tried = await page.evaluate(() => window.__prosceniumFailed("write"));
         for (const words of [" The kettle.", " The door.", " The stair."]) {
+          const failed = await page.evaluate(() => window.__prosceniumFailed("write"));
           await page.keyboard.type(words);
-          await page.waitForTimeout(900);
+          // The pause after the typing: autosave tries again, and is refused.
+          await until(
+            page,
+            "autosave to try again in the pause",
+            async (n) => (await window.__prosceniumFailed("write")) > n,
+            failed,
+          );
         }
         await until(
           page,
           "autosave to try three more times",
-          (n) => window.__prosceniumFailed("write") >= n + 3,
+          async (n) => (await window.__prosceniumFailed("write")) >= n + 3,
           tried,
         );
-        await page.waitForTimeout(200);
+        await elapse(
+          page,
+          200,
+          "a toast for the last refusal would come as that refusal is handled, and nothing says none is coming",
+        );
         if (await page.locator(".toast").count()) {
           throw new Error(
             `a retry refused the same way raised a toast again: ${JSON.stringify(await toastText())}`,
@@ -8568,7 +11461,7 @@ export function smokeChecks({ audit, hold }) {
         }
 
         // Refused for another reason: that is news.
-        await refuse("No space left on device (os error 28)");
+        await refuse(said("No space left on device (os error 28)", "No space left on device"));
         await page.keyboard.type(" The gulls.");
         await until(page, "the new refusal to be said", () =>
           /The disk is full\./.test(document.querySelector(".toast")?.textContent ?? ""),
@@ -8580,8 +11473,15 @@ export function smokeChecks({ audit, hold }) {
         ) {
           throw new Error(`a full disk said ${JSON.stringify(full)}`);
         }
-        if (!(await errorCodes()).slice(logged).includes("E-SAVE-DISK-FULL"))
-          throw new Error("a full disk logged no E-SAVE-DISK-FULL");
+        // The toast is the page's own; in the apps the code reaches the error
+        // log through the app a moment after it.
+        const fullLogged = await eventually(
+          page,
+          async (from) =>
+            (await window.__prosceniumTelemetry()).errors.slice(from).includes("E-SAVE-DISK-FULL"),
+          logged,
+        );
+        if (!fullLogged) throw new Error("a full disk logged no E-SAVE-DISK-FULL");
 
         // Room again, and back from Finder: the window's focus tries once more.
         await dismissToasts(page);
@@ -8592,10 +11492,10 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "every word typed while refused to reach the script",
-          (rel) =>
-            ["Salt on the sill.", "The stair.", "The gulls."].every((w) =>
-              (window.__prosceniumPeek(rel) ?? "").includes(w),
-            ),
+          async (rel) => {
+            const disk = (await window.__prosceniumPeek(rel)) ?? "";
+            return ["Salt on the sill.", "The stair.", "The gulls."].every((w) => disk.includes(w));
+          },
           script,
         );
         await until(page, "the save to be said", () =>
@@ -8611,14 +11511,13 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "leaving waits for sheet saves already accepted by this play",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const path = "Characters/Mara.md";
         const first = " A514 first save in flight.";
         const second = " A514 second save queued.";
         await page.locator(".binder .binder__label", { hasText: "Mara" }).first().click();
         await page.waitForSelector(".material .ProseMirror", { timeout: 10000 });
-        await page.waitForTimeout(300);
+        await sheetReady(page);
         await page.evaluate((rel) => window.__prosceniumGate("write", rel), path);
         try {
           await page.locator(".material .ProseMirror").first().focus();
@@ -8627,12 +11526,44 @@ export function smokeChecks({ audit, hold }) {
           await until(
             page,
             "the sheet write in flight",
-            () => window.__prosceniumHeld("write") > 0,
+            async () => (await window.__prosceniumHeld("write")) > 0,
           );
+          // The first words all handed to a save before the second are typed, so
+          // the editing seen next is the second words'.
+          await until(
+            page,
+            "the sheet's first words handed to its save",
+            () => !document.querySelector(".material__save--dirty"),
+          );
+          // Every state the sheet's status passes through, recorded as it
+          // changes: editing lasts only the 400 ms debounce after a key, or less
+          // near the two-second ceiling, and a run whose keys each wait out two
+          // frames of a locked screen's 5 fps is past it before a poll can look.
+          await page.evaluate(() => {
+            const states = [];
+            window.__prosceniumSheetStates = states;
+            const status = document.querySelector(".material__save");
+            new MutationObserver(() => {
+              const state = /material__save--(\w+)/.exec(status.className)?.[1];
+              if (state && state !== states.at(-1)) states.push(state);
+            }).observe(status, { attributes: true, attributeFilter: ["class"] });
+          });
           await page.keyboard.type(second);
-          await page.waitForTimeout(900);
+          // Accepted: the sheet takes the second save behind the first (its own
+          // status goes from editing to saved while the first write is held).
+          await until(page, "the sheet editing the second words", () =>
+            window.__prosceniumSheetStates.includes("dirty"),
+          );
+          await until(page, "the sheet's second save accepted", () => {
+            const states = window.__prosceniumSheetStates;
+            return states.lastIndexOf("saved") > states.lastIndexOf("dirty");
+          });
           await page.keyboard.press("Meta+Shift+KeyO");
-          await page.waitForTimeout(200);
+          await elapse(
+            page,
+            200,
+            "the play must not leave while its sheet's writes are held, and nothing says a leave is waiting",
+          );
           if (await page.locator(".vault-list").count())
             throw new Error("the play left before its sheet writes settled");
         } finally {
@@ -8641,7 +11572,10 @@ export function smokeChecks({ audit, hold }) {
         await page.waitForSelector(".vault-list", { timeout: 15000 });
         await page.locator(".playrow__title", { hasText: /^The Weight of Water$/ }).click();
         await page.waitForSelector(".binder", { timeout: 20000 });
-        const disk = await page.evaluate((rel) => window.__prosceniumPeek(rel) ?? "", path);
+        const disk = await page.evaluate(
+          async (rel) => (await window.__prosceniumPeek(rel)) ?? "",
+          path,
+        );
         if (!disk.includes(first.trim()) || !disk.includes(second.trim())) {
           throw new Error("an accepted sheet save was lost or diverted to Versions while leaving");
         }
@@ -8660,34 +11594,50 @@ export function smokeChecks({ audit, hold }) {
       // words in Versions and explains where they were kept.
       name: "saving · a refused sheet says where its words went",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const mara = "Characters/Mara.md";
+        // Its folder locked in Finder on a Mac; on a PC, where a folder has no
+        // lock (vault/mod.rs `locked_in_finder`), the file marked Read-only.
+        const cause = said(
+          "The folder “Characters” is locked in Finder.",
+          "“Mara” is marked Read-only.",
+        );
         await page.locator(".binder .binder__label", { hasText: "Mara" }).first().click();
         await page.waitForSelector(".material .ProseMirror", { timeout: 10000 });
-        await page.waitForTimeout(300);
+        await sheetReady(page);
         await dismissToasts(page);
         await page.evaluate(
-          (rel) =>
-            window.__prosceniumGate("write", rel, {
-              fail: "folder-locked: Operation not permitted (os error 1)",
-            }),
-          mara,
+          ([rel, fail]) => window.__prosceniumGate("write", rel, { fail }),
+          [
+            mara,
+            said(
+              "folder-locked: Operation not permitted (os error 1)",
+              "locked: Permission denied",
+            ),
+          ],
         );
         await page.locator(".material .ProseMirror").first().click();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" WORDS IN A LOCKED FOLDER");
-        await until(page, "the sheet's refusal", () =>
-          /The folder “Characters” is locked in Finder\./.test(
-            document.querySelector(".toast")?.textContent ?? "",
-          ),
+        await until(
+          page,
+          "the sheet's refusal",
+          (words) => (document.querySelector(".toast")?.textContent ?? "").includes(words),
+          cause,
         );
-        const said = await page.locator(".toast").innerText();
-        if (!said.includes("Your words are still here, and a copy is being kept.")) {
-          throw new Error(`a refused sheet said ${JSON.stringify(said)}`);
+        const told = await page.locator(".toast").innerText();
+        if (!told.includes("Your words are still here, and a copy is being kept.")) {
+          throw new Error(`a refused sheet said ${JSON.stringify(told)}`);
         }
-        if (!said.includes("“Mara” will save once you unlock the folder"))
-          throw new Error(`a refused sheet said ${JSON.stringify(said)}`);
+        if (
+          !told.includes(
+            said(
+              "“Mara” will save once you unlock the folder",
+              "It will save once you clear Read-only",
+            ),
+          )
+        )
+          throw new Error(`a refused sheet said ${JSON.stringify(told)}`);
 
         await page.keyboard.press("Meta+Shift+KeyO");
         await page.waitForSelector(".vault-list", { timeout: 15000 });
@@ -8698,8 +11648,7 @@ export function smokeChecks({ audit, hold }) {
         );
         const where = await page.locator(".toast").innerText();
         await page.evaluate(() => window.__prosceniumOpenGates("write"));
-        if (!where.includes("The folder “Characters” is locked in Finder."))
-          throw new Error(`leaving said ${JSON.stringify(where)}`);
+        if (!where.includes(cause)) throw new Error(`leaving said ${JSON.stringify(where)}`);
         const kept = await page.evaluate(() =>
           window.__prosceniumVersionsWith("WORDS IN A LOCKED FOLDER"),
         );
@@ -8715,7 +11664,6 @@ export function smokeChecks({ audit, hold }) {
       // play's folder, which was not the one locked.
       name: "saving · a refused first outline note names the folder it goes in",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const notes = ".outline-notes .ProseMirror";
         await page.keyboard.press("Meta+Shift+KeyO");
@@ -8725,34 +11673,38 @@ export function smokeChecks({ audit, hold }) {
         await page.locator(".seg__btn", { hasText: "Outline" }).first().click();
         await page.waitForSelector(`${notes}[contenteditable=true]`, { timeout: 10000 });
         await dismissToasts(page);
+        // Refused because of the folder: locked in Finder on a Mac; on a PC,
+        // where a folder has no lock, Windows not letting the app change it.
+        const cause = said(
+          "The folder “Notes” is locked in Finder.",
+          "Windows isn't letting Proscenium change the folder “Notes”.",
+        );
         await page.evaluate(
-          (rel) =>
-            window.__prosceniumGate("write", rel, {
-              fail: "folder-locked: Operation not permitted (os error 1)",
-            }),
-          "Notes/Outline.md",
+          ([rel, fail]) => window.__prosceniumGate("write", rel, { fail }),
+          [
+            "Notes/Outline.md",
+            said("folder-locked: Operation not permitted (os error 1)", "Permission denied"),
+          ],
         );
         await page.locator(notes).first().click();
         await page.keyboard.type("The lamp room first.");
-        await until(page, "the first note's refusal", () =>
-          /is locked in Finder/.test(document.querySelector(".toast")?.textContent ?? ""),
+        await until(
+          page,
+          "the first note's refusal",
+          (words) => (document.querySelector(".toast")?.textContent ?? "").includes(words),
+          cause,
         );
-        const said = await page.locator(".toast").innerText();
+        const told = await page.locator(".toast").innerText();
         await until(
           page,
           "the first outline's words to have a recovery copy",
-          () =>
-            Object.keys(sessionStorage).some(
-              (key) =>
-                key.startsWith("proscenium:dev:recovery:") &&
-                (sessionStorage.getItem(key) ?? "").includes("The lamp room first."),
-            ),
+          async () => (await window.__prosceniumRecoveryWith("The lamp room first.")) > 0,
           undefined,
           3000,
         );
         await page.evaluate(() => window.__prosceniumOpenGates("write"));
-        if (!said.includes("The folder “Notes” is locked in Finder.")) {
-          throw new Error(`a refused first outline note said ${JSON.stringify(said)}`);
+        if (!told.includes(cause)) {
+          throw new Error(`a refused first outline note said ${JSON.stringify(told)}`);
         }
         await dismissToasts(page);
         await page.keyboard.press("Meta+Shift+KeyO");
@@ -8779,16 +11731,18 @@ export function smokeChecks({ audit, hold }) {
       // dropped.
       name: "saving · opening a document writes nothing",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const failed = () => page.evaluate(() => window.__prosceniumFailed("write"));
         const lock = (rel) =>
           page.evaluate(
-            (r) =>
-              window.__prosceniumGate("write", r, {
-                fail: "folder-locked: Operation not permitted (os error 1)",
-              }),
-            rel,
+            ([r, fail]) => window.__prosceniumGate("write", r, { fail }),
+            [
+              rel,
+              said(
+                "folder-locked: Operation not permitted (os error 1)",
+                "locked: Permission denied",
+              ),
+            ],
           );
         await dismissToasts(page);
         const before = await failed();
@@ -8805,38 +11759,46 @@ export function smokeChecks({ audit, hold }) {
           });
           // Longer than the debounce and its max-wait ceiling together, so a
           // save that opening had asked for has had every chance to go.
-          await page.waitForTimeout(3000);
+          await elapse(
+            page,
+            3000,
+            "opening must write nothing, and a save it asked for would go within the debounce and its 2 s ceiling",
+          );
         } finally {
           await page.evaluate(() => window.__prosceniumOpenGates("write"));
         }
         if ((await failed()) !== before) {
           throw new Error("opening a document tried to write it");
         }
-        const said = await page.evaluate(() => document.querySelector(".toast")?.textContent ?? "");
-        if (said.includes("locked in Finder"))
-          throw new Error(`opening a document said ${JSON.stringify(said)}`);
+        const told = await page.evaluate(() => document.querySelector(".toast")?.textContent ?? "");
+        if (told.includes(said("locked in Finder", "marked Read-only")))
+          throw new Error(`opening a document said ${JSON.stringify(told)}`);
         await page.locator(".seg__btn", { hasText: "Script" }).first().click();
       },
     },
     {
-      name: "sheet and outline recovery survive a crash and remain readable",
+      // A refused sheet and a refused outline note each keep a recovery copy,
+      // and the crash is the reload that ends the check: in the browser the
+      // in-memory vault comes back as its seed, in the app the page that held
+      // them is gone, its process's hold on them with it, and the next check
+      // reads them back.
+      name: "sheet and outline recovery survive a crash",
       feature: "storage",
-      devMock: true,
       async run(page) {
-        const hasCopy = (words) =>
-          Object.keys(sessionStorage).some(
-            (key) =>
-              key.startsWith("proscenium:dev:recovery:") &&
-              (sessionStorage.getItem(key) ?? "").includes(words),
-          );
+        const hasCopy = async (words) => (await window.__prosceniumRecoveryWith(words)) > 0;
+        // Refused for good, whatever the system: Finder's Locked on a Mac's
+        // folder, Read-only on a PC's file (vault/mod.rs `refused`).
+        const refusal = said(
+          "folder-locked: Operation not permitted (os error 1)",
+          "locked: Permission denied",
+        );
         await page.locator(".binder .binder__label", { hasText: "Mara" }).first().click();
         await page.waitForSelector(".material .ProseMirror[contenteditable=true]", {
           timeout: 10000,
         });
-        await page.evaluate(() =>
-          window.__prosceniumGate("write", "Characters/Mara.md", {
-            fail: "folder-locked: Operation not permitted (os error 1)",
-          }),
+        await page.evaluate(
+          (fail) => window.__prosceniumGate("write", "Characters/Mara.md", { fail }),
+          refusal,
         );
         await page.locator(".material .ProseMirror").first().focus();
         await page.keyboard.press("Meta+ArrowDown");
@@ -8868,10 +11830,9 @@ export function smokeChecks({ audit, hold }) {
         await page.waitForSelector(".outline-notes .ProseMirror[contenteditable=true]", {
           timeout: 10000,
         });
-        await page.evaluate(() =>
-          window.__prosceniumGate("write", "Notes/Outline.md", {
-            fail: "folder-locked: Operation not permitted (os error 1)",
-          }),
+        await page.evaluate(
+          (fail) => window.__prosceniumGate("write", "Notes/Outline.md", { fail }),
+          refusal,
         );
         await page.locator(".outline-notes .ProseMirror").first().focus();
         await page.keyboard.press("Meta+ArrowDown");
@@ -8884,20 +11845,14 @@ export function smokeChecks({ audit, hold }) {
           3000,
         );
         await page.reload();
-        for (let turn = 0; turn < 100; turn++) {
-          if (await page.locator(".paneroot").count()) break;
-          if (turn >= 10)
-            await page.evaluate(() => {
-              const welcome = [...document.querySelectorAll(".welcome button")].find((node) =>
-                node.textContent?.includes("A folder I choose"),
-              );
-              const play = [...document.querySelectorAll(".playrow__title")].find(
-                (node) => node.textContent === "The Weight of Water",
-              );
-              (welcome ?? play)?.click();
-            });
-          await page.waitForTimeout(150);
-        }
+      },
+    },
+    {
+      // After the crash above: the copies it left are read in Changes.
+      name: "sheet and outline recovery remain readable after a crash",
+      feature: "storage",
+      async run(page) {
+        await walkIntoPlay(page);
         await page.waitForSelector(".paneroot", { timeout: 15000 });
         await page.locator(".seg__btn", { hasText: "Changes" }).first().click();
         await page
@@ -8934,7 +11889,6 @@ export function smokeChecks({ audit, hold }) {
       // app data — is still there for the next check to find.
       name: "recovery · words behind the banner are kept through a crash",
       feature: "storage",
-      devMock: true,
       async run(page) {
         // The checks before this one left another play open.
         await page.keyboard.press("Meta+Shift+KeyO");
@@ -8959,12 +11913,7 @@ export function smokeChecks({ audit, hold }) {
         await until(
           page,
           "a recovery snapshot",
-          () =>
-            Object.keys(sessionStorage).some(
-              (k) =>
-                k.startsWith("proscenium:dev:recovery:") &&
-                (sessionStorage.getItem(k) ?? "").includes("The sea came in."),
-            ),
+          async () => (await window.__prosceniumRecoveryWith("The sea came in.")) > 0,
           undefined,
           12000,
         );
@@ -8974,48 +11923,17 @@ export function smokeChecks({ audit, hold }) {
     {
       name: "recovery · the reopened script offers the words back",
       feature: "storage",
-      devMock: true,
       async run(page) {
         // Launch lands wherever settings send it: the Welcome screen, the Plays
         // screen, or — with "open the last play" chosen above — the play itself,
-        // by way of a moment on the Plays screen, and of the Welcome screen
-        // before the last folder has reopened. Walk in only when nothing else is
-        // about to, and click in the page: a screen that is only passing
-        // through is gone before a locator's click could land on it.
-        const clickText = (selector, text, exact = false) =>
-          page.evaluate(
-            ([sel, t, x]) =>
-              [...document.querySelectorAll(sel)]
-                .find((el) => (x ? el.textContent?.trim() === t : el.textContent?.includes(t)))
-                ?.click(),
-            [selector, text, exact],
-          );
-        let seenPlays = 0;
-        let seenWelcome = 0;
-        for (let t = 0; t < 200; t++) {
-          const at = await page.evaluate(() =>
-            document.querySelector(".banner--recovery")
-              ? "banner"
-              : document.querySelector(".paneroot")
-                ? "play"
-                : document.querySelector(".vault-list")
-                  ? "plays"
-                  : document.querySelector(".welcome")
-                    ? "welcome"
-                    : "loading",
-          );
-          if (at === "banner" || at === "play") break;
-          if (at === "welcome" && ++seenWelcome === 10)
-            await clickText("button", "A folder I choose");
-          if (at === "plays" && ++seenPlays === 10)
-            await clickText(".playrow__title", "The Weight of Water", true);
-          await page.waitForTimeout(150);
-        }
+        // under the launch screen until it is in place. Walk in from where it
+        // arrives (walkIntoPlay), and stop at the banner or the play.
+        await walkIntoPlay(page, ".banner--recovery, .paneroot");
         await page.waitForSelector(".banner--recovery", { timeout: 20000 });
         await visible(page, ".banner--recovery", { minWidth: 300, minHeight: 20 });
-        const said = await page.locator(".banner--recovery").innerText();
-        if (!/closed before these changes were saved/i.test(said)) {
-          throw new Error(`the recovery banner reads "${said}"`);
+        const told = await page.locator(".banner--recovery").innerText();
+        if (!/closed before these changes were saved/i.test(told)) {
+          throw new Error(`the recovery banner reads "${told}"`);
         }
         await audit(page, "recovery banner");
 
@@ -9067,7 +11985,6 @@ export function smokeChecks({ audit, hold }) {
       // ends this check. `__prosceniumQuit` asks as ⌘Q does.
       name: "quit · the words a quit waits on land, or are kept for the next launch",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const script = "The Weight of Water.fountain";
         const mara = "Characters/Mara.md";
@@ -9081,7 +11998,10 @@ export function smokeChecks({ audit, hold }) {
         const first = await page.evaluate(() => window.__prosceniumQuit());
         if (!first.heard || !first.go)
           throw new Error(`a quit with every word savable answered ${JSON.stringify(first)}`);
-        const landed = await page.evaluate((rel) => window.__prosceniumPeek(rel) ?? "", script);
+        const landed = await page.evaluate(
+          async (rel) => (await window.__prosceniumPeek(rel)) ?? "",
+          script,
+        );
         if (!landed.includes("Out the door.")) {
           throw new Error(
             `the script's last words never reached its file: ${JSON.stringify(landed.slice(-60))}`,
@@ -9090,19 +12010,19 @@ export function smokeChecks({ audit, hold }) {
 
         await page.locator(".binder .binder__label", { hasText: "Mara" }).first().click();
         await page.waitForSelector(".material .ProseMirror", { timeout: 10000 });
-        await page.waitForTimeout(300);
+        await sheetReady(page);
         await page.evaluate(
-          (rel) =>
-            window.__prosceniumGate("write", rel, {
-              fail: "locked: Operation not permitted (os error 1)",
-            }),
-          mara,
+          ([rel, fail]) => window.__prosceniumGate("write", rel, { fail }),
+          [mara, said("locked: Operation not permitted (os error 1)", "locked: Permission denied")],
         );
         await page.locator(".material .ProseMirror").first().click();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" WORDS A QUIT KEPT");
-        await until(page, "the document's refusal", () =>
-          /“Mara” is locked in Finder\./.test(document.querySelector(".toast")?.textContent ?? ""),
+        await until(
+          page,
+          "the document's refusal",
+          (lock) => (document.querySelector(".toast")?.textContent ?? "").includes(lock),
+          said("“Mara” is locked in Finder.", "“Mara” is marked Read-only."),
         );
         const second = await page.evaluate(() => window.__prosceniumQuit());
         if (!second.go)
@@ -9128,7 +12048,6 @@ export function smokeChecks({ audit, hold }) {
       // open retires what was said before it and on the first try took this.
       name: "quit · the play says where a quit kept the words, when it opens again",
       feature: "storage",
-      devMock: true,
       async run(page) {
         await walkIntoPlay(page);
         await until(
@@ -9141,15 +12060,16 @@ export function smokeChecks({ audit, hold }) {
           undefined,
           20000,
         );
-        const said = await page.locator(".toast").innerText();
-        if (!said.includes("“Mara” is locked in Finder."))
-          throw new Error(`the note said ${JSON.stringify(said)}`);
+        const told = await page.locator(".toast").innerText();
+        if (!told.includes(said("“Mara” is locked in Finder.", "“Mara” is marked Read-only.")))
+          throw new Error(`the note said ${JSON.stringify(told)}`);
         await visible(page, ".toast", { minWidth: 200, minHeight: 30 });
         await audit(page, "toast · words a quit kept");
-        const left = await page.evaluate(() =>
-          Object.keys(sessionStorage).filter((k) => k.startsWith("proscenium:dev:kept-at-quit:")),
+        await until(
+          page,
+          "the note, once said, to be gone",
+          async () => (await window.__prosceniumKeptAtQuit()) === 0,
         );
-        if (left.length) throw new Error(`the note was said and kept: ${JSON.stringify(left)}`);
         await dismissToasts(page);
       },
     },
@@ -9160,18 +12080,18 @@ export function smokeChecks({ audit, hold }) {
       // brings back what Quit Anyway loses, so it is never the default.
       name: "quit · words that can be kept nowhere hold the quit, and ⏎ does not quit",
       feature: "storage",
-      devMock: true,
       async run(page) {
         const mara = "Characters/Mara.md";
         await page.locator(".binder .binder__label", { hasText: "Mara" }).first().click();
         await page.waitForSelector(".material .ProseMirror", { timeout: 10000 });
-        await page.waitForTimeout(300);
-        await page.evaluate((rel) => {
-          window.__prosceniumGate("write", rel, { fail: "No space left on device (os error 28)" });
-          window.__prosceniumGate("versionSnapshot", null, {
-            fail: "No space left on device (os error 28)",
-          });
-        }, mara);
+        await sheetReady(page);
+        await page.evaluate(
+          async ([rel, fail]) => {
+            await window.__prosceniumGate("write", rel, { fail });
+            await window.__prosceniumGate("versionSnapshot", null, { fail });
+          },
+          [mara, said("No space left on device (os error 28)", "No space left on device")],
+        );
         await page.locator(".material .ProseMirror").first().click();
         await page.keyboard.press("Meta+ArrowDown");
         await page.keyboard.type(" WORDS KEPT NOWHERE");
@@ -9399,15 +12319,575 @@ export function smokeChecks({ audit, hold }) {
         });
       },
     },
+    {
+      // A sync client, an indexer or an antivirus scanner opens a file for a
+      // moment, and a save that meets it then waits it out for up to two
+      // seconds and tries again (docs/app/keeping-work/storage-and-file-format.md#STOR-178).
+      // Another program holds the script open while a save is under way, as
+      // such a program would, and lets it go a second later: the save lands,
+      // and nothing is said of it.
+      name: "Windows · a script held open for a moment is waited out, and nothing is said",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await scriptAtEnd(page);
+        await recordAnnouncements(page);
+        const held = await host.hold(PC_SCRIPT);
+        try {
+          await page.keyboard.type(" A gull on the rail.");
+          // The save is under way, and Windows is refusing it while the file is held.
+          await until(page, "the save to be under way", () =>
+            /^Saving…$/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+          );
+          await elapse(
+            page,
+            300,
+            "the hold lasts the moment a sync client's would, well inside the save's two seconds of patience, on a loaded PC too",
+          );
+        } finally {
+          await held.release();
+        }
+        await until(page, "the save to land once the hold ends", () =>
+          /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+        );
+        if (!host.read(PC_SCRIPT)?.includes("A gull on the rail."))
+          throw new Error("the words never reached the script on disk");
+        const said = await page.evaluate(() => window.__announced ?? []);
+        const refusal = said.find((s) => /another program|couldn.t be saved|isn.t letting/.test(s));
+        if (refusal) throw new Error(`a hold the save waited out was said: "${refusal}"`);
+        if (await page.locator(".toast").count())
+          throw new Error(
+            `a toast came of a hold the save waited out: ${JSON.stringify(await page.locator(".toast").first().innerText())}`,
+          );
+      },
+    },
+    {
+      // A script another program keeps open (an editor that has it open, as
+      // a word processor holds a document) refuses every save past the
+      // save's patience (docs/app/keeping-work/storage-and-file-format.md#STOR-178).
+      // It is said once, in the writer's words: the words are safe, and it
+      // saves once that program lets go (docs/app/keeping-work/storage-and-file-format.md#STOR-D108).
+      // The retries say nothing new, and when it is let go the window's
+      // return tries again, and the words land with nothing more typed.
+      name: "Windows · a script another program keeps open is said once, and saves when it is let go",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await scriptAtEnd(page);
+        const held = await host.hold(PC_SCRIPT);
+        try {
+          await page.keyboard.type(" Salt on the sill.");
+          const said = await refusalSaid(page, /is open in another program/);
+          for (const words of [
+            "“The Weight of Water” is open in another program.",
+            "Your words are still here, and a copy is being kept.",
+            "It will save once that program lets go of it.",
+          ])
+            if (!said.includes(words))
+              throw new Error(`the refused save said ${JSON.stringify(said)}, not "${words}"`);
+          await toastAudited(page, () =>
+            audit(page, "toast · a script another program keeps open"),
+          );
+          await until(
+            page,
+            "the status line to say Not saved",
+            () => document.querySelector(".savestatus")?.textContent === "Not saved",
+          );
+          // Another pause in the typing tries again, is refused the same way,
+          // and says nothing new.
+          await dismissToasts(page);
+          await page.keyboard.type(" The kettle.");
+          await until(page, "the retry to be under way", () =>
+            /^(Editing…|Saving…)$/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+          );
+          await until(
+            page,
+            "the retry to be refused",
+            () => document.querySelector(".savestatus")?.textContent === "Not saved",
+            undefined,
+            15000,
+          );
+          await elapse(
+            page,
+            1000,
+            "a toast for the retry's refusal would come as that refusal is handled, and nothing says none is coming",
+          );
+          if (await page.locator(".toast").count())
+            throw new Error(
+              `a retry refused the same way said it again: ${JSON.stringify(await page.locator(".toast").first().innerText())}`,
+            );
+        } finally {
+          await held.release();
+        }
+        // Let go, and back from the other program: the window's focus tries
+        // again. What is said is heard, as a toast's six seconds may pass first.
+        await recordAnnouncements(page);
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await until(
+          page,
+          "the words typed while it was held to reach the script",
+          () => /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+          undefined,
+          15000,
+        );
+        const text = host.read(PC_SCRIPT) ?? "";
+        for (const words of ["Salt on the sill.", "The kettle."])
+          if (!text.includes(words)) throw new Error(`"${words}" never reached the script on disk`);
+        await announced(page, "“The Weight of Water” is saved.");
+        await notTakenForOutside(page);
+      },
+    },
+    {
+      // Windows' Read-only is a PC's lock: Windows will not replace a file
+      // that has it. The save says so in File Explorer's words, where to clear
+      // it, and that the words are safe (src/storage/save-failure.ts); once it
+      // is cleared, the window's return saves them.
+      name: "Windows · a script marked Read-only says so in File Explorer's words, and saves once it is cleared",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await scriptAtEnd(page);
+        host.readOnly(PC_SCRIPT, true);
+        try {
+          await page.keyboard.type(" The stair.");
+          const said = await refusalSaid(page, /is marked Read-only/);
+          for (const words of [
+            "“The Weight of Water” is marked Read-only.",
+            "Your words are still here, and a copy is being kept.",
+            "It will save once you clear Read-only in its Properties in File Explorer.",
+          ])
+            if (!said.includes(words))
+              throw new Error(`the refused save said ${JSON.stringify(said)}, not "${words}"`);
+          if (/os error|denied|locked:/i.test(said))
+            throw new Error(`the toast shows the system's words: ${JSON.stringify(said)}`);
+          await toastAudited(page, () => audit(page, "toast · a script marked Read-only"));
+          await until(
+            page,
+            "the status line to say Not saved",
+            () => document.querySelector(".savestatus")?.textContent === "Not saved",
+          );
+        } finally {
+          host.readOnly(PC_SCRIPT, false);
+        }
+        await dismissToasts(page);
+        await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+        await until(
+          page,
+          "the words typed while it was Read-only to reach the script",
+          () => /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+          undefined,
+          15000,
+        );
+        if (!host.read(PC_SCRIPT)?.includes("The stair."))
+          throw new Error("the words never reached the script on disk");
+        if (host.isReadOnly(PC_SCRIPT))
+          throw new Error("the saved script is marked Read-only again");
+        await notTakenForOutside(page);
+      },
+    },
+    {
+      // Windows' first door is Documents › Plays (docs/app/keeping-work/storage-and-file-format.md#STOR-182),
+      // and a writer's Documents is often inside OneDrive, where Known Folder
+      // Move puts it. The door makes Plays there, and the Plays screen and
+      // Settings say OneDrive keeps it, from OneDrive's own record of its
+      // folder (docs/app/keeping-work/storage-and-file-format.md#STOR-181).
+      name: "Windows · Documents in OneDrive: Documents › Plays is made there, and said to be kept by OneDrive",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await page.waitForSelector(".welcome", { timeout: 15000 });
+        await page.getByRole("button", { name: /Documents › Plays/ }).click();
+        await page.waitForSelector(".vault-screen", { timeout: 15000 });
+        await until(page, "the Plays screen to say where the plays live", () =>
+          document.querySelector(".vault-screen__where")?.textContent ? true : null,
+        );
+        const where = await page.locator(".vault-screen__where").innerText();
+        if (where !== "Your plays live in OneDrive and appear on your other devices.")
+          throw new Error(`the Plays screen in OneDrive's Documents says "${where}"`);
+        if (host.files().length)
+          throw new Error(
+            `Documents › Plays was made with files in it: ${host.files().join(", ")}`,
+          );
+        await page.waitForSelector(".tutorial-invitation", { timeout: 10000 });
+        await page.getByRole("button", { name: "Skip for Now", exact: true }).click();
+        await page.waitForSelector(".tutorial-invitation", { state: "detached", timeout: 5000 });
+        await visible(page, ".vault-screen__where", { minWidth: 200 });
+        await audit(page, "Plays screen · an empty Plays folder OneDrive keeps");
+        await page.keyboard.press("Meta+Comma");
+        await page.waitForSelector(".prefs", { timeout: 5000 });
+        await until(
+          page,
+          "Settings to say OneDrive keeps the plays",
+          settingsSays,
+          "Your plays live in OneDrive and appear on your other devices.",
+        );
+        await page.keyboard.press("Escape");
+        await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+      },
+    },
+    {
+      // A writer opens the app before OneDrive has brought their plays down:
+      // the sync client writes them in, a file at a time, while the Plays
+      // screen is up. They appear there with nothing pressed, and the app
+      // writes nothing into the folder of its own (no sample play in their
+      // place, nothing beside them), which a sync would carry to every device.
+      name: "Windows · plays a sync client brings in later appear, and nothing is written beside them",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await page.waitForSelector(".vault-screen", { timeout: 15000 });
+        if (await page.locator(".playrow--play").count())
+          throw new Error("the Plays screen lists plays before any came down");
+        await host.syncIn("The Lighthouse");
+        await host.syncIn("The Weight of Water");
+        const listed = await eventually(
+          page,
+          () => document.querySelectorAll(".playrow--play").length === 2,
+          undefined,
+          20000,
+        );
+        if (!listed)
+          throw new Error(
+            `the plays the sync client brought in never appeared: the Plays screen lists ${await page.locator(".playrow--play").count()}`,
+          );
+        for (const title of ["The Lighthouse", "The Weight of Water"])
+          if (!(await page.locator(".playrow__title", { hasText: title }).count()))
+            throw new Error(`"${title}" is not on the Plays screen`);
+        const written = host.files();
+        const brought = host.cloudFiles();
+        if (written.join("\n") !== brought.join("\n"))
+          throw new Error(
+            `the folder holds what the sync client did not bring: ${written.filter((f) => !brought.includes(f)).join(", ") || "(and lacks some of it)"}`,
+          );
+      },
+    },
+    {
+      // A play OneDrive keeps online only: its files carry the attributes
+      // OneDrive gives them (unpinned, offline), which an app that read them
+      // as unusual could skip or refuse. It opens, and a line typed in it saves.
+      name: "Windows · a play OneDrive keeps online only opens and saves",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        host.attributes("The Weight of Water", ["+U", "+O"], { recursive: true });
+        await page.locator(".playrow__title", { hasText: /^The Weight of Water$/ }).click();
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        await visible(page, ".binder", { minWidth: 200, minHeight: 300 });
+        const binder = await page.locator(".binder").innerText();
+        for (const folder of ["Characters", "Notes", "Research", "Loglines"])
+          if (!binder.includes(folder))
+            throw new Error(`the play kept online only lists no ${folder} in its binder`);
+        await scriptAtEnd(page);
+        await page.keyboard.type(" The ferry, late.");
+        await landedOnDisk(page, host, PC_SCRIPT, "The ferry, late.");
+      },
+    },
+    {
+      // Another device changed the script, and the sync client delivers its
+      // version over the open, unchanged script: the editor takes the other
+      // device's words (docs/app/keeping-work/storage-and-file-format.md#STOR-D104), and the app writes
+      // nothing back over them.
+      name: "Windows · a script the sync client replaces while it is open shows the other device's words",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await until(page, "no save waiting or under way", saveSettled);
+        const theirs = `${host.read(PC_SCRIPT)?.trimEnd()}\n\nMARA\nThe tide came in on the other laptop.\n`;
+        host.rewrite(PC_SCRIPT, theirs);
+        await until(
+          page,
+          "the open script to show the other device's words",
+          () =>
+            /The tide came in on the other laptop\./.test(
+              document.querySelector(".ProseMirror")?.textContent ?? "",
+            ),
+          undefined,
+          15000,
+        );
+        await elapse(
+          page,
+          2000,
+          "a save of the reloaded script, which there must not be, would come in the autosave's pause",
+        );
+        if (host.read(PC_SCRIPT) !== theirs)
+          throw new Error("the app wrote over the other device's version of the script");
+        if (/Not saved|Conflict/i.test(await page.locator(".savestatus").innerText()))
+          throw new Error(
+            `the status line says "${await page.locator(".savestatus").innerText()}"`,
+          );
+      },
+    },
+    {
+      // Every folder on the way to this Plays folder is named in another
+      // script, and it lies deep in the disk: its plays are listed (the act's
+      // start), and one opens, and a line typed in it saves.
+      name: "Windows · a Plays folder deep in the disk, named in other scripts, opens a play that saves",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await page.locator(".playrow__title", { hasText: /^The Weight of Water$/ }).click();
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        await scriptAtEnd(page);
+        await page.keyboard.type(" Far below the hill.");
+        await saveOfEdit(page);
+        if (!host.read(PC_SCRIPT)?.includes("Far below the hill."))
+          throw new Error(`the words never reached ${host.path(PC_SCRIPT)}`);
+      },
+    },
+    {
+      // A play's folder and files are named for its title
+      // (src/workspace/filename.ts), so a long title in other scripts takes
+      // each of its paths past 260 characters, Windows' old limit, which an
+      // app that does not ask for long paths is still held to. It is made, a
+      // line typed in it saves, and it opens again from the Plays screen with
+      // that line in it.
+      name: "Windows · a play named in other scripts, its paths past 260 characters, is made, saved and opened again",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        await newPlayNamed(page, PC_LONG_TITLE);
+        const files = await pcPlayFiles(page, host, PC_LONG_TITLE);
+        const longest = Math.max(...files.map((f) => host.path(f).length));
+        if (longest <= 260)
+          throw new Error(`the new play's longest path is ${longest} characters, not past 260`);
+        const script = files.find((f) => f.endsWith(".fountain"));
+        if (!script) throw new Error(`the new play has no script: ${files.join(", ")}`);
+        await page.locator(".ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.type("Past the old limit.");
+        await saveOfEdit(page);
+        if (!host.read(script)?.includes("Past the old limit."))
+          throw new Error(
+            `the words never reached ${script} (${host.path(script).length} characters)`,
+          );
+        await page.keyboard.press("Meta+Shift+KeyO");
+        await page.waitForSelector(".vault-list", { timeout: 15000 });
+        await page.locator(".playrow__title", { hasText: PC_LONG_TITLE }).first().click();
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        await until(page, "the play opened again to hold the line typed in it", () =>
+          /Past the old limit\./.test(document.querySelector(".ProseMirror")?.textContent ?? ""),
+        );
+        // Its folder, past the limit too, is watched: a line another device
+        // adds to the script while it is open is seen.
+        await until(page, "no save waiting or under way", saveSettled);
+        host.rewrite(script, `${host.read(script)?.trimEnd()}\n\nSeen from the other device.\n`);
+        await until(
+          page,
+          "a change made outside the play past the limit to be seen",
+          () =>
+            /Seen from the other device\./.test(
+              document.querySelector(".ProseMirror")?.textContent ?? "",
+            ),
+          undefined,
+          15000,
+        );
+      },
+    },
+    {
+      // A title may hold what Windows forbids in a name: the play takes the
+      // name Windows will (src/workspace/filename.ts), is made under it, and
+      // saves there.
+      name: "Windows · names Windows forbids become names it takes, and those plays save",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        for (const [title, name] of [
+          ['Act 1: "Who?" <Draft> | Rewrite*', "Act 1 Who Draft Rewrite"],
+          ["CON", "CON-file"],
+          ["Aux.draft", "Aux-file.draft"],
+          ["The End. . .", "The End"],
+        ]) {
+          await newPlayNamed(page, title);
+          const files = await pcPlayFiles(page, host, name);
+          const script = files.find((f) => f.endsWith(".fountain"));
+          if (!script) throw new Error(`the play titled ${JSON.stringify(title)} has no script`);
+          await page.locator(".ProseMirror").first().focus();
+          await toScriptEnd(page);
+          await page.keyboard.type(`Saved as ${name}.`);
+          await landedOnDisk(page, host, script, `Saved as ${name}.`);
+        }
+      },
+    },
+    {
+      // A play's name can come from a Mac spelled decomposed: an "è" as an
+      // "e" and its accent. NTFS keeps that spelling and the composed one as
+      // two names, so a save that spelled the play's path the other way would
+      // make a twin folder beside it, with the writer's words in the wrong
+      // one. The play opens, and a line typed in it lands in its own folder.
+      name: "Windows · a play whose name a Mac wrote decomposed saves in its own folder, never a twin",
+      feature: "storage",
+      async run(page) {
+        const host = pcHost(page);
+        const name = "Pièce de théâtre".normalize("NFD");
+        host.copyPlay("The Lighthouse", name);
+        await page.keyboard.press("Meta+Shift+KeyO");
+        await page.waitForSelector(".vault-list", { timeout: 15000 });
+        const row = await until(
+          page,
+          "the play a Mac named to be on the Plays screen",
+          (wanted) =>
+            [...document.querySelectorAll(".playrow__title")].findIndex(
+              (t) => t.textContent.normalize("NFC") === wanted,
+            ) + 1,
+          name.normalize("NFC"),
+        );
+        await page
+          .locator(".playrow__title")
+          .nth(row - 1)
+          .click();
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        await page.locator(".ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.type(" Written on a PC.");
+        await saveOfEdit(page);
+        const folders = new Map();
+        for (const f of host.files()) {
+          const top = f.split("/")[0];
+          const key = top.normalize("NFC");
+          folders.set(key, new Set([...(folders.get(key) ?? []), top]));
+        }
+        const twins = [...folders.values()].filter((spellings) => spellings.size > 1);
+        if (twins.length)
+          throw new Error(
+            `a twin folder was made beside a play: ${twins
+              .map((t) => [...t].map((n) => JSON.stringify(n)).join(" and "))
+              .join("; ")}`,
+          );
+        if (!host.read(`${name}/${name}.fountain`)?.includes("Written on a PC."))
+          throw new Error("the words never reached the play's own script, in its own folder");
+      },
+    },
+    {
+      // A high contrast theme forces every colour to the system's and drops
+      // every box-shadow, which is what the focus ring is
+      // (docs/engineering/design-system.md#UI-51). Keyboard focus must still
+      // be seen (docs/app/preferences-and-help/accessibility.md#A11Y-12): on
+      // every stop Tab reaches in the play's chrome, from its toolbar to the
+      // script, and in a sheet.
+      name: "forced colours · keyboard focus is seen on every control the keys reach",
+      feature: "ui",
+      async run(page) {
+        await page.emulateMedia({ forcedColors: "active" });
+        try {
+          const unseen = new Set();
+          const walk = async (presses, stop) => {
+            for (let i = 0; i < presses; i++) {
+              await page.keyboard.press("Tab");
+              const at = await page.evaluate(focusUnderForcedColours);
+              if (!at || (stop && (await page.evaluate(stop)))) return;
+              if (!at.seen) unseen.add(at.what);
+            }
+          };
+          // The play's chrome, from the toolbar's first control to the script:
+          // in the script, Tab is the element's key, not a move.
+          await page.locator(".toolbar button").first().focus();
+          await walk(40, () => !!document.activeElement?.closest(".ProseMirror"));
+          await page.keyboard.press("Meta+Comma");
+          await page.waitForSelector(".prefs", { timeout: 5000 });
+          await walk(24);
+          await page.keyboard.press("Escape");
+          await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+          if (unseen.size)
+            throw new Error(
+              `under forced colours, keyboard focus is not seen on ${[...unseen].join(", ")}`,
+            );
+        } finally {
+          await page.emulateMedia({ forcedColors: null });
+        }
+      },
+    },
+    {
+      // Under forced colours a fill is the page's own colour, so what is
+      // chosen must be told by more than a fill: the toolbar's view, the
+      // binder's row, a sheet's tab, the lit row of a menu. Each looks
+      // otherwise than its neighbour that is not chosen. An accent's swatch
+      // is the one fill that is its content: each keeps its colour, and the
+      // chosen one is ringed.
+      name: "forced colours · what is chosen is told apart from what is not",
+      feature: "ui",
+      async run(page) {
+        const alike = [];
+        const unread = [];
+        const compare = async (what, chosen, other) => {
+          // What a fill eases into, landed before anything is read.
+          await page.evaluate(pageSettles, SETTLE_TIMEOUT_MS);
+          const r = await page.evaluate(chosenLooksOtherwise, { chosen, other });
+          if (!r.found) throw new Error(`no ${what} to compare: ${r.found === false ? r.why : ""}`);
+          if (!r.differs) alike.push(what);
+          if (r.plated) unread.push(what);
+        };
+        try {
+          // A high contrast theme is light or dark, and each has its colours.
+          for (const colorScheme of ["light", "dark"]) {
+            await page.emulateMedia({ forcedColors: "active", colorScheme });
+            await page.evaluate(() => document.activeElement?.blur?.());
+            await page.mouse.move(1, 1);
+            await compare(
+              `view in the toolbar (${colorScheme})`,
+              ".toolbar__centre .seg__btn.is-on",
+              ".toolbar__centre .seg__btn:not(.is-on)",
+            );
+            await compare(
+              `binder row (${colorScheme})`,
+              ".binder__row.is-selected",
+              ".binder__row:not(.is-selected)",
+            );
+            await page.keyboard.press("Meta+Comma");
+            await page.waitForSelector(".prefs", { timeout: 5000 });
+            await page.evaluate(() => document.activeElement?.blur?.());
+            await compare(
+              `Settings tab (${colorScheme})`,
+              '.prefs__nav [role="tab"][aria-selected="true"]',
+              '.prefs__nav [role="tab"][aria-selected="false"]',
+            );
+            // An accent's swatch is its colour, which the theme would make
+            // every swatch's the same; the chosen one is ringed.
+            await page.locator('.prefs__nav [role="tab"]', { hasText: "Appearance" }).click();
+            await page.waitForSelector(".settings__swatches .accentswatch", { timeout: 5000 });
+            await page.evaluate(pageSettles, SETTLE_TIMEOUT_MS);
+            const swatches = await page.evaluate(() => {
+              const all = [...document.querySelectorAll(".settings__swatches .accentswatch")];
+              const style = all.map((s) => getComputedStyle(s));
+              return {
+                colours: new Set(style.map((s) => s.backgroundColor)).size,
+                // Of the swatches with a ring, whether each is the chosen one.
+                ringed: all
+                  .filter((_, i) => style[i].boxShadow !== "none")
+                  .map((s) => s.classList.contains("is-on")),
+              };
+            });
+            if (swatches.colours < 2) alike.push(`the accents' swatches (${colorScheme})`);
+            if (swatches.ringed.length !== 1 || !swatches.ringed[0])
+              alike.push(`the chosen accent's swatch (${colorScheme})`);
+            await page.keyboard.press("Escape");
+            await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+            await page.locator(".doctitle").click();
+            await page.waitForSelector(".menu .menu__item", { timeout: 5000 });
+            await page.keyboard.press("ArrowDown");
+            await compare(
+              `lit menu row (${colorScheme})`,
+              ".menu .menu__item.is-cursor",
+              ".menu .menu__item:not(.is-cursor):not(:disabled)",
+            );
+            await page.keyboard.press("Escape");
+            await page.waitForSelector(".menu", { state: "detached", timeout: 5000 });
+          }
+        } finally {
+          await page.emulateMedia({ forcedColors: null, colorScheme: "light" });
+        }
+        if (alike.length)
+          throw new Error(
+            `under forced colours, these look the same chosen and not: ${alike.join(", ")}`,
+          );
+        if (unread.length)
+          throw new Error(
+            `under forced colours, the words on these are hidden behind the plate of the page's colour: ${unread.join(", ")}`,
+          );
+      },
+    },
   ];
 }
 
-/**
- * Walk into "The Weight of Water" after a reload, wherever launch lands: the
- * Welcome screen, the Plays screen, or the play itself by way of both. Clicks
- * in the page, since a screen only passing through is gone before a locator's
- * click could land on it.
- */
 /** A key in alpha's shape (settings-model.ts); nothing in the smoke run asks alpha with it. */
 const SMOKE_TRACK_KEY = "smoke".repeat(8) + "Key";
 /** Settings › Updates' Track menu: what it says it is set to, and what it offers. */
@@ -9444,51 +12924,315 @@ function settingsSays(sentence) {
     (n) => n.textContent.trim() === sentence,
   );
 }
-
-async function walkIntoPlay(page) {
-  const clickText = (selector, text, exact = false) =>
-    page.evaluate(
-      ([sel, t, x]) =>
-        [...document.querySelectorAll(sel)]
-          .find((el) => (x ? el.textContent?.trim() === t : el.textContent?.includes(t)))
-          ?.click(),
-      [selector, text, exact],
-    );
-  let seenPlays = 0;
-  let seenWelcome = 0;
-  for (let t = 0; t < 200; t++) {
-    const at = await page.evaluate(() =>
-      document.querySelector(".paneroot")
-        ? "play"
-        : document.querySelector(".vault-list")
-          ? "plays"
-          : document.querySelector(".welcome")
-            ? "welcome"
-            : "loading",
-    );
-    if (at === "play") return;
-    if (at === "welcome" && ++seenWelcome === 10) await clickText("button", "A folder I choose");
-    if (at === "plays" && ++seenPlays === 10)
-      await clickText(".playrow__title", "The Weight of Water", true);
-    await page.waitForTimeout(150);
-  }
-  await page.waitForSelector(".paneroot", { timeout: 20000 });
+/**
+ * Whether the page is the real app's Intel slice, which the native self-test
+ * runs under Rosetta for a stable release. An Intel Mac takes Stable alone
+ * (docs/app/preferences-and-help/settings.md#SET-40): Settings › Updates shows
+ * its track as a line of text, with no menu and no key to add, whatever the
+ * settings file holds, so its accessibility tree is its own surface.
+ */
+async function onIntel(page) {
+  return page.evaluate(async () => {
+    if (!window.__TAURI_INTERNALS__) return false;
+    const slice = await window.__TAURI_INTERNALS__.invoke("selftest_slice");
+    // A PC's x64 is not an Intel Mac.
+    return slice.arch === "x86_64" && slice.mac !== false;
+  });
 }
+/** What an Intel Mac says of its track (src/app/updates.ts, INTEL_TRACK_NOTE). */
+const INTEL_TRACK_NOTE =
+  "Each new release. Test versions are made for Macs with Apple silicon only.";
+/** Settings › Updates' track as an Intel Mac shows it: Stable, as text, and nothing to choose or add. */
+async function intelTrack(page) {
+  await absent(page, '.prefs__panel [aria-label^="Track"]', "an Intel Mac has no track menu");
+  const row = await page
+    .locator(".prefs__panel .settings__row", { hasText: "Track" })
+    .first()
+    .innerText();
+  if (row.replace(/\s+/g, " ").trim() !== "Track Stable")
+    throw new Error(`on an Intel Mac the Track row reads "${row}"`);
+  await until(page, "the Intel Mac's track note", settingsSays, INTEL_TRACK_NOTE);
+  await absent(page, '.prefs__panel input[aria-label="Key"]', "an Intel Mac asks for no key");
+  if (await page.getByRole("button", { name: "Have a key?" }).count())
+    throw new Error("an Intel Mac offers to take a key");
+  if (await page.getByRole("button", { name: "Use Stable" }).count())
+    throw new Error("an Intel Mac offers Use Stable, as if it were on another track");
+  const automatic = await page.locator(".prefs__panel .settings__note").first().innerText();
+  if (!/once a day/.test(automatic))
+    throw new Error(`on an Intel Mac the automatic checks' note reads "${automatic}"`);
+}
+
+/**
+ * Walk into "The Weight of Water" after a reload, wherever launch lands: the
+ * Welcome screen, the Plays screen, or the play itself by way of both; or
+ * stop where `arrived` shows. While the app says it is launching (`aria-busy`
+ * on its shell) the launch screen stands in the window and nothing under it
+ * is drawn, so no screen passes through: the one the launch arrives at is
+ * where it stopped, and is answered at once, once. The clicks are made in
+ * the page, a DOM click on the button or the row.
+ */
+async function walkIntoPlay(page, arrived = ".paneroot") {
+  await page.evaluate(() => {
+    window.__smokeWalked = [];
+  });
+  await until(
+    page,
+    `the way into The Weight of Water (${arrived})`,
+    (arrived) => {
+      if (document.querySelector(arrived)) return true;
+      if (document.querySelector(".app-shell[aria-busy]")) return false;
+      const at = document.querySelector(".vault-list")
+        ? "plays"
+        : document.querySelector(".welcome")
+          ? "welcome"
+          : null;
+      if (!at || window.__smokeWalked.includes(at)) return false;
+      const target =
+        at === "plays"
+          ? [...document.querySelectorAll(".playrow__title")].find(
+              (el) => el.textContent?.trim() === "The Weight of Water",
+            )
+          : [...document.querySelectorAll("button")].find((el) =>
+              el.textContent?.includes("A folder I choose"),
+            );
+      if (target) {
+        window.__smokeWalked.push(at);
+        target.click();
+      }
+      return false;
+    },
+    arrived,
+    50000,
+  );
+}
+
+/**
+ * How often `until` asks again: the poll of a condition, never a wait of its
+ * own. `until` returns as soon as what it waits for holds; a shorter poll only
+ * sees it sooner, for one more `evaluate` each time (a round trip to the page
+ * in Playwright, a call inside it in the native harness).
+ */
+const POLL_MS = 20;
 
 /**
  * Polls `fn` in the page until it returns something truthy, and returns it. The
  * harness implements no `waitForFunction`, and a check has to run in both
  * drivers, so waiting on a condition is this: evaluate, pause, again.
  */
+/** The ids of the sample play's characters, in the play file's order. In the page. */
+async function characterOrderOnDisk() {
+  const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
+  const play = JSON.parse(await window.__prosceniumPeek("The Weight of Water.proscenium"));
+  return walk(play.binder)
+    .find((row) => row.path === "Characters")
+    .children.map((row) => row.id);
+}
+
+/** Whether the binder shows these rows, in this order. In the page. */
+function binderInOrder(order) {
+  const rows = order.map((id) => document.querySelector(`.binder [data-row="${id}"]`));
+  return (
+    rows.every(Boolean) &&
+    rows.every(
+      (row, i) =>
+        i === 0 || !!(rows[i - 1].compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING),
+    )
+  );
+}
+
+/**
+ * The sample play's characters put back in `order`, in the play file and in
+ * the binder, for the checks after. The app's own reconciliation of a change
+ * before this can write the play file after this does, putting back the order
+ * it holds: it is written until the file holds `order`, and at most once a
+ * second, so each write is taken up before the next. Written at every look, in
+ * an app just started, it kept meeting the app's own write of the order before
+ * it, and never settled.
+ */
+async function restoreCharacterOrder(page, order) {
+  await until(
+    page,
+    "the binder to show the fixture's order again",
+    async (order) => {
+      const name = "The Weight of Water.proscenium";
+      const play = JSON.parse(await window.__prosceniumPeek(name));
+      const walk = (rows) => rows.flatMap((row) => [row, ...walk(row.children ?? [])]);
+      const parent = walk(play.binder).find((row) => row.path === "Characters");
+      const sorted = [...parent.children].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+      if (sorted.some((row, i) => row.id !== parent.children[i].id)) {
+        if (performance.now() - (window.__fixtureOrderWritten ?? -Infinity) < 1000) return false;
+        window.__fixtureOrderWritten = performance.now();
+        parent.children = sorted;
+        await window.__prosceniumExternalChange(name, JSON.stringify(play));
+        return false;
+      }
+      const rows = order.map((id) => document.querySelector(`.binder [data-row="${id}"]`));
+      return (
+        rows.every(Boolean) &&
+        rows.every(
+          (row, i) =>
+            i === 0 ||
+            !!(rows[i - 1].compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING),
+        )
+      );
+    },
+    order,
+  );
+}
+
 async function until(page, what, fn, arg, timeout = 10000) {
-  timeout *= TIME_SCALE;
-  const deadline = Date.now() + timeout;
+  const value = await eventually(page, fn, arg, timeout);
+  if (value) return value;
+  throw new Error(`timed out after ${timeout * TIME_SCALE}ms waiting for ${what}`);
+}
+
+/**
+ * `until` for a line whose own assertion comes next and says what went wrong:
+ * the value once `fn` returns one, or null when `timeout` passes without it.
+ */
+async function eventually(page, fn, arg, timeout = 10000) {
+  const deadline = Date.now() + timeout * TIME_SCALE;
   for (;;) {
     const value = await page.evaluate(fn, arg);
     if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out after ${timeout}ms waiting for ${what}`);
-    await page.waitForTimeout(100);
+    if (Date.now() > deadline) return null;
+    await page.waitForTimeout(POLL_MS);
   }
+}
+
+/**
+ * The one fixed wait a check may make, where the check itself is that
+ * something does NOT happen within a time: a debounce that must not fire, a
+ * toast that must not come, a late answer that must be dropped. Nothing on the
+ * page says sooner that it never will, so the time is the check, and `why`
+ * says what it gives room to. Every other wait is for its condition.
+ */
+async function elapse(page, ms, why) {
+  if (!why) throw new Error(`elapse(${ms}): say why this has to be a time`);
+  await page.waitForTimeout(ms);
+}
+
+/**
+ * The page has drawn two frames since: what the last key, click or change did
+ * is on screen, and what the effects after that render set off has rendered
+ * too. On the page's own frames, not the clock.
+ */
+async function drawn(page) {
+  await page.evaluate(
+    () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+  );
+}
+
+/**
+ * No save of the script waiting or under way: the status says nothing (a play
+ * just opened saves nothing) or that it is saved. Runs in the page, and so
+ * closes over nothing.
+ */
+function saveSettled() {
+  return !/^(Editing…|Saving…)$/.test(document.querySelector(".savestatus")?.textContent ?? "");
+}
+
+/**
+ * The save an edit set off, landed: first the status says the edit is
+ * waiting or under way (the autosave's pause keeps it there over half a
+ * second), then that it is saved, then the page has drawn what the save
+ * recomputed (a scene's pages, the cast's speeches).
+ */
+async function saveOfEdit(page) {
+  await until(page, "the edit to wait for its save", () =>
+    /^(Editing…|Saving…)$/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+  );
+  await until(page, "the edit's save to land", () =>
+    /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+  );
+  await drawn(page);
+}
+
+/**
+ * ⌘↓ in the script, and the caret at its end. In the app the key is the
+ * platform's own end-of-document gesture, whose selectionchange reaches the
+ * editor after the key does; the next key must land at the end.
+ */
+async function toScriptEnd(page) {
+  await page.keyboard.press("Meta+ArrowDown");
+  await until(page, "the caret at the script's end", () => {
+    const editor = document.querySelector(".ProseMirror")?.editor;
+    return !!editor && editor.state.selection.to === editor.state.doc.content.size - 1;
+  });
+}
+
+/**
+ * ⌘Z in the script, and the script showing it: its document has moved on, or
+ * there was nothing left to take back. A loop that read the page before the
+ * step landed would press again, and take back one step too many. A key the
+ * script never got (a popup had it) changes nothing, and the loop's own test
+ * and the check's assertion after it say so.
+ */
+async function undo(page) {
+  await page.evaluate(() => {
+    window.__smokeUndoFrom = document.querySelector(".ProseMirror")?.editor?.state.doc;
+  });
+  await page.keyboard.press("Meta+KeyZ");
+  await eventually(
+    page,
+    () => {
+      const editor = document.querySelector(".ProseMirror")?.editor;
+      return !editor || editor.state.doc !== window.__smokeUndoFrom || !editor.can().undo();
+    },
+    undefined,
+    2000,
+  );
+}
+
+/**
+ * The script laid out in the format named `name`: the paginator holds that
+ * format, and its layout is of the page as it is now. A format chosen from the
+ * menu reaches the editor on the render after, and its pages a debounce later.
+ */
+async function laidOutIn(page, name) {
+  await until(
+    page,
+    `the script laid out in ${name}`,
+    (name) => {
+      const editor = document.querySelector(".editor-surface .ProseMirror")?.editor;
+      const plugin = editor?.state.plugins.find((p) => p.key.startsWith("pagination$"));
+      const layout = plugin?.getState(editor.state);
+      return !!layout && layout.config?.spec?.name === name && !layout.stale;
+    },
+    name,
+  );
+}
+
+/**
+ * Changes, in front, lists at least the `n` changes a fixture made, and so
+ * has seen them (docs/app/keeping-work/storage-and-file-format.md#STOR-183):
+ * a burst counts each of its saves. Each is recorded a moment after its file
+ * changed, off the path that reloads the open script; should fewer come, the
+ * check goes on with what came by the deadline, as it would have before.
+ */
+async function changesListed(page, n) {
+  await eventually(
+    page,
+    (n) =>
+      [...document.querySelectorAll(".changes .changerow--outside")].reduce(
+        (all, row) => all + Number(/· (\d+) saves/.exec(row.textContent)?.[1] ?? 1),
+        0,
+      ) >= n,
+    n,
+    5000,
+  );
+}
+
+/**
+ * A sheet's editor open and ready for the click and the keys that follow:
+ * editable, holding its words, and its box still.
+ */
+async function sheetReady(page) {
+  await until(page, "the sheet's words in an editable page", () => {
+    const editor = document.querySelector(".material .ProseMirror");
+    return editor?.getAttribute("contenteditable") === "true" && editor.textContent.trim() !== "";
+  });
+  await still(page, ".material .ProseMirror");
 }
 
 /**
@@ -9571,12 +13315,23 @@ async function focused(page) {
  * only open and dismiss that question until every later check failed on it.
  */
 async function closeDesigner(page) {
+  const layers = () =>
+    `${document.querySelectorAll(".designer").length}|${document.querySelectorAll(".alert").length}`;
   try {
     for (let i = 0; i < 6 && (await page.locator(".designer").count()); i++) {
+      const before = await page.evaluate(layers);
       const discard = page.locator(".alert .btn", { hasText: "Discard Changes" });
       if (await discard.count()) await discard.click();
       else await page.keyboard.press("Escape");
-      await page.waitForTimeout(150);
+      // The designer goes, or asks about its changes: either answers the key.
+      await eventually(
+        page,
+        (was) =>
+          `${document.querySelectorAll(".designer").length}|${document.querySelectorAll(".alert").length}` !==
+          was,
+        before,
+        2000,
+      );
     }
   } catch {
     /* the check's own failure is the one to report */
@@ -9645,28 +13400,38 @@ async function onTop(page, selector) {
 }
 
 /**
- * Waits for a box to stop moving: sized, and the same rectangle on two polls
- * running. The native harness scrolls a target into view once before it
- * clicks, where Playwright scrolls again on every retry, so a click sent while
- * something else is still moving the target can be scrolled for where it was
- * and meet whatever has moved over it since.
+ * Waits for a box to stop moving: sized, and the same rectangle over three
+ * frames running. The native harness once scrolled a target into view only
+ * once before it clicked, where Playwright scrolls again on every retry, so a
+ * click sent while something else was still moving the target was scrolled
+ * for where it had been and met whatever had moved over it since.
  */
 async function still(page, selector, timeout = 10000) {
-  const deadline = Date.now() + timeout;
-  let last = null;
-  for (;;) {
-    const at = await page.evaluate((sel) => {
-      const r = document.querySelector(sel)?.getBoundingClientRect();
-      return r && r.width >= 1 && r.height >= 1
-        ? `${r.left},${r.top},${r.width},${r.height}`
-        : null;
-    }, selector);
-    if (at && at === last) return;
-    if (Date.now() > deadline)
-      throw new Error(`${selector}: ${at ? "still moving" : "not laid out"} after ${timeout}ms`);
-    last = at;
-    await page.waitForTimeout(100);
-  }
+  const held = await eventually(
+    page,
+    async (sel) => {
+      const at = () => {
+        const r = document.querySelector(sel)?.getBoundingClientRect();
+        return r && r.width >= 1 && r.height >= 1
+          ? `${r.left},${r.top},${r.width},${r.height}`
+          : null;
+      };
+      const first = at();
+      if (!first) return false;
+      for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
+      return at() === first;
+    },
+    selector,
+    timeout,
+  );
+  if (held) return;
+  const laidOut = await page.evaluate((sel) => {
+    const r = document.querySelector(sel)?.getBoundingClientRect();
+    return !!r && r.width >= 1 && r.height >= 1;
+  }, selector);
+  throw new Error(
+    `${selector}: ${laidOut ? "still moving" : "not laid out"} after ${timeout * TIME_SCALE}ms`,
+  );
 }
 
 /**
@@ -9694,6 +13459,9 @@ async function areaKeysReach(page, selector, presses = 8) {
  * itself. The window could not be moved at all when this was never asked.
  */
 async function dragsWindow(page, selector, at = { x: 0.5, y: 0.5 }) {
+  // What is under the point is read once the page has settled too: a first
+  // launch's screen can still be leaving over the toolbar.
+  await page.evaluate(pageSettles, SETTLE_TIMEOUT_MS * TIME_SCALE);
   const region = await page.evaluate(
     ([sel, fx, fy]) => {
       const box = document.querySelector(sel)?.getBoundingClientRect();
@@ -9733,7 +13501,9 @@ async function dragsWindow(page, selector, at = { x: 0.5, y: 0.5 }) {
   // click through the driver (an NSEvent in the self-test app) and observe the
   // actual event. Tauri prevents default when it accepts the drag; browser
   // smoke instead checks delivery to document, where that native handler lives.
-  await page.waitForTimeout(220);
+  // The point is read once the page has settled: a sheet that has just opened
+  // is still dropping into place, and a point read mid-drop is one it leaves.
+  await page.evaluate(pageSettles, SETTLE_TIMEOUT_MS * TIME_SCALE);
   const point = await page.evaluate(
     ([sel, fx, fy]) => {
       const r = document.querySelector(sel).getBoundingClientRect();
@@ -9753,12 +13523,18 @@ async function dragsWindow(page, selector, at = { x: 0.5, y: 0.5 }) {
   );
   try {
     await page.mouse.click(point.x, point.y);
-    return await page.evaluate(() => {
+    const said = await page.evaluate(() => {
       const probe = window.__dragProbe;
-      return (
-        !!probe.event && (window.__TAURI_INTERNALS__ ? probe.event.defaultPrevented : probe.bubbled)
-      );
+      const e = probe.event;
+      return {
+        drags: !!e && (window.__TAURI_INTERNALS__ ? e.defaultPrevented : probe.bubbled),
+        event: e
+          ? `${e.target?.className || e.target?.tagName} detail ${e.detail} button ${e.button} prevented ${e.defaultPrevented}`
+          : "no mousedown reached the document",
+      };
     });
+    dragsWindow.last = `${selector} at ${Math.round(point.x)},${Math.round(point.y)}: ${said.event}`;
+    return said.drags;
   } finally {
     await page.evaluate(() => {
       const probe = window.__dragProbe;
@@ -9772,13 +13548,19 @@ async function dragsWindow(page, selector, at = { x: 0.5, y: 0.5 }) {
 /**
  * Close the toast that is up, so the next one a check reads is its own. By its
  * Dismiss button only: a toast with an action (Undo) is left to time out
- * rather than have its action run.
+ * rather than have its action run, and this waits for it to go, as long as
+ * it waited before, eight seconds.
  */
 async function dismissToasts(page) {
-  for (let i = 0; i < 80 && (await page.locator(".toast").count()); i++) {
-    await page.evaluate(() => document.querySelector('.toast [aria-label="Dismiss"]')?.click());
-    await page.waitForTimeout(100);
-  }
+  await eventually(
+    page,
+    () => {
+      document.querySelector('.toast [aria-label="Dismiss"]')?.click();
+      return !document.querySelector(".toast");
+    },
+    undefined,
+    8000,
+  );
 }
 
 /** The opposite assertion, for chrome that must EARN its space rather than repeat what other chrome already says. */
@@ -9811,18 +13593,87 @@ async function visible(page, selector, { minWidth = 1, minHeight = 1 } = {}) {
  * screen it had not asked for. The runner fails the check once it has finished.
  */
 
+/** The longest the page may take to settle before an audit, or a check that reads a settled page. */
+export const SETTLE_TIMEOUT_MS = 10000;
+
 /**
- * Runs IN THE PAGE, after axe-core is loaded there: Playwright ships this
- * function as source, so it must close over nothing.
+ * Runs IN THE PAGE (Playwright ships it as source, so it closes over nothing):
+ * resolves once the page has settled, as both drivers ask before an audit.
+ * Its fonts are loaded, since a face still loading measures a fallback's size
+ * and contrast; and no animation that will end is still running, since a
+ * sheet dropping in from 60% opacity measures the fade, not the colours. An
+ * animation that never ends (an infinite iteration count: a spinner) is not
+ * waited for, as it never lands; runAxe holds it at its end while axe reads.
+ * Rejects after `timeout` ms, naming what still runs.
  */
-export async function runAxe(tags) {
-  // The sheet drops in from 60% opacity; a contrast read mid-drop measures the
-  // fade, not the colours. Let every running animation land first.
-  await Promise.race([
-    Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {}))),
-    new Promise((r) => setTimeout(r, 1500)),
-  ]);
-  // And hold every style at its end while axe reads. In the real app hover
+export async function pageSettles(timeout) {
+  const deadline = performance.now() + timeout;
+  const left = () => Math.max(0, deadline - performance.now());
+  // A save that is due lands first. What the panes count and page (a scene's
+  // speeches and pages, the cast) is recomputed after each save, so an audit
+  // between an edit and its save read numbers a moment old, and which ones
+  // depended on the machine's speed. A save a check holds on purpose is
+  // waited for three seconds at most, and the audit goes on.
+  const saving = () =>
+    /^(Editing…|Saving…)$/.test(document.querySelector(".savestatus")?.textContent ?? "");
+  for (const by = performance.now() + Math.min(3000, left()); saving() && performance.now() < by; )
+    await new Promise((done) => setTimeout(done, 20));
+  const late = (what) => new Error(`the page did not settle in ${timeout}ms: ${what}`);
+  // `promise`, or false once the deadline has passed: the deadline of a
+  // condition, not a wait.
+  const inTime = (promise) =>
+    new Promise((done) => {
+      const timer = setTimeout(() => done(false), left());
+      promise.then((value) => {
+        clearTimeout(timer);
+        done(value);
+      });
+    });
+  if (document.fonts.status !== "loaded") {
+    if (!(await inTime(document.fonts.ready.then(() => true))))
+      throw late("its fonts are still loading");
+  }
+  for (;;) {
+    const running = document
+      .getAnimations()
+      .filter(
+        (a) => a.playState === "running" && Number.isFinite(a.effect?.getComputedTiming().endTime),
+      );
+    if (!running.length) return;
+    if (!left()) {
+      throw late(
+        running
+          .map((a) => {
+            const on = a.effect?.target;
+            const name = a.animationName ?? a.transitionProperty ?? a.id ?? "an animation";
+            return `${name} on ${on ? `<${on.tagName?.toLowerCase()} class="${on.className}">` : "the page"}`;
+          })
+          .join(", "),
+      );
+    }
+    // Until they end, or the next frame, and then the page's animations are
+    // asked again: WebKit can leave `finished` unsettled for a transition it
+    // has stopped running (one replaced, or on an element gone from the page),
+    // which the page no longer lists as running at all.
+    await inTime(
+      Promise.race([
+        Promise.all(running.map((a) => a.finished.catch(() => {}))),
+        new Promise((done) => requestAnimationFrame(() => done())),
+      ]),
+    );
+  }
+}
+
+/**
+ * Runs IN THE PAGE, after axe-core is loaded there and the page has settled
+ * (pageSettles): Playwright ships this function as source, so it must close
+ * over nothing.
+ */
+export async function runAxe(asked) {
+  // The WCAG tags, or `{ tags, disable }`: a rule a pass leaves to something
+  // else, said where it is left (scripts/smoke-variants.mjs, forced colours).
+  const { tags, disable = [] } = Array.isArray(asked) ? { tags: asked } : asked;
+  // Hold every style at its end while axe reads. In the real app hover
   // follows the Mac's own pointer, which no check controls, and a hover that
   // moved during the read started a fade under it: a shortcut badge caught at
   // 12% opacity was reported as a contrast failure by the self-test.
@@ -9836,6 +13687,7 @@ export async function runAxe(tags) {
     const r = await window.axe.run(document, {
       runOnly: { type: "tag", values: [...tags, "best-practice"] },
       resultTypes: ["violations"],
+      rules: Object.fromEntries(disable.map((id) => [id, { enabled: false }])),
     });
     return r.violations.map((v) => ({
       id: v.id,
@@ -9888,6 +13740,32 @@ async function tutorialProgress(page) {
         : localStorage.getItem("proscenium:dev:tutorial-progress"),
     ),
   );
+}
+/**
+ * Tutorial progress as saved, once it says each of `lessons` in `play` is
+ * finished, or after the wait as it is, for the caller's own lines to say what
+ * is wrong with it: the card says a lesson is finished as the app queues the
+ * write that says so (src/tutorial/useTutorial.ts), and a read in between
+ * finds the step before.
+ */
+async function tutorialSaved(page, play, lessons) {
+  await eventually(
+    page,
+    async ({ play, lessons }) => {
+      const progress = JSON.parse(
+        window.__TAURI_INTERNALS__
+          ? (await window.__TAURI_INTERNALS__.invoke("tutorials_read")).content
+          : localStorage.getItem("proscenium:dev:tutorial-progress"),
+      );
+      return lessons.every((lesson) =>
+        progress?.attempts?.some(
+          (a) => a.id === play && a.lesson === lesson && a.status === "finished",
+        ),
+      );
+    },
+    { play, lessons },
+  );
+  return tutorialProgress(page);
 }
 /** Help & Tutorials, from wherever the writer is. */
 async function tutorialOpen(page) {
@@ -9983,10 +13861,22 @@ async function cueTone(page, tone) {
  * sends no click at all; a slow host lands in that frame often. So every
  * helper that waits for the guide to say something waits for it to hold still
  * too, and a click after one is never made mid-move. A writer's click never
- * comes within that frame, so this is the test's timing, not the app's.
+ * comes within that frame, so this is the test's timing, not the app's. The
+ * card moves by a transition: one under way is waited out before the frames
+ * are counted, so a moving card is read once it has landed.
  */
 async function guideStill(page) {
   await until(page, "the guide holds still", async () => {
+    const moving = () =>
+      [...document.querySelectorAll(".tutorial-cue, .tutorial-ring")]
+        .flatMap((e) => e.getAnimations())
+        .some(
+          (a) =>
+            a.playState === "running" && Number.isFinite(a.effect?.getComputedTiming().endTime),
+        );
+    // A frame at a time while the card is moving, a second's worth at most:
+    // then the frames below say whether it has stopped, and `until` asks again.
+    for (let i = 0; i < 60 && moving(); i++) await new Promise((r) => requestAnimationFrame(r));
     const at = () =>
       [...document.querySelectorAll(".tutorial-cue, .tutorial-ring")]
         .map((e) => {
@@ -10067,12 +13957,33 @@ async function recordAnnouncements(page) {
   });
 }
 async function announced(page, text) {
-  await until(
-    page,
-    `“${text}” announced`,
-    (t) => !!window.__announced?.some((said) => said.includes(t)),
-    text,
-  );
+  try {
+    await until(
+      page,
+      `“${text}” announced`,
+      (t) => !!window.__announced?.some((said) => said.includes(t)),
+      text,
+    );
+  } catch (e) {
+    // What was said instead, and what the regions hold now: a page loaded
+    // again since the recording began has no record at all.
+    const heard = await page
+      .evaluate(() => ({
+        said: window.__announced ?? null,
+        now: [...document.querySelectorAll("[data-announcer]")].map((r) => r.textContent),
+      }))
+      .catch(() => null);
+    throw new Error(
+      `${e.message}; ${
+        !heard
+          ? "the page could not be read"
+          : heard.said === null
+            ? "nothing recorded: the page was loaded again since the recording began"
+            : `said meanwhile: ${JSON.stringify(heard.said.slice(-6))}`
+      }${heard ? `; the regions hold ${JSON.stringify(heard.now)}` : ""}`,
+      { cause: e },
+    );
+  }
   await page.evaluate(() => window.__announcedObserver?.disconnect());
 }
 /** After a deliberate action (a fix, a skip), the cursor is put back in the script. */
@@ -10244,11 +14155,17 @@ async function tutorialStop(page) {
     .getByRole("button", { name: "Stop Tutorial", exact: true })
     .click();
   await page.waitForSelector(".tutorial-cue", { state: "detached" });
-  // Stop's checkpoint and the practice files it saves are written through
-  // queues that finish after the card has gone. A check that writes a fixture
-  // or relaunches next waits for the stored state to stop changing, or on a
-  // slow host those writes land after it. Only the dev vault keeps these in
-  // storage; in the real app there is nothing to read, and it passes at once.
+  await stopWritten(page);
+}
+/**
+ * Stop's checkpoint and the practice files it saves are written through
+ * queues that can finish after the card, or Help & Tutorials, has gone. A
+ * check that writes a fixture or relaunches next waits for the stored state
+ * to stop changing: the same over three frames running, or on a slow host
+ * those writes land after it. Only the dev vault keeps these in storage; in
+ * the real app there is nothing to read, and it passes at once.
+ */
+async function stopWritten(page) {
   await until(page, "the stopped tutorial written", async () => {
     if (window.__TAURI_INTERNALS__) return true;
     const at = () =>
@@ -10256,7 +14173,247 @@ async function tutorialStop(page) {
         .map((k) => localStorage.getItem(k))
         .join("\u0000");
     const first = at();
-    await new Promise((r) => setTimeout(r, 300));
+    for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
     return at() === first;
   });
+}
+/**
+ * Return to My Play, from Help & Tutorials, and the return itself. The sheet
+ * stays up, its buttons off, until the writer's own play is open again, and
+ * the practice play's panes stand under it meanwhile: ".paneroot" on the page
+ * says nothing of where the return has got to. Checks that went on from there
+ * ended with the return in flight. The next one opened Help & Tutorials in
+ * the return's last few milliseconds, the return closed that sheet as its
+ * last act, and the check's next click waited 30 s for a lesson in a sheet no
+ * longer there: one run in some on a busy host, in whichever check came next.
+ * So this waits for what the writer waits for: the sheet gone and their own
+ * play in its place, which is also the first time a check says the return
+ * went where it should.
+ */
+async function returnToMyPlay(page) {
+  await tutorialOpen(page);
+  await page.getByRole("button", { name: "Return to My Play", exact: true }).click();
+  await until(
+    page,
+    "Return to My Play to close Help & Tutorials on the writer's own play",
+    () =>
+      !document.querySelector(".sheet") &&
+      !!document.querySelector(".paneroot") &&
+      document.querySelector(".binder__project")?.textContent === "The Weight of Water" &&
+      !/\/tutorials\//.test(document.querySelector(".statusbar__path")?.textContent ?? ""),
+    undefined,
+    15000,
+  );
+  await stopWritten(page);
+}
+
+// --- the real PC's own cases ------------------------------------------------------------------
+
+/** The sample play's script, as the act's Plays folder holds it. */
+const PC_SCRIPT = "The Weight of Water/The Weight of Water.fountain";
+
+/**
+ * The real Windows app's run reaches the PC around the app as well as the page
+ * in it (scripts/smoke-pc-host.mjs): the act's Plays folder on disk, and a
+ * program of its own that holds a file there. Only that run has it, and only
+ * the acts that run there alone use it (ACTS `engines`).
+ */
+function pcHost(page) {
+  if (!page.host)
+    throw new Error(
+      "this check reaches the PC around the app, which only the real Windows app's run can",
+    );
+  return page.host;
+}
+
+/**
+ * The Weight of Water's script in front, nothing waiting to be saved, and the
+ * caret at its end.
+ */
+async function scriptAtEnd(page) {
+  await page.locator(".binder .binder__label", { hasText: "The Weight of Water" }).first().click();
+  await page.locator(".seg__btn", { hasText: "Script" }).first().click();
+  await page.waitForSelector(".play-page", { timeout: 10000 });
+  await dismissToasts(page);
+  await until(page, "no save waiting or under way", saveSettled);
+  await page.locator(".ProseMirror").first().focus();
+  await toScriptEnd(page);
+}
+
+/**
+ * Runs IN THE PAGE: the control that has keyboard focus, and whether that is
+ * seen under forced colours, where a box-shadow is dropped and only an
+ * outline is drawn: `{ what, seen }`, or null on the page itself. The script
+ * shows its focus by its caret, and is seen.
+ */
+function focusUnderForcedColours() {
+  const el = document.activeElement;
+  if (!el || el === document.body || el === document.documentElement) return null;
+  if (el.isContentEditable) return { what: "the script", seen: true };
+  const style = getComputedStyle(el);
+  const label = el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 30) ?? "";
+  return {
+    what: `${el.tagName.toLowerCase()}.${[...el.classList].join(".")}${label ? ` "${label}"` : ""}`,
+    seen: style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 1,
+  };
+}
+
+/**
+ * Runs IN THE PAGE: whether the first element `chosen` matches looks
+ * otherwise than the first `other` matches, by what forced colours leave a
+ * person to see: a fill, laid on the page's own colour, only where it shows;
+ * the text's colour (the system's, but which one); the borders and outline
+ * that are drawn; bold or not; underline; and the same of what each draws
+ * before and after itself. A tint too faint to see, or a weight a step
+ * heavier, tells nothing apart.
+ */
+function chosenLooksOtherwise({ chosen, other }) {
+  const a = document.querySelector(chosen);
+  const b = document.querySelector(other);
+  if (!a || !b) return { found: false, why: `${a ? "" : chosen} ${b ? "" : other}`.trim() };
+  const rgba = (c) => {
+    const m = /rgba?\(([^)]+)\)/.exec(c);
+    const [r, g, bl, al = 1] = m ? m[1].split(",").map(Number) : [0, 0, 0, 0];
+    return { r, g, b: bl, a: al };
+  };
+  const canvas = rgba(getComputedStyle(document.body).backgroundColor);
+  const laid = (c) => {
+    const f = rgba(c);
+    return ["r", "g", "b"].map((k) => Math.round((f[k] * f.a + canvas[k] * (1 - f.a)) / 32));
+  };
+  const sides = ["Top", "Right", "Bottom", "Left"];
+  const look = (el, pseudo) => {
+    const s = getComputedStyle(el, pseudo);
+    if (pseudo && s.content === "none") return "";
+    return [
+      laid(s.backgroundColor).join(","),
+      s.color,
+      ...sides.map((side) =>
+        Number.parseFloat(s[`border${side}Width`]) >= 1
+          ? `${s[`border${side}Width`]} ${s[`border${side}Color`]}`
+          : "-",
+      ),
+      s.outlineStyle !== "none" && Number.parseFloat(s.outlineWidth) >= 1
+        ? `${s.outlineStyle} ${s.outlineColor}`
+        : "-",
+      Number(s.fontWeight) >= 600 ? "bold" : "regular",
+      s.textDecorationLine,
+    ].join("|");
+  };
+  const whole = (el) => [null, "::before", "::after"].map((p) => look(el, p)).join("/");
+  // Its words in the colour of the page: forced colours lay a plate of the
+  // page's colour behind every run of words, so they are not seen unless the
+  // element takes its colours itself, and then not when they are its fill's.
+  const own = getComputedStyle(a);
+  const page = laid(`rgb(${canvas.r}, ${canvas.g}, ${canvas.b})`).join();
+  const plated =
+    laid(own.color).join() ===
+    (own.forcedColorAdjust === "none" ? laid(own.backgroundColor).join() : page);
+  return { found: true, differs: whole(a) !== whole(b), plated, chosen: whole(a), other: whole(b) };
+}
+
+/** A play's title in other scripts, long enough that each of its paths passes 260 characters. */
+const PC_LONG_TITLE =
+  "Ночь у моря · 夜の海 · ليلة البحر · समुद्र की रात · a title long enough to take every path in it past the old limit";
+
+/** From the Plays screen or a play: a new play named `title`, made and open. */
+async function newPlayNamed(page, title) {
+  await page.keyboard.press("Meta+Shift+KeyO");
+  await page.waitForSelector(".vault-list", { timeout: 15000 });
+  // The Plays screen settled, its rows read, before its keys are pressed.
+  await until(page, "the Plays screen's rows", () => !!document.querySelector(".playrow--play"));
+  await page.evaluate(pageSettles, SETTLE_TIMEOUT_MS);
+  await page.locator(".vault-screen__search input").focus();
+  await page.keyboard.press("Meta+KeyN");
+  await page.waitForSelector(".playrow--naming input", { timeout: 10000 });
+  await page.keyboard.type(title);
+  await page.keyboard.press("Enter");
+  await page.waitForSelector(".play-page", { timeout: 20000 });
+  await until(page, "no save waiting or under way", saveSettled, undefined, 15000);
+}
+
+/** The files of the play in folder `name`, once its play file is on disk. */
+async function pcPlayFiles(page, host, name) {
+  const want = `${name}/${name}.proscenium`;
+  const deadline = Date.now() + 10000 * TIME_SCALE;
+  for (;;) {
+    const files = host.files().filter((f) => f.startsWith(`${name}/`));
+    if (files.includes(want)) return files;
+    if (Date.now() > deadline)
+      throw new Error(
+        `no play file ${want} on disk; the Plays folder holds ${[
+          ...new Set(host.files().map((f) => f.split("/")[0])),
+        ].join(", ")}`,
+      );
+    await page.waitForTimeout(POLL_MS);
+  }
+}
+
+/**
+ * The words typed, on disk, and the status line saying so: the save the
+ * typing set off has landed. Read from the disk itself, rather than caught in
+ * the moment the status says a save is under way, which a quick save can pass.
+ */
+async function landedOnDisk(page, host, rel, words) {
+  const deadline = Date.now() + 15000 * TIME_SCALE;
+  while (!host.read(rel)?.includes(words)) {
+    if (Date.now() > deadline) throw new Error(`"${words}" never reached ${rel} on disk`);
+    await page.waitForTimeout(100);
+  }
+  await until(page, "the status line to say Saved", () =>
+    /^Saved/.test(document.querySelector(".savestatus")?.textContent ?? ""),
+  );
+}
+
+/**
+ * The toast up now, measured and audited while the pointer rests on it: a
+ * toast's six seconds stop under the pointer (src/ui/Toast.tsx), so it never
+ * goes in the middle of its audit, as on a loaded PC it once did.
+ */
+async function toastAudited(page, auditIt) {
+  await page.locator(".toast").first().hover();
+  try {
+    await visible(page, ".toast", { minWidth: 200, minHeight: 30 });
+    await auditIt();
+  } finally {
+    await page.mouse.move(1, 1);
+  }
+}
+
+/**
+ * A save that lands late, as the window comes back, is the app's own: it is
+ * not reloaded as a change from outside, nor listed in Changes as one. The
+ * window's return re-reads the script as the save's retry starts, and once
+ * took the old bytes it read for someone else's (src/storage/conflict-floor.ts).
+ */
+async function notTakenForOutside(page) {
+  await elapse(
+    page,
+    1500,
+    "a reload of the app's own words, or a change from outside made of them, would come of the re-read the window's return started",
+  );
+  const changes = await page
+    .locator(".toolbar__centre .seg__btn", { hasText: "Changes" })
+    .innerText();
+  if (/\d/.test(changes))
+    throw new Error(
+      `the app's own late save is listed as a change from outside: the toolbar says "${changes.replace(/\s+/g, " ")}"`,
+    );
+}
+
+/**
+ * The toast that says why a save was refused, once it says it: past the
+ * autosave's pause and the save's two seconds of patience on Windows.
+ */
+async function refusalSaid(page, words) {
+  return until(
+    page,
+    `the refusal to be said (${words})`,
+    (source) => {
+      const text = document.querySelector(".toast")?.textContent ?? "";
+      return new RegExp(source).test(text) ? text : null;
+    },
+    words.source,
+    15000,
+  );
 }
