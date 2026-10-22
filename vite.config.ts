@@ -4,7 +4,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { webkitFloor } from "./scripts/webkit-floor.ts";
-import { bakedRoll } from "./scripts/patrons.mjs";
+import { bakedText } from "./scripts/patrons.mjs";
 
 // Tauri expects a fixed dev port and ignores the Rust source tree.
 // See cross-platform.md — the frontend carries no platform branches.
@@ -12,8 +12,9 @@ export default defineConfig({
   plugins: [react()],
   // Settings › About's program of sponsors (docs/app/preferences-and-help/settings.md#SET-32):
   // a release fetches it before building and names the file here, so the app
-  // never asks for it. Every other build has the empty roll.
-  define: { __PROSCENIUM_PATRONS__: JSON.stringify(bakedRoll()) },
+  // never asks for it. Every other build has the empty roll. Each platform's
+  // build records this text's hash, and a release carries one roll on both.
+  define: { __PROSCENIUM_PATRONS__: bakedText() },
   // Tauri prints its own progress; don't let Vite wipe it.
   clearScreen: false,
   server: {

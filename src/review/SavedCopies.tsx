@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { vault } from "../storage";
 import type { SavedCopy } from "../storage/ipc";
 import { Button, Sheet } from "../ui";
@@ -178,4 +178,45 @@ function SavedCopySheet({
       </div>
     </Sheet>
   );
+}
+
+const SEEN_KEY = "proscenium.changes.seenCopies.";
+
+/**
+ * The kept copies the writer has seen in Changes, on this Mac
+ * (docs/app/keeping-work/storage-and-file-format.md#STOR-183). A copy is kept
+ * for good, so it would ask for attention for good; once Changes has been in
+ * front with it listed, it is counted as seen, and stays listed. Remembered in
+ * the browser's storage: lost, the copies are counted once more, nothing else.
+ */
+export function useSeenCopies(playId: string | null) {
+  const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set());
+  useEffect(() => {
+    let ids: string[] = [];
+    try {
+      const raw = playId ? localStorage.getItem(SEEN_KEY + playId) : null;
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) ids = parsed.filter((id): id is string => typeof id === "string");
+    } catch {
+      /* counted again, once */
+    }
+    setSeen(new Set(ids));
+  }, [playId]);
+  const see = useCallback(
+    (ids: readonly string[]) => {
+      setSeen((prev) => {
+        if (ids.every((id) => prev.has(id))) return prev;
+        const next = new Set([...prev, ...ids]);
+        try {
+          if (playId)
+            localStorage.setItem(SEEN_KEY + playId, JSON.stringify([...next].slice(-500)));
+        } catch {
+          /* seen for now, if not remembered */
+        }
+        return next;
+      });
+    },
+    [playId],
+  );
+  return useMemo(() => ({ has: (id: string) => seen.has(id), see }), [seen, see]);
 }

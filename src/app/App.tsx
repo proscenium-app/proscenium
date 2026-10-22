@@ -1,20 +1,28 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { theTrash, trashPlace } from "../ui/system-words";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CommentsFeed } from "../comments";
-import { commentsState } from "../comments/plugin";
 import { errorShown, playOpened, surfaceShown, workspaceErrorCode } from "../diagnostics";
 import { FeedbackSheet } from "../feedback/FeedbackSheet";
-import { PlayEditor } from "../editor";
+import { PlayEditor, RedlineScript } from "../editor";
 import { useCaretScene } from "../editor/caret-scene";
-import { ChangesView } from "../review";
+import {
+  ChangesView,
+  buildTimeline,
+  type DocumentPage,
+  type ScriptPage,
+  type Who,
+} from "../review";
+import { RedlineDocument } from "./RedlineDocument";
 import { useRecoveryCopies } from "../review/RecoveryCopies";
-import { useSavedCopies } from "../review/SavedCopies";
+import { useSavedCopies, useSeenCopies } from "../review/SavedCopies";
+import { useRedlineSteps } from "./use-redline-steps";
 import { settings, vault } from "../storage";
 import type { Surface as ReportedSurface } from "../storage/ipc";
 import { Button, ToastHost, useToast } from "../ui";
-import type { BinderItem } from "../workspace";
+import { isCastSheet } from "../materials";
 import { titleOf } from "../workspace";
 import { Binder } from "../workspace/BinderView";
 import { CorkboardView } from "../workspace/CorkboardView";
@@ -40,6 +48,7 @@ import { findLeaf, hasSurface, type Surface } from "./panes";
 import { usePrivacyNotice } from "./privacy-notice";
 import { useQuitGate } from "./quit";
 import { playLanding } from "./regions";
+import { useSceneComments } from "./scene-comments";
 import {
   learnWord,
   openSettings,
@@ -73,11 +82,6 @@ function ago(iso: string): string {
   const hours = Math.round(mins / 60);
   if (hours < 24) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
-}
-
-/** The binder's "Characters" folder, so new character sheets land there. */
-function findCharactersFolder(binder: BinderItem[]): BinderItem | null {
-  return binder.find((it) => it.type === "folder" && /^characters$/i.test(titleOf(it))) ?? null;
 }
 
 /** What `surface_shown` calls each view (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3). */
@@ -216,13 +220,26 @@ function AppShell() {
      for an 816px page overflows too (use-zoom.ts). */
   // Binder ids whose file is gone from disk, for the greyed "missing" chip.
   const missingIds = useMemo(() => new Set(ws.missingItems.map((i) => i.id)), [ws.missingItems]);
-  // How many changes from outside the app are still waiting on the writer.
+  /*
+   * What the writer has not seen yet (docs/app/keeping-work/storage-and-file-format.md#STOR-183),
+   * counted as Changes lists it: a burst of changes from outside is one, however
+   * many saves made it, and so is each copy kept during a save or before a
+   * crash. Looking at Changes sees them all, and the count goes.
+   */
+  const seenCopies = useSeenCopies(ws.playId);
+  const trackedSteps = useRedlineSteps(ws.editor, ws.showTracked);
   const pendingChanges = useMemo(
     () =>
-      ws.ledger.filter((e) => e.status === "pending").length +
-      savedCopies.copies.length +
-      recoveryCopies.copies.length,
-    [ws.ledger, savedCopies.copies, recoveryCopies.copies],
+      buildTimeline(
+        [],
+        ws.ledger.filter((e) => e.status === "pending"),
+        undefined,
+        undefined,
+        ws.ledgerJoins,
+      ).length +
+      savedCopies.copies.filter((c) => !seenCopies.has(c.id)).length +
+      recoveryCopies.copies.filter((c) => !seenCopies.has(c.id)).length,
+    [ws.ledger, ws.ledgerJoins, savedCopies.copies, recoveryCopies.copies, seenCopies],
   );
 
   const narrow = useNarrowLayout();
@@ -232,11 +249,10 @@ function AppShell() {
 
   const openTitlePage = useCallback(() => setShowTitlePage(true), []);
   /**
-   * Versions, and of what: the script (null), or the sheet or outline note
-   * in front when it was asked for — their kept words were in Versions with
-   * nothing in the app able to show them.
+   * Versions… opens Changes on the writer's own versions of what was in front:
+   * the script, or the sheet or outline note being written in (docs/app/keeping-work/storage-and-file-format.md#STOR-119).
    */
-  const [showHistory, setShowHistoryFor] = useState<{ id: string | null } | null>(null);
+  const [changesFocus, setChangesFocus] = useState<{ who: Who; docId: string | null } | null>(null);
   /** The review of words a crash left behind (docs/app/keeping-work/storage-and-file-format.md#STOR-D10). */
   const [showRecovery, setShowRecovery] = useState(false);
   // Export is a dialog now (which pages, seen first), so the menu item opens
@@ -256,6 +272,8 @@ function AppShell() {
     scriptScrollerRef,
     setScriptSlot,
     paneRootRef,
+    setPaneRoot,
+    hiddenPanes,
     scriptVisible,
     visibleSurfaces,
     labelFor,
@@ -264,6 +282,8 @@ function AppShell() {
     onActivateTab,
     switcherView,
     onCloseTab,
+    onClosePane,
+    closeFocusedPane,
     onSelectBinderItem,
     onDropBinderItem,
     splitFocused,
@@ -339,11 +359,20 @@ function AppShell() {
         notesGate={ws.outlineGate}
         onResolveNotesGate={ws.resolveOutlineGate}
         onRegisterNotesBuffer={ws.registerOutlineBuffer}
-        changedScenes={ws.changedScenes}
       />
     ),
     [ws],
   );
+
+  /** A double-click on the Characters sheet: open Cast at the line hit (docs/app/formatting/formats-and-layout.md#FMT-59). */
+  const [castFocus, setCastFocus] = useState<{ paragraphId: string | null } | null>(null);
+  const panesRef = useRef(panes);
+  panesRef.current = panes;
+  const editCharactersPage = useCallback((paragraphId: string | null) => {
+    setCastFocus({ paragraphId });
+    panesRef.current.open({ kind: "cast" });
+  }, []);
+  const clearCastFocus = useCallback(() => setCastFocus(null), []);
 
   const castSurface = useCallback(
     () => (
@@ -359,18 +388,19 @@ function AppShell() {
         scriptKey={ws.scriptPath}
         onSave={ws.saveCharacters}
         onOpenSheet={openMaterialTab}
-        onCreateSheet={(name) => {
-          const chars = findCharactersFolder(ws.binder);
-          ws.createMaterial(chars?.id ?? null, "character", name);
-        }}
+        onCreateSheet={(name) =>
+          ws.createMaterial(null, "character", name, undefined, { home: true })
+        }
         onHide={ws.hideFromCast}
         onUnhide={ws.unhideFromCast}
         cards={ws.cards}
         onOpenScene={ws.openScene}
         onExportSides={(name) => setShowExport({ sidesFor: name })}
+        focusRequest={castFocus}
+        onFocusHandled={clearCastFocus}
       />
     ),
-    [ws, openMaterialTab],
+    [ws, openMaterialTab, castFocus, clearCastFocus],
   );
 
   const [binderOpen, setBinderOpenState] = useState<boolean>(() => {
@@ -410,11 +440,64 @@ function AppShell() {
     // solved against the wrong width is the bug this token exists to prevent.
     // The whole tree is in the token because ANY reshape can resize the page's
     // pane or move the page to another one; the focused pane, because with no
-    // script showing it decides which sheet that is.
-    layout: `${binderVisible}:${panes.focusedLeaf}:${JSON.stringify(paneTree)}`,
+    // script showing it decides which sheet that is; and the panes the window
+    // has no room for, because one coming back is a new pane to solve against.
+    layout: `${binderVisible}:${panes.focusedLeaf}:${JSON.stringify(paneTree)}:${[...hiddenPanes].join()}`,
   });
   const { zoom, zoomBy, refit } = zoomCtl;
   const zoomReset = zoomCtl.reset;
+
+  const clearChangesFocus = useCallback(() => setChangesFocus(null), []);
+  /** Changes' reading of the writer's versions, made once, so its list is not read again on every render. */
+  const changesHistory = useMemo(
+    () => ({
+      load: ws.historyDocs,
+      read: ws.readHistoryVersion,
+      target: ws.historyTarget,
+      open: (docId: string) => {
+        const item = findBinderItem(ws.binder, docId);
+        if (!item) return;
+        ws.selectItem(item);
+        panes.openBeside(
+          item.type === "script" ? { kind: "script" } : { kind: "material", id: item.id },
+          "row",
+        );
+      },
+    }),
+    [ws.historyDocs, ws.readHistoryVersion, ws.historyTarget, ws.binder, ws.selectItem, panes],
+  );
+
+  // Changes reads a script's changes on the script's own page, in the play's format.
+  const format = ws.format;
+  const scriptPage = useCallback<ScriptPage>(
+    (props) => <RedlineScript {...props} format={format} />,
+    [format],
+  );
+  // And a document's on its own page: a note is a page too.
+  const documentPage = useCallback<DocumentPage>(
+    (props) => <RedlineDocument {...props} format={format} />,
+    [format],
+  );
+
+  /**
+   * The newest changes from outside the open script can draw on itself, and
+   * Changes' way to draw them there: the script in front, the redline on it
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-185).
+   */
+  const inScript = useMemo(
+    () =>
+      ws.trackedIds.length
+        ? {
+            ids: ws.trackedIds,
+            show: () => {
+              ws.setShowTracked(true);
+              panes.show({ kind: "script" });
+            },
+          }
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ws.trackedIds, ws.setShowTracked, panes],
+  );
 
   const renderSurface = useCallback(
     (surface: Surface): ReactNode => {
@@ -432,7 +515,6 @@ function AppShell() {
               onAddScene={ws.editable ? () => ws.addScene() : undefined}
               onOpenScene={ws.openScene}
               scenePages={ws.scenePages}
-              changedScenes={ws.changedScenes}
             />
           );
         case "outliner":
@@ -444,16 +526,25 @@ function AppShell() {
             <ChangesView
               key={ws.root}
               entries={ws.ledger}
+              joins={ws.ledgerJoins}
               otherVersions={ws.conflictCopies}
               savedCopies={savedCopies.copies}
               savedCopiesError={savedCopies.error}
               recoveryCopies={recoveryCopies}
               loadDiff={ws.changeDiff}
-              onKeep={ws.keepChange}
+              onSeen={ws.markSeen}
+              onSeenCopies={seenCopies.see}
               onRevert={ws.revertChange}
+              canRevert={ws.canRevert}
               loadOther={ws.loadOther}
               onKeepOther={ws.keepOther}
               onTrashOther={ws.trashOther}
+              history={changesHistory}
+              focus={changesFocus}
+              onFocusHandled={clearChangesFocus}
+              scriptPage={scriptPage}
+              documentPage={documentPage}
+              inScript={inScript}
             />
           );
         case "comments":
@@ -495,7 +586,20 @@ function AppShell() {
         }
       }
     },
-    [ws, outlineSurface, castSurface, zoom, refit],
+    [
+      ws,
+      outlineSurface,
+      castSurface,
+      zoom,
+      refit,
+      changesHistory,
+      changesFocus,
+      clearChangesFocus,
+      scriptPage,
+      documentPage,
+      inScript,
+      seenCopies.see,
+    ],
   );
 
   // Per-surface scroll memory now lives in the pane that owns the
@@ -568,6 +672,13 @@ function AppShell() {
 
   const commentsOpen = commentsPaned || (inspectorVisible && inspectorTab === "comments");
 
+  /* A comment made where the margin has no room for its card is typed in the
+     feed (docs/app/writing/comments.md#COMM-56): show it, wherever it lives. Open as a pane,
+     it is showing already. */
+  const showComments = useCallback(() => {
+    if (!commentsPaned) showInInspector("comments");
+  }, [commentsPaned, showInInspector]);
+
   /** ⤢ — move the inspector's active tab into a pane of its own. */
   const popOutInspector = useCallback(() => {
     if (inspectorTab === "comments") panes.openBeside({ kind: "comments" }, "row");
@@ -600,23 +711,10 @@ function AppShell() {
 
   /* Comments in this scene. A comment IS text in the script, so this counts the
      same plugin state the feed and the margin read — there is no comment store
-     that could disagree with the document. Recomputed on every doc change,
-     which is what `docVersion` is for. */
-  const docVersion = ws.editor?.state.doc.nodeSize ?? 0;
-  const caretComments = useMemo(() => {
-    const heading = caretCard?.heading ?? null;
-    const state = ws.editor ? commentsState(ws.editor.state) : undefined;
-    if (!state || heading === null) return { total: 0, todo: 0 };
-    let total = 0;
-    let todo = 0;
-    for (const entry of state.entries) {
-      if (entry.scene !== heading) continue;
-      total += 1;
-      if (entry.parsed.todo) todo += 1;
-    }
-    return { total, todo };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [caretCard, ws.editor, docVersion]);
+     that could disagree with the document — after every change of it. The
+     scene is the caret's, by its place and never by its title
+     (docs/app/writing/comments.md#COMM-70). */
+  const caretComments = useSceneComments(ws.editor, caretOrdinal);
 
   /** A change that landed from somewhere else and touched this scene. */
   const caretPending = useMemo(() => {
@@ -680,29 +778,22 @@ function AppShell() {
   const openHistory = useCallback(() => {
     const leaf = panes.focusedLeaf ? findLeaf(paneTree, panes.focusedLeaf) : null;
     const surface = leaf?.tabs[leaf.active];
-    if (surface?.kind === "material") {
-      setShowHistoryFor({ id: surface.id });
-      return;
-    }
-    if (surface?.kind === "outliner" && inOutlineNotesRef.current) {
-      setShowHistoryFor({ id: ws.outlineNoteId ?? "outline" });
-      return;
-    }
-    setShowHistoryFor({ id: null });
-  }, [paneTree, panes.focusedLeaf, ws.outlineNoteId]);
-  /**
-   * The sheet's or notes' Versions, made once per opening: new functions on
-   * every render re-ran the panel's loading, which moved its selection back to
-   * the newest version and dismissed a Restore being confirmed.
-   */
-  const historyTarget = useMemo(
-    () => (showHistory?.id ? ws.versionsOf(showHistory.id) : null),
-    [showHistory, ws.versionsOf],
-  );
+    const docId =
+      surface?.kind === "material"
+        ? surface.id
+        : surface?.kind === "outliner" && inOutlineNotesRef.current
+          ? (ws.outlineNoteId ?? null)
+          : ws.activeScriptId();
+    setChangesFocus({ who: "mine", docId });
+    panes.open({ kind: "changes" });
+  }, [paneTree, panes, ws.outlineNoteId, ws.activeScriptId]);
 
   /** What the script says about the character whose sheet is showing. */
   const sheetDerived = useMemo(() => {
-    if (focusedMaterial?.item.type !== "character") return null;
+    // A sheet filed away outside the Characters folder is not the character's
+    // own, so the script's word on them is not put beside it
+    // (docs/app/organizing/workspace-model.md#WORK-84).
+    if (!focusedMaterial || !isCastSheet(focusedMaterial.item)) return null;
     const name = titleOf(focusedMaterial.item).toUpperCase();
     const weight = ws.castWeights.get(name);
     if (!weight) return null;
@@ -808,7 +899,6 @@ function AppShell() {
     closeDialogs: () => {
       setShowExport(null);
       setShowTitlePage(false);
-      setShowHistoryFor(null);
     },
     // Asked one place at a time, not as one selector list: a list answers with its
     // first match in the page, and the toolbar's Help & Tutorials comes before any
@@ -841,6 +931,7 @@ function AppShell() {
     setInspectorOpen,
     toggleComments,
     splitFocused,
+    closeFocusedPane,
     zoomBy,
     zoomReset,
     zoomCtl,
@@ -880,6 +971,7 @@ function AppShell() {
           hasTrackedChanges={ws.hasTrackedChanges}
           showTracked={ws.showTracked}
           onSetShowTracked={ws.setShowTracked}
+          trackedSteps={trackedSteps}
           onSplit={splitFocused}
           document={
             ws.mode === "workspace" && ws.scriptTitle
@@ -980,8 +1072,8 @@ function AppShell() {
                   if (!res) return;
                   toast({
                     kind: "trash",
-                    title: `“${res.title}” moved to the Trash`,
-                    detail: "It's in the Finder's Trash if you need it later.",
+                    title: `“${res.title}” moved to ${theTrash()}`,
+                    detail: `It's in ${trashPlace()} if you need it later.`,
                     action: res.undo ? { label: "Undo", run: () => void res.undo?.() } : undefined,
                   });
                 });
@@ -1007,6 +1099,7 @@ function AppShell() {
               scenes={binderScenes}
               caretScene={caretOrdinal}
               onOpenScene={ws.openScene}
+              onSetSceneColor={ws.readOnly ? undefined : (id, color) => ws.setCard(id, { color })}
             />
           )}
           {ws.mode === "workspace" && ws.root ? (
@@ -1014,13 +1107,15 @@ function AppShell() {
              panes → inspector, and with a play open the panes were a div,
              so the rotor listed a navigation and a complementary and no
              place to write. */
-            <main ref={paneRootRef} className="paneroot" aria-label="Play">
+            <main ref={setPaneRoot} className="paneroot" aria-label="Play">
               <PaneTree
                 node={paneTree}
                 activeLeafId={panes.focusedLeaf}
                 onFocusLeaf={panes.setFocusedLeaf}
                 onActivateTab={onActivateTab}
                 onCloseTab={onCloseTab}
+                onClosePane={onClosePane}
+                hidden={hiddenPanes}
                 onResize={panes.resize}
                 onAddSurface={panes.openInLeaf}
                 onDropTab={panes.dropTab}
@@ -1054,8 +1149,10 @@ function AppShell() {
               {!launching && !ws.root && (
                 <WelcomeScreen
                   cloudRoot={ws.cloudRoot}
+                  suggestedFolder={ws.suggestedFolder}
                   lastVault={lastVault}
                   onChooseCloud={ws.openCloudFolder}
+                  onChooseDocuments={ws.openDocumentsFolder}
                   onChooseFolder={ws.openFolder}
                   onReopenLast={ws.openFolder}
                   privacyNotice={privacyNoticeDue}
@@ -1145,10 +1242,12 @@ function AppShell() {
               layoutMeta={ws.layoutMeta}
               frontMatter={ws.frontMatter}
               onEditTitlePage={openTitlePage}
-              trackedMarks={ws.showTracked ? ws.trackedMarks : undefined}
+              onEditCharactersPage={editCharactersPage}
+              redline={ws.trackedRedline}
               zoom={zoom}
               commentsOpen={commentsOpen}
               onToggleComments={toggleComments}
+              onShowComments={showComments}
               spellcheck={prefs.spellcheck}
               learnedWords={prefs.learnedWords}
               onLearnWord={learnWord}
@@ -1213,9 +1312,6 @@ function AppShell() {
           quitGate={quitGate}
           showRecovery={showRecovery}
           setShowRecovery={setShowRecovery}
-          showHistory={showHistory}
-          setShowHistoryFor={setShowHistoryFor}
-          historyTarget={historyTarget}
         />
         {launching && <LaunchScreen play={opening} />}
       </div>

@@ -139,8 +139,14 @@ export function sigilAfterBreak(tr: Transaction, pos: number, sigil: "!" | "@"):
  * actually makes: caret on the blank line between two scenes, break here. On a
  * block with words in it the break lands AFTER the whole block rather than
  * splitting it mid-sentence — a page break inside a stage direction is not a
- * thing anyone means. Either way an Action follows it, so the caret always has
- * somewhere to be and the document never ends on an atom.
+ * thing anyone means.
+ *
+ * The caret goes to the line that already follows, which now opens the new
+ * page. Only when nothing with text follows (the end of the play, or another
+ * break) does an empty Action come with the break, so the caret has somewhere
+ * to be and the document never ends on an atom. An Action every time left an
+ * empty line at the top of the new page, above the scene the writer broke
+ * before: a blank line in the script that nobody typed.
  *
  * The transform is a pure function of the state (and therefore testable without
  * a DOM); `insertPageBreak` is the command that dispatches it.
@@ -154,11 +160,15 @@ export function pageBreakTr(state: EditorState): Transaction | null {
   const parent = $from.parent;
   const empty = parent.isTextblock && parent.content.size === 0;
   const at = empty ? $from.before() : $from.after();
-  const tr = state.tr.replaceWith(at, empty ? $from.after() : at, [
-    pageBreak.create(),
-    action.create(),
-  ]);
-  // pageBreak is an atom (size 1), so the new Action's content starts at +2.
+  const next = state.doc.resolve($from.after()).nodeAfter;
+  const lands = next?.isTextblock ?? false;
+  const tr = state.tr.replaceWith(
+    at,
+    empty ? $from.after() : at,
+    lands ? pageBreak.create() : [pageBreak.create(), action.create()],
+  );
+  // pageBreak is an atom (size 1), so the block after it opens at +1 and its
+  // content starts at +2.
   return tr.setSelection(TextSelection.create(tr.doc, at + 2));
 }
 

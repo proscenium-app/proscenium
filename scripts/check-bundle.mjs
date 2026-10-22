@@ -5,7 +5,7 @@
  * The gate every built Proscenium.app passes before anyone ships, tests or
  * installs it (docs/engineering/release-engineering.md#REL-D1, docs/engineering/release-engineering.md#REL-D2, docs/engineering/release-engineering.md#REL-D4).
  *
- *   node scripts/check-bundle.mjs <Proscenium.app> [--universal | --arm64] [--release] [--version <x.y.z>]
+ *   node scripts/check-bundle.mjs <Proscenium.app> [--universal | --arm64] [--release] [--app-store] [--version <x.y.z>]
  *
  * Nobody ever chose which Macs the app runs on, and the bundle said so three
  * different ways: `lipo -archs` printed `arm64` alone, which
@@ -25,7 +25,14 @@
  *                a track build is the next release's, as macOS takes only X.Y.Z
  *   --release    nothing of the self-test is in it: no `selftest` in the binary
  *                and none in dist/ (docs/engineering/release-engineering.md#REL-D4 — a shipped build honours no feature,
- *                command or environment variable of the test harness)
+ *                command or environment variable of the test harness); and
+ *                nothing of the update proof, whose variables, the stand-in's
+ *                update address among them, all begin PROSCENIUM_UPDATE_PROOF
+ *   --reports    automatic reports compiled in (PROSCENIUM_REPORTS=1), as every release's privacy
+ *                answers say: the binary's own mark (src-tauri/src/telemetry/client.rs)
+ *   --app-store  the Mac App Store build: no updater and no private WebKit key
+ *                in the binary, and the category and export-compliance keys
+ *                App Store Connect requires
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, openSync, readSync, closeSync } from "node:fs";
@@ -42,6 +49,8 @@ if (UNIVERSAL && ARM64) {
   process.exit(1);
 }
 const RELEASE = args.includes("--release");
+const APP_STORE = args.includes("--app-store");
+const REPORTS = args.includes("--reports");
 const VERSION_AT = args.indexOf("--version");
 const EXPECTED_VERSION = VERSION_AT >= 0 ? args[VERSION_AT + 1] : null;
 
@@ -164,11 +173,15 @@ if (native !== "true") {
 // 5. No self-test in a release.
 if (RELEASE) {
   // The raw bytes hold symbol names and literals alike: the command names, the
-  // environment variable, the harness script. Any one of them means the
-  // feature was on. (Read directly — `strings` on a 26 MB binary overflows a
-  // child-process buffer.)
+  // environment variables, the harness script. Any one of them means the
+  // feature was on: `selftest`, or the update proof's variables, which the
+  // update-proof feature reads (the stand-in's address among them), wherever
+  // in the code they came to be read. (Read directly — `strings` on a 26 MB
+  // binary overflows a child-process buffer.)
   const bytes = readFileSync(exe).toString("latin1");
-  const hits = [...bytes.matchAll(/[\x20-\x7e]{0,40}selftest[\x20-\x7e]{0,40}/gi)].map((m) => m[0]);
+  const hits = [
+    ...bytes.matchAll(/[\x20-\x7e]{0,40}(?:selftest|PROSCENIUM_UPDATE_PROOF)[\x20-\x7e]{0,40}/gi),
+  ].map((m) => m[0]);
   if (hits.length)
     failures.push(`the binary contains self-test code: ${hits.slice(0, 3).join(" · ")}`);
   const assets = join(ROOT, "dist/assets");
@@ -180,6 +193,46 @@ if (RELEASE) {
     : [];
   if (leaked.length) failures.push(`dist/ carries self-test code: ${leaked.join(", ")}`);
   if (!hits.length && !leaked.length) passed.push("no self-test code");
+}
+
+// 6. What App Review refuses in a store build (docs/engineering/release-engineering.md#REL-56):
+// an updater, since the store updates the app; the private WebKit key the
+// download build turns its background off with; and an upload App Store
+// Connect would refuse for a missing category or export-compliance answer.
+if (APP_STORE) {
+  const bytes = readFileSync(exe).toString("latin1");
+  const banned = [
+    ["the updater", /tauri[-_]plugin[-_]updater|plugin:updater|updates\.proscenium\.ink/],
+    ["the private key drawsBackground", /drawsBackground/],
+  ];
+  const found = banned.filter(([, re]) => re.test(bytes)).map(([what]) => what);
+  if (found.length) failures.push(`the store build carries ${found.join(" and ")}`);
+  else passed.push("no updater, no private WebKit key");
+  const key = (k) => {
+    try {
+      return plist(k);
+    } catch {
+      return "";
+    }
+  };
+  if (key("LSApplicationCategoryType") !== "public.app-category.productivity")
+    failures.push("Info.plist has no LSApplicationCategoryType, which App Store Connect requires");
+  if (key("ITSAppUsesNonExemptEncryption") !== "false")
+    failures.push("Info.plist does not say ITSAppUsesNonExemptEncryption false");
+}
+
+// 7. Reports compiled in, as a release's privacy answers say: the mark the
+// binary carries either way (src-tauri/build.rs's cfg), so a build that left
+// them out says so, and one from before the mark says nothing.
+if (REPORTS) {
+  const bytes = readFileSync(exe).toString("latin1");
+  if (bytes.includes("proscenium-reports-compiled-in")) passed.push("reports compiled in");
+  else
+    failures.push(
+      bytes.includes("proscenium-reports-left-out")
+        ? "the binary was built without reports (PROSCENIUM_REPORTS=1), which its privacy answers say it sends"
+        : "the binary carries no mark of whether it sends reports",
+    );
 }
 
 if (failures.length) {

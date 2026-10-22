@@ -39,8 +39,6 @@
     - listitem "The Weight of Water"
       - button "The Weight of Water" [current=true]
       - button "Close The Weight of Water"
-    - listitem "Outline"
-      - button "Outline"
   - button "Add a surface to this pane" [haspopup]
   - button "What this line is: Action" [haspopup]
   - button "Bold"
@@ -63,20 +61,16 @@
   - generic
   - textbox "Summary"
   - generic
-  - button "Scene status: idea" [haspopup]
+  - radiogroup "Scene color"
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
   - generic
-  - textbox "Label"
-  - generic
-  - radiogroup "Card colour"
-    - radio "Unmarked" [checked]
-    - radio "Setup" [checked]
-    - radio "Turns" [checked]
-    - radio "Interior" [checked]
-    - radio "Subplot" [checked]
-    - radio "Revise" [checked]
-    - radio "Parked" [checked]
-  - generic
-  - textbox "Board note"
+  - textbox "Notes"
   - generic
   - generic
   - button "Show"

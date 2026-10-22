@@ -14,6 +14,17 @@
  *                            patch raised by one, or the version its heading names
  *                            (`## [Unreleased] 1.0.0`). An alpha or beta is a
  *                            pre-release of it, so the release supersedes it
+ *   node scripts/version.mjs line 1.0.1
+ *                            a release on its line: every file says 1.0.1, and
+ *                            Unreleased's entries become 1.0.1's section with no
+ *                            date, under a fresh Unreleased. The same change is
+ *                            made where the line is cut and on main, so main's
+ *                            next is 1.0.2 and the line's betas are 1.0.1's
+ *   node scripts/version.mjs date 1.0.1 [--on 2026-10-14]
+ *                            the release's one change on its line: its section's
+ *                            date. What went out as a beta goes out as the release
+ *   node scripts/version.mjs lineof
+ *                            the release this checkout is the line of, or nothing
  *
  * The app's version is written in more places than anyone remembers to edit:
  * the frontend's package.json, the crate, the Tauri config (which is what the
@@ -87,6 +98,84 @@ function check() {
   );
 }
 
+const escaped = (version) => version.replace(/\./g, "\\.");
+
+/**
+ * A release on its line: Unreleased's entries become `version`'s section, with
+ * no date because the release is not out, and a fresh Unreleased opens above.
+ */
+export function lineChangelog(text, version) {
+  if (new RegExp(`^## \\[${escaped(version)}\\]`, "m").test(text))
+    throw new Error(`version: CHANGELOG.md already has a ${version} section`);
+  if (!/^## \[Unreleased\]/m.test(text))
+    throw new Error("version: CHANGELOG.md has no `## [Unreleased]` section to put on a line");
+  return text.replace(/^## \[Unreleased\].*$/m, `## [Unreleased]\n\n## [${version}]`);
+}
+
+/** The release's one change on its line: the date on its undated section. */
+export function datedChangelog(text, version, date) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`version: ${date} is not YYYY-MM-DD`);
+  const undated = new RegExp(`^## \\[${escaped(version)}\\][ \\t]*$`, "m");
+  if (!undated.test(text))
+    throw new Error(`version: CHANGELOG.md has no undated ${version} section to date`);
+  return text.replace(undated, `## [${version}] - ${date}`);
+}
+
+/**
+ * A fix carried to a line: what it added under Unreleased moves into the
+ * line's own `version` section, each entry under its kind (`### Fixed`…),
+ * so the release's notes hold it and Unreleased stays empty on the line.
+ */
+export function unreleasedInto(text, version) {
+  const lines = text.split("\n");
+  const at = (re, from = 0) => lines.findIndex((l, i) => i >= from && re.test(l));
+  const u = at(/^## \[Unreleased\]/);
+  const v = at(new RegExp(`^## \\[${escaped(version)}\\]`));
+  if (u < 0 || v < 0 || v < u) return text;
+  const moved = lines.slice(u + 1, v).filter((l) => l.trim());
+  if (!moved.length) return text;
+  // Unreleased's entries, by kind.
+  const kinds = new Map();
+  let kind = "### Fixed";
+  for (const l of moved) {
+    if (/^### /.test(l)) kind = l.trim();
+    else kinds.set(kind, [...(kinds.get(kind) ?? []), l]);
+  }
+  const end = at(/^## \[/, v + 1);
+  const section = lines.slice(v + 1, end < 0 ? lines.length : end);
+  for (const [k, entries] of kinds) {
+    const h = section.findIndex((l) => l.trim() === k);
+    if (h < 0) section.push("", k, "", ...entries);
+    else {
+      let i = h + 1;
+      while (i < section.length && !/^### /.test(section[i])) i++;
+      while (i > h + 1 && !section[i - 1].trim()) i--;
+      section.splice(i, 0, ...entries);
+    }
+  }
+  const tidy = section
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/^\n+/, "\n")
+    .split("\n");
+  // The next section keeps its blank line above it.
+  if (end >= 0 && tidy.at(-1) !== "") tidy.push("");
+  return [
+    ...lines.slice(0, u + 1),
+    "",
+    ...lines.slice(v, v + 1),
+    ...tidy,
+    ...(end < 0 ? [] : lines.slice(end)),
+  ]
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+/** The release a checkout is the line of: its files' version, when its section has no date yet. */
+export function lineVersion(text, version) {
+  return new RegExp(`^## \\[${escaped(version)}\\][ \\t]*$`, "m").test(text) ? version : null;
+}
+
 /** Keep a Changelog: Unreleased becomes the release, and a fresh Unreleased opens. */
 function cutChangelog(version) {
   const file = resolve(ROOT, "CHANGELOG.md");
@@ -107,7 +196,7 @@ function cutChangelog(version) {
   console.log(`version: CHANGELOG.md — Unreleased is now ${version} (${date})`);
 }
 
-function set(version) {
+function writeFiles(version) {
   if (!/^\d+\.\d+\.\d+$/.test(version)) {
     console.error(
       `version: "${version}" is not x.y.z — macOS reads CFBundleShortVersionString as three integers`,
@@ -125,8 +214,35 @@ function set(version) {
   }
   for (const [file, text] of edits) writeFileSync(resolve(ROOT, file), text);
   console.log(`version: ${version} → ${[...edits.keys()].join(", ")}`);
+}
+
+function set(version) {
+  writeFiles(version);
   cutChangelog(version);
   check();
+}
+
+/** The first beta's change, where the line is cut and on main alike. */
+function line(version) {
+  const changelog = resolve(ROOT, "CHANGELOG.md");
+  const [{ version: now }] = current();
+  const upcoming = nextVersion(readFileSync(changelog, "utf8"), now);
+  if (version !== upcoming)
+    throw new Error(`version: the next release is ${upcoming}, so ${version} cannot go on a line`);
+  writeFiles(version);
+  writeFileSync(changelog, lineChangelog(readFileSync(changelog, "utf8"), version));
+  console.log(`version: ${version} is on its line; Unreleased is open for what comes after it`);
+  check();
+}
+
+/** The release's one change on its line. */
+function date(version, on) {
+  const changelog = resolve(ROOT, "CHANGELOG.md");
+  const [{ version: now }] = current();
+  if (now !== version) throw new Error(`version: the files say ${now}, not ${version}`);
+  const day = on ?? new Date().toLocaleDateString("en-CA");
+  writeFileSync(changelog, datedChangelog(readFileSync(changelog, "utf8"), version, day));
+  console.log(`version: CHANGELOG.md — ${version} is dated ${day}`);
 }
 
 /**
@@ -189,8 +305,22 @@ function next() {
   );
 }
 
-const arg = process.argv[2];
-if (!arg || arg === "--check") check();
-else if (arg === "notes") notes(process.argv[3] ?? "");
-else if (arg === "next") next();
-else set(arg);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const [arg, value, ...rest] = process.argv.slice(2);
+  const on = rest.includes("--on") ? rest[rest.indexOf("--on") + 1] : undefined;
+  try {
+    if (!arg || arg === "--check") check();
+    else if (arg === "notes") notes(value ?? "");
+    else if (arg === "next") next();
+    else if (arg === "line") line(value ?? "");
+    else if (arg === "date") date(value ?? "", on);
+    else if (arg === "lineof") {
+      const [{ version: now }] = current();
+      const of = lineVersion(readFileSync(resolve(ROOT, "CHANGELOG.md"), "utf8"), now);
+      if (of) process.stdout.write(`${of}\n`);
+    } else set(arg);
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+}

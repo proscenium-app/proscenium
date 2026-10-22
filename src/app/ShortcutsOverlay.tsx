@@ -10,6 +10,7 @@
  */
 import { GROUPS, LEADER_ROWS, SHORTCUTS } from "./keymap";
 import { Button, Sheet } from "../ui";
+import { keys } from "../ui/keys";
 
 export function ShortcutsOverlay({ onClose }: { onClose: () => void }) {
   return (
@@ -41,7 +42,7 @@ export function ShortcutList() {
           <dl className="keysheet__list">
             {SHORTCUTS.filter((s) => s.group === g).map((s) => (
               <div key={s.keys} className="keysheet__row">
-                <dt className="keysheet__keys">{s.keys}</dt>
+                <dt className="keysheet__keys">{keys(s.keys)}</dt>
                 <dd className="keysheet__what">{s.what}</dd>
               </div>
             ))}

@@ -26,7 +26,7 @@ import { useOutlineSession } from "./use-outline-session";
 import { captureDocumentScope } from "./document-scope";
 import { useMaterialSessions, type MaterialGate, type OpenMaterial } from "./use-material-sessions";
 export type { MaterialGate, OpenMaterial } from "./use-material-sessions";
-import { matchingPath } from "../storage/path-key";
+import { joinPath, matchingPath, pathKey } from "../storage/path-key";
 import { flatten } from "../workspace/binder";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
@@ -36,18 +36,21 @@ import { recoverBinderMoves } from "../workspace/binder-relocation";
 import { reviewRecoveryFiles } from "../storage/recover-sessions";
 import { BufferRecovery, type RecoveryBuffer } from "../storage/buffer-recovery";
 import { canonicalLanguage, DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
-import { commentJumpTarget } from "../comments";
+import { commentJumpTarget, liveRangeIds } from "../comments";
 import { syncAppearances } from "../materials";
 import {
+  burstTexts,
+  changesTo,
+  joinKey,
+  markEntry,
+  newestBurst,
   openChanges,
   recordExternalChange,
-  computeMarks,
-  emptyMarks,
-  mergeMarks,
   touchedScenes,
   type ChangesStore,
+  type ChangeTexts,
   type LedgerEntry,
-  type TrackedMarks,
+  type HistoryDoc,
 } from "../review";
 import {
   castFromBinder,
@@ -57,6 +60,7 @@ import {
   scrollPosIntoView,
   toEditorDoc,
 } from "../editor";
+import { scriptRedline } from "../editor/redline-doc";
 import { recallCaret, rememberCaret } from "./caret-memory";
 import { recallScript, rememberScript, scriptToOpen } from "./script-memory";
 import { oneAtATime, type Line } from "./one-at-a-time";
@@ -73,7 +77,7 @@ import {
 } from "../fountain";
 import type { FormatSpec } from "../format";
 import { useFormatRegistry } from "./formats/use-formats";
-import { settingsStore } from "./settings/store";
+import { settingsStore } from "../ui/settings-store";
 import {
   paginateDoc,
   scenePageMap,
@@ -83,9 +87,10 @@ import {
 } from "../layout";
 import { pdfExported } from "../diagnostics";
 import { revalidateFiles } from "../storage/revalidate";
+import { writeState } from "../storage/own-writes";
 import { watcherHealth } from "../storage/ipc";
 import { copyPractice } from "../tutorial/copy-practice";
-import { ulid } from "../workspace/ulid";
+import { ulid } from "../storage/ulid";
 import { tutorials, type ExportFileType, type PracticeSource } from "../storage/ipc";
 import { anonymousFrontMatter, anonymousMeta } from "../pdf/anonymous";
 import { pageRangeLabel, type FrontSheet } from "../pdf/plan";
@@ -97,7 +102,7 @@ import {
   KEPT_AT_QUIT,
   NO_FILE_YET,
   RecoverySnapshots,
-  SnapshotPolicy,
+  WritingVersions,
   decodeKeptAtQuit,
   encodeKeptAtQuit,
   keptAtQuitMessage,
@@ -314,21 +319,14 @@ function whenLaidOut(editor: Editor, done: () => void): void {
  */
 const APPEARANCES_DEBOUNCE_MS = 2000;
 
-/**
- * A script's body as text, with the title page removed. Tracked-change marks
- * are expressed as block indexes, and the editor's block 0 is the first BODY
- * element — not `Title:`.
- */
-function bodyTextOf(source: string): string {
-  try {
-    return serialize({ frontMatter: {}, doc: parse(source).doc });
-  } catch {
-    return source;
-  }
-}
+/** No changes for the script to draw. */
+const NO_IDS: readonly string[] = [];
 
 /** Idle gap before an external file event triggers a binder walk. */
 const RECONCILE_DEBOUNCE_MS = 1200;
+
+/** Idle gap before a play coming or going looks at the Plays folder again. */
+const PLAYS_SETTLE_MS = 400;
 
 /**
  * Run `fn` at most once per `delayMs`, scheduling on the FIRST call and letting
@@ -354,7 +352,7 @@ function scheduleThrottled(
   }, delayMs);
 }
 
-/** What the Versions panel works on: a script, a sheet, or the outline note. */
+/** A document's versions, for Changes: a script, a sheet, or the outline note. */
 export interface VersionsTarget {
   title: string;
   list: () => Promise<VersionEntry[]>;
@@ -489,12 +487,20 @@ export interface Workspace {
   binder: BinderItem[];
   /** What arrived from outside the app, newest last. */
   ledger: LedgerEntry[];
-  /** The before/after text for one entry, or null when there is no baseline. */
-  changeDiff: (entryId: string) => Promise<{ before: string; after: string } | null>;
-  /** Accept a change — it stays and stops asking for attention. */
-  keepChange: (entryId: string) => void;
-  /** Put a change back, through the same guarded writers an edit uses. */
-  revertChange: (entryId: string) => Promise<boolean>;
+  /**
+   * What a run of changes to one file did: the text before the first, and
+   * what the last left. Null when nothing was kept from before.
+   */
+  changeDiff: (entryIds: readonly string[]) => Promise<{ before: string; after: string } | null>;
+  /** The writer has seen these changes: they stop asking for attention, and stay listed. */
+  markSeen: (entryIds: readonly string[]) => void;
+  /**
+   * Put a run of changes to one file back, through the same guarded writers an
+   * edit uses. Only while the file still reads as the last of them left it.
+   */
+  revertChange: (entryIds: readonly string[]) => Promise<boolean>;
+  /** The file still reads as the last of these changes left it, so they can be put back. */
+  canRevert: (entryIds: readonly string[]) => Promise<boolean>;
   /** A provider conflict copy beside the file it is a copy of (docs/app/keeping-work/storage-and-file-format.md#STOR-D11). */
   loadOther: (path: string) => Promise<{ theirs: string; ours: string } | null>;
   /** Promote one over the file it copies, then trash it. */
@@ -503,11 +509,25 @@ export interface Workspace {
   trashOther: (path: string) => Promise<boolean>;
   /** Scene ordinals touched by a pending change, for the board/outliner marks. */
   changedScenes: Set<number>;
-  /** Inline tracked changes over the script — a view layer, never the document. */
+  /**
+   * The newest changes from outside drawn on the script itself
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-185): a view
+   * layer, never the document.
+   */
   showTracked: boolean;
   setShowTracked: (on: boolean) => void;
-  trackedMarks: TrackedMarks;
-  /** True when there is anything to show; the toggle hides itself otherwise. */
+  /** The texts that redline is drawn between, while it is shown. */
+  trackedRedline: { before: string; after: string } | null;
+  /** The changes it draws, oldest first: the newest burst from outside to the open script. */
+  trackedIds: readonly string[];
+  /**
+   * For two changes to one file, one after the other: whether the second began
+   * from exactly what the first left, where both texts were kept (`joinKey`).
+   * What groups changes into bursts, in Changes and on its tab
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-184).
+   */
+  ledgerJoins: ReadonlyMap<string, boolean>;
+  /** True when the script has changes from outside the writer has not seen; the toggle hides itself otherwise. */
   hasTrackedChanges: boolean;
   /** Binder entries whose file is missing on disk — surfaced, never removed. */
   missingItems: BinderItem[];
@@ -554,13 +574,29 @@ export interface Workspace {
   restoreVersion: (name: string) => Promise<boolean>;
   /** The script as it stands, serialized — the live side of a version compare. */
   currentScriptText: () => string;
+  /** Every document of the play that has versions, with them: the writer's half of Changes (docs/app/keeping-work/storage-and-file-format.md#STOR-119). */
+  historyDocs: () => Promise<HistoryDoc[]>;
+  /** The binder id of the script in the editor, or null. */
+  activeScriptId: () => string | null;
+  /** One version of any document of the play. */
+  readHistoryVersion: (docId: string, name: string) => Promise<string>;
+  /**
+   * What Changes can do with a document's versions: its words as they stand,
+   * and a restore through that document's guarded write. Null while it is not
+   * open — a restore writes through the open session, so it is opened first.
+   */
+  historyTarget: (docId: string) => Pick<VersionsTarget, "current" | "restore"> | null;
   // corkboard / outliner
   view: ScriptView;
   cards: SceneCard[];
   setView: (v: ScriptView) => void;
   openScene: (ordinal: number) => void;
-  /** Go to a comment in the script — the feed's click (docs/app/writing/comments.md#COMM-D5). */
-  openComment: (pos: number) => void;
+  /**
+   * Go to a comment in the script — the feed's click (docs/app/writing/comments.md#COMM-D5).
+   * `fromWords`: the click was on the comment's words, where it may be the
+   * first press of a double-click that selects one; that selection is left.
+   */
+  openComment: (pos: number, fromWords?: boolean) => void;
   /** The live editor, for the surfaces that read comments out of it. */
   editor: Editor | null;
   /** ⌘F / ⌘⌥F — open the find bar on the script from wherever the writer is. */
@@ -691,6 +727,10 @@ export interface Workspace {
   openCloudFolder: () => void;
   /** The iCloud container's path, or null when iCloud is unavailable. */
   cloudRoot: string | null;
+  /** The Welcome screen's first door, from the capability record. */
+  suggestedFolder: "icloud" | "documents" | null;
+  /** Put the plays in Documents › Plays, where there is no iCloud container (docs/app/keeping-work/storage-and-file-format.md#STOR-D12). */
+  openDocumentsFolder: () => void;
   /** Where the plays live, in one sentence (docs/app/keeping-work/storage-and-file-format.md#STOR-D11). */
   wherePlaysLive: string;
   /**
@@ -716,7 +756,7 @@ export interface Workspace {
     type: BinderItemType,
     title: string,
     atIndex?: number,
-    opts?: { name?: boolean },
+    opts?: { name?: boolean; home?: boolean },
   ) => void;
   createScript: (parentId: string | null, title: string, atIndex?: number) => void;
   /**
@@ -803,14 +843,18 @@ export function useWorkspace(): Workspace {
   const [materialsTick, setMaterialsTick] = useState(0);
   // The change ledger: what arrived from outside the app.
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  /** Per file, what the change still being recorded left (once read): what the next began from. */
+  const recordingRef = useRef(new Map<string, Promise<string | null>>());
   // Scene ordinals a pending change touched, so the board and the outliner can
   // say WHERE something arrived rather than only that something did.
   const [changedScenes, setChangedScenes] = useState<Set<number>>(() => new Set());
-  // Inline tracked changes: a view over the same pending
-  // entries, off by default because the writer asked to see the play, not the
-  // diff, unless they say otherwise.
+  // The newest changes from outside, drawn on the script: off until the
+  // writer asks, because they asked to see the play, not the change.
   const [showTracked, setShowTrackedState] = useState(false);
-  const [trackedMarks, setTrackedMarks] = useState<TrackedMarks>(() => emptyMarks());
+  const [tracked, setTracked] = useState<{
+    ids: string[];
+    texts: { before: string; after: string };
+  } | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [readOnly, setReadOnly] = useState(false);
   const [rawPlay, setRawPlay] = useState<RawPlayDetails | null>(null);
@@ -861,6 +905,7 @@ export function useWorkspace(): Workspace {
     setError: (error) => setError(error),
     setPreserved: (update) => setPreserved(update),
     saveLanded: (key) => saveLanded(key),
+    keepWritingVersion: (id, content, ext, before) => keepWritingVersion(id, content, ext, before),
     saveRefused: (key, error, subject) => saveRefused(key, error, subject),
     saveSubject: (kind, path) => saveSubject(kind, path),
     refusalFor: (key) => refusedRef.current.get(key),
@@ -914,6 +959,7 @@ export function useWorkspace(): Workspace {
     setError: (error) => setError(error),
     setPreserved: (update) => setPreserved(update),
     saveLanded: (key) => saveLanded(key),
+    keepWritingVersion: (id, content, ext, before) => keepWritingVersion(id, content, ext, before),
     saveRefused: (key, error, subject) => saveRefused(key, error, subject),
     saveSubject: (kind, path) => saveSubject(kind, path),
     runBinderOp: (operation) => runBinderOp(operation),
@@ -965,6 +1011,7 @@ export function useWorkspace(): Workspace {
   const [justCreated, setJustCreated] = useState<CreatedItem | null>(null);
   // Asked once. The UI branches on the capability, never on a platform name.
   const [canReveal, setCanReveal] = useState(false);
+  const [suggestedFolder, setSuggestedFolder] = useState<"icloud" | "documents" | null>(null);
   /** The iCloud container, or null where iCloud is unavailable (docs/app/keeping-work/storage-and-file-format.md#STOR-D12). */
   const [cloudRoot, setCloudRoot] = useState<string | null>(null);
   useEffect(() => {
@@ -979,7 +1026,11 @@ export function useWorkspace(): Workspace {
   }, []);
   useEffect(() => {
     let live = true;
-    void platform.capabilities().then((c) => live && setCanReveal(c.canReveal));
+    void platform.capabilities().then((c) => {
+      if (!live) return;
+      setCanReveal(c.canReveal);
+      setSuggestedFolder(c.suggestedFolder);
+    });
     return () => {
       live = false;
     };
@@ -1032,7 +1083,12 @@ export function useWorkspace(): Workspace {
   // Same shape for the binder reconciler: loadWorkspace and the watcher both
   // call it, and neither should re-bind when the binder changes.
   const reconcileNowRef = useRef<() => Promise<void>>(async () => {});
+  // The play file read and taken up whole, as a change of it from outside is;
+  // assigned once takePlayFromDisk exists below.
+  const takePlayFromDiskRef = useRef<(playPath: string) => Promise<void>>(async () => {});
   const reconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** A look at the Plays folder again, for a play that came or went (handleExternalChange). */
+  const playsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The ledger, and the script writer, read from callbacks that must not
   // re-bind every time an entry lands.
   const ledgerRef = useRef<LedgerEntry[]>([]);
@@ -1042,9 +1098,23 @@ export function useWorkspace(): Workspace {
   if (!autosaveRef.current) {
     autosaveRef.current = new AutosaveScheduler(DEFAULT_AUTOSAVE, () => flushRef.current());
   }
-  // Version cadence (docs/app/keeping-work/storage-and-file-format.md#STOR-D10): bucketed save snapshots.
-  const snapshotPolicyRef = useRef<SnapshotPolicy | null>(null);
-  if (!snapshotPolicyRef.current) snapshotPolicyRef.current = new SnapshotPolicy();
+  // Version cadence (docs/app/keeping-work/storage-and-file-format.md#STOR-115): bucketed
+  // save snapshots, and one when the saves go quiet — of a script, a sheet or outline notes.
+  // One keeper for the app's life: each held version carries the play it was written in.
+  const writingVersionsRef = useRef<WritingVersions | null>(null);
+  if (!writingVersionsRef.current)
+    writingVersionsRef.current = new WritingVersions((playId, id, content, ext) =>
+      versions.snapshot(playId, id, "save", content, ext).catch(() => null),
+    );
+  const keepWritingVersion = useCallback(
+    (id: string, content: string, ext: string, before?: string) => {
+      const playId = playIdRef.current;
+      if (playId) writingVersionsRef.current?.landed(playId, id, content, ext, before);
+    },
+    [],
+  );
+  /** What the open script's file holds, as far as this window knows: a save's `before`. */
+  const scriptOnDiskRef = useRef<string | null>(null);
   // Recovery snapshots (docs/app/keeping-work/storage-and-file-format.md#STOR-D10, docs/app/keeping-work/storage-and-file-format.md#STOR-D13): the open script's unsaved words, in
   // app data every few seconds while autosave has not landed them.
   const recoveryRef = useRef<RecoverySnapshots | null>(null);
@@ -1265,6 +1335,7 @@ export function useWorkspace(): Workspace {
    */
   const applyLoaded = useCallback(
     (path: string, content: string) => {
+      scriptOnDiskRef.current = content;
       // What the writer is about to look at becomes the review baseline, so a
       // later change from outside can be diffed and undone.
       void changesRef.current?.writeBaseline(path, content);
@@ -1281,6 +1352,50 @@ export function useWorkspace(): Workspace {
     },
     [loadDocIntoEditor, restoreCaret],
   );
+
+  /**
+   * Take up a version of the play file this page wrote, as what it holds and
+   * shows, or read the file again when that version may not be the newest
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-D9).
+   *
+   * A write's answer comes back after its bytes are on disk: the vault makes
+   * them durable first. In that moment another writer can replace the file,
+   * and the watcher's report of their version can be heard and taken up
+   * before this answer. Taken up blindly, the answer put the page back on its
+   * own older version: the binder showed it, the disk kept theirs, and no
+   * further event came to say so. So a written version is taken up only while
+   * the page holds the version it replaced (`over`), or that version itself;
+   * holding any other, the page took up a newer one meanwhile, and the disk is
+   * read again to say which is the file now.
+   *
+   * `ownsBinder` is a binder op's: its binder is the one to show. Any other
+   * commit that wrote over a version it did not start from was rebased onto
+   * another writer's, which is taken up whole, as the watcher would take it:
+   * its binder shown, the open script and sheets following their rows.
+   */
+  const takeWritten = useCallback(
+    (
+      base: Loaded<PlayFile> | null,
+      written: { data: PlayFile; hash: string; over: string },
+      ownsBinder = false,
+    ): boolean => {
+      const held = playRef.current?.hash;
+      const newest = held === written.over || held === written.hash;
+      const rebased = !ownsBinder && written.over !== base?.hash;
+      if (!newest || rebased) {
+        const playPath = playPathRef.current;
+        if (playPath) void takePlayFromDiskRef.current(playPath);
+        return false;
+      }
+      playRef.current = { data: written.data, hash: written.hash };
+      if (ownsBinder) setBinder(written.data.binder);
+      return true;
+    },
+    [],
+  );
+
+  // For the callbacks below that bind once; takeWritten never changes.
+  const takeWrittenRef = useRef(takeWritten);
 
   /**
    * Reconcile the play file's card records against the parsed doc, and write
@@ -1327,9 +1442,8 @@ export function useWorkspace(): Workspace {
       );
       if (!samePlay()) return;
       if (committed.status === "ok") {
-        playRef.current = { data: committed.data, hash: committed.hash };
-        setBinder(committed.data.binder);
-        if (sameScript()) setCards(run(committed.data).cards);
+        if (takeWrittenRef.current(base, committed) && sameScript())
+          setCards(run(committed.data).cards);
         return;
       }
       // A play from a newer app is left exactly as it is (docs/app/keeping-work/storage-and-file-format.md#STOR-D14).
@@ -1339,11 +1453,7 @@ export function useWorkspace(): Workspace {
       }
       // Contended: adopt disk truth so the next tick starts from a hash that
       // can actually succeed. Never keep the expectation that just failed.
-      if (committed.data) {
-        playRef.current = { data: committed.data, hash: committed.hash ?? "" };
-        setBinder(committed.data.binder);
-        if (sameScript()) setCards(run(committed.data).cards);
-      }
+      if (committed.data) void takePlayFromDiskRef.current(playPath);
     } catch {
       /* best-effort (docs/app/keeping-work/storage-and-file-format.md#STOR-107) — never blocks opening */
     }
@@ -1392,6 +1502,7 @@ export function useWorkspace(): Workspace {
         setStatus("saving");
         try {
           let content = serialize({ frontMatter: frontMatterRef.current, doc });
+          const onDiskBefore = scriptOnDiskRef.current ?? undefined;
           // Events arriving from here until onSaved are deferred, not decided
           // (a watcher event can outrun the write's promise, and our own bytes are not an edit from outside).
           let carried = session.beginWrite();
@@ -1419,10 +1530,9 @@ export function useWorkspace(): Workspace {
               void recoveryRef.current?.saved({ playId, scriptId: sid });
             }
             // Bucketed version of exactly what landed (docs/app/keeping-work/storage-and-file-format.md#STOR-D10).
-            if (sid && playId && snapshotPolicyRef.current?.shouldSnapshot(sid)) {
-              snapshotPolicyRef.current.record(sid);
-              void versions.snapshot(playId, sid, "save", content).catch(() => null);
-            }
+            if (sid && playId)
+              writingVersionsRef.current?.landed(playId, sid, content, "fountain", onDiskBefore);
+            if (stillOpen()) scriptOnDiskRef.current = content;
             if (!stillOpen()) continue;
             if (session.dirty) {
               // Typed mid-write: those keystrokes are not in what landed.
@@ -1735,7 +1845,7 @@ export function useWorkspace(): Workspace {
       const vaultPath = current.path;
 
       // The swap. Nothing is awaited from here until the session is in place.
-      snapshotPolicyRef.current?.reset(current.id); // first save of a session snapshots
+      writingVersionsRef.current?.reset(current.id); // first save of a session snapshots
       scriptPathRef.current = vaultPath;
       setScriptPathState(vaultPath);
       activeScriptIdRef.current = current.id;
@@ -1888,7 +1998,7 @@ export function useWorkspace(): Workspace {
    * defer, because the pane has to be un-hidden before a scroll can measure.
    */
   const openComment = useCallback(
-    (pos: number) => {
+    (pos: number, fromWords = false) => {
       const editor = editorRef.current;
       if (!editor) return;
       setView("editor");
@@ -1897,7 +2007,29 @@ export function useWorkspace(): Workspace {
         // Never the note's own position: page view hides it, so it has no
         // coordinates to scroll to (commentJumpTarget).
         const target = commentJumpTarget(editor.state, pos) ?? pos;
-        editor.chain().focus().setTextSelection(target).run();
+        // A double-click on a comment's words is a click, which comes here, and
+        // then a selection of the word (docs/app/writing/comments.md#COMM-57). This runs a
+        // task after the click, so the word may be selected already: the script
+        // still shows the comment, and leaves the selection where the writer
+        // made it. Read from the selection's range, not its anchor: WebKit
+        // anchors a whole paragraph's word on the paragraph, not on its text,
+        // and a test of the anchor's parent looked one element too high.
+        const picked = fromWords ? window.getSelection() : null;
+        const around =
+          picked && picked.rangeCount > 0 && !picked.isCollapsed
+            ? picked.getRangeAt(0).commonAncestorContainer
+            : null;
+        const selecting = !!(around instanceof Element ? around : around?.parentElement)?.closest(
+          ".commentsfeed",
+        );
+        // Focused now, not through the editor's own focus command, which
+        // focuses on the next frame: a frame that came after the second press
+        // of a double-click took the selection back out of the feed. Behind a
+        // locked screen frames are seconds apart, which is where it showed.
+        if (!selecting) {
+          editor.view.focus();
+          editor.commands.setTextSelection(target);
+        }
         scrollPosIntoView(editor.view, target, { center: true });
         editor.commands.focusComment(pos);
       }, 0);
@@ -1924,6 +2056,40 @@ export function useWorkspace(): Workspace {
     const doc = docRef.current;
     if (!doc) return "";
     return serialize({ frontMatter: frontMatterRef.current, doc });
+  }, []);
+
+  const historyDocs = useCallback(async (): Promise<HistoryDoc[]> => {
+    const playId = playIdRef.current;
+    if (!playId) return [];
+    const items = flatten(playRef.current?.data.binder ?? []).filter(
+      (it) =>
+        it.type === "script" ||
+        it.type === "character" ||
+        it.type === "document" ||
+        it.type === "outline",
+    );
+    const lists = await Promise.all(
+      items.map((it) => versions.list(playId, it.id).catch((): VersionEntry[] => [])),
+    );
+    return items
+      .map(
+        (it, i): HistoryDoc => ({
+          id: it.id,
+          title: titleOf(it),
+          path: it.path,
+          kind: it.type === "script" ? "script" : it.type === "outline" ? "outline" : "sheet",
+          versions: lists[i]!,
+        }),
+      )
+      .filter((doc) => doc.versions.length > 0);
+  }, []);
+
+  const activeScriptId = useCallback(() => activeScriptIdRef.current, []);
+
+  const readHistoryVersion = useCallback(async (docId: string, name: string) => {
+    const playId = playIdRef.current;
+    if (!playId) throw new Error("no play open");
+    return versions.read(playId, docId, name);
   }, []);
 
   // --- leave the open workspace safely ---
@@ -2171,7 +2337,8 @@ export function useWorkspace(): Workspace {
       // Versions and Changes are addressed by play id in app data (docs/app/keeping-work/storage-and-file-format.md#STOR-D10).
       const changes = openChanges(play.id);
       changesRef.current = changes;
-      snapshotPolicyRef.current = new SnapshotPolicy();
+      // A new play: what the last one's quiet saves held is kept now, under its own id.
+      writingVersionsRef.current?.flush();
       // Words the last quit kept in Versions because they could not be saved:
       // said the first time the play is open again, once its script has opened
       // (quit-note.ts, `sayQuitNote`). A note nobody can read is removed.
@@ -2311,7 +2478,7 @@ export function useWorkspace(): Workspace {
       if (!base) return;
       try {
         if (!(await teardownWorkspace())) return;
-        const opened = await vault.open(`${base}/${play.dir}`, play.id);
+        const opened = await vault.open(joinPath(base, play.dir), play.id);
         setRoot(opened.root);
         setConflictCopies(opened.conflicts);
         setPreserved([]);
@@ -2572,7 +2739,7 @@ export function useWorkspace(): Workspace {
       if (!from || vaultRootRef.current === null || !samePath(vaultRootRef.current, from)) {
         return false;
       }
-      return adoptPlaysFolder(`${from}/${dir}`);
+      return adoptPlaysFolder(joinPath(from, dir));
     },
     [adoptPlaysFolder],
   );
@@ -2643,6 +2810,20 @@ export function useWorkspace(): Workspace {
         return;
       }
       await openAny(root);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [openAny]);
+
+  /**
+   * Put the plays in Documents › Plays — the first answer to the Welcome
+   * screen's question where there is no iCloud container
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-D12). Rust makes the
+   * folder and grants it as a folder the writer chose.
+   */
+  const openDocumentsFolder = useCallback(async () => {
+    try {
+      await openAny(await vault.documentsRoot());
     } catch (e) {
       setError(String(e));
     }
@@ -2932,7 +3113,7 @@ export function useWorkspace(): Workspace {
       // written, and nothing here belongs on screen any more.
       if (playIdRef.current !== playId) return;
       if (committed.status === "ok") {
-        playRef.current = { data: committed.data, hash: committed.hash };
+        takeWrittenRef.current(base, committed);
         // Re-derive the view models: the stored records changed, and act,
         // heading and synopsis come from the doc, not the file.
         const doc = docRef.current;
@@ -2954,7 +3135,10 @@ export function useWorkspace(): Workspace {
   const rebaseEditor = useCallback((doc: Doc) => {
     const ed = editorRef.current;
     if (!ed) return;
-    const next = ed.schema.nodeFromJSON(toEditorDoc(ensureNonEmpty(doc)));
+    // A comment's range is named on the page and not in the script. Named here
+    // as the page names it, a range nothing changed is no difference.
+    const ranges = liveRangeIds(ed.getJSON() as Doc);
+    const next = ed.schema.nodeFromJSON(toEditorDoc(ensureNonEmpty(doc), ranges));
     const cur = ed.state.doc;
     const start = cur.content.findDiffStart(next.content);
     if (start === null || start === undefined) return;
@@ -3121,7 +3305,7 @@ export function useWorkspace(): Workspace {
           new Date().toISOString(),
         );
         if (committed.status === "ok" && playIdRef.current === playId) {
-          playRef.current = { data: committed.data, hash: committed.hash };
+          takeWritten(base, committed);
         }
         // Words typed while the move was out are on the page, not yet on disk.
         if (activeScriptIdRef.current === scriptId)
@@ -3131,7 +3315,7 @@ export function useWorkspace(): Workspace {
         setError(scriptMoved ? String(e) : changeRefused(e, "script", scriptPath));
       }
     },
-    [writeScriptDoc, changeRefused],
+    [writeScriptDoc, changeRefused, takeWritten],
   );
 
   const editSynopsis = useCallback(
@@ -3221,8 +3405,7 @@ export function useWorkspace(): Workspace {
 
       const res = await fn(ctx);
       if (res.ok) {
-        playRef.current = { data: res.play, hash: res.hash };
-        setBinder(res.play.binder);
+        takeWritten(base, { data: res.play, hash: res.hash, over: res.over }, true);
 
         /**
          * Follow every OPEN MATERIAL to wherever the op put it.
@@ -3286,6 +3469,7 @@ export function useWorkspace(): Workspace {
       settleOpenScript,
       unsavedTextsOf,
       materials.applyBinder,
+      takeWritten,
     ],
   );
 
@@ -3364,7 +3548,7 @@ export function useWorkspace(): Workspace {
           plan = await reconcileBinder(ctx.play.binder);
           setMissingItems(plan.missing);
           if (plan.added.length === 0 && plan.removed.length === 0 && plan.updated.length === 0) {
-            return { ok: true, play: ctx.play, hash: ctx.hash };
+            return { ok: true, play: ctx.play, hash: ctx.hash, over: ctx.hash };
           }
         }
         filed = plan.added;
@@ -3410,24 +3594,62 @@ export function useWorkspace(): Workspace {
 
   const acknowledgeFiled = useCallback(() => setNewlyFiled(new Set()), []);
 
-  /** The diff for one ledger entry: what was there, and what is there now. */
+  /** The ledger's entries for these ids, oldest first. */
+  const entriesOf = useCallback(
+    (ids: readonly string[]) =>
+      ids
+        .map((id) => ledgerRef.current.find((e) => e.id === id))
+        .filter((e): e is LedgerEntry => !!e)
+        .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts) || a.id.localeCompare(b.id)),
+    [],
+  );
+
+  /**
+   * What a run of changes to one file did: the text before the first, and the
+   * text the last left (bursts.ts) — the change as itself, not all that came
+   * to the file since it.
+   */
   const changeDiff = useCallback(
-    async (entryId: string): Promise<{ before: string; after: string } | null> => {
-      const entry = ledgerRef.current.find((e) => e.id === entryId);
+    async (ids: readonly string[]): Promise<{ before: string; after: string } | null> => {
+      const entries = entriesOf(ids);
       const changes = changesRef.current;
       const gen = workspaceGenRef.current;
-      if (!entry || !changes) return null;
-      const before = await changes.readBefore(entryId);
-      if (gen !== workspaceGenRef.current) return null;
-      if (before === null) return null; // recorded, but we never saw a "before"
+      const last = entries[entries.length - 1];
+      if (!last || !changes) return null;
+      const all = ledgerRef.current
+        .filter((e) => samePath(e.path, last.path))
+        .sort((a, b) => Date.parse(a.ts) - Date.parse(b.ts) || a.id.localeCompare(b.id));
+      const next = all[all.findIndex((e) => e.id === last.id) + 1] ?? null;
+      const read = await burstTexts(
+        entries,
+        { before: changes.readBefore, after: changes.readAfter },
+        next,
+        async () => {
+          try {
+            return (await vault.read(last.path)).content;
+          } catch {
+            return null;
+          }
+        },
+      );
+      return gen === workspaceGenRef.current ? read : null;
+    },
+    [entriesOf],
+  );
+
+  /** The file still reads as the last of these changes left it. */
+  const canRevert = useCallback(
+    async (ids: readonly string[]): Promise<boolean> => {
+      const entries = entriesOf(ids);
+      const last = entries[entries.length - 1];
+      if (!last || !entries.every((e) => e.revertable && e.status !== "reverted")) return false;
       try {
-        const after = (await vault.read(entry.path)).content;
-        return gen === workspaceGenRef.current ? { before, after } : null;
+        return (await vault.read(last.path)).hash === last.afterHash;
       } catch {
-        return null;
+        return false;
       }
     },
-    [],
+    [entriesOf],
   );
 
   /**
@@ -3521,15 +3743,52 @@ export function useWorkspace(): Workspace {
     }
   }, []);
 
-  /** Accept a change: it stays, and it stops asking for attention. */
-  const keepChange = useCallback(async (entryId: string) => {
+  /**
+   * Mark changes, in the ledger and in the list at once: the list does not
+   * wait for the write, and the badge goes as the writer looks.
+   */
+  const markChanges = useCallback((ids: readonly string[], status: "kept") => {
     const changes = changesRef.current;
-    const gen = workspaceGenRef.current;
-    if (!changes) return;
-    await changes.setStatus(entryId, "kept");
-    if (gen !== workspaceGenRef.current) return;
-    setLedger((prev) => prev.map((e) => (e.id === entryId ? { ...e, status: "kept" } : e)));
+    if (!changes || !ids.length) return;
+    const wanted = new Set(ids);
+    setLedger((prev) => {
+      let moved = false;
+      const next = prev.map((e) => {
+        if (!wanted.has(e.id)) return e;
+        const marked = markEntry(e, status);
+        if (marked !== e) moved = true;
+        return marked;
+      });
+      return moved ? next : prev;
+    });
+    void changes.markEntries(ids, status);
   }, []);
+
+  /** Seen: a change stays in the play and in the list, and stops asking for attention. */
+  const markSeen = useCallback(
+    (ids: readonly string[]) => {
+      const unseen = ids.filter(
+        (id) => ledgerRef.current.find((e) => e.id === id)?.status === "pending",
+      );
+      markChanges(unseen, "kept");
+    },
+    [markChanges],
+  );
+
+  const trackedRef = useRef(tracked);
+  trackedRef.current = tracked;
+  /**
+   * Draw the newest changes on the script, or put them away. Drawn is seen
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-183): put away, the
+   * script stops offering them, and Changes' Show in Script draws them again.
+   */
+  const setShowTracked = useCallback(
+    (on: boolean) => {
+      setShowTrackedState(on);
+      if (on) markChanges(trackedRef.current?.ids ?? [], "kept");
+    },
+    [markChanges],
+  );
 
   /**
    * Put a change back.
@@ -3541,11 +3800,14 @@ export function useWorkspace(): Workspace {
    * change to review.
    */
   const revertChange = useCallback(
-    (entryId: string): Promise<boolean> => {
+    (ids: readonly string[]): Promise<boolean> => {
       const changes = changesRef.current;
       const gen = workspaceGenRef.current;
-      const entry = ledgerRef.current.find((e) => e.id === entryId);
-      if (!entry || !changes) return Promise.resolve(false);
+      const run = entriesOf(ids);
+      // What the first found, against what the last left.
+      const first = run[0];
+      const entry = run[run.length - 1];
+      if (!first || !entry || !changes) return Promise.resolve(false);
       // Navigation waits for this operation, and material saves cannot race its
       // pin-and-write interval. Both the store and the selected entry are ours.
       return line(() =>
@@ -3553,7 +3815,7 @@ export function useWorkspace(): Workspace {
           if (gen !== workspaceGenRef.current) return false;
           const owner = findByPath(playRef.current?.data.binder ?? [], entry.path);
           if (!owner) return false;
-          const before = await changes.readBefore(entryId);
+          const before = await changes.readBefore(first.id);
           if (before === null) return false;
           const session = owner.id === activeScriptIdRef.current ? sessionRef.current : null;
           const stillReviewed = () =>
@@ -3602,17 +3864,18 @@ export function useWorkspace(): Workspace {
             return false;
           }
           await changes.writeBaseline(entry.path, before);
-          await changes.setStatus(entryId, "reverted");
+          const reverted = new Set(run.map((e) => e.id));
+          await changes.markEntries([...reverted], "reverted");
           if (gen === workspaceGenRef.current) {
             setLedger((prev) =>
-              prev.map((e) => (e.id === entryId ? { ...e, status: "reverted" } : e)),
+              prev.map((e) => (reverted.has(e.id) ? { ...e, status: "reverted" } : e)),
             );
           }
           return true;
         }),
       );
     },
-    [line, materialWrites, unsavedTextsOf, adoptMaterialWrite, changeRefused],
+    [line, materialWrites, unsavedTextsOf, adoptMaterialWrite, changeRefused, entriesOf],
   );
 
   const renameTo = useCallback(
@@ -3646,10 +3909,12 @@ export function useWorkspace(): Workspace {
       type: BinderItemType,
       title: string,
       atIndex?: number,
-      opts?: { name?: boolean },
+      opts?: { name?: boolean; home?: boolean },
     ) => {
       void (async () => {
-        const res = await runBinderOp((c) => newMaterial(c, parentId, type, title, atIndex));
+        const res = await runBinderOp((c) =>
+          newMaterial(c, parentId, type, title, atIndex, { home: opts?.home }),
+        );
         if (res?.ok && res.createdId) {
           const item = findById(res.play.binder, res.createdId);
           if (item) selectItem(item);
@@ -3862,7 +4127,7 @@ export function useWorkspace(): Workspace {
       );
       if (!sameScript()) return false;
       if (committed.status !== "ok") return false;
-      playRef.current = { data: committed.data, hash: committed.hash };
+      takeWrittenRef.current(base, committed);
       refreshLanguage((revision) => revision + 1);
       return true;
     } catch {
@@ -3888,7 +4153,7 @@ export function useWorkspace(): Workspace {
       );
       if (playIdRef.current !== playId) return;
       if (committed.status === "ok") {
-        playRef.current = { data: committed.data, hash: committed.hash };
+        takeWrittenRef.current(base, committed);
       } else {
         setError("This play changed on disk — the format choice wasn't saved.");
       }
@@ -4008,7 +4273,7 @@ export function useWorkspace(): Workspace {
       );
       if (playIdRef.current !== playId) return;
       if (committed.status === "ok") {
-        playRef.current = { data: committed.data, hash: committed.hash };
+        takeWrittenRef.current(base, committed);
         if (activeScriptIdRef.current === scriptId) {
           setCastHidden(scriptDataFor(committed.data, scriptId).castHidden ?? []);
         }
@@ -4218,6 +4483,21 @@ export function useWorkspace(): Workspace {
     [applyScriptText, snapshotBuffer],
   );
 
+  const historyTarget = useCallback(
+    (docId: string): Pick<VersionsTarget, "current" | "restore"> | null => {
+      if (docId === activeScriptIdRef.current)
+        return {
+          current: currentScriptText,
+          // Checked when pressed, not when drawn: another script may be in
+          // the editor by then, and this version is not one of its own.
+          restore: async (name) =>
+            activeScriptIdRef.current === docId ? restoreVersion(name) : false,
+        };
+      return versionsOf(docId);
+    },
+    [versionsOf, currentScriptText, restoreVersion],
+  );
+
   /**
    * The play as pages, for the export dialog to show before anything is
    * written. Deliberately the same paginator call `exportScriptPdf` makes
@@ -4337,12 +4617,89 @@ export function useWorkspace(): Workspace {
   // so each external change ran the whole handler, and its play-file read, once
   // per leaked listener. It compounds: the more the app writes, the slower
   // every subsequent write gets.
+  /**
+   * The Plays folder looked at again, once a burst of a sync client's files
+   * has settled, and its plays listed, while the Plays screen is up.
+   */
+  const lookForPlaysSoon = useCallback(() => {
+    if (playsTimerRef.current) clearTimeout(playsTimerRef.current);
+    const root = vaultRootRef.current;
+    playsTimerRef.current = setTimeout(() => {
+      playsTimerRef.current = null;
+      if (playDirRef.current !== null || vaultRootRef.current !== root) return;
+      void discoverPlays()
+        .then((found) => {
+          if (playDirRef.current === null && vaultRootRef.current === root) setPlays(found);
+        })
+        .catch(() => {
+          /* unreadable for now: the next change, or the next look, lists them */
+        });
+    }, PLAYS_SETTLE_MS);
+  }, []);
+
+  /**
+   * The PLAY FILE read and taken up whole: its binder shown, the open script's
+   * cards and cast, and the open script and sheets following their rows. A
+   * change of it from outside comes here, and so does a version of the page's
+   * own that may not be the newest (takeWritten).
+   */
+  const takePlayFromDisk = useCallback(
+    async (playPath: string): Promise<void> => {
+      const seen = playRef.current;
+      const fresh = await readPlayFile(playPath);
+      if (playPathRef.current !== playPath) return;
+      // A version was taken up while this read was out: one of this page's own
+      // writes, answered. Which of the two is newer only the disk can say, so it
+      // is read again (takeWritten has the other half of this).
+      if (playRef.current !== seen) return takePlayFromDiskRef.current(playPath);
+      if (fresh.status !== "valid" && fresh.status !== "unsupported") {
+        readOnlyRef.current = true;
+        setReadOnly(true);
+        setError(
+          "This play's details changed and could not be read. Reopen the play to review the original file.",
+        );
+        return;
+      }
+      if (fresh.hash === playRef.current?.hash) return; // our own echo
+      readOnlyRef.current = fresh.status === "unsupported";
+      setReadOnly(readOnlyRef.current);
+      playRef.current = fresh;
+      setBinder(fresh.data.binder);
+      const scriptId = activeScriptIdRef.current;
+      const doc = docRef.current;
+      if (scriptId && doc) {
+        setCards(reconcileCards({ doc, prior: scriptDataFor(fresh.data, scriptId) }).cards);
+        setCastHidden(scriptDataFor(fresh.data, scriptId).castHidden ?? []);
+      }
+      // Renamed or moved somewhere else — another Mac, the iPad. The open
+      // script and every open sheet follow their rows, as they do after a
+      // rename made here; left at the old path, the next autosave recreated
+      // the old file with the new words.
+      const moved = scriptId ? findById(fresh.data.binder, scriptId) : null;
+      if (moved?.path && moved.path !== scriptPathRef.current && sessionRef.current) {
+        scriptPathRef.current = moved.path;
+        setScriptPathState(moved.path);
+        setScriptTitle(titleOf(moved));
+        recoveryRef.current?.moved(moved.path);
+      }
+      materials.applyBinder(fresh.data.binder, false);
+    },
+    [materials.applyBinder],
+  );
+  takePlayFromDiskRef.current = takePlayFromDisk;
+
   // Extracted so the foreground rescan (below) can feed it too. There must be
   // exactly ONE place that judges "the file changed under us" — docs/app/keeping-work/storage-and-file-format.md#STOR-104 is not
   // something to re-implement per platform.
   const handleExternalChange = useCallback(
-    (e: { root?: string; relPath: string; hash: string | null }) => {
+    (e: { root?: string; relPath: string; hash: string | null; revalidated?: boolean }) => {
       if (e.root && (!activeRootRef.current || !samePath(e.root, activeRootRef.current))) return;
+      // On the Plays screen, a play that comes or goes is listed with nothing
+      // pressed: a sync client brings a play down from another device a file at
+      // a time, often after the app has opened, and the folder is what lists
+      // the plays (docs/app/keeping-work/storage-and-file-format.md#STOR-21).
+      if (playDirRef.current === null && /^[^/]+\/[^/]+\.proscenium$/i.test(e.relPath))
+        lookForPlaysSoon();
       const session = sessionRef.current;
       const changes = changesRef.current;
       const gen = workspaceGenRef.current;
@@ -4376,18 +4733,51 @@ export function useWorkspace(): Workspace {
        * — a start-up scan, a return to the app — records nothing (record.ts).
        */
       if (changes && e.hash !== null && isReviewable(e.relPath)) {
+        // When it was heard, not when its read came back: every version kept
+        // in reaction to it is stamped later, so the two have one order
+        // (review/timeline.ts counts on it).
+        const heardIso = new Date().toISOString();
+        // What the writer last saw, read as the change is heard: the reload it
+        // sets off below writes the new text as the baseline (applyLoaded), and
+        // a read after the file's would race that write and could lose.
+        const heard = changes.readBaseline(e.relPath);
+        heard.catch(() => {}); // answered, or failed, in the record below
+        // A change heard while the one before it to this file is still being
+        // recorded began from what that one left, which that record has not
+        // made the baseline yet. Read against the baseline, it carried the
+        // change before it, and the two read as apart, not as one burst
+        // (docs/app/keeping-work/storage-and-file-format.md#STOR-184).
+        const key = `${changes.playId}\n${pathKey(e.relPath)}`;
+        const prior = recordingRef.current.get(key);
+        const before = prior ? prior.then((left) => left ?? heard) : heard;
+        before.catch(() => {});
+        // The bytes this event was about are gone already: what replaced
+        // them is told by its own event, or is a save of the app's, whose
+        // baseline it writes itself. Recorded against a baseline its own
+        // save had not yet moved, a save of the app's read as a change
+        // from outside.
+        const fresh = vault.read(e.relPath).then((f) => (f.hash === e.hash ? f : null));
+        const left = fresh.then(
+          (f) => f?.content ?? null,
+          () => null,
+        );
+        recordingRef.current.set(key, left);
         void (async () => {
           try {
-            const fresh = await vault.read(e.relPath);
+            const read = await fresh;
+            if (!read) return;
             const entry = await recordExternalChange(changes, {
               path: e.relPath,
-              after: fresh.content,
-              afterHash: fresh.hash,
-              nowIso: new Date().toISOString(),
+              after: read.content,
+              afterHash: read.hash,
+              nowIso: heardIso,
+              before,
             });
             if (entry && gen === workspaceGenRef.current) setLedger((prev) => [...prev, entry]);
           } catch {
             /* unreadable right now: nothing to record, and nothing is gated */
+          } finally {
+            if (recordingRef.current.get(key) === left) recordingRef.current.delete(key);
           }
         })();
       }
@@ -4401,41 +4791,7 @@ export function useWorkspace(): Workspace {
        */
       const playPath = playPathRef.current;
       if (playPath && eventPath === playPath) {
-        void (async () => {
-          const fresh = await readPlayFile(playPath);
-          if (playPathRef.current !== playPath) return;
-          if (fresh.status !== "valid" && fresh.status !== "unsupported") {
-            readOnlyRef.current = true;
-            setReadOnly(true);
-            setError(
-              "This play's details changed and could not be read. Reopen the play to review the original file.",
-            );
-            return;
-          }
-          if (fresh.hash === playRef.current?.hash) return; // our own echo
-          readOnlyRef.current = fresh.status === "unsupported";
-          setReadOnly(readOnlyRef.current);
-          playRef.current = fresh;
-          setBinder(fresh.data.binder);
-          const scriptId = activeScriptIdRef.current;
-          const doc = docRef.current;
-          if (scriptId && doc) {
-            setCards(reconcileCards({ doc, prior: scriptDataFor(fresh.data, scriptId) }).cards);
-            setCastHidden(scriptDataFor(fresh.data, scriptId).castHidden ?? []);
-          }
-          // Renamed or moved somewhere else — another Mac, the iPad. The open
-          // script and every open sheet follow their rows, as they do after a
-          // rename made here; left at the old path, the next autosave recreated
-          // the old file with the new words.
-          const moved = scriptId ? findById(fresh.data.binder, scriptId) : null;
-          if (moved?.path && moved.path !== scriptPathRef.current && sessionRef.current) {
-            scriptPathRef.current = moved.path;
-            setScriptPathState(moved.path);
-            setScriptTitle(titleOf(moved));
-            recoveryRef.current?.moved(moved.path);
-          }
-          materials.applyBinder(fresh.data.binder, false);
-        })();
+        void takePlayFromDisk(playPath);
         return;
       }
       // Each document session applies its own dirty-buffer and hash checks.
@@ -4479,14 +4835,14 @@ export function useWorkspace(): Workspace {
         );
         return;
       }
-      const decision = session.onExternalChange(e.hash);
+      const decision = session.onExternalChange(e.hash, { revalidated: e.revalidated });
       if (decision.kind === "reload") void reloadFromDisk();
       else if (decision.kind === "dirty-gate") {
         setGate(true);
         setStatus("conflict");
       }
     },
-    [reloadFromDisk, materials.applyBinder, materials.onExternal, outline.onExternal],
+    [reloadFromDisk, takePlayFromDisk, materials.onExternal, outline.onExternal, lookForPlaysSoon],
   );
   handleExternalChangeRef.current = handleExternalChange;
 
@@ -4562,6 +4918,7 @@ export function useWorkspace(): Workspace {
             vault.read,
             handleExternalChange,
             () => !cancelled && workspaceGenRef.current === generation,
+            writeState,
           );
           if (!cancelled && workspaceGenRef.current === generation) void reconcileNowRef.current();
         } while (again && !cancelled);
@@ -4570,7 +4927,10 @@ export function useWorkspace(): Workspace {
       }
     };
     const onForeground = () => {
-      if (document.visibilityState === "visible") void rescan();
+      if (document.visibilityState !== "visible") return;
+      // Back on the Plays screen: what came down meanwhile is listed too.
+      if (playDirRef.current === null) lookForPlaysSoon();
+      void rescan();
     };
     document.addEventListener("visibilitychange", onForeground);
     window.addEventListener("focus", onForeground);
@@ -4589,52 +4949,134 @@ export function useWorkspace(): Workspace {
       window.removeEventListener("focus", onForeground);
       off?.();
     };
-  }, [handleExternalChange]);
+  }, [handleExternalChange, lookForPlaysSoon]);
 
   /**
-   * Which scenes carry a mark right now.
+   * Which scenes carry a mark, and the newest changes from outside the script
+   * can draw on itself
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-185).
    *
-   * Derived from the pending entries for the OPEN script only — a change to a
+   * Derived from the ledger for the OPEN script only — a change to a
    * character sheet has no scene to point at. Recomputed when the ledger moves,
-   * never stored: this is a view of the ledger, not a second copy of it.
+   * never stored: this is a view of the ledger, not a second copy of it. Each
+   * is ONE comparison: the scenes from before the first change the writer has
+   * not seen, the redline across the newest burst. Laid one over another,
+   * forty changes drew the same cut line forty times.
    */
   useEffect(() => {
     const path = scriptPath;
     const changes = changesRef.current;
-    const pending = ledger.filter(
-      (e) => e.status === "pending" && e.revertable && path !== null && samePath(e.path, path),
-    );
-    if (!path || !changes || pending.length === 0) {
+    if (!path || !changes) {
       setChangedScenes((prev) => (prev.size === 0 ? prev : new Set()));
+      setTracked(null);
       return;
     }
+    const list = changesTo(ledger, path, samePath);
+    const unseen = list.filter((e) => e.status === "pending");
+    const texts: ChangeTexts = { before: changes.readBefore, after: changes.readAfter };
     let dead = false;
     void (async () => {
-      const marks = new Set<number>();
-      const tracked: TrackedMarks[] = [];
-      try {
-        const after = (await vault.read(path)).content;
-        for (const entry of pending) {
-          const before = await changes.readBefore(entry.id);
-          if (before === null) continue;
-          for (const ord of touchedScenes(before, after)) marks.add(ord);
-          // The editor holds the BODY doc; the title page is a separate
-          // surface. Diffing whole files would offset every block index by the
-          // title-page lines and put the marks on the wrong speeches, so both
-          // sides are reduced to body text first.
-          tracked.push(computeMarks(bodyTextOf(before), bodyTextOf(after)));
+      let scenes = new Set<number>();
+      let next: { ids: string[]; texts: { before: string; after: string } } | null = null;
+      const current = async () => {
+        try {
+          return (await vault.read(path)).content;
+        } catch {
+          return null;
         }
+      };
+      try {
+        const first = unseen[0];
+        const before = first ? await texts.before(first.id) : null;
+        const now = before === null ? null : await current();
+        if (before !== null && now !== null) scenes = touchedScenes(before, now);
+        const burst = await newestBurst(list, texts);
+        const read = burst.length ? await burstTexts(burst, texts, null, current) : null;
+        // Offered only when it has something to draw: a change to the title
+        // page alone changes no element of the script.
+        if (read && scriptRedline(read.before, read.after).changes > 0)
+          next = { ids: burst.map((e) => e.id), texts: read };
       } catch {
         /* a script we cannot read carries no marks */
       }
       if (dead) return;
-      setChangedScenes(marks);
-      setTrackedMarks(mergeMarks(tracked));
+      setChangedScenes((prev) =>
+        prev.size === scenes.size && [...scenes].every((s) => prev.has(s)) ? prev : scenes,
+      );
+      setTracked((prev) =>
+        prev &&
+        next &&
+        prev.ids.join() === next.ids.join() &&
+        prev.texts.before === next.texts.before &&
+        prev.texts.after === next.texts.after
+          ? prev
+          : next,
+      );
     })();
     return () => {
       dead = true;
     };
   }, [ledger, scriptPath]);
+
+  /*
+   * Whether each change to a file began from what the one before it left: read
+   * once per pair, since neither text ever changes, and again for a new play.
+   */
+  const [ledgerJoins, setLedgerJoins] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+  const joinsRef = useRef<{ store: ChangesStore | null; known: Map<string, boolean> }>({
+    store: null,
+    known: new Map(),
+  });
+  useEffect(() => {
+    const changes = changesRef.current;
+    if (!changes) return;
+    if (joinsRef.current.store !== changes) {
+      joinsRef.current = { store: changes, known: new Map() };
+      setLedgerJoins(new Map());
+    }
+    const known = joinsRef.current.known;
+    const sorted = [...ledger].sort(
+      (a, b) => Date.parse(a.ts) - Date.parse(b.ts) || a.id.localeCompare(b.id),
+    );
+    const pairs: [LedgerEntry, LedgerEntry][] = [];
+    const lastOf = new Map<string, LedgerEntry>();
+    for (const e of sorted) {
+      const prev = [...lastOf.entries()].find(([path]) => samePath(path, e.path))?.[1];
+      if (prev && !known.has(joinKey(prev.id, e.id))) pairs.push([prev, e]);
+      for (const path of lastOf.keys()) if (samePath(path, e.path)) lastOf.delete(path);
+      lastOf.set(e.path, e);
+    }
+    if (!pairs.length) return;
+    let dead = false;
+    void Promise.all(
+      pairs.map(async ([prev, next]) => {
+        const [left, began] = await Promise.all([
+          changes.readAfter(prev.id),
+          changes.readBefore(next.id),
+        ]);
+        // Kept before after-texts were: nothing to say, and Changes falls back.
+        if (left !== null && began !== null) known.set(joinKey(prev.id, next.id), left === began);
+      }),
+    ).then(() => {
+      if (!dead && joinsRef.current.known === known) setLedgerJoins(new Map(known));
+    });
+    return () => {
+      dead = true;
+    };
+  }, [ledger]);
+
+  // While it is on, a change that joins the burst it draws is drawn, and so seen.
+  useEffect(() => {
+    if (showTracked && tracked) markChanges(tracked.ids, "kept");
+  }, [showTracked, tracked, markChanges]);
+
+  // Another script in front, or nothing left to draw: the redline is put away.
+  useEffect(() => {
+    setShowTrackedState(false);
+  }, [scriptPath]);
+  useEffect(() => {
+    if (!tracked) setShowTrackedState(false);
+  }, [tracked]);
 
   /**
    * Keep each character sheet's `## Appearances` current.
@@ -4898,12 +5340,18 @@ export function useWorkspace(): Workspace {
     ledger,
     changedScenes,
     showTracked,
-    setShowTracked: setShowTrackedState,
-    trackedMarks,
-    hasTrackedChanges: trackedMarks.added.size > 0 || trackedMarks.removedBefore.size > 0,
+    setShowTracked,
+    trackedRedline: showTracked ? (tracked?.texts ?? null) : null,
+    trackedIds: tracked?.ids ?? NO_IDS,
+    ledgerJoins,
+    hasTrackedChanges:
+      showTracked ||
+      (!!tracked &&
+        tracked.ids.some((id) => ledger.find((e) => e.id === id)?.status === "pending")),
     changeDiff,
-    keepChange: (id) => void keepChange(id),
+    markSeen,
     revertChange,
+    canRevert,
     missingItems,
     newlyFiled,
     acknowledgeFiled,
@@ -4941,6 +5389,10 @@ export function useWorkspace(): Workspace {
     recoverOffer,
     discardOffer: () => void discardOffer(),
     versionsOf,
+    historyDocs,
+    activeScriptId,
+    readHistoryVersion,
+    historyTarget,
     outlineNoteId: outlineNotePath ? (outline.record()?.id ?? null) : null,
     listVersions,
     readVersion,
@@ -5007,6 +5459,8 @@ export function useWorkspace(): Workspace {
     openFolder: () => void line(() => openFolder()),
     openCloudFolder: () => void line(() => openCloudFolder()),
     cloudRoot,
+    suggestedFolder,
+    openDocumentsFolder: () => void line(() => openDocumentsFolder()),
     wherePlaysLive,
     playsProvider: providerKind(playsProviders),
     selectItem,

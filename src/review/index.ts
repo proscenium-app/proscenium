@@ -10,9 +10,12 @@
  * list is how the writer finds out, and Versions is how they undo it.
  */
 export {
+  afterPath,
   baselinePath,
   beforePath,
+  markEntry,
   openChanges,
+  AFTER_DIR,
   BASELINE_DIR,
   BEFORE_DIR,
   LEDGER_PATH,
@@ -29,5 +32,10 @@ export type { DiffLine } from "./diff";
 export { ChangesView } from "./ChangesView";
 export type { ChangesViewProps } from "./ChangesView";
 
-export { computeMarks, emptyMarks, mergeMarks } from "./tracked";
-export type { TrackedMarks } from "./tracked";
+export type { ChangesLook, DocumentPage, ScriptPage } from "./Comparison";
+
+export { burstTexts, changesTo, newestBurst } from "./bursts";
+export type { ChangeTexts } from "./bursts";
+
+export { buildTimeline, filterTimeline, joinKey, SITTING_GAP_MS } from "./timeline";
+export type { HistoryDoc, SittingDoc, TimelineEntry, Who } from "./timeline";

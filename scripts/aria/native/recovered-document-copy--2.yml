@@ -1,0 +1,7 @@
+- dialog "Saved copy of Notes/Outline.md"
+  - heading "Saved copy of Notes/Outline.md" [level=2]
+  - paragraph
+  - textbox "Saved words from Notes/Outline.md" [readonly]
+  - button "Close"
+  - status [live=polite]
+  - alert [live=assertive]

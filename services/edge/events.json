@@ -105,5 +105,20 @@
       ]
     },
     "why": "Fix the errors writers actually meet without collecting error messages."
+  },
+  "copy_active": {
+    "props": {
+      "period": [
+        "day",
+        "week",
+        "month"
+      ],
+      "installed": [
+        "new",
+        "recent",
+        "earlier"
+      ]
+    },
+    "why": "Count how many copies are in use each day, week and month, and how many are new, without anything that tells one copy from another."
   }
 }

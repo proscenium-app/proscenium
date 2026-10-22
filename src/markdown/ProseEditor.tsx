@@ -25,7 +25,10 @@ import { Extension, Node as TipTapNode } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { DocumentCaret } from "./caret";
 import { toDoc, toMarkdown, type Node } from "./doc";
+import { DocumentLists } from "./lists";
+import { paperClick } from "./paper-click";
 import { emit, loaded, proseSync, propArrived } from "./prose-sync";
 
 /**
@@ -91,7 +94,17 @@ export const PROSE_EXTENSIONS = [
      */
     strike: false,
     underline: false,
+    /**
+     * A document that ends in a list ends there. The stock rule keeps an empty
+     * paragraph after any last block that is not one, so that a table or a code
+     * block can be left; a list is left with Return on an empty item, and the
+     * spare paragraph under it is where a click below the last item landed:
+     * outside the list, on a line that is not in the file.
+     */
+    trailingNode: { notAfter: ["bulletList", "orderedList"] },
   }),
+  DocumentLists,
+  DocumentCaret,
   Table.configure({ resizable: false }),
   TableRow,
   aligned(TableHeader),
@@ -186,6 +199,7 @@ export function ProseEditor({
        * that window at all: it is handed the editor by `onReady`, which is
        * `create`.
        */
+      handleClick: paperClick,
       handleDOMEvents: {
         keydown: acted,
         beforeinput: acted,
@@ -227,7 +241,8 @@ export function ProseEditor({
   }, [editor, markdown]);
 
   useEffect(() => {
-    editor?.setEditable(editable);
+    // Editable or not changes no word: no update for it.
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   return <EditorContent editor={editor} className="prose-host" />;

@@ -7,7 +7,7 @@
  */
 export { SettingsSheet, type SettingsSheetProps } from "./SettingsSheet";
 export { SETTINGS_SECTIONS, type SettingsSection } from "./sections";
-export { openSettings, useSettingsSheet } from "./open";
+export { openSettings, useSettingsSheet } from "../../ui/settings-open";
 export {
   forgetWord,
   learnWord,
@@ -15,5 +15,5 @@ export {
   updateSettings,
   useSettings,
   useSettingsLoaded,
-} from "./store";
+} from "../../ui/settings-store";
 export { useOpenAtLaunch } from "./launch";

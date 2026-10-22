@@ -9,6 +9,7 @@
     "test:live": "node --test test/workerd-live.node.ts",
     "typecheck": "tsc --noEmit",
     "dev": "wrangler dev --config wrangler.local.jsonc",
+    "dev:standin": "bun test/standin-dev.ts",
     "deploy": "node ../../scripts/edge-wrangler.mjs deploy"
   },
   "devDependencies": {

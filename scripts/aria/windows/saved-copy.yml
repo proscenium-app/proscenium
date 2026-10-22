@@ -1,0 +1,95 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Second Draft"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes" [selected]
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - button "1 new file filed ✓"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+    - treeitem "Second Draft ● Rename “Second Draft” Actions for “Second Draft”" [level=1] [selected]:
+      - text: Second Draft ●
+      - button "Rename “Second Draft”"
+      - button "Actions for “Second Draft”"
+    - group "Scenes in Second Draft":
+      - treeitem "Scene 1" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - heading "Copies kept during a save" [level=3]
+  - button "Saved copy of Second Draft.fountain <date>, <time>"
+  - tablist "Whose changes":
+    - tab "All" [selected]
+    - tab "Mine"
+    - tab "From Outside"
+  - tablist "How changes are shown":
+    - tab "On the Page" [selected]
+    - tab "Line by Line"
+  - navigation "Changes, newest first":
+    - heading "Today" [level=3]
+    - list:
+      - listitem:
+        - 'button "You wrote <time> The Weight of Water ACT TWO: SCENE 1 3 words added"'
+        - text: You wrote Today, <time>
+        - button "Newer" [disabled]
+        - button "Older" [disabled]
+        - text: "The Weight of Water ACT TWO: SCENE 1 3 words added"
+        - group "Changes on this page"
+        - group "Versions of The Weight of Water":
+          - button "Whole sitting" [pressed]
+          - button "<time>, while writing": <time>
+        - region "What changed in The Weight of Water in this sitting":
+          - group "The Weight of Water, with its changes marked":
+            - separator "21 unchanged elements not shown. ACT TWO · SCENE 1"
+            - text: Boxes everywhere. The tap is gone, capped with a brass plug. MARA It's quiet now. I keep listening for it.
+            - insertion: Ebb and flow.
+        - button "Open The Weight of Water to Restore"
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - paragraph: No scene here
+  - paragraph: "Put the caret in a scene, or type ## Scene in the script, and its card appears here."
+- contentinfo:
+  - button "<plays>\\The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Saved copy of Second Draft.fountain":
+  - heading "Saved copy of Second Draft.fountain" [level=2]
+  - paragraph: This copy was kept when a file changed during a save or a save was interrupted. You can select and copy its words. Reading it does not change your play.
+  - textbox "Saved words from Second Draft.fountain"
+  - button "Close"
+  - status
+  - alert

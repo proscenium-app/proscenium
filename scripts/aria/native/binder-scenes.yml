@@ -39,10 +39,6 @@
     - listitem "The Weight of Water"
       - button "The Weight of Water" [current=true]
       - button "Close The Weight of Water"
-    - listitem "Outline"
-      - button "Outline"
-    - listitem "1953 North Sea Flood"
-      - button "1953 North Sea Flood"
   - button "Add a surface to this pane" [haspopup]
   - button "What this line is: Scene" [haspopup]
   - button "Bold" [disabled]
@@ -65,20 +61,16 @@
   - generic
   - textbox "Summary"
   - generic
-  - button "Scene status: draft" [haspopup]
-  - generic
-  - textbox "Label"
-  - generic
-  - radiogroup "Card colour"
-    - radio "Unmarked" [checked]
+  - radiogroup "Scene color"
+    - radio "No Color"
     - radio "Setup" [checked]
-    - radio "Turns" [checked]
-    - radio "Interior" [checked]
-    - radio "Subplot" [checked]
-    - radio "Revise" [checked]
-    - radio "Parked" [checked]
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
   - generic
-  - textbox "Board note"
+  - textbox "Notes"
   - generic
   - generic
   - button "Show"

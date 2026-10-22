@@ -14,6 +14,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub use super::active::{Installed, Period};
+
 /// Where this copy came from, which is also what updates it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
@@ -24,6 +26,11 @@ pub enum Channel {
     /// Built on this Mac by `bun run app:install`, updated by nothing: an
     /// updater there would replace it with the next alpha.
     Local,
+    /// Windows' direct download: the installer from the site, GitHub or
+    /// winget, updated by the app itself.
+    Download,
+    /// The Microsoft Store's build, updated by the Store.
+    MicrosoftStore,
 }
 
 impl Channel {
@@ -32,6 +39,10 @@ impl Channel {
     pub fn of_this_build() -> Self {
         if cfg!(feature = "local") {
             Channel::Local
+        } else if cfg!(all(windows, feature = "updater")) {
+            Channel::Download
+        } else if cfg!(windows) {
+            Channel::MicrosoftStore
         } else if cfg!(feature = "updater") {
             Channel::DeveloperId
         } else {
@@ -44,6 +55,8 @@ impl Channel {
             Channel::DeveloperId => "developer-id",
             Channel::AppStore => "app-store",
             Channel::Local => "local",
+            Channel::Download => "download",
+            Channel::MicrosoftStore => "microsoft-store",
         }
     }
 }
@@ -80,6 +93,7 @@ impl PlaysBucket {
 
 /// The places a writer works, as `surface_shown` names them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[cfg_attr(feature = "selftest", derive(Serialize))]
 #[serde(rename_all = "kebab-case")]
 pub enum Surface {
     Script,
@@ -105,6 +119,7 @@ impl Surface {
 
 /// What a PDF export printed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[cfg_attr(feature = "selftest", derive(Serialize))]
 #[serde(rename_all = "lowercase")]
 pub enum ExportKind {
     Whole,
@@ -179,6 +194,18 @@ impl Version {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+/// A build's whole version, as its reports carry it (version.rs): a release's
+/// `X.Y.Z`, or a track build's `X.Y.Z-alpha.N` or `X.Y.Z-beta.N`. The service
+/// takes a published beta's reports as a release's and counts them apart by it
+/// (docs/engineering/services-and-feedback.md#SERV-272). `update_installed`
+/// still names releases alone ([`Version`]).
+pub fn build_version(v: &str) -> bool {
+    match v.split_once('-') {
+        None => Version::parse(v).is_some(),
+        Some((base, _)) => Version::parse(base).is_some() && crate::version::belongs_to(v, base),
     }
 }
 
@@ -274,12 +301,30 @@ error_codes! {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     AppLaunched,
-    PlayOpened { plays: PlaysBucket },
-    SurfaceShown { surface: Surface },
-    PdfExported { kind: ExportKind, format: FormatRef },
+    PlayOpened {
+        plays: PlaysBucket,
+    },
+    SurfaceShown {
+        surface: Surface,
+    },
+    PdfExported {
+        kind: ExportKind,
+        format: FormatRef,
+    },
     FormatSaved,
-    UpdateInstalled { from: Version, to: Version },
-    ErrorShown { code: ErrorCode },
+    UpdateInstalled {
+        from: Version,
+        to: Version,
+    },
+    ErrorShown {
+        code: ErrorCode,
+    },
+    /// This copy is in use in a day, week or month it has not counted itself
+    /// in yet (active.rs). Rust's own, never the page's.
+    CopyActive {
+        period: Period,
+        installed: Installed,
+    },
 }
 
 impl Event {
@@ -292,6 +337,7 @@ impl Event {
             Event::FormatSaved => "format_saved",
             Event::UpdateInstalled { .. } => "update_installed",
             Event::ErrorShown { .. } => "error_shown",
+            Event::CopyActive { .. } => "copy_active",
         }
     }
 
@@ -312,13 +358,19 @@ impl Event {
                 vec![("from", from.as_str().into()), ("to", to.as_str().into())]
             }
             Event::ErrorShown { code } => vec![("code", code.as_str().into())],
+            Event::CopyActive { period, installed } => vec![
+                ("period", period.as_str().into()),
+                ("installed", installed.as_str().into()),
+            ],
         }
     }
 }
 
 /// What the page may ask to be recorded: the events only the page sees happen.
-/// The rest — launch, update, crash — are Rust's own.
+/// The rest — launch, update, crash — are Rust's own. A test build writes one
+/// back as the page sent it, for a check to read (selftest_fixture.rs).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(feature = "selftest", derive(Serialize))]
 #[serde(
     tag = "name",
     rename_all = "snake_case",
@@ -390,6 +442,10 @@ mod tests {
             Event::ErrorShown {
                 code: ErrorCode::ExportFont,
             },
+            Event::CopyActive {
+                period: Period::Week,
+                installed: Installed::Recent,
+            },
         ]
     }
 
@@ -403,6 +459,7 @@ mod tests {
             ("format_saved", &[]),
             ("update_installed", &["from", "to"]),
             ("error_shown", &["code"]),
+            ("copy_active", &["period", "installed"]),
         ];
         let events = one_of_each();
         assert_eq!(events.len(), documented.len());
@@ -422,6 +479,8 @@ mod tests {
                 ("from", "0.9.1"),
                 ("to", "1.0.0"),
                 ("code", "E-EXPORT-FONT"),
+                ("period", "week"),
+                ("installed", "recent"),
             ]
             .map(|(k, v)| (k, v.to_string()))
         );
@@ -467,7 +526,8 @@ mod tests {
             "surface_shown": {"surface": ([Surface::Script, Surface::Board, Surface::Outline, Surface::Cast, Surface::Changes, Surface::FormatDesigner].map(Surface::as_str))},
             "pdf_exported": {"kind": ([ExportKind::Whole, ExportKind::Range, ExportKind::Sides].map(ExportKind::as_str)), "format": formats},
             "format_saved": {}, "update_installed": {"from":["$released-version"], "to":["$released-version"]},
-            "error_shown": {"code": ErrorCode::ALL.iter().map(|c| c.as_str()).collect::<Vec<_>>()}
+            "error_shown": {"code": ErrorCode::ALL.iter().map(|c| c.as_str()).collect::<Vec<_>>()},
+            "copy_active": {"period": Period::ALL.map(Period::as_str), "installed": ([Installed::New, Installed::Recent, Installed::Earlier].map(Installed::as_str))}
         });
         assert_eq!(worker.as_object().unwrap().len(), one_of_each().len());
         for event in one_of_each() {
@@ -549,6 +609,7 @@ mod tests {
             r#"{"name":"error_shown","code":"could not open /Users/writer/Plays"}"#,
             r#"{"name":"format_saved","name2":"x"}"#,
             r#"{"name":"app_launched","channel":"developer-id"}"#,
+            r#"{"name":"copy_active","period":"day","installed":"new"}"#,
             r#"{"name":"crash_reported","kind":"js_error","location":"x"}"#,
             r#"{"name":"anything"}"#,
             r#"{"playsInFolder":3}"#,
@@ -608,6 +669,37 @@ mod tests {
             "/Users/a/1.0.0",
         ] {
             assert!(Version::parse(bad).is_none(), "{bad:?}");
+        }
+        // A track build's whole version is a build's version, never a release's.
+        assert!(Version::parse("1.0.1-beta.2").is_none());
+    }
+
+    /// The forms the Worker takes (services/edge/src/updates.ts, VERSION and TRACK_VERSION).
+    #[test]
+    fn a_build_version_is_a_release_or_a_track_build() {
+        for good in [
+            "1.0.0",
+            "1.0.1-beta.2",
+            "1.0.1-alpha.57",
+            "0.9.0-beta.0",
+            "1.0.1-beta.123456789",
+        ] {
+            assert!(build_version(good), "{good:?}");
+        }
+        for bad in [
+            "",
+            "1.0",
+            "1.0.1-rc.1",
+            "1.0.1-beta",
+            "1.0.1-beta.",
+            "1.0.1-beta.02",
+            "1.0.1-beta.1234567890",
+            "1.0.1-BETA.2",
+            "01.0.1-beta.2",
+            "1.0.1-beta.2 ",
+            "/Users/a/1.0.1-beta.2",
+        ] {
+            assert!(!build_version(bad), "{bad:?}");
         }
     }
 }

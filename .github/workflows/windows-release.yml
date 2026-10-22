@@ -1,0 +1,327 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Proscenium for Windows, built and proven for every release, on GitHub's
+# hosted Windows machines, which are free for a public repository: x64 on
+# windows-2025 and Arm64 on windows-11-arm, each natively.
+#
+# A version tag (vX.Y.Z, or vX.Y.Z-beta.N for a beta) starts it. For each chip:
+#   1. the current Evergreen WebView2, installed and recorded, since the
+#      images carry an old one and writers have the current one;
+#   2. Rust's gates on Windows: cargo test and clippy, warnings denied;
+#   3. the release build: the per-user installer that is the direct download,
+#      and the Microsoft Store's MSIX package (scripts/windows/release-build.mjs);
+#   4. the installed-artifact proof (scripts/windows/installed-proof.ps1): the
+#      installer as a browser downloads it, installed for the user with no
+#      prompt, started, found and read by UI Automation from outside, closed
+#      through its window, and uninstalled leaving nothing; the Store's
+#      package, signed for the test with a certificate only that machine
+#      trusts, the same.
+# Then one job puts both chips' files on the tag's draft release, with their
+# hashes, for the release to be completed and published from.
+#
+# Dispatched at a version's tag instead, with `proof_from`, it is the update
+# proof: the update a writer's copy makes, made on a clean machine of each
+# chip. The copy is the release `proof_from`, built from its own tag as the
+# update proof's copy (`node scripts/build-app.mjs --update-proof`), installed
+# for the user as a writer's is, and set to the track of the version
+# dispatched at. Its page presses Check Now against the real update service,
+# types a line and presses Restart to Update (scripts/update-proof/drive.js);
+# it passes when the version installed and still running twenty seconds on is
+# the tag's, and the line is in the play (scripts/windows/update-proof.mjs,
+# from the tag's own tree). `key`, when given, is carried in the run's name,
+# so whoever started it finds the run it started.
+#
+# Nothing here holds a secret. The build and proof jobs read the repository
+# and no more; only the draft's job may write, and only to this repository's
+# releases, with the run's own token. The installer is unsigned: it is signed
+# for the app's updater, and the Store signs its package, after this run.
+#
+# Pictures are kept of a failing step only, and a proof's evidence, for a day.
+name: Windows release
+run-name: ${{ github.event_name == 'workflow_dispatch' && format('Windows update proof {0} to {1}{2}', inputs.proof_from, github.ref_name, inputs.key != '' && format(' ({0})', inputs.key) || '') || format('Windows release {0}', github.ref_name) }}
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      proof_from:
+        description: "The release the copy updates from, X.Y.Z, built from its own tag: dispatched at the tag of the version it updates to"
+        required: true
+      key:
+        description: "An id the run's name carries, so whoever started it can find it (letters, digits and dashes)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && 'windows-proof' || 'windows-release' }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows ${{ matrix.chip }}
+    if: ${{ github.event_name == 'push' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - chip: x64
+            runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - chip: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      # The gates' builds need no debugger's tables, which on Windows are most
+      # of the target folder.
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      # A checkout byte for byte the one every other platform builds: no
+      # line-ending conversion, and long paths.
+      - name: Git as every other platform has it
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: The PowerShell scripts parse
+        run: |
+          $bad = 0
+          foreach ($f in Get-ChildItem scripts/windows/*.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            foreach ($e in $errors) { Write-Host "::error file=scripts/windows/$($f.Name),line=$($e.Extent.StartLineNumber)::$($e.Message)"; $bad++ }
+          }
+          if ($bad) { exit 1 }
+      - name: The tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          "### Windows ${{ matrix.chip }}, $env:TAG at $(git rev-parse HEAD)" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: The current Evergreen WebView2
+        id: webview2
+        run: ./scripts/windows/webview2.ps1
+
+      # The versions every other build of Proscenium uses.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.15.0"
+      - name: Rust, clang and winapp
+        run: ./scripts/windows/tools.ps1 -Rust -Clang -Winapp -Target ${{ matrix.target }}
+      - name: Install
+        id: install
+        run: bun install --frozen-lockfile
+
+      # Rust's gates. The crate embeds dist/, so the page is built first.
+      - name: dist/
+        id: dist
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: bunx vite build --logLevel warn
+      - name: cargo test
+        if: ${{ !cancelled() && steps.dist.outcome == 'success' }}
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      - name: cargo clippy
+        if: ${{ !cancelled() && steps.dist.outcome == 'success' }}
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+
+      - name: Build
+        id: build
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        env:
+          TAG: ${{ github.ref_name }}
+        run: node scripts/windows/release-build.mjs --tag $env:TAG --target ${{ matrix.target }}
+
+      # Smoke's acts against the real app, through WebView2's debugging port:
+      # the test build of this commit, every act a first launch.
+      - name: Smoke's acts in the real app
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: pwsh -NoProfile -File scripts/windows/smoke.ps1
+
+      - name: The installed-artifact proof
+        id: proof
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/windows/installed-proof.ps1
+
+      # Only a chip whose every step passed hands its files on.
+      - name: The files, for the draft
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-${{ matrix.chip }}
+          path: windows-files/
+          retention-days: 1
+          if-no-files-found: error
+      - name: Pictures of the failing step
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-${{ matrix.chip }}-pictures
+          path: windows-evidence/
+          retention-days: 1
+          if-no-files-found: ignore
+
+  draft:
+    name: The tag's draft release
+    needs: windows
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      # The chips' shipping files alone, never a failed try's pictures: run
+      # again after a failure, `windows-*` took windows-x64-pictures too, and
+      # the count of files no longer matched their hashes (v1.0.2, 2026-10-22).
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: windows-{x64,arm64}
+          merge-multiple: true
+          path: files
+      - name: Hashes, and the draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          cd files
+          cat SHA256SUMS-x64 SHA256SUMS-arm64 > SHA256SUMS-windows
+          rm SHA256SUMS-x64 SHA256SUMS-arm64
+          # Every file the chips made, and nothing else, as their hashes say.
+          sha256sum --check --strict SHA256SUMS-windows
+          [ "$(ls | grep -cv '^SHA256SUMS-windows$')" -eq "$(wc -l < SHA256SUMS-windows)" ]
+
+          # The release machine may have drafted this tag already, with the
+          # other platforms' files; a published release is never changed.
+          if ! gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then
+            prerelease=()
+            case "$TAG" in *-beta.*) prerelease=(--prerelease) ;; esac
+            gh release create "$TAG" -R "$REPO" --draft --verify-tag "${prerelease[@]}" \
+              --title "Proscenium ${TAG#v}" --notes "Drafted with the Windows files of $COMMIT."
+          fi
+          if [ "$(gh release view "$TAG" -R "$REPO" --json isDraft --jq .isDraft)" != "true" ]; then
+            echo "::error::$TAG's release is published already, and a published release's files never change"
+            exit 1
+          fi
+          gh release upload "$TAG" -R "$REPO" --clobber ./*
+          {
+            echo "### The draft of $TAG"
+            echo
+            echo "From $COMMIT:"
+            echo
+            sed 's/^\([0-9a-f]*\)  \(.*\)$/- `\2` \1/' SHA256SUMS-windows
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The update proof: the copy updated from, built from its own tag by that
+  # tree's own build, and the harness from the tag dispatched at, the version
+  # the update must bring.
+  proof:
+    name: Update proof ${{ matrix.chip }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - chip: x64
+            runner: windows-2025
+            target: x86_64-pc-windows-msvc
+          - chip: arm64
+            runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      FROM: ${{ inputs.proof_from }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: What is asked
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          KEY: ${{ inputs.key }}
+        run: |
+          if ($env:REF_TYPE -ne 'tag' -or $env:TAG -notmatch '^v\d+\.\d+\.\d+(-beta\.[1-9]\d*)?$') {
+            throw "an update proof is dispatched at the tag of the version it updates to, vX.Y.Z or vX.Y.Z-beta.N, not $env:TAG"
+          }
+          if ($env:FROM -notmatch '^\d+\.\d+\.\d+$') { throw "proof_from: '$env:FROM' is not X.Y.Z" }
+          if ($env:KEY -and $env:KEY -notmatch '^[A-Za-z0-9-]{1,40}$') { throw "key: '$env:KEY' is not letters, digits and dashes" }
+      - name: Git as every other platform has it
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.longpaths true
+      # The copy's own tree, where its build runs.
+      - uses: actions/checkout@v7
+        with:
+          ref: v${{ inputs.proof_from }}
+          persist-credentials: false
+      # The harness: the tag dispatched at.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: .proof-harness
+          persist-credentials: false
+      - name: The proof
+        run: |
+          $to = $env:TAG.Substring(1)
+          "### Windows ${{ matrix.chip }}: $env:FROM, built from $(git rev-parse HEAD), updated to $to" >> $env:GITHUB_STEP_SUMMARY
+      - name: The current Evergreen WebView2
+        run: ./.proof-harness/scripts/windows/webview2.ps1
+      # The versions every other build of Proscenium uses.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24.15.0"
+      - name: Rust and clang
+        run: ./.proof-harness/scripts/windows/tools.ps1 -Rust -Clang -Target ${{ matrix.target }}
+      - name: Install
+        run: bun install --frozen-lockfile
+      - name: The copy, the update-proof build numbered as ${{ inputs.proof_from }}
+        id: copy
+        run: |
+          node scripts/build-app.mjs --update-proof --version $env:FROM
+          if ($LASTEXITCODE -ne 0) { throw "the copy's own tree did not build an update-proof copy" }
+          $installer = Join-Path (Get-Location) "src-tauri\target\release\bundle\nsis\Proscenium_$($env:FROM)_${{ matrix.chip }}-setup.exe"
+          if (-not (Test-Path $installer)) { throw "no $installer" }
+          "installer=$installer" >> $env:GITHUB_OUTPUT
+      - name: Updated through the update service
+        run: |
+          $to = $env:TAG.Substring(1)
+          node .proof-harness/scripts/windows/update-proof.mjs --copy "${{ steps.copy.outputs.installer }}" --from $env:FROM --to $to --tree . --out .update-proof
+          exit $LASTEXITCODE
+      - name: The proof's evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: update-proof-${{ matrix.chip }}
+          path: |
+            .update-proof/report.json
+            .update-proof/proof.log
+            .update-proof/app.log
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: ignore

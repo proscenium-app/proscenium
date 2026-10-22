@@ -182,6 +182,21 @@ describe("data-loss reproductions: safe outcomes", () => {
     expect(out.play.scripts["new-script"].scenes[0].card.boardNote).toBe("ONLY COPY OF NOTES");
   });
 
+  it("docs/app/keeping-work/storage-and-file-format.md#STOR-188: a commit says which version it wrote over", async () => {
+    const original = ctx();
+    const first = await reorderItem(original, "notes", 0);
+    expect(first.ok && first.over).toBe(original.hash);
+    // Another writer's version lands before the next op: it is rebased onto,
+    // and that version, not the one the op began from, is what it replaced.
+    const newer = structuredClone(original.play);
+    newer.binder.push({ id: "new-script", type: "script", path: "Another.fountain" });
+    const theirs = stringifyCanonical(newer, PLAY_TMPL);
+    store.set(PLAY_PATH, theirs);
+    const second = await reorderItem(original, "chars", 0);
+    expect(second.ok && second.over).toBe(hashOf(theirs));
+    expect(second.ok && second.hash).not.toBe(hashOf(theirs));
+  });
+
   it("docs/app/keeping-work/storage-and-file-format.md#STOR-57: a rebase never replaces malformed bytes with the cached play", async () => {
     const raw = '{"kind":"proscenium/play","logline":"UNIQUE NEW WORDS';
     store.set(PLAY_PATH, raw);
@@ -453,6 +468,39 @@ describe("binder-apply disk mapping", () => {
     expect(body).not.toContain("## Want");
     // The name lives in the filename, once.
     expect(body).not.toContain("# Jonah");
+  });
+
+  it("files a character sheet Add Notes makes in the Characters folder (docs/app/organizing/workspace-model.md#WORK-84)", async () => {
+    const res = await newMaterial(ctx(), null, "character", "Jonah", Infinity, { home: true });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const chars = res.play.binder.find((b) => b.id === "chars")!;
+    expect(chars.children!.map((c) => c.path)).toEqual([
+      "Characters/Mara.md",
+      "Characters/Jonah.md",
+    ]);
+    expect(res.play.binder.some((b) => b.id === res.createdId)).toBe(false);
+  });
+
+  it("makes the Characters folder's row for a sheet when the play has none", async () => {
+    seedRef.play = {
+      ...seedRef.play,
+      binder: seedRef.play.binder.filter((b) => b.id !== "chars"),
+    };
+    const res = await newMaterial(ctx(), null, "character", "Jonah", Infinity, { home: true });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const chars = res.play.binder.find((b) => b.type === "folder" && b.path === "Characters")!;
+    expect(chars.children!.map((c) => c.id)).toEqual([res.createdId!]);
+    expect(store.has("Characters/Jonah.md")).toBe(true);
+  });
+
+  it("keeps a character the binder's New makes at the top level there", async () => {
+    const res = await newMaterial(ctx(), null, "character", "Jonah");
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.play.binder.some((b) => b.id === res.createdId)).toBe(true);
+    expect(store.has("Characters/Jonah.md")).toBe(true);
   });
 
   it("puts a second script beside the first, not in a script/ folder", async () => {

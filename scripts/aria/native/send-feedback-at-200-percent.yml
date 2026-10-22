@@ -1,0 +1,22 @@
+- dialog "Send Feedback"
+  - heading "Send Feedback" [level=2]
+  - generic
+    - none
+      - textbox "Your feedback"
+    - paragraph
+    - none
+      - textbox "Email (optional)"
+    - paragraph
+    - checkbox "Include technical details" [checked]
+    - paragraph
+    - group
+      - none "View Details"
+    - paragraph
+    - button "Try Again"
+    - button "Copy Message"
+    - paragraph
+  - button "Discard Draft"
+  - button "Close"
+  - button "Send Feedback"
+  - status [live=polite]
+  - alert [live=assertive]

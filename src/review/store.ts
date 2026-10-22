@@ -11,6 +11,7 @@
  *
  *   changes/baseline/<encoded path>   the last bytes the app showed the writer or wrote
  *   changes/before/<entry id>         what was there before one change
+ *   changes/after/<entry id>          what that change left
  *   changes/ledger.jsonl              append-only entries, newest last
  *
  * It used to live in `.proscenium/review/` INSIDE the play. That put app state
@@ -29,6 +30,7 @@ import { pathKey } from "../storage/path-key";
 
 export const BASELINE_DIR = "changes/baseline";
 export const BEFORE_DIR = "changes/before";
+export const AFTER_DIR = "changes/after";
 export const LEDGER_PATH = "changes/ledger.jsonl";
 
 /** How many entries survive a compaction. App data — bounded, not kept. */
@@ -36,7 +38,18 @@ const MAX_ENTRIES = 200;
 // Reopening the same play can overlap its previous store's pending append.
 // The queue has an immutable key; nothing here selects a "current" play.
 const ledgerTurns = new Map<string, Promise<unknown>>();
+// Each baseline's reads and writes land in the order they were asked, by play
+// and baseline: in the apps each is its own call, and a later one could land
+// first.
+const baselineTurns = new Map<string, Promise<unknown>>();
 
+/**
+ * `pending` is a change the writer has not seen yet; `kept` one they have
+ * (the Changes surface was in front, or its redline was shown in the script:
+ * docs/app/keeping-work/storage-and-file-format.md#STOR-183); `reverted` one
+ * they put back. A change from outside is already in the play when it is
+ * heard, so seeing it is all that keeping it asks.
+ */
 export type LedgerStatus = "pending" | "kept" | "reverted";
 
 export interface LedgerEntry {
@@ -86,10 +99,12 @@ export function openChanges(playId: string) {
    * A read that fails throws instead: "none" lets the recorder take the file as
    * seen for the first time and write over the baseline it could not read.
    */
-  async function readBaseline(relPath: string): Promise<string | null> {
-    return (
-      (await playStore.read(playId, baselinePath(relPath))) ??
-      (await playStore.read(playId, BASELINE_DIR + "/" + encodeURIComponent(relPath)))
+  function readBaseline(relPath: string): Promise<string | null> {
+    return inBaselineTurn(
+      relPath,
+      async () =>
+        (await playStore.read(playId, baselinePath(relPath))) ??
+        (await playStore.read(playId, BASELINE_DIR + "/" + encodeURIComponent(relPath))),
     );
   }
 
@@ -97,9 +112,26 @@ export function openChanges(playId: string) {
    * Record what the writer is looking at now. Called on every read and every
    * successful write, so "before" is available even for a file that was closed
    * when it changed.
+   *
+   * After any read of it already asked: a change heard reads the baseline at
+   * once, and the reload that shows the writer the new text writes it a moment
+   * later. Landing first, that write had the change compare the new text with
+   * itself and record nothing (docs/app/keeping-work/storage-and-file-format.md#STOR-119).
    */
   function writeBaseline(relPath: string, content: string): Promise<void> {
-    return write(baselinePath(relPath), content);
+    return inBaselineTurn(relPath, () => write(baselinePath(relPath), content));
+  }
+
+  /** `work` on `relPath`'s baseline, after every read and write of it asked before. */
+  function inBaselineTurn<T>(relPath: string, work: () => Promise<T>): Promise<T> {
+    const turn = `${playId}/${baselinePath(relPath)}`;
+    const run = (baselineTurns.get(turn) ?? Promise.resolve()).then(work, work);
+    const settled = run.catch(() => undefined);
+    baselineTurns.set(turn, settled);
+    void settled.then(() => {
+      if (baselineTurns.get(turn) === settled) baselineTurns.delete(turn);
+    });
+    return run;
   }
 
   /**
@@ -116,6 +148,19 @@ export function openChanges(playId: string) {
 
   function readBefore(entryId: string): Promise<string | null> {
     return read(beforePath(entryId));
+  }
+
+  /**
+   * What one change left, kept per entry beside what was there before it, so
+   * the change can be shown as itself: the file has moved on by the time an
+   * older one is read. Entries recorded before this was kept have none.
+   */
+  function writeAfter(entryId: string, content: string): Promise<void> {
+    return write(afterPath(entryId), content);
+  }
+
+  function readAfter(entryId: string): Promise<string | null> {
+    return read(afterPath(entryId));
   }
 
   /** Parse the ledger, skipping any line that is not a well-formed entry. */
@@ -189,19 +234,51 @@ export function openChanges(playId: string) {
     });
   }
 
+  /**
+   * Mark every entry in `ids` in one rewrite of the ledger: forty changes
+   * seen at a glance are one write, not forty. A `kept` never overwrites a
+   * `reverted`.
+   */
+  function markEntries(ids: readonly string[], status: LedgerStatus): Promise<void> {
+    if (!ids.length) return Promise.resolve();
+    const wanted = new Set(ids);
+    return inTurn(async () => {
+      const entries = await readLedger();
+      let touched = false;
+      const next = entries.map((e) => {
+        if (!wanted.has(e.id)) return e;
+        const marked = markEntry(e, status);
+        if (marked !== e) touched = true;
+        return marked;
+      });
+      if (!touched) return;
+      await write(LEDGER_PATH, serialize(next));
+    });
+  }
+
   return {
     playId,
     readBaseline,
     writeBaseline,
     readBefore,
     writeBefore,
+    readAfter,
+    writeAfter,
     readLedger,
     appendEntry,
     setStatus,
+    markEntries,
   };
 }
 export type ChangesStore = ReturnType<typeof openChanges>;
 
+/** One entry marked `status`: the same object when nothing about it moves. */
+export function markEntry(e: LedgerEntry, status: LedgerStatus): LedgerEntry {
+  if (e.status === status || (status === "kept" && e.status === "reverted")) return e;
+  return { ...e, status };
+}
+
 export const baselineKey = (path: string): string => encodeURIComponent(pathKey(path));
 export const baselinePath = (path: string): string => BASELINE_DIR + "/" + baselineKey(path);
 export const beforePath = (id: string): string => BEFORE_DIR + "/" + id;
+export const afterPath = (id: string): string => AFTER_DIR + "/" + id;

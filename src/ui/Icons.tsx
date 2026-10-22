@@ -264,6 +264,22 @@ export const CommentAddIcon = ({ size }: P) => (
   </Icon>
 );
 
+/** `arrowshape.turn.up.left` — answer a comment. */
+export const ReplyIcon = ({ size }: P) => (
+  <Icon size={size}>
+    <path d="M6.4 3.6 2.8 7.2l3.6 3.6" />
+    <path d="M2.8 7.2h6.4a4 4 0 0 1 4 4v1.2" />
+  </Icon>
+);
+
+/** `scope` — show where in the script this is. */
+export const ShowInScriptIcon = ({ size }: P) => (
+  <Icon size={size}>
+    <circle cx="8" cy="8" r="4.2" />
+    <path d="M8 1.9v2.4M8 11.7v2.4M1.9 8h2.4M11.7 8h2.4" />
+  </Icon>
+);
+
 /* ── Editing ───────────────────────────────────────────────────────────── */
 
 export const PencilIcon = ({ size }: P) => (

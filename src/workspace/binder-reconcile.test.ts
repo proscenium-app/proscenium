@@ -3,11 +3,14 @@
 
 import { describe, expect, it } from "bun:test";
 import {
+  GONE_GRACE_MS,
   ignoredDir,
   ignoredFile,
   isTempSibling,
   reconcile,
+  reconcileBinder,
   type DiskNode,
+  type DiskWalk,
 } from "./binder-reconcile";
 import type { BinderItem, BinderItemType } from "./play-file";
 
@@ -255,5 +258,37 @@ describe("what is never a binder item", () => {
     expect(ignoredFile("Structure.md")).toBe(false);
     expect(ignoredFile("tide-tables.pdf")).toBe(false);
     expect(ignoredDir("Characters")).toBe(false);
+  });
+});
+
+describe("a file gone for an instant is not gone", () => {
+  const binder = [leaf("S", "Play.fountain", "script"), leaf("M", "Mara.md")];
+  const walks = (...seen: string[][]) => {
+    const left = seen.map((paths) => ({ nodes: paths.map(file), complete: true }) as DiskWalk);
+    return { walk: async () => left.shift() ?? { nodes: [], complete: true }, left };
+  };
+
+  it("a script and a sheet a save was replacing come back on the second look", async () => {
+    const { walk, left } = walks([], ["Play.fountain", "Mara.md"]);
+    const waited: number[] = [];
+    const plan = await reconcileBinder(binder, { walk, wait: async (ms) => void waited.push(ms) });
+    expect(plan.missing).toEqual([]);
+    expect(plan.removed).toEqual([]);
+    expect(waited).toEqual([GONE_GRACE_MS]);
+    expect(left).toEqual([]);
+  });
+
+  it("what is still gone a moment later is missing, or removed", async () => {
+    const { walk } = walks(["Mara.md"], ["Mara.md"]);
+    const plan = await reconcileBinder(binder, { walk, wait: async () => {} });
+    expect(plan.missing.map((i) => i.id)).toEqual(["S"]);
+  });
+
+  it("a walk that finds everything looks once", async () => {
+    const { walk, left } = walks(["Play.fountain", "Mara.md"], ["never read"]);
+    const waited: number[] = [];
+    await reconcileBinder(binder, { walk, wait: async (ms) => void waited.push(ms) });
+    expect(waited).toEqual([]);
+    expect(left).toHaveLength(1);
   });
 });

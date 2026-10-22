@@ -37,22 +37,34 @@
   - button "Line Break ⇧⏎"
   - button "Page Break ⌘⏎"
   - button "+ Comment ⌘⌥M"
-  - button "Comments ⌘⇧C" [pressed]
+  - button "Comments ⌘⇧C"
   - text: Page 1 of 1
   - textbox "Script"
   - 'img "Scene navigation: 1 page. On screen: <scene>"'
 - complementary "Inspector":
   - tablist "Inspector":
-    - tab "Scene"
-    - tab "Comments" [selected]
+    - tab "Scene" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - heading "0 comments" [level=2]
-  - 'button "Filter comments: All Comments"': All Comments
-  - paragraph:
-    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
-    - code: "[["
-    - text: where you want one.
-  - list
+  - text: Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 1 · 1 page · 0 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage RESUME 0 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
   - text: <save status>

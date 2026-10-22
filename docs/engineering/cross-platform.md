@@ -12,7 +12,7 @@ Platform contracts define file authority and capabilities across desktop and mob
 
 <a id="PLAT-1"></a>
 
-**PLAT-1** One Tauri v2 codebase targets macOS, iOS and Android. The thing that actually differs across platforms is one thing: **how the app gains and keeps access to the user's chosen content folder.** Everything above the vault layer is platform-agnostic.
+**PLAT-1** One Tauri v2 codebase targets macOS, Windows, iOS and Android. The thing that actually differs across platforms is one thing: **how the app gains and keeps access to the user's chosen content folder.** Everything above the vault layer is platform-agnostic.
 
 <a id="PLAT-D101"></a>
 
@@ -39,14 +39,18 @@ trait Vault {
 | **macOS** | `plugin-dialog` folder picker, **or the app's iCloud container** (no picker) | **security-scoped bookmark**, path as a hint | own `LocalFsVault` | temp sibling + `fsync` + `rename` | `notify` | <a id="PLAT-3"></a>PLAT-3 |
 | **iOS** | our own document picker (`plugins/vault-picker`) | **security-scoped bookmark** | own `LocalFsVault` under scoped access | temp + rename within scoped access | foreground rescan | <a id="PLAT-4"></a>PLAT-4 |
 | **Android** | **SAF** tree picker | **persistable URI grant** | **`tauri-plugin-android-fs`** (SAF) | temp doc + verify + `DocumentsContract` replace | foreground rescan | <a id="PLAT-5"></a>PLAT-5 |
+| **Windows** | `plugin-dialog` folder picker (no cloud container) | **the folder's NTFS identity**, recorded by Rust at the pick, path beside it | own `LocalFsVault` | hidden temp sibling + flush + write-through `MoveFileExW`; an exchange through `ReplaceFileW` | `notify` | <a id="PLAT-67"></a>PLAT-67 |
 
 <a id="PLAT-6"></a>
 
 **PLAT-6** **Bookmarks persist folder authority.** Under App Sandbox a stored
 path is not permission on macOS either, so the security-scoped bookmark is the
-durable identity on every platform and the path is only a hint
+durable identity on every platform that has one, and the path is only a hint
 ([docs/app/keeping-work/storage-and-file-format.md#STOR-D12](../app/keeping-work/storage-and-file-format.md)). `src-tauri/src/scope.rs` is the
-macOS half; the iOS half is the picker plugin's.
+macOS half; the iOS half is the picker plugin's. Windows has no sandbox and no
+bookmark: Rust records the chosen folder's NTFS identity at the pick, and a
+reopen holds the folder at that path to it
+([docs/app/keeping-work/storage-and-file-format.md#STOR-179](../app/keeping-work/storage-and-file-format.md#STOR-179)).
 
 <a id="PLAT-D102"></a>
 
@@ -163,6 +167,13 @@ Authority and build rules:
 <a id="PLAT-35"></a>
 
 **PLAT-35** The frontend asks the backend what this build can do (`capabilities()` → `canPickFolder`, `canReveal`, `canExportAnywhere`, `canWatchFiles`) and branches on that. This is how the "no `if (platform === …)` in React" rule below is actually kept: adding a platform means answering the record honestly, not editing components. The flags genuinely diverge — iOS has a folder picker but no file watching, Android has neither yet.
+The record also says how this system speaks, since Windows joined (2026-10-14):
+- **`keys`**, `mac` or `pc`: how every key the app shows is written, and which chord it binds. One formatter, `src/ui/keys.ts`, takes a shortcut written once in a Mac's glyphs and gives a PC's chord in words (`Ctrl+Shift+E`), through one table where the two differ. A PC's chords use Ctrl where a Mac's use ⌘, and never Ctrl+Alt, which is AltGr on many keyboards, nor the Windows key.
+- **`words`**: the machine (`Mac`, `PC`), the system (`macOS`, `Windows`), its file manager (`Finder`, `File Explorer`) and its trash (`Trash`, `Recycle Bin`), which `src/ui/system-words.ts` puts into every sentence that names them.
+- **`suggestedFolder`**: where the Welcome screen suggests plays live first: `icloud` on a Mac, `documents` (Documents › Plays) on Windows.
+- **`print`**: `panel`, the system's print panel on the exported PDF, or `pdf-app`, the exported PDF opened in the writer's own PDF app, which prints it (Windows).
+
+The page is given the record before its first render (`src/main.tsx`), so no component asks which system it is on. In the browser preview the record is a Mac's, which is what smoke's Chromium and WebKit passes hold.
 
 <a id="PLAT-36"></a>
 
@@ -236,7 +247,7 @@ temp sibling, which exists for milliseconds. The storage contract does not depen
 - <a id="PLAT-54"></a> **PLAT-54** **Minimize partial-redraw churn.** Avoid large continuously-repainting regions (live word counts updating per keystroke, animated cursors). Batch UI updates; prefer discrete, full-region repaints over many tiny ones, which accumulate ghosting.
 - <a id="PLAT-55"></a> **PLAT-55** **Larger tap targets.** ≥ 48 dp hit areas, generous spacing; assume an imprecise capacitive layer or a stylus.
 - <a id="PLAT-56"></a> **PLAT-56** **Refresh-tolerant layout.** A manual "refresh screen" affordance (clears ghosting). Avoid UI that depends on hover or rapid feedback. Static, paginated-feeling layouts beat infinite-scroll jank.
-- <a id="PLAT-57"></a> **PLAT-57** **Flat, monochrome iconography.** No color-coded-only information (the corkboard's `card.color` must also encode status via a label/pattern, not color alone — also an accessibility win).
+- <a id="PLAT-57"></a> **PLAT-57** **Flat, monochrome iconography.** No color-coded-only information (the corkboard's `card.color` is also named in text, never shown by color alone — also an accessibility win).
 
 <a id="PLAT-58"></a>
 
@@ -252,7 +263,7 @@ temp sibling, which exists for milliseconds. The storage contract does not depen
 
 - <a id="PLAT-60"></a> **PLAT-60** Filesystem access **scoped to the chosen Plays folder** subtree (desktop/iOS), plus the app's own data directory.
 - <a id="PLAT-61"></a> **PLAT-61** `dialog` (open folder) on desktop/iOS; the Android SAF picker via the android-fs plugin.
-- <a id="PLAT-62"></a> **PLAT-62** Nothing else. **No network capability for the webview**: its content security policy allows the app's own files and IPC, and nothing in the page can reach another host. The app's two outbound connections — the update check, and anonymous usage and crash reports a writer can switch off — go from Rust, to the hosts in `src-tauri/src/telemetry/allowlist.rs` ([privacy-and-telemetry.md](../app/keeping-work/privacy-and-telemetry.md)). There is no sync code. (Any future feature that needs the network adds its host to the allowlist, with its reason.)
+- <a id="PLAT-62"></a> **PLAT-62** Nothing else. **No network capability for the webview**: its content security policy allows the app's own files and IPC, and nothing in the page can reach another host. The webview refuses the rest itself, so the policy is never the only fence: on a Mac, WebKit's content rules, compiled before the window exists; on Windows, WebView2's resource filter, which answers every request but the page's own origin (`http://tauri.localhost`) and its IPC with a 403 that never leaves the machine. A Windows release build also clears WebView2's override variables (`WEBVIEW2_*`) before WebView2 starts, so nothing in a writer's environment can open a debugging port into their copy, move its data or point it at another runtime. The app's two outbound connections — the update check, and anonymous usage and crash reports a writer can switch off — go from Rust, to the hosts in `src-tauri/src/telemetry/allowlist.rs` ([privacy-and-telemetry.md](../app/keeping-work/privacy-and-telemetry.md)). There is no sync code. (Any future feature that needs the network adds its host to the allowlist, with its reason.)
 
 <a id="PLAT-D112"></a>
 

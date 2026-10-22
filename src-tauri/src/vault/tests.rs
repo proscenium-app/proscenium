@@ -690,6 +690,18 @@ fn a_write_never_makes_again_the_folder_its_vault_was() {
 
 // --- findings of an outside code review ---------------------------------------------------
 
+/// A link, as each platform makes one: Windows tells a folder's from a file's.
+fn symlink(target: &std::path::Path, link: &std::path::Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
+    #[cfg(windows)]
+    if target.is_dir() {
+        std::os::windows::fs::symlink_dir(target, link).unwrap();
+    } else {
+        std::os::windows::fs::symlink_file(target, link).unwrap();
+    }
+}
+
 /// A name planted at the temp sibling — here a symlink to a file the
 /// writer would never mean to touch — is not opened, so it is not truncated.
 #[test]
@@ -700,7 +712,7 @@ fn a_planted_temp_name_is_never_opened() {
     std::fs::write(&victim, b"the writer's other file").unwrap();
     let target = dir.path().join("draft.fountain");
     let tmp = dir.path().join(".draft.fountain.deadbeef.tmp");
-    std::os::unix::fs::symlink(&victim, &tmp).unwrap();
+    symlink(&victim, &tmp);
 
     let err = write_atomic_via(&tmp, &target, b"new words").unwrap_err();
     assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
@@ -721,6 +733,7 @@ fn a_planted_temp_name_is_never_opened() {
 }
 
 /// A file the writer restricted to themselves stays restricted after a save.
+#[cfg(unix)]
 #[test]
 fn a_save_keeps_the_files_permission_bits() {
     use std::os::unix::fs::PermissionsExt;
@@ -759,9 +772,11 @@ fn a_symlink_inside_the_play_is_not_followed() {
     let (dir, vault) = new_vault();
     let outside = tempfile::tempdir().unwrap();
     std::fs::write(outside.path().join("secret.md"), b"outside the play").unwrap();
-    std::os::unix::fs::symlink(outside.path(), dir.path().join("escape")).unwrap();
-    std::os::unix::fs::symlink(outside.path().join("secret.md"), dir.path().join("leaf.md"))
-        .unwrap();
+    symlink(outside.path(), &dir.path().join("escape"));
+    symlink(
+        &outside.path().join("secret.md"),
+        &dir.path().join("leaf.md"),
+    );
 
     for rel in ["escape/secret.md", "leaf.md", "escape"] {
         let err = vault.read(rel).unwrap_err();
@@ -826,4 +841,157 @@ fn aliases_share_self_write_generations_and_in_process_locks() {
         &write_lock(Path::new("Notes/Café.md")),
         &write_lock(Path::new("NOTES/Cafe\u{301}.MD"))
     ));
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_errors_reach_the_page_in_the_apps_words() {
+    // docs/app/keeping-work/storage-and-file-format.md#STOR-D9: Windows' text
+    // is in the writer's language and its numbers are not Darwin's.
+    let said = |code| in_app_words(&std::io::Error::from_raw_os_error(code));
+    assert_eq!(said(2), "No such file or directory");
+    assert_eq!(said(3), "No such file or directory");
+    assert_eq!(said(5), "Permission denied");
+    assert_eq!(said(32), "in-use: The file is open in another program");
+    assert_eq!(said(112), "No space left on device");
+    assert_eq!(said(53), "Input/output error");
+    assert!(!said(1).contains("os error"), "{}", said(1));
+    let ours = std::io::Error::other("locked: Permission denied");
+    assert_eq!(in_app_words(&ours), "locked: Permission denied");
+}
+
+#[cfg(windows)]
+#[test]
+fn a_read_only_file_is_refused_as_locked() {
+    let (_dir, vault) = new_vault();
+    let WriteOutcome::Ok { hash } = vault.write("Hamlet.fountain", b"theirs", None).unwrap() else {
+        panic!("expected Ok")
+    };
+    let path = vault.root().join("Hamlet.fountain");
+    let mut permissions = std::fs::metadata(&path).unwrap().permissions();
+    permissions.set_readonly(true);
+    std::fs::set_permissions(&path, permissions.clone()).unwrap();
+    // Refused at once, before the file is touched: no replace renaming it
+    // aside and back, and none of the patience a passing hold is given.
+    let asked = std::time::Instant::now();
+    let err = vault
+        .write("Hamlet.fountain", b"ours", Some(&hash))
+        .unwrap_err();
+    assert!(asked.elapsed() < std::time::Duration::from_millis(1000));
+    assert_eq!(err.to_string(), "locked: Permission denied");
+    assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+    assert_eq!(vault.read("Hamlet.fountain").unwrap(), b"theirs");
+    #[allow(clippy::permissions_set_readonly_false)]
+    permissions.set_readonly(false);
+    std::fs::set_permissions(&path, permissions).unwrap();
+    assert_eq!(all_files(vault.root()), vec!["Hamlet.fountain"]);
+}
+
+/// A file another program opens and shares with no one, as a scanner or a
+/// sync client may, let go after `ms`.
+#[cfg(windows)]
+fn held_alone(path: &Path, ms: u64) -> std::thread::JoinHandle<()> {
+    use std::os::windows::fs::OpenOptionsExt;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(path)
+        .unwrap();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+        drop(file);
+    })
+}
+
+#[cfg(windows)]
+#[test]
+fn a_file_held_for_a_moment_is_read_and_saved_once_it_is_let_go() {
+    // docs/app/keeping-work/storage-and-file-format.md#STOR-178: the read a
+    // save makes first waits a passing hold out as the save itself does, and
+    // so does a read of its own.
+    let (_dir, vault) = new_vault();
+    let WriteOutcome::Ok { hash } = vault.write("Hamlet.fountain", b"theirs", None).unwrap() else {
+        panic!("expected Ok")
+    };
+    let path = vault.root().join("Hamlet.fountain");
+    let held = held_alone(&path, 300);
+    assert_eq!(vault.read("Hamlet.fountain").unwrap(), b"theirs");
+    held.join().unwrap();
+    let held = held_alone(&path, 300);
+    let WriteOutcome::Ok { .. } = vault
+        .write("Hamlet.fountain", b"ours", Some(&hash))
+        .unwrap()
+    else {
+        panic!("expected Ok")
+    };
+    held.join().unwrap();
+    assert_eq!(vault.read("Hamlet.fountain").unwrap(), b"ours");
+}
+
+#[cfg(windows)]
+#[test]
+fn a_file_held_past_the_patience_is_said_to_be_in_use() {
+    let (_dir, vault) = new_vault();
+    let WriteOutcome::Ok { .. } = vault.write("Hamlet.fountain", b"theirs", None).unwrap() else {
+        panic!("expected Ok")
+    };
+    let held = held_alone(&vault.root().join("Hamlet.fountain"), 4000);
+    let asked = std::time::Instant::now();
+    let err = vault.read("Hamlet.fountain").unwrap_err();
+    assert!(asked.elapsed() >= std::time::Duration::from_millis(1500));
+    assert_eq!(
+        in_app_words(&err),
+        "in-use: The file is open in another program"
+    );
+    held.join().unwrap();
+}
+
+/// An export the Save panel granted is written, and replaced, with nothing
+/// made beside it even for a moment
+/// (docs/app/keeping-work/storage-and-file-format.md#STOR-187).
+#[cfg(unix)]
+#[test]
+fn a_granted_file_is_written_with_nothing_beside_it() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("The Tide.pdf");
+
+    write_granted(&target, b"first export").unwrap();
+    assert_eq!(std::fs::read(&target).unwrap(), b"first export");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+    write_granted(&target, b"second export").unwrap();
+    assert_eq!(std::fs::read(&target).unwrap(), b"second export");
+    assert_eq!(
+        std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+        0o600,
+        "a replaced export keeps the permissions the writer gave it"
+    );
+    let names: Vec<_> = std::fs::read_dir(dir.path())
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    assert_eq!(names, vec![std::ffi::OsString::from("The Tide.pdf")]);
+}
+
+/// macOS gives the write its own empty folder on the target's volume: by the
+/// target's folder before the file exists, and by the file once it does.
+#[cfg(target_os = "macos")]
+#[test]
+fn the_replacement_folder_is_new_and_on_the_targets_volume() {
+    use std::os::unix::fs::MetadataExt;
+    let dir = tempfile::tempdir().unwrap();
+    let target = dir.path().join("format.json");
+    let volume = std::fs::metadata(dir.path()).unwrap().dev();
+
+    let before = replacement_dir(&target).expect("a folder for a file not yet there");
+    assert_eq!(std::fs::metadata(&before).unwrap().dev(), volume);
+    assert_eq!(std::fs::read_dir(&before).unwrap().count(), 0);
+    std::fs::remove_dir_all(&before).unwrap();
+
+    std::fs::write(&target, b"{}").unwrap();
+    let after = replacement_dir(&target).expect("a folder for a file that is there");
+    assert_ne!(after, before);
+    assert_eq!(std::fs::metadata(&after).unwrap().dev(), volume);
+    std::fs::remove_dir_all(&after).unwrap();
 }
