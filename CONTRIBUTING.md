@@ -84,7 +84,7 @@ bun run check:spdx                             # every source file licensed
 bun run check:network                          # every address the app uses in one allowlist
 bun run check:docs                             # documentation paths, sections and permanent ids
 bun run check:names                            # no other writing app named outside the import tool
-bun run check:webkit-floor                     # nothing newer than the oldest supported Mac's web engine
+bun run check:webkit-floor                     # nothing newer than the oldest supported Mac's or PC's web engine
 bun run check:version                          # one version number everywhere
 bun run smoke                                  # the built app in a browser: layout, accessibility, keys
 cargo test --manifest-path src-tauri/Cargo.toml

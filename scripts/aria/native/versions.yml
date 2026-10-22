@@ -1,0 +1,102 @@
+- banner
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water" [haspopup]
+  - tablist "What this pane shows"
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes" [selected]
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder"
+  - sectionheader
+    - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items"
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - treeitem "SCENE 1 1" [level=2]
+    - treeitem "SCENE 2 1–2" [level=2]
+    - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [level=1] [expanded]
+    - treeitem "Mara" [level=2]
+    - treeitem "Jonah" [level=2]
+    - treeitem "Research" [level=1] [expanded]
+    - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [level=1] [expanded]
+    - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [level=1] [expanded]
+    - treeitem "Logline" [level=2]
+  - sectionfooter
+    - button "New" [haspopup]
+- main "Play"
+  - group "Open in this pane"
+    - listitem "Changes"
+      - button "Changes" [current=true]
+      - button "Close Changes"
+  - button "Add a surface to this pane" [haspopup]
+  - tablist "Whose changes"
+    - tab "All"
+    - tab "Mine" [selected]
+    - tab "From Outside"
+  - tablist "How changes are shown"
+    - tab "On the Page" [selected]
+    - tab "Line by Line"
+  - button "Newer" [disabled]
+  - button "Older" [disabled]
+  - heading "Today" [level=3]
+  - sectionheader
+    - button "You wrote <time> The Weight of Water +1 −1" [expanded]
+  - group "Versions of The Weight of Water"
+    - button "Whole sitting" [pressed]
+    - button "<time>, while writing"
+  - region "What changed in The Weight of Water in this sitting"
+    - group "The Weight of Water, with its changes marked"
+      - separator "21 unchanged elements not shown. ACT TWO · SCENE 1"
+      - generic
+      - generic
+      - generic
+      - generic
+        - insertion
+  - button "Restore as It Was Before…"
+- complementary "Inspector"
+  - tablist "Inspector"
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - generic
+  - heading "SCENE 1" [level=2]
+  - generic
+  - generic
+  - textbox "Summary"
+  - generic
+  - button "Scene status: idea" [haspopup]
+  - generic
+  - textbox "Label"
+  - generic
+  - radiogroup "Card colour"
+    - radio "Unmarked" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+  - generic
+  - textbox "Board note"
+  - generic
+  - generic
+  - button "Show"
+  - paragraph
+- contentinfo
+  - button "<plays folder>/The Weight of Water"
+  - button "Zoom out"
+  - button "Zoom: 100%" [haspopup]
+  - button "Zoom in"
+- status [live=polite]
+- alert [live=assertive]

@@ -109,6 +109,12 @@ export interface Settings {
   shareAnalytics: boolean;
   /** The Welcome screen has said, once, that reports are sent — state, not a choice. */
   privacyNoticeSeen: boolean;
+  /**
+   * The name the writer's comments and replies are signed with
+   * (docs/app/writing/comments.md#COMM-52), or "" to sign nothing. It is written into a
+   * script only where the writer makes a comment, and goes nowhere else.
+   */
+  commentName: string;
 }
 
 /**
@@ -138,6 +144,8 @@ export interface SettingsPatch {
   showProgress?: boolean;
   shareAnalytics?: boolean;
   privacyNoticeSeen?: boolean;
+  /** A name, or "" to stop signing. */
+  commentName?: string;
   /** Removals apply after additions, so a word in both is forgotten. */
   learnedWords?: { add?: string[]; remove?: string[] };
 }
@@ -169,9 +177,27 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   defaultFormat: null,
   shareAnalytics: true,
   privacyNoticeSeen: false,
+  commentName: "",
 });
 
 const MAX_WORD_CHARS = 100;
+/** A signature is a name, not a sentence; the comment grammar reads no longer one. */
+export const MAX_COMMENT_NAME_CHARS = 24;
+
+/**
+ * A name settings.rs will store: "" for none, or one short line with nothing
+ * that would end the signature (`:`) or the note it is written into (`[`, `]`).
+ * Which characters a name is made of is the comment grammar's question
+ * (src/comments/model.ts `cleanCommentName`), asked before a name gets here.
+ */
+export function isCommentName(v: unknown): v is string {
+  return (
+    typeof v === "string" &&
+    v === v.trim() &&
+    [...v].length <= MAX_COMMENT_NAME_CHARS &&
+    !/[:[\]\p{Cc}]/u.test(v)
+  );
+}
 
 /** A format id, by validation's rule (src/format/validate.ts) — as settings.rs checks it. */
 function isFormatId(v: unknown): v is string {
@@ -283,6 +309,7 @@ export function readSettings(raw: unknown): Settings {
       typeof o.privacyNoticeSeen === "boolean"
         ? o.privacyNoticeSeen
         : DEFAULT_SETTINGS.privacyNoticeSeen,
+    commentName: isCommentName(o.commentName) ? o.commentName : "",
   };
 }
 
@@ -307,6 +334,7 @@ export function validatePatch(patch: SettingsPatch): string | null {
     "privacyNoticeSeen",
     "playStatuses",
     "showProgress",
+    "commentName",
   ]);
   for (const key of Object.keys(patch)) {
     if (!known.has(key)) return `"${key}" is not a setting`;
@@ -353,6 +381,8 @@ export function validatePatch(patch: SettingsPatch): string | null {
   }
   if (patch.updateTrackKey !== undefined && !isUpdateTrackKey(patch.updateTrackKey))
     return "That is not a key";
+  if (patch.commentName !== undefined && !isCommentName(patch.commentName))
+    return "That is not a name comments can be signed with";
   if (patch.lastPlay !== undefined && patch.lastPlay !== null && !isPlayRef(patch.lastPlay)) {
     return `"${String(patch.lastPlay)}" is not a play`;
   }

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { watcherHealth, type WatchHealth } from "../storage/ipc";
 import { announce } from "../ui/announce";
 import { Chip, WarnIcon } from "../ui";
+import { FRESH, hear } from "./watcher-words";
 
 /** File observation is separate from whether the latest save succeeded. */
 export function WatcherStatus({ root }: { root: string | null }) {
@@ -14,15 +15,22 @@ export function WatcherStatus({ root }: { root: string | null }) {
     let dead = false;
     let off: (() => void) | undefined;
     let revision = 0;
-    let failed = false;
+    let heard = FRESH;
+    const opened = Date.now();
+    let grace = 0;
     const receive = (next: WatchHealth | null) => {
       if (dead || (next && next.root !== root)) return;
+      // A folder's first watch starting is not shown, and asked again once
+      // its grace is over (watcher-words.ts).
+      const { now, say, wait } = hear(heard, next?.status ?? null, Date.now() - opened);
+      heard = now;
+      window.clearTimeout(grace);
+      if (wait !== null) {
+        grace = window.setTimeout(() => void refresh(), wait);
+        return;
+      }
       setHealth(next);
-      const problem = next !== null && next.status !== "watching";
-      if (problem && !failed)
-        announce("Checking file changes. Proscenium is reconnecting to this folder.");
-      if (!problem && failed) announce("File changes are up to date.");
-      failed = problem;
+      if (say) announce(say);
     };
     const refresh = async () => {
       const before = revision;
@@ -51,6 +59,7 @@ export function WatcherStatus({ root }: { root: string | null }) {
       dead = true;
       off?.();
       clearInterval(timer);
+      window.clearTimeout(grace);
     };
   }, [root]);
   const problem = health?.root === root && health?.status !== "watching";

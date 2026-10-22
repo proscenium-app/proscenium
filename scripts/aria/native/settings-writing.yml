@@ -16,6 +16,10 @@
     - none
       - switch "Show scene navigation strip"
     - paragraph
+    - heading "COMMENTS" [level=4]
+    - none
+      - textbox "Your name"
+    - paragraph
     - heading "SPELLING" [level=4]
     - none
       - switch "Check spelling as you type"

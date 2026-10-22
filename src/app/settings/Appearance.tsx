@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /** Settings › Appearance: interface text size, accent colour and light or dark. */
+import { accentName, accentSettings, followSystem } from "../../ui/system-words";
 import { useRef, type KeyboardEvent } from "react";
 import { ACCENTS, CheckIcon, Chip, PopupButton } from "../../ui";
 import { Group, Note, SectionBody } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 import { useSystemAccent } from "./system-accent";
 
 export function Appearance() {
@@ -96,8 +97,8 @@ export function Appearance() {
                 type="button"
                 role="radio"
                 aria-checked={on}
-                aria-label={a.name}
-                title={a.name}
+                aria-label={accentName(a)}
+                title={accentName(a)}
                 tabIndex={on ? 0 : -1}
                 className={`accentswatch${on ? " is-on" : ""}`}
                 style={{ background: a.id === "system" ? (macAccent ?? a.swatch) : a.swatch }}
@@ -109,13 +110,13 @@ export function Appearance() {
           })}
         </div>
         <div className="settings__accentname">
-          {picked.name}
+          {accentName(picked)}
           {picked.id === "gilt" && <Chip tiny>Default</Chip>}
         </div>
         <Note id="accent-note">
           Used for selections, switches, links and the text cursor.
           {picked.id === "system" &&
-            " Follow Mac uses the accent color from your Mac’s Appearance settings, adjusted where needed so text stays readable."}
+            ` ${followSystem()} uses the accent color from ${accentSettings()}, adjusted where needed so text stays readable.`}
         </Note>
       </Group>
 
@@ -126,7 +127,7 @@ export function Appearance() {
             label="Appearance"
             value={appearance}
             options={[
-              { value: "system", label: "Follow Mac" },
+              { value: "system", label: followSystem() },
               { value: "light", label: "Light" },
               { value: "dark", label: "Dark" },
             ]}

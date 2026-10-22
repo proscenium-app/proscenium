@@ -19,7 +19,7 @@ import { useId, useState } from "react";
 import { pageCountLabel, pageRangeLabel, type ScenePageMap, type ScenePages } from "../layout";
 import type { SceneCard } from "./card-reconcile";
 import { useFieldDraft } from "./field-draft";
-import { useSceneStatusOptions } from "../app/settings/scene-statuses";
+import { useSceneStatusOptions } from "./scene-statuses";
 import type { Card } from "./play-file";
 import {
   ArrowUpIcon,

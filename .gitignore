@@ -48,3 +48,8 @@ Thumbs.db
 .release/
 # What scripts/release.mjs makes: the DMG, the update archive, latest.json.
 .release-artifacts/
+# The update proof's report, logs, scratch home and the worktree it builds the
+# old version in (scripts/update-proof.mjs).
+.update-proof/
+# The proofs check's copy of main's checks, made and removed by `bun run land` (scripts/smoke-proofs.mjs).
+/scripts/.proofs-base-*/

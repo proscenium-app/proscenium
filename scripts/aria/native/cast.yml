@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder"
   - sectionheader
     - button "Collapse all folders"
@@ -20,7 +20,7 @@
     - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
-    - treeitem "SCENE 1 1" [level=2]
+    - treeitem "SCENE 1 1" [level=2] [selected]
     - treeitem "SCENE 2 1–2" [level=2]
     - treeitem "SCENE 1 2" [level=2]
     - treeitem "Characters" [level=1] [expanded]
@@ -36,8 +36,6 @@
     - button "New" [haspopup]
 - main "Play"
   - group "Open in this pane"
-    - listitem "Board"
-      - button "Board"
     - listitem "Cast"
       - button "Cast" [current=true]
       - button "Close Cast"
@@ -111,11 +109,39 @@
       - cell "MARA · SCENE 2 — silent"
       - cell "MARA · SCENE 1 — speaks"
       - cell
+- complementary "Inspector"
+  - tablist "Inspector"
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - generic
+  - heading "SCENE 1" [level=2]
+  - generic
+  - generic
+  - textbox "Summary"
+  - generic
+  - button "Scene status: draft" [haspopup]
+  - generic
+  - textbox "Label"
+  - generic
+  - radiogroup "Card colour"
+    - radio "Unmarked"
+    - radio "Setup" [checked]
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+  - generic
+  - textbox "Board note"
+  - generic
+  - generic
+  - button "Show"
+  - paragraph
 - contentinfo
   - button "<plays folder>/The Weight of Water"
   - button "Zoom out"
   - button "Zoom: 100%" [haspopup]
   - button "Zoom in"
-- button "Undo"
 - status [live=polite]
 - alert [live=assertive]

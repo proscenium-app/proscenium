@@ -5,11 +5,11 @@
 //! intent makes every exchange recoverable; unexpected bytes are immutable
 //! app-data copies, exposed in Changes, before any rollback or cleanup.
 use super::atomic_file::{
-    create_dir_durable, exchange, rename_exclusive, sync_dir, write_new, FileLock,
+    create_dir_durable, create_temp, exchange, finish_exchange, rename_exclusive, sync_dir, unhide,
+    write_new, FileLock,
 };
 use super::{resolve_under, sha256_hex, tmp_stem, tmp_token, FileIdentity};
 use serde::{Deserialize, Serialize};
-use std::fs::OpenOptions;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
@@ -224,9 +224,7 @@ impl WriteJournal {
             .ok_or_else(|| io::Error::other("no write parent"))?;
         create_dir_durable(parent)?;
         let temp = parent.join(format!(".{}.{}.tmp", tmp_stem(&target), tmp_token()));
-        let mut options = OpenOptions::new();
-        options.write(true).create_new(true);
-        let mut file = options.open(&temp)?;
+        let mut file = create_temp(&temp)?;
         let created_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -255,6 +253,7 @@ impl WriteJournal {
                     file.set_permissions(meta.permissions())?;
                 }
             }
+            unhide(&file)?;
             file.sync_all()
         })();
         drop(file);
@@ -263,16 +262,15 @@ impl WriteJournal {
             return Err(error);
         }
         if intent.baseline.is_some() {
-            match exchange(&temp, &target) {
-                Ok(()) => {}
-                Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    self.clean_temp(root, &intent)?;
-                    return Ok(false);
-                }
-                Err(error) => {
-                    self.clean_temp(root, &intent)?;
-                    return Err(error);
-                }
+            if let Err(error) = exchange(&temp, &target) {
+                // An exchange that stopped between its steps is put back
+                // first; one that cannot be keeps its intent for recovery.
+                finish_exchange(&temp, &target)?;
+                self.clean_temp(root, &intent)?;
+                return match error.kind() {
+                    io::ErrorKind::NotFound => Ok(false),
+                    _ => Err(error),
+                };
             }
             sync_dir(parent)?;
             self.settle_exchange(root, &intent)
@@ -359,6 +357,7 @@ impl WriteJournal {
                 continue;
             }
             let temp = resolve_under(root, &intent.temporary, "vault")?;
+            finish_exchange(&temp, &resolve_under(root, &intent.rel, "vault")?)?;
             if same_inode(&temp, &intent.staged) {
                 let bytes = std::fs::read(&temp)?;
                 // Complete local words that never became the acknowledged

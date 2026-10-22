@@ -1,5 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { commandKey } from "../ui/keys";
 import { useEffect, useRef, useState } from "react";
 import { diagnostics, feedback } from "../storage/ipc";
 import { Button, Checkbox, Sheet } from "../ui";
@@ -193,7 +194,7 @@ function FeedbackForm({ formats, close }: { formats: string[]; close: () => void
             aria-invalid={!validEmail(draft.email) || undefined}
             onChange={(e) => edit({ email: e.target.value })}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.metaKey) e.preventDefault();
+              if (e.key === "Enter" && !commandKey(e)) e.preventDefault();
             }}
           />
         </label>

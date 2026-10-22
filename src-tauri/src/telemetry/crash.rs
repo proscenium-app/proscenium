@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Pathless stack records. Neither the panic payload nor a symbol's filename is read.
-use super::events::{CrashKind, Version};
+use super::events::{build_version, CrashKind};
 use chrono::{DateTime, SecondsFormat, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -90,7 +90,12 @@ fn symbol_allowed(s: &str) -> bool {
         && s.bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"_:<>, &[](){}#;!?=-".contains(&c))
 }
+/// A Mac's `major.minor` from 14, or Windows' `10.0.<build>` from 19045,
+/// Windows 10 22H2 (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-15).
 fn os_allowed(s: &str) -> bool {
+    if cfg!(windows) {
+        return windows_os_allowed(s);
+    }
     let parts: Vec<_> = s.split('.').collect();
     parts.len() == 2
         && parts[0]
@@ -103,13 +108,23 @@ fn os_allowed(s: &str) -> bool {
                 && p.bytes().all(|c| c.is_ascii_digit())
         })
 }
+fn windows_os_allowed(s: &str) -> bool {
+    let Some(build) = s.strip_prefix("10.0.") else {
+        return false;
+    };
+    build.len() <= 6
+        && !build.starts_with('0')
+        && build.bytes().all(|c| c.is_ascii_digit())
+        && build.parse::<u32>().is_ok_and(|n| n >= 19045)
+}
+
 impl CrashRecord {
     pub fn valid(&self) -> bool {
         uuid::Uuid::parse_str(&self.id).is_ok_and(|id| {
             id.get_version_num() == 4
                 && id.get_variant() == uuid::Variant::RFC4122
                 && id.to_string() == self.id
-        }) && Version::parse(&self.version).is_some()
+        }) && build_version(&self.version)
             && os_allowed(&self.os)
             && ["aarch64", "x86_64"].contains(&self.arch.as_str())
             && DateTime::parse_from_rfc3339(&self.at).is_ok()
@@ -326,7 +341,7 @@ mod tests {
                 colno: None,
             }],
             "1.0.0",
-            "15.6",
+            crate::telemetry::example::SENT,
             "aarch64",
             at,
         )
@@ -337,7 +352,7 @@ mod tests {
         set_target(
             dir.path().to_owned(),
             "1.0.0".into(),
-            "15.6".into(),
+            crate::telemetry::example::SENT.into(),
             "aarch64".into(),
         );
         let previous = std::panic::take_hook();
@@ -470,5 +485,26 @@ mod tests {
         r.name = "Error".into();
         r.frames.clear();
         assert!(!r.valid());
+    }
+    /// A beta's crash says its whole version, which the service counts apart
+    /// (docs/engineering/services-and-feedback.md#SERV-272); a version of no build's form is refused.
+    #[test]
+    fn a_record_carries_the_builds_whole_version() {
+        let now = Utc::now();
+        for version in ["1.0.1-beta.2", "1.0.1-alpha.57", "1.0.1"] {
+            let mut r = sample(now);
+            r.version = version.into();
+            assert!(r.valid(), "{version}");
+            let envelope = super::super::envelope::encode(&r).unwrap();
+            let event: serde_json::Value =
+                serde_json::from_str(String::from_utf8(envelope).unwrap().lines().nth(2).unwrap())
+                    .unwrap();
+            assert_eq!(event["release"], version);
+        }
+        for version in ["1.0.1-rc.1", "1.0", "/Users/synthetic/1.0.1"] {
+            let mut r = sample(now);
+            r.version = version.into();
+            assert!(!r.valid(), "{version}");
+        }
     }
 }

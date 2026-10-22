@@ -248,8 +248,10 @@ export function validPlayShape(value: unknown): value is PlayFile {
         ids.has(item.id) ||
         typeof item.path !== "string" ||
         !item.path ||
-        item.path.startsWith("/") ||
-        item.path.split("/").some((part) => part === "..") ||
+        // Inside the play on every system: no root, no drive, no way up by
+        // either system's separator.
+        /^[\\/]|^[A-Za-z]:/.test(item.path) ||
+        item.path.split(/[\\/]/).some((part) => part === "..") ||
         !["script", "folder", "character", "document", "outline", "reference"].includes(
           String(item.type),
         )

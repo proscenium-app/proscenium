@@ -7,7 +7,13 @@ use std::path::{Path, PathBuf};
 
 fn main() {
     println!("cargo:rerun-if-env-changed=PROSCENIUM_REPORTS");
-    if env::var_os("CARGO_FEATURE_SELFTEST").is_some() {
+    // A Windows track build's whole version (version.rs).
+    println!("cargo:rerun-if-env-changed=PROSCENIUM_VERSION");
+    // The Mac's self-test runs in the page, with these inside the app; the
+    // Windows test build is driven from outside and embeds neither.
+    if env::var_os("CARGO_FEATURE_SELFTEST").is_some()
+        && env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos")
+    {
         selftest_assets();
     }
     tauri_build::build();

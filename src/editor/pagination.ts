@@ -45,6 +45,12 @@ export interface PaginationConfig {
   frontMatter?: FrontMatter | null;
   /** Clicking the title sheet opens the Title Page editor. */
   onTitlePageClick?: (() => void) | null;
+  /**
+   * Double-clicking the Characters sheet opens where it is edited. Gets the
+   * engine's id of the paragraph hit (`cast-2`, `characters-prose-1`), or null
+   * between lines.
+   */
+  onCharactersPageOpen?: ((paragraphId: string | null) => void) | null;
 }
 
 export interface PaginationStorage {
@@ -250,6 +256,7 @@ function frontMatterWidget(
   page: FrontMatterPage,
   spec: FormatSpec,
   onClick: (() => void) | null,
+  onCharactersOpen: ((paragraphId: string | null) => void) | null,
 ): HTMLElement {
   const root = el(`pgchrome pgchrome--${page.kind === "title" ? "title" : "front"}`);
   root.contentEditable = "false";
@@ -261,6 +268,22 @@ function frontMatterWidget(
     sheet.addEventListener("mousedown", (event) => {
       event.preventDefault();
       onClick();
+    });
+  }
+  // A double-click, not a click: this sheet sits in the scroll path above the
+  // first scene, and a stray click should not take the writer out of the script.
+  if (page.kind === "characters" && onCharactersOpen) {
+    sheet.classList.add("frontsheet--editable");
+    sheet.title = "Double-click to edit the characters";
+    // The second press would select a word of the sheet's text.
+    sheet.addEventListener("mousedown", (event) => {
+      if (event.detail > 1) event.preventDefault();
+    });
+    sheet.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      const hit = event.target instanceof Element ? event.target : null;
+      const line = hit?.closest<HTMLElement>("[data-front-paragraph]");
+      onCharactersOpen(line?.dataset.frontParagraph ?? null);
     });
   }
   frontMatterLines(page.lines, sheet, spec);
@@ -462,7 +485,13 @@ function computeLayout(
     decorations.push(
       Decoration.widget(
         0,
-        () => frontMatterWidget(page, config.spec!, config.onTitlePageClick ?? null),
+        () =>
+          frontMatterWidget(
+            page,
+            config.spec!,
+            config.onTitlePageClick ?? null,
+            config.onCharactersPageOpen ?? null,
+          ),
         { side: -1, key: `pg-front-${index}-${JSON.stringify(page)}` },
       ),
     );

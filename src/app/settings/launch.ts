@@ -34,15 +34,14 @@
  * launch into a play arrives when the play is IN PLACE — read, laid out and at
  * the writer's place — not when it is open.
  */
+import { joinPath, trimSeparators } from "../../storage/path-key";
 import { useEffect, useRef, useState } from "react";
 import { settings as ipc } from "../../storage";
 import type { VaultPlay } from "../../workspace";
 import type { OpenAtLaunch } from "../../storage/settings-model";
-import { updateSettings, useSettings, useSettingsLoaded } from "./store";
+import { updateSettings, useSettings, useSettingsLoaded } from "../../ui/settings-store";
 
-function trimSlash(path: string): string {
-  return path.length > 1 ? path.replace(/\/+$/, "") : path;
-}
+const trimSlash = trimSeparators;
 
 /**
  * The play whose folder is open, if one is. The workspace opens a play by
@@ -59,7 +58,7 @@ export function openPlay(
   const at = trimSlash(root);
   const base = trimSlash(vaultRoot);
   if (at === base) return null;
-  return plays.find((p) => `${base}/${p.dir}` === at) ?? null;
+  return plays.find((p) => joinPath(base, p.dir) === at) ?? null;
 }
 
 /**

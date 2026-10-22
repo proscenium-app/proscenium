@@ -27,6 +27,13 @@
  * keeps it alive across surfaces so board edits and the editor never diverge),
  * so a second script tab would either steal the DOM node or render blank.
  * `openSurface` focuses the existing script tab instead of adding another.
+ *
+ * The contract is docs/app/organizing/workspace-model.md#WORK-D113.
+ *
+ * The tree holds shares, never pixels. What a window can actually show is a
+ * question asked of the tree with a measured box (`paneNeed`,
+ * `panesWithoutRoom`): the answer is derived each time and never stored, so a
+ * pane with no room is back the moment there is room for it.
  */
 
 export type Surface =
@@ -107,6 +114,17 @@ export function leaves(node: PaneNode): Leaf[] {
 
 export function findLeaf(node: PaneNode, id: string): Leaf | null {
   for (const l of leaves(node)) if (l.id === id) return l;
+  return null;
+}
+
+/** A leaf or a split, by id. */
+export function findNode(node: PaneNode, id: string): PaneNode | null {
+  if (node.id === id) return node;
+  if (node.type === "leaf") return null;
+  for (const child of node.children) {
+    const found = findNode(child, id);
+    if (found) return found;
+  }
   return null;
 }
 
@@ -306,6 +324,29 @@ export function closeSurface(tree: PaneNode, surface: Surface): PaneNode | null 
   return normalize(next);
 }
 
+/**
+ * Close a whole pane: a leaf with every tab in it, or everything under a split.
+ *
+ * Its share goes to `heirId` when that is a sibling — the pane on the other
+ * side of the divider that was dragged over it — and is otherwise shared out
+ * among the siblings in proportion, as closing its last tab does.
+ */
+export function closeNode(tree: PaneNode, nodeId: string, heirId?: string): PaneNode | null {
+  const next = mapTree(tree, (n) => {
+    // An empty leaf is what `normalize` drops, taking the node's share with it.
+    if (n.id === nodeId) return { type: "leaf", id: n.id, tabs: [], active: 0 };
+    if (n.type !== "split" || !heirId) return n;
+    const at = n.children.findIndex((c) => c.id === nodeId);
+    const heir = n.children.findIndex((c) => c.id === heirId);
+    if (at < 0 || heir < 0 || at === heir) return n;
+    const sizes = [...n.sizes];
+    sizes[heir] += sizes[at];
+    sizes[at] = 0;
+    return { ...n, sizes };
+  });
+  return normalize(next);
+}
+
 /** Move a tab into another leaf (or to a new index within its own). */
 export function moveTab(
   tree: PaneNode,
@@ -350,27 +391,130 @@ export function moveTab(
 /** The smallest share of a split a pane can be resized down to. */
 export const MIN_PANE_SHARE = 0.12;
 
-/** Resize: set the fraction of child `index` in split `splitId`. */
+/**
+ * Resize: set the fraction of child `index` in split `splitId`, taking the
+ * difference from child `next`.
+ *
+ * `next` is the child after `index` unless a pane between them has no room on
+ * screen, in which case the divider the writer holds sits between `index` and
+ * the next pane that is drawn. `least` is the smallest share either of the two
+ * may be left with: the renderer knows the pixels and passes the larger of
+ * `MIN_PANE_SHARE` and the pane's floor, and with no pixels to go by it is
+ * `MIN_PANE_SHARE` alone.
+ */
 export function setSize(
   tree: PaneNode,
   splitId: string,
   index: number,
   fraction: number,
+  next = index + 1,
+  least: { first: number; second: number } = { first: MIN_PANE_SHARE, second: MIN_PANE_SHARE },
 ): PaneNode {
-  const MIN = MIN_PANE_SHARE;
-  const next = mapTree(tree, (n) => {
+  const result = mapTree(tree, (n) => {
     if (n.type !== "split" || n.id !== splitId) return n;
-    if (index < 0 || index + 1 >= n.children.length) return n;
+    if (index < 0 || next <= index || next >= n.children.length) return n;
     // A divider redistributes between its two neighbours only, so dragging one
     // divider never shifts panes on the far side of the pane.
-    const pairTotal = n.sizes[index] + n.sizes[index + 1];
-    const first = Math.min(Math.max(fraction, MIN), pairTotal - MIN);
+    const pairTotal = n.sizes[index] + n.sizes[next];
+    // Two floors that do not both fit in the pair meet in the middle rather
+    // than cross: the pair is all there is to share.
+    const lo = Math.min(least.first, pairTotal / 2);
+    const hi = Math.max(pairTotal - least.second, pairTotal / 2);
+    const first = Math.min(Math.max(fraction, lo), hi);
     const sizes = [...n.sizes];
     sizes[index] = first;
-    sizes[index + 1] = pairTotal - first;
+    sizes[next] = pairTotal - first;
     return { ...n, sizes };
   });
-  return normalize(next) ?? next;
+  return normalize(result) ?? result;
+}
+
+// --- room ------------------------------------------------------------------
+
+/**
+ * The least a pane can be and still show anything: a strip of tabs and a few
+ * lines, in CSS pixels. Below it a pane is a sliver of chrome, so the layout
+ * never draws one that small. A split's cells hold these as their minimums, a
+ * divider stops here, and a window with no room for every pane at this size
+ * leaves the smallest out until there is (`panesWithoutRoom`).
+ */
+export const PANE_FLOOR = { width: 180, height: 120 } as const;
+
+export interface PaneBox {
+  width: number;
+  height: number;
+}
+
+/**
+ * The least room a node needs, counting only the panes still drawn: floors add
+ * up along a split's own direction and the largest counts across it. Null when
+ * nothing under the node is drawn.
+ */
+export function paneNeed(node: PaneNode, hidden?: ReadonlySet<string>): PaneBox | null {
+  if (node.type === "leaf") return hidden?.has(node.id) ? null : { ...PANE_FLOOR };
+  let width = 0;
+  let height = 0;
+  let any = false;
+  for (const child of node.children) {
+    const need = paneNeed(child, hidden);
+    if (!need) continue;
+    any = true;
+    if (node.dir === "row") {
+      width += need.width;
+      height = Math.max(height, need.height);
+    } else {
+      width = Math.max(width, need.width);
+      height += need.height;
+    }
+  }
+  return any ? { width, height } : null;
+}
+
+/** Each leaf's share of the whole tree's area: the product of the shares above it. */
+function leafShares(node: PaneNode, share = 1, into = new Map<string, number>()) {
+  if (node.type === "leaf") into.set(node.id, share);
+  else node.children.forEach((c, i) => leafShares(c, share * (node.sizes[i] ?? 0), into));
+  return into;
+}
+
+/**
+ * The panes a box this size has no room for, by leaf id.
+ *
+ * Every pane drawn gets at least `PANE_FLOOR`. When the floors do not all fit,
+ * panes are left out one at a time, the smallest first and the later of two
+ * equals, until the rest fit; a pane whose absence would not help is passed
+ * over. `keep` (the focused pane) is never left out, so the pane the writer is
+ * in stays, and asking for a pane that was left out brings it back by
+ * focusing it. Nothing is closed: the tree is untouched, and the same question
+ * asked of a larger box returns fewer panes.
+ */
+export function panesWithoutRoom(tree: PaneNode, box: PaneBox, keep: string | null): Set<string> {
+  const hidden = new Set<string>();
+  const all = leaves(tree);
+  const kept = keep && all.some((l) => l.id === keep) ? keep : (all[0]?.id ?? null);
+  const shares = leafShares(tree);
+  const order = all
+    .map((l, i) => ({ id: l.id, share: shares.get(l.id) ?? 0, i }))
+    .filter((l) => l.id !== kept)
+    .sort((a, b) => a.share - b.share || b.i - a.i);
+  // Half a pixel of slack: a measured box is fractional, the floors are not.
+  const over = (need: PaneBox | null) => ({
+    wide: !!need && need.width > box.width + 0.5,
+    tall: !!need && need.height > box.height + 0.5,
+  });
+  for (;;) {
+    const need = paneNeed(tree, hidden);
+    const { wide, tall } = over(need);
+    if (!need || (!wide && !tall)) return hidden;
+    const pick = order.find((l) => {
+      if (hidden.has(l.id)) return false;
+      const without = paneNeed(tree, new Set(hidden).add(l.id));
+      if (!without) return false;
+      return (wide && without.width < need.width) || (tall && without.height < need.height);
+    });
+    if (!pick) return hidden;
+    hidden.add(pick.id);
+  }
 }
 
 // --- persistence -----------------------------------------------------------

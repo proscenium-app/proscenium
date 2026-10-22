@@ -270,6 +270,70 @@ forgotten the file.
 
 **WORK-58** **A binder operation re-points every open material.** `runBinderOp` awaits every open material's flush, then follows each buffer to its new path.
 
+<a id="WORK-D111"></a>
+
+#### Lists in a document
+
+These rules are for a document's lists (src/markdown/lists.ts). A script has no lists.
+
+<a id="WORK-71"></a>
+
+**WORK-71** **A list is left on purpose, and never broken by a key that meant something else.** Return makes the next item. Return on an empty item steps out one level, and out of the list from the top level: this is the one way out by key, and the one every word processor shares. Shift-Return makes a new line inside the same item. Backspace at the start of an item takes its marker away and keeps its words in the list, as a new line of the item above; a second Backspace joins the two lines. Items nested under it keep their depth. The first item of a nested list steps out one level instead, and the first item of the whole list becomes a paragraph above the list. Straight after a list was made by typing its marker, Backspace takes that change back.
+
+<a id="WORK-72"></a>
+
+**WORK-72** **Tab and Shift-Tab indent and outdent, and do nothing else.** Shift-Tab at the top level leaves the item where it is. On a page, a Tab the list cannot use is spent, so the keyboard does not leave for the next control; ⌃⇥ is the key that leaves the page (docs/app/preferences-and-help/accessibility.md#A11Y-7). In a sheet, which has no such key, that Tab moves on as Tab does elsewhere in the sheet.
+
+<a id="WORK-73"></a>
+
+**WORK-73** **Two lists of one kind with nothing between them are one list.** The file cannot say otherwise: a blank line between two items is still one list.
+
+<a id="WORK-74"></a>
+
+**WORK-74** **A numbered list goes on counting across what interrupts it.** When an item in the middle of a numbered list becomes a paragraph, the items below it keep their numbers, and they keep up as the list above grows or shrinks. In a numbered list the formatting bar shows **List numbering**, last on the bar: **Continue Numbering** takes up the count of the numbered list above, and **Start at 1** starts again. A number of the writer's own is typed: `7.` and a space start a list at 7.
+
+<a id="WORK-75"></a>
+
+**WORK-75** **The file holds numbers and lines, and nothing else.** Markdown has no way to say that a list continues another, so the number is the mark: a numbered list that starts at the number the one before it, among the same siblings, would give next is that list continuing. A line broken inside an item is written ending in a backslash, with the next line hanging under the item's text, and is read back as a line of the same item; two trailing spaces are read the same way. A wrapped line with neither still reflows into the line above. A second paragraph inside an item, which only a paste can make, is written as a line of the item.
+
+<a id="WORK-76"></a>
+
+**WORK-76** **The whole sheet is the page you type on.** A click on a margin, between two blocks or on the blank paper under the last line puts the caret in the text: beside a line, on that line at the nearer end; under the last line, at the end of the document. A document that ends in a list ends there, with no empty paragraph under it.
+
+<a id="WORK-82"></a>
+
+**WORK-82** **A list item's lines start together, at every zoom.** The first line of an item starts where the lines wrapped under it start, and its bullet or number hangs in the list's indent beside that first line. The page draws the markers itself (`.prose li::before` in src/app/styles/materials.css): a number from a counter of its own, which a list that starts past 1 sets where it is written out (src/markdown/lists.ts), and a bullet by depth, the three every browser draws. What the file holds does not change.
+
+<a id="WORK-83"></a>
+
+**WORK-83** **A document's caret is drawn by the page, the same on every line** (src/markdown/caret.ts). It is two pixels wide on screen at any zoom and centred on the boundary between two letters, so it stands in the gap and on neither. It is as tall as the type it stands in, on a paragraph's first line and on every line wrapped under it, in a heading and in a list. It is solid the moment the writer types or moves; left alone it blinks on a one-second cycle, half a second solid, then a fade out and in; it is steady where the system asks for less motion, and where the Mac is set to prefer a cursor that does not blink (macOS 15 and later; `src-tauri/src/caret.rs` asks the system at launch and whenever the window comes forward, and `src/app/settings/system-caret.ts` says the answer on the document). It is the colour of the text. There is none while a range is selected, while the page is not editable, and while the page does not have the keyboard. At the place where a line wraps, which is the end of one line and the start of the next, it is at the end of the line after a key that goes to the end of the line, after an arrow that came from the line above or below, and after a click on that line; otherwise at the start of the next. The selection, and every key that moves it, stay the engine's own.
+
+<a id="WORK-D114"></a>
+
+##### Why the page draws its own caret and markers
+
+Both replace something the engine draws wrongly in ways a stylesheet cannot reach. Measured in the system WebKit of macOS 26.6, on a page at 15px type and 1.65 line spacing:
+
+- **Markers.** On a zoomed page a marker's margins take the zoom twice, so the first line of an item is laid out left of the item by the marker's width times the zoom's excess: 5px for a number and 2px for a bullet at 125%, and more for a two-figure number, which hung out into the page margin. The caret on that line is painted where the words should have been, so at the start of an item it sat on the first letter. The engine's notes list the fault as fixed in the release after 26; a marker that is not in the line cannot move it in any release.
+- **Height.** The caret's top is taken from the bottom of the line above. A block's first line has none, so there the caret is as tall as the font, 18px; on every wrapped line it is as tall as the line, 24.75px, reaching up into the space between lines.
+- **Place.** The caret is two pixels wide, painted from the boundary rightward at the start of a line, which in a proportional face is the left edge of the next letter.
+
+No CSS property sets the engine caret's width, height or offset; `caret-color` alone is honoured. The editors that want one caret everywhere draw it: the code editors measured draw a bar centred on the boundary, 1.2px to 2px wide, from the text's own geometry, with the engine's hidden. The numbers in WORK-83 are theirs and the system's: two pixels and the fade are the system caret's since macOS 14; the height of the type rather than the line is what the other engines draw and what the first line always showed; solid on every change is every editor's rule.
+
+The one thing the engine knows that a page cannot ask it is which side of a wrap its caret is on, so WORK-83 says how that is worked out, from what the writer did. A mistake there would draw the caret at the other end of the same place in the document, never where typing does not go.
+
+The system's setting for a caret that does not blink has no query a page can read, and the engine's own caret follows it by itself, so a caret the page draws has to be told. The system's note on the setting is addressed to apps that draw their own insertion point. Its function is public from macOS 15; the app runs from macOS 14, so the function is looked up when asked, and where it is absent the answer is no. What is held by test: the system has an answer on macOS 15 and later; the page blinks or holds as it is told, both ways; and in the app the page agrees with what the system answered. No test turns the setting on in the system itself, since a test does not change a Mac's settings.
+
+<a id="WORK-D112"></a>
+
+##### Why these rules
+
+The editor's stock list keys broke a list in ways no writer asked for. Backspace at the start of an item lifted it out and left two lists with a paragraph between them. Lifting copies the list's attributes to both halves, so the lower half of a numbered list said 1 again. A hard break inside an item was written as a bare newline, which the parser read as the end of the list, so the list was in two the next time the document opened. Tab on an item with nothing above it was not handled, and the browser moved focus to the next control. The editor was only as tall as its words, so a click on the paper under a short document landed outside it and took the keyboard away.
+
+Product comparison and the published research agree on little beyond convention. Every editor surveyed makes a new item on Return, leaves the list on Return in an empty item, breaks a line inside an item on Shift-Return and indents on Tab, so those stay. Backspace at the start of an item differs between products; the rule here is the word processor's, the only one that never breaks the list. No controlled study of list keys was found. What evidence there is concerns automatic formatting (the most common complaint in a survey of word-processor users, who asked for a plain way to undo it), modes (slips fall when a mode is visible, and a held key causes fewer than a latched state) and pointing (a click resolved to the nearest target is faster and less error-prone).
+
+`settleLists` runs after every change, in the same undo step. It marks the lower half of a list the change cut, joins lists of one kind that touch, and recounts: a list that continues takes the number the list above has reached, and a list whose number is the next number continues. The lower half is found by mapping its new start back through the change: before, that position was inside a numbered list among the same siblings, whose upper half is still a list above it.
+
 <a id="WORK-D107"></a>
 
 #### One layout, declared once
@@ -343,7 +407,19 @@ labels live under Details. Outline summaries and notes share a text-control
 treatment. Scene status is a free-form label, with the offered choices edited
 in Settings → Writing. Existing labels are preserved when that list changes.
 
+<a id="WORK-D113"></a>
+
+### Panes
+
+- <a id="WORK-77"></a> **WORK-77** **A play is in one pane or in several.** Panes sit side by side or one above another, in any arrangement, and each holds one tab or more. Split divides the focused pane and opens the first surface not on screen in the new half. The script is open in one pane only; asking for it from another pane goes to the pane it is in. The arrangement is kept per play.
+- <a id="WORK-78"></a> **WORK-78** **Every pane of several can be closed.** A pane that is one of several carries its tab strip whatever its tab count: each tab's close box, ⌫ on a tab, the tab to drag it by, and the "+". Closing a pane's last tab closes the pane, and View › Close Pane closes the focused pane with every tab in it. A play in one pane with one tab has no strip, and the last pane is never closed. The room a closed pane had goes to the panes beside it, and so does the keyboard when the closed pane had it.
+- <a id="WORK-79"></a> **WORK-79** **A pane is never drawn smaller than 180 by 120 pixels, and a divider dragged across one closes it.** A divider stops at that size. Dragged on past half of it, the pane gives way while the pointer is still down: the pane on the other side is drawn over the room of both. It comes back if the pointer does, and closes when the pointer lets go. The close box and View › Close Pane do the same without a drag.
+- <a id="WORK-80"></a> **WORK-80** **A window with no room for a pane hides it, and closes nothing.** When every pane at its least size does not fit, panes are left out until the rest do: the smallest first, the later of two equals, and never the focused one. A pane whose absence would make no room stays. Each comes back as it was when there is room, and both are spoken (docs/app/preferences-and-help/accessibility.md#A11Y-10). A hidden pane is not on screen for any other purpose: a script in one is not the page a fit solves for.
+- <a id="WORK-81"></a> **WORK-81** **No pane is made that would not be drawn.** Split, Open in New Pane, moving the comment feed to a pane and a drop on a pane's edge each say there is no room, and change nothing, when the new pane would not fit beside the others at their least sizes.
+
 ## Design
+
+**Panes.** `src/app/panes.ts` is the tree: splits of tab groups, holding shares and never pixels, with every operation pure. What a window can show is asked of the tree with the measured box of the play's area. `paneNeed` adds the least sizes along a split and takes the largest across it; `panesWithoutRoom` returns the panes to leave out, and nothing stores the answer, so a larger box returns fewer. `src/app/PaneTree.tsx` draws it: each cell of a split holds its child's need as its least size, so the layout itself gives a small pane its floor out of its neighbours' room, and a divider converts the pointer's pixels to shares within the floors of the two panes beside it. A pane a drag has crossed keeps its box, out of the flow and out of sight, until the pointer comes up, so nothing in it is laid out for a size it will never be shown at.
 
 `src/workspace/` joins the binder tree, script scene extraction and per-scene card metadata. File operations pass through the storage contract; views do not maintain a second ordering or canonical copy. The pane model presents Script, Board, Outline, Cast, Comments, Changes and documents over the same sessions.
 

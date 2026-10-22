@@ -5,8 +5,8 @@
 //! Help › Copy Diagnostics puts on the clipboard, and Send Feedback includes
 //! only when the writer chooses it.
 //!
-//! **What it says:** the version and channel, the architecture and macOS
-//! version, the accent, the formats in use (a writer's own as `user`), the
+//! **What it says:** the version and channel, the architecture and the
+//! system's version (macOS's, or Windows' version and build), the accent, the formats in use (a writer's own as `user`), the
 //! switches, what keeps the Plays folder (iCloud Drive, Dropbox, Syncthing, this
 //! Mac…), the last 20 error codes with their times, and the crash files. **What
 //! it never says:** a path, a play's name, a format's name, a learned word — the
@@ -72,6 +72,7 @@ pub fn gather(sources: &Sources) -> Facts {
             &crate::providers::Environment {
                 home: sources.home.to_path_buf(),
                 is_icloud_item: sources.is_icloud_item,
+                sync_roots: crate::providers::sync_roots(),
             },
         )
     });
@@ -117,12 +118,17 @@ fn provider_name(id: &str) -> &'static str {
 }
 
 fn arch_name(arch: &str) -> &'static str {
-    match arch {
-        "aarch64" => "Apple silicon",
-        "x86_64" => "Intel",
+    match (cfg!(windows), arch) {
+        (false, "aarch64") => "Apple silicon",
+        (false, "x86_64") => "Intel",
+        (true, "aarch64") => "Arm64",
+        (true, "x86_64") => "x64",
         _ => "another architecture",
     }
 }
+
+/// What the machine is called on its line: a Mac, or a PC.
+const MACHINE: &str = if cfg!(windows) { "PC" } else { "Mac" };
 
 fn on_off(on: bool) -> &'static str {
     if on {
@@ -149,7 +155,7 @@ pub fn text(facts: &Facts) -> String {
         format!("{} ({})", facts.version, facts.channel.as_str()),
     );
     line(
-        "Mac",
+        MACHINE,
         format!("{}, {} ({})", facts.os, arch_name(facts.arch), facts.arch),
     );
     line("Accent", s.accent.clone());
@@ -173,7 +179,7 @@ pub fn text(facts: &Facts) -> String {
         "Plays folder",
         match &facts.plays_folder {
             None => "not chosen yet".into(),
-            Some(ids) if ids.is_empty() => "on this Mac only".into(),
+            Some(ids) if ids.is_empty() => format!("on this {MACHINE} only"),
             Some(ids) => ids
                 .iter()
                 .map(|id| provider_name(id))
@@ -228,7 +234,7 @@ pub fn text(facts: &Facts) -> String {
         out.push_str(&format!("  {}  {}{times}\n", when(&entry.at), entry.code));
     }
 
-    out.push_str("\nCrashes on this Mac\n");
+    out.push_str(&format!("\nCrashes on this {MACHINE}\n"));
     if facts.crashes.is_empty() {
         out.push_str("  none\n");
     }
@@ -260,7 +266,51 @@ pub fn copy_to_clipboard(text: &str) -> Result<(), String> {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Put `text` on Windows' clipboard, as Unicode text.
+#[cfg(windows)]
+pub fn copy_to_clipboard(text: &str) -> Result<(), String> {
+    use windows_sys::Win32::Foundation::GlobalFree;
+    use windows_sys::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+    };
+    use windows_sys::Win32::System::Memory::{
+        GlobalAlloc, GlobalLock, GlobalUnlock, GMEM_MOVEABLE,
+    };
+    /// CF_UNICODETEXT.
+    const UNICODE_TEXT: u32 = 13;
+    let units: Vec<u16> = text.encode_utf16().chain(Some(0)).collect();
+    let refused = || "the clipboard would not take the diagnostics".to_string();
+    // SAFETY: the clipboard is opened and closed here; the memory is ours
+    // until SetClipboardData takes it, and freed if it does not.
+    unsafe {
+        if OpenClipboard(std::ptr::null_mut()) == 0 {
+            return Err(refused());
+        }
+        let result = (|| {
+            EmptyClipboard();
+            let memory = GlobalAlloc(GMEM_MOVEABLE, units.len() * 2);
+            if memory.is_null() {
+                return Err(refused());
+            }
+            let at = GlobalLock(memory) as *mut u16;
+            if at.is_null() {
+                GlobalFree(memory);
+                return Err(refused());
+            }
+            std::ptr::copy_nonoverlapping(units.as_ptr(), at, units.len());
+            GlobalUnlock(memory);
+            if SetClipboardData(UNICODE_TEXT, memory as _).is_null() {
+                GlobalFree(memory);
+                return Err(refused());
+            }
+            Ok(())
+        })();
+        CloseClipboard();
+        result
+    }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 pub fn copy_to_clipboard(_text: &str) -> Result<(), String> {
     Err("this platform has no clipboard Proscenium can write to yet".into())
 }
@@ -278,7 +328,7 @@ mod tests {
     fn diagnostics_name_no_play_no_path_and_no_word() {
         let tmp = tempfile::tempdir().unwrap();
         // Detection compares real paths, and a temp dir's is under /private.
-        let root = tmp.path().canonicalize().unwrap();
+        let root = dunce::canonicalize(tmp.path()).unwrap();
         let home = root.join("home-alexandra");
         let plays = home.join("Library/Mobile Documents/com~apple~CloudDocs/Writing/Stageworks");
         fs::create_dir_all(plays.join("Hamlet")).unwrap();
@@ -316,7 +366,7 @@ mod tests {
                 colno: None,
             }],
             "0.9.1",
-            "15.6",
+            crate::telemetry::example::SENT,
             "aarch64",
             chrono::Utc::now(),
         );
@@ -332,14 +382,14 @@ mod tests {
             version: "1.0.0",
             channel: Channel::DeveloperId,
             arch: "aarch64",
-            os: "macOS 15.6.1",
+            os: crate::telemetry::example::SYSTEM,
             can_send: true,
         });
         let text = text(&facts);
 
         for said in [
             "1.0.0 (developer-id)",
-            "macOS 15.6.1, Apple silicon (aarch64)",
+            crate::telemetry::example::LINE,
             "velvet",
             "dg-modern, user",
             "New plays in  user",
@@ -392,16 +442,22 @@ mod tests {
             can_send: false,
         });
         let text = text(&facts);
+        let chip = if cfg!(windows) {
+            "x64 (x86_64)"
+        } else {
+            "Intel (x86_64)"
+        };
+        let crashes = format!("Crashes on this {MACHINE}\n  none");
         for said in [
             "(app-store)",
-            "Intel (x86_64)",
+            chip,
             "gilt",
             "none open",
             "the default format",
             "not chosen yet",
             "reports disabled and sends nothing",
             "Recent errors, newest first\n  none",
-            "Crashes on this Mac\n  none",
+            &crashes,
         ] {
             assert!(text.contains(said), "{said:?}:\n{text}");
         }

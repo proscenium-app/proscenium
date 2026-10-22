@@ -1,0 +1,547 @@
+{
+  "v": 1,
+  "checks": {
+    "a comment made on a selection is about the words selected": {
+      "hash": "2a874dcd8a790626",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-07"
+    },
+    "a comment with no room for a card is typed in the feed, signed and answered": {
+      "hash": "72544262bf174c5c",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comment-thread-in-the-feed": "edde03b0b6ba55a4",
+        "new-comment-in-the-feed": "4bf883ea163788f4"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "a comment with room is typed in its card, and its words can be selected": {
+      "hash": "77d8745097144208",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "new-comment-in-its-card": "8177e7209b4876e8"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "a document's caret and list markers stand where the words are": {
+      "hash": "1c9415756d2b225d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-05"
+    },
+    "a document's caret holds steady when the Mac asks for one that does not blink": {
+      "hash": "7531b8b3800ea658",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-06"
+    },
+    "a failed version read is spoken in Changes": {
+      "hash": "2e98da40adeb5361",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "version-read-failure": "6545d2f0ab79d498"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "a list in a document holds together": {
+      "hash": "5785a81053336b7f",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-04"
+    },
+    "accessibility tree · the script is a text box that follows typing, and says the kind": {
+      "hash": "b8ddf60c272ba02b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-14"
+    },
+    "binder · an op waiting on a slow write never runs in the Plays folder": {
+      "hash": "f376d790c8fea44e",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-14"
+    },
+    "Changes speaks delayed and unavailable comparisons": {
+      "hash": "b87d664366e1015b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comparison-unavailable": "73628a0a50e57936"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "characters page · a double-click opens Cast at the line": {
+      "hash": "f325bb2df8339774",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-01"
+    },
+    "comment actions retain focus and announce the remaining count": {
+      "hash": "681837aa498567a6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comment-margin": "7a5d37054d6d8335",
+        "empty-comments-feed": "9743de40b4f8a041"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "copies kept during a save are readable in Changes": {
+      "hash": "14b3c49ef4dd1eb3",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "saved-copy": "ea1aaccb54889263"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "element bar · fits its pane at every width": {
+      "hash": "ffbaa97ab4dc4e33",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "element-bar-folded": "226a1d7ce8ced7b5",
+        "element-bar-more": "f9d49ac390d1ed5c",
+        "find-bar-narrow-pane": "db0c24bd33b4b2ee"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "formats · move to trash": {
+      "hash": "8d5de02c3ca092cf",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-14"
+    },
+    "outline and cast": {
+      "hash": "24a7365de9b67a86",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "cast": "7767859f437f3e24",
+        "changes": "c2a161a496812187",
+        "outline": "d87f050c9eaf5641"
+      },
+      "provenAt": "2026-10-01"
+    },
+    "panes · a pane of several closes by its box, its key and a divider dragged across it": {
+      "hash": "e252953bdc37a1f6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "split-panes": "01bd63e2e0338f1c"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "panes · a window with no room hides a pane, says so, and makes no new one": {
+      "hash": "46608ca044338bf5",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-05"
+    },
+    "plays screen": {
+      "hash": "7eb8e0739033d338",
+      "runs": {
+        "chromium": 420,
+        "webkit": 420
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "optional-tutorial-invitation": "a29b555188833030",
+        "plays-screen": "b4d1a4e2f289ee6f"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "reveal in Finder · the status bar's path and a binder row": {
+      "hash": "e1e91dda8b07a4f0",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-14"
+    },
+    "seeded Find and export results use premounted status regions": {
+      "hash": "362a3fc9e6612766",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "export-range-feedback": "ca0d9c5274ba7cd3"
+      },
+      "provenAt": "2026-10-01"
+    },
+    "settings · a refused status or word says why": {
+      "hash": "05907aea596f313c",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-a-refused-status": "cc072793266e091f",
+        "settings-a-refused-word": "71038866e6bc1753"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "settings · every section": {
+      "hash": "2095da9ac4797648",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-about": "a150524c4db36640",
+        "settings-appearance": "34a2296ba61b471f",
+        "settings-formats": "29339a2caa9fffd2",
+        "settings-general": "15438de30f756fda",
+        "settings-help-feedback": "0b85a5db09b0be11",
+        "settings-keyboard-shortcuts": "94875deb17237d65",
+        "settings-privacy": "e4f012a981bf5e3e",
+        "settings-updates": "5d64a0e30590b994",
+        "settings-writing": "0e875534722280b0"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "settings · updates": {
+      "hash": "cfce01866b2c45f2",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-updates-automatic-off": "bbc42690766f8f47"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "settings · updates, alpha's key": {
+      "hash": "b5468d2b1e1a89c9",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-updates-a-key-refused": "01561de491550b57",
+        "settings-updates-alpha-track": "1ed6a20a2565fc04",
+        "settings-updates-alpha-without-a-key": "3decaf8a39b08b4a"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "sheet and outline recovery survive a crash and remain readable": {
+      "hash": "7cbe7ff816e62f25",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "recovered-document-copy--2": "4a9222a364adeb6a",
+        "recovered-document-copy": "0c903c689d08b3ec"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "tutorials · partial copy keeps the original and retries into a new folder": {
+      "hash": "f8bced84c8126c2f",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-06"
+    },
+    "tutorials · reset keeps every practice play, and Saved Practice opens them": {
+      "hash": "72630cf961f94fd4",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "reset-preserves-practice": "816cd511ac3ba08d",
+        "retained-practice-after-reset": "15f37b84e901be0e"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "tutorials · stale progress and damaged reset preserve practice": {
+      "hash": "b588c38b49e9d401",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-06"
+    },
+    "tutorials · the guide shows where to type, catches a wrong turn and moves on by itself": {
+      "hash": "8e92f84cf4c31859",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "tutorial-a-correction": "016b79b29bd92422",
+        "tutorial-inside-a-menu": "eb0f078c0cedcab3",
+        "tutorial-lesson-finished": "c068ca7d657c3b80",
+        "tutorial-type-here": "db550c1cd409719a"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "usability · tutorials, appearance, dictionary and formats": {
+      "hash": "ad6321ff67ce382a",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "appearance-override": "5e27a4a71c484831",
+        "tutorials": "bece55cf88065473"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "versions": {
+      "hash": "57a0f603b87ed97d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "versions": "5a78574ee097a795"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "versions · a restore lands in the script it was chosen from, or nowhere": {
+      "hash": "ecbfef9f7f028b22",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-01"
+    },
+    "welcome": {
+      "hash": "ebeda68d1187ce27",
+      "runs": {
+        "chromium": 420,
+        "webkit": 420
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "welcome": "19004e06e609e643"
+      },
+      "provenAt": "2026-10-14"
+    }
+  }
+}

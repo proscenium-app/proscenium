@@ -1,23 +1,23 @@
 # Privacy
 
-Your plays and files stay on your Mac. Proscenium never collects your writing:
+Your plays and files stay on your Mac or PC. Proscenium never collects your writing:
 no play text, titles, character names, filenames or paths. Usage counts record
 which features are used, never what you write with them. Send Feedback sends
 only the words you choose to put in its form. Exporting, copying and sharing a
-file do what you ask them to do. A Plays folder in a sync service and macOS
-features such as Writing Tools, Services and Universal Clipboard follow their
-own settings.
+file do what you ask them to do. A Plays folder in a sync service and the
+system's own features, such as Writing Tools, Services and Universal Clipboard
+on a Mac, follow their own settings.
 
 **Everything Proscenium collects, and why.** The table below is the complete
-list of data that may leave your Mac; anything not in it is not collected. No
+list of data that may leave your Mac or PC; anything not in it is not collected. No
 reason, no field. A test holds the table to the app's list of events and to our
 service's, so neither can send something this page does not list.
 
 | What is sent | Fields and allowed values | Why |
 |---|---|---|
-| Update check | platform `darwin`; chip `aarch64` or `x86_64`; current app version; macOS major/minor in `Proscenium-OS` | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. |
-| Release download | release version and one of its own DMG, signed archive or signature filenames | Deliver the chosen release and count downloads by version. These are our release filenames, never yours. |
-| Every usage batch | `version`, `platform`, `arch`, `os`, `channel` (`developer-id` or `app-store`) | See which releases, systems and delivery channels need support. |
+| Update check | platform `darwin` or `windows`; chip `aarch64` or `x86_64`; current app version; in `Proscenium-OS`, macOS major/minor, or Windows' version and build (`10.0.<build>`) | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. |
+| Release download | release version and one of its own DMG, Windows installer, signed archive or signature filenames | Deliver the chosen release and count downloads by version. These are our release filenames, never yours. |
+| Every usage batch | `version`, `platform`, `arch`, `os`, `channel` (`developer-id` or `app-store` on a Mac; `download` or `microsoft-store` on Windows) | See which releases, systems and delivery channels need support. |
 | Usage batch shape | `events`: up to 25 items, each with `name` and `props` from the rows below | Group counts into fewer requests without identifying a session. |
 | `app_launched` | no extra properties | Count how often the app opens each day. |
 | `play_opened` | `plays`: `1`, `2-5`, `6-20`, `21+` | Guide work on the Plays screen without an exact play count. |
@@ -27,14 +27,14 @@ service's, so neither can send something this page does not list.
 | `update_installed` | `from`: released version numbers; `to`: released version numbers | Check whether updates arrive and how far behind copies fall. |
 | `error_shown` | `code`: `E-BOOT`, `E-FOLDER-OPEN`, `E-FOLDER-REFUSED`, `E-FOLDER-ACCESS`, `E-ICLOUD`, `E-PLAY-OPEN`, `E-PLAY-MISSING`, `E-PLAY-CREATE`, `E-SAVE`, `E-SAVE-LOCKED`, `E-SAVE-PERMISSION`, `E-SAVE-NOT-ALLOWED`, `E-SAVE-DISK-FULL`, `E-SAVE-READ-ONLY`, `E-SAVE-FOLDER-GONE`, `E-SAVE-UNREACHABLE`, `E-CHANGED-ON-DISK`, `E-VERSIONS`, `E-BINDER`, `E-ACTION-STALE`, `E-VAULT-READ`, `E-VAULT-PERMISSION`, `E-EXPORT-PDF`, `E-EXPORT-FONT`, `E-PRINT`, `E-FORMAT-READ`, `E-FORMAT-IMPORT`, `E-FORMAT-EXPORT`, `E-FORMAT-SAVE`, `E-FORMAT-TRASH`, `E-FORMATS-FOLDER`, `E-REVEAL`, `E-FINDER-OPEN`, `E-UPDATE-RESTART`, `E-WATCH`, `E-WORKSPACE`, `E-OTHER` | Fix the errors writers actually meet without collecting error messages. |
 | One crash | `event_id`: a random UUID for that crash, repeated in the envelope | Let Sentry recognize a retry of the same crash. It does not identify a writer, device or session. |
-| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip and macOS major/minor; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves the Mac. |
+| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip, and macOS major/minor or Windows' `10.0.<build>`; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves your computer. |
 | Crash failure | `level`: fatal; one `exception` with a kind from the closed list and a `stacktrace` | Group failures by where execution stopped. No exception message or value is allowed. |
 | Each stack frame | `module`: native or webview; optional compiled `function`, `lineno`, `colno` | Locate the failing code. No filename, path, source line, memory address or local variable is sent. |
 | Crash envelope | item `type`: event; byte `length`; event id | Give Sentry the format and size of its single crash event. No other item type is allowed. |
 | Feedback | `id`: one random submission UUID; `message`: your text | Store the message once, including when a response is lost, and let you tell us what you need. |
 | Optional feedback email | `email`: only when you enter it | Reply to you. It is not used for marketing or added to a usage or crash report. |
 | Optional feedback details | The exact text under View Details, only when Include technical details is checked | Help understand the problem you are reporting. |
-| Included diagnostic facts | app version/channel, chip, macOS version, accent, built-in format ids or `user`, default format, preference switches, sync-provider kind | Reproduce the setup that matters to your feedback. No play, user-format name, learned word or path appears. |
+| Included diagnostic facts | app version/channel, chip, the system's version, accent, built-in format ids or `user`, default format, preference switches, sync-provider kind | Reproduce the setup that matters to your feedback. No play, user-format name, learned word or path appears. |
 | Included diagnostic history | last 20 error codes with their local times/repeat counts; safe local crash summaries | Understand the failures you chose to show us. These precise local times appear only in details you inspect and include. |
 | A browser link you choose | releases, one release version, license, support or privacy | Open the page you requested. These links are not usage events. |
 

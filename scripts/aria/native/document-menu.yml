@@ -39,8 +39,6 @@
     - listitem "The Weight of Water"
       - button "The Weight of Water" [current=true]
       - button "Close The Weight of Water"
-    - listitem "Outline"
-      - button "Outline"
   - button "Add a surface to this pane" [haspopup]
   - button "What this line is: Action" [haspopup]
   - button "Bold"
@@ -69,12 +67,12 @@
   - generic
   - radiogroup "Card colour"
     - radio "Unmarked" [checked]
-    - radio "Setup" [checked]
-    - radio "Turns" [checked]
-    - radio "Interior" [checked]
-    - radio "Subplot" [checked]
-    - radio "Revise" [checked]
-    - radio "Parked" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
   - generic
   - textbox "Board note"
   - generic
@@ -92,9 +90,9 @@
   - menuitem "All Plays ⌘⇧O" [selected]
   - menuitem "Reveal in Finder"
   - separator
-  - menuitemcheckbox "Dramatists Guild — Modern" [checked]
+  - menuitemcheckbox "Dramatists Guild — Modern"
   - menuitemcheckbox "Proscenium House" [checked]
-  - menuitemcheckbox "UK / International (BBC)" [checked]
+  - menuitemcheckbox "UK / International (BBC)"
   - menuitem "All Formats" [haspopup]
   - menuitem "Edit Current Format…"
   - menuitem "Play Language…"

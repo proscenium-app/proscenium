@@ -74,14 +74,80 @@ This reference covers owned endpoints, service behavior, protection and operatio
 - <a id="SERV-18"></a> **SERV-18** **Its code lives in this repository,** in `services/edge/`: TypeScript,
   tested with `bun test`, deployed with `wrangler`. It goes public with the
   rest at launch, so anyone can read exactly what is kept.
+  - <a id="SERV-274"></a> **SERV-274** **A stand-in, local only.** `wrangler.standin.jsonc`
+    runs the update routes as production answers them (`bun run dev:standin`, on
+    the address its `UPDATES` var names), through its own entry,
+    `test/standin-entry.ts`: the three origins production keeps as constants
+    (`REPOSITORY`, `GITHUB`, `UPDATES`) come from its vars, and every R2 key it
+    reads is under `stand-in/`, the admission list (SERV-268) and the tracks
+    alike. So a stand-in release is served from a local bucket seeded with its
+    files (`bun test/standin-seed.ts`), and its GitHub manifest and files from a
+    GitHub stand-in on loopback (`bun test/github-standin.ts --stand-in`), which
+    serves each release build given with its archive at its own address. Every
+    address and port the stand-in and its helpers use is one of its vars, so
+    rewriting them moves all of it. Every origin must be loopback and the only
+    requests it makes are to its own stand-ins: anything else answers 500 before
+    it leaves. The configuration names no account, route or remote binding, its
+    bucket is a local one of its own, and `scripts/edge-wrangler.mjs` deploys
+    `wrangler.jsonc` alone; the production entry, `src/index.ts`, takes no origin
+    or prefix from its environment.
+  - <a id="SERV-279"></a> **SERV-279** **The stand-in takes crash reports and feedback, as production
+    does.** On its one origin, at production's paths, it answers the crash route
+    and the feedback route with production's own code: a crash report is taken
+    only from a version the stand-in's lists released (SERV-269, SERV-272), a
+    published beta's among them, and one it takes goes to a Sentry stand-in on
+    loopback (`bun test/sentry-standin.ts`, at its `SENTRY` var) in place of
+    Sentry, which keeps a line for each in `.wrangler/standin/sentry.jsonl`: when
+    it came, its release, its day and the exception's first line (its kind and
+    where it stopped). A stand-in run plants one with
+    `bun test/standin-crash.ts --version <v>`: one JavaScript crash, dated its
+    day, with a fresh id, exactly as a copy's reporter writes it, posted to
+    `/api/proscenium/envelope/` with `Content-Type: application/x-sentry-envelope`
+    (`--print` shows the headers and body instead).
+  - <a id="SERV-278"></a> **SERV-278** **A track's answer names its archives on the Worker's own
+    origin, as stable's does.** The manifest in R2 names each archive on the
+    track's download route of the update service's own host, as the pipeline
+    writes it, or already of the Worker's own origin; any other address is
+    refused. The answer names each archive on the Worker's own origin. In
+    production those are one host, so the answer is the manifest as written; a
+    stand-in answers the same manifest on its loopback origin, the only one a
+    copy made for the update proof admits.
+- <a id="SERV-280"></a> **SERV-280** **What a release's clock reads about a build, over a window.**
+  Three things, from what the service already keeps, and nothing new is
+  collected for them:
+  - `copies`: the most update checks the build made on one UTC day the window
+    touches (`copies-by-version.sql`), an estimate of the copies on it, since a
+    copy checks once a day, has no identifier, and checks again when opened
+    twice; null when the service counted no check at all those days, which says
+    the counts are missing rather than that no copy checked.
+  - `crashes`: the crash reports from the build whose day the window touches,
+    and `crashSaid`, one line of how many and what, the most first, within 300
+    characters. A report says the UTC day it happened and never the hour, so it
+    counts in every window its day touches.
+  - `feedback`: the messages from copies on the build received those days
+    (`feedback-by-version.sql`, by id alone, no words), as a total and as those
+    not among the ids the maintainer has cleared.
+
+  `bun test/standin-evidence.ts --version <v> --from <iso> --until <iso>
+  [--cleared id,id]` prints `{ copies, crashes, crashSaid, feedback: { total,
+  unmarked } }` from a stand-in's local database and its Sentry stand-in's
+  file; the build host's clock reads the same, by the same code
+  (`services/edge/src/evidence.ts`), from production's D1 through
+  `scripts/edge-wrangler.mjs query <name> <from> <to> <version>`
+  (`wrangler d1 execute … --remote`, read-only) and from Sentry's API: the
+  events endpoint of the organization, the `errors` dataset, filtered by
+  release, which asks a token with the scope `org:read`. A source that cannot
+  be read fails the reading; it is never zero.
 - <a id="SERV-19"></a> **SERV-19** **Updates.**
   - <a id="SERV-20"></a> **SERV-20** For each check, add one to the day's count for its platform,
-    architecture, version and macOS version. Then answer with the current
-    release's `latest.json` from GitHub, cached at the edge for five minutes,
-    with every `url` rewritten to `/v1/download/…`.
+    architecture, version and system version (SERV-282). Then answer with the
+    current release's `latest.json` from GitHub, cached at the edge for five
+    minutes, with every `url` rewritten to `/v1/download/…`: the entries of the
+    copy's own system alone (SERV-283).
   - <a id="SERV-21"></a> **SERV-21** For each download, stream the file from the GitHub release the path names,
     and count it by version. Only the release's own files are served: the DMG,
-    the update archive and its `.sig`.
+    the update archive and its `.sig`, and Windows' installers and their `.sig`s
+    from a release whose manifest names them (SERV-283).
   - <a id="SERV-22"></a> **SERV-22** When GitHub cannot be reached, answer 502. The updater then tries its
     second endpoint.
   - <a id="SERV-267"></a> **SERV-267** **The stable route is proven against GitHub itself before every
@@ -92,8 +158,16 @@ This reference covers owned endpoints, service behavior, protection and operatio
     release's signature file, and passes only when the answers are GitHub's
     own, read directly beside it: the version, date and signatures of
     `latest.json`, the download route as each file's address, and the bytes of
-    the file. A tagged release runs it before it builds, and the release
-    procedure runs it by hand before the tag
+    the file. It admits what the live service admits: the deployed list, and
+    GitHub's newest release when the live service says it has released it, by
+    the one answer every route gives (SERV-269), here its `go` link to that
+    release's notes, which redirects to the release's page on GitHub only for a
+    release it has released (SERV-281). That question carries no credential and
+    the route counts and writes nothing. A newest release the live service has
+    not released fails the test, as the live stable route would answer 502.
+    Reading the deployed list alone, it failed from the day a release was first
+    admitted by the list in R2 (SERV-268) with no deploy. A tagged release runs
+    it before it builds, and the release procedure runs it by hand before the tag
     (docs/engineering/release-engineering.md#SHIP-D107). It is not the
     pipeline's every-push step, which keeps the stand-in so a push never waits
     on GitHub. From the first deploy to the day of the 1.0.0 release the route's
@@ -117,15 +191,89 @@ This reference covers owned endpoints, service behavior, protection and operatio
     three files. Publishing to either track writes R2 and needs no Worker deploy;
     stable keeps its admission list, its GitHub releases and its fallback.
   - <a id="SERV-265"></a> **SERV-265** **Intel Macs take stable releases alone**
-    (docs/engineering/release-engineering.md#REL-124). A track's manifest names either
-    both platforms and the universal archive, as the first track builds did, or
-    `darwin-aarch64` alone and that version's `_aarch64` archive, as every track
-    build since does; anything else is refused. A track version's own files are
-    its universal three or its `_aarch64` three. A check from `x86_64` on `alpha`
-    or `beta`, from a copy built before the app followed stable on Intel, is
-    counted as the check it is and answered with stable's manifest, exactly as
-    the stable route answers it; alpha's key is still asked for first. A release's
-    manifest stays universal.
+    (docs/engineering/release-engineering.md#REL-124). The rule is the Mac's: an
+    `x86_64` Windows copy is not an Intel Mac, and is answered from its track
+    (SERV-283). For the Mac, a track's manifest names either both platforms and
+    the universal archive, as the first track builds did, or `darwin-aarch64`
+    alone and that version's `_aarch64` archive, as every track build since
+    does; anything else is refused to a Mac. Beside the Mac's, it may name
+    Windows' two, each system judged on its own part alone (SERV-283). A track version's own files are its universal three or its
+    `_aarch64` three, and Windows' four when it carries Windows. A check from an
+    Intel Mac (`darwin`, `x86_64`) on `alpha` or `beta`, from a copy built before
+    the app followed stable on Intel, is counted as the check it is and answered
+    with stable's manifest, exactly as the stable route answers it; alpha's key
+    is still asked for first. A release's manifest stays universal for the Mac.
+  - <a id="SERV-283"></a> **SERV-283** **Windows beside the Mac, in one manifest.** A
+    release's manifest, and a track's, names the Mac's builds as SERV-265 says,
+    and beside them Windows' two or none: `windows-x86_64` and `windows-aarch64`,
+    each that version's installer for its chip, `Proscenium_<version>_x64-setup.exe`
+    and `Proscenium_<version>_arm64-setup.exe`, at the address the Mac's archive
+    has (the release on GitHub, or the track's download route).
+    - **Each system is judged on its own part alone.** The Mac never waits on
+      Windows: a Mac copy is answered from the Mac's entries (`darwin-…`) and a
+      Windows copy from Windows' (`windows-…`), and neither part's fault reaches
+      the other's copies. A Windows part that is not both chips' installers,
+      each at its own address with a signature and nothing more, answers
+      Windows' copies 502, the source's failure, and their installer downloads
+      too, and changes nothing a Mac is told. A Mac part that is not one
+      slice's, or is missing, answers a Mac 502 as it always has, and changes
+      nothing a Windows copy is told. A key of a system we do not build is in no
+      system's part and is never answered. What every system shares, the
+      version, notes and date and the manifest's own fields, still refuses the
+      whole manifest. A release still writes the whole of it valid, and the
+      stand-in's helpers refuse anything less.
+    - **Each copy is answered for its own system.** A check is answered with the
+      manifest's entries for the copy's own system alone, each on this
+      service's download route for its own file, and with 204, nothing newer,
+      when the manifest names no build for the copy's system and chip. So a
+      Mac's answer is the same, byte for byte, whether a manifest names Windows
+      or not, and a Windows copy hears nothing newer from a manifest that names
+      only the Mac, as when a release goes out without Windows. Before this, a
+      manifest naming any platform but the Mac's two answered every Mac's check
+      502.
+    - **Its files.** A release's own files gain Windows' four, an installer and
+      its `.sig` per chip, served only when that release's manifest names its
+      chip; a track version's gain the same four, served from R2 as its others are.
+    - **Halts.** A halt answers Windows as it answers the Mac (SERV-270): the
+      release before, with its Windows entries if it carried them, or 204.
+  - <a id="SERV-268"></a> **SERV-268** **Stable is admitted by a list the release writes, with no
+    deploy.** Beside the deployed list (`RELEASED_VERSIONS_JSON`), the Worker
+    reads `admission.json` at the root of its R2 keys, at most once a minute
+    through the edge cache: `{ "v": 1, "stable": ["X.Y.Z", …], "halted": [{
+    "version", "track", "at", "why" }, …] }`. Stable's admitted releases are
+    both lists together; a halt (SERV-270) names its version, the track it is
+    halted on (`stable`, `beta` or `alpha`, the version of that track's form),
+    when (ISO 8601, with its zone) and why (at most 500 characters). None
+    written is an empty list. One that cannot be read, or is not exactly that
+    shape (another `v`, a field more or less, a version of the wrong form, over
+    64 KiB), is taken as empty, never as admitting or halting anything, and is
+    said in the Worker's one line (SERV-275): content once for the minute it is
+    kept, R2 failing to answer on each request, since that is asked again. A
+    release's admission, and a halt, so take effect within a minute; the
+    Worker's own changes are what a deploy is for.
+  - <a id="SERV-270"></a> **SERV-270** **A halt stops the offer, and deletes nothing.** A halted
+    version is not offered on its track, and everything else about it stands:
+    it stays released (SERV-269), its copies are answered and counted, their
+    reports are taken, and R2, which the Worker only reads, and GitHub keep its
+    files. On stable, a check whose newest release on GitHub is halted is
+    answered as if that release were not there: with the newest admitted
+    release before it that is not halted, from that release's own
+    `latest.json`, and when there is none, or its manifest cannot be had, with
+    204, nothing newer. Never an error there: the updater would take an error to
+    its GitHub fallback, whose manifest names the halted release (SERV-9). The
+    release before is offered because it was the release until the halted one
+    was, and the updater installs only a version newer than its own, so no copy
+    goes back. On a track, a halted newest version is answered 204, since R2
+    keeps no manifest of a track's earlier versions. The download routes answer
+    a halted version's files 404.
+  - <a id="SERV-271"></a> **SERV-271** **While a halt is in force, nothing sends the updater to
+    GitHub.** A halt on stable is in force when the newest release the service
+    knows, admitted or halted, is halted: GitHub's newest release is then most
+    likely that one. Until another release is admitted past it, a stable check
+    that fails (GitHub unreachable or answering something unusable, or the
+    Worker's own fault) answers 204 in place of SERV-22's 502 and SERV-266's 500.
+    A check the service refuses before it asks anything (a switch, a limit, a
+    version it never released) still goes on to GitHub, as every refusal does.
 - <a id="SERV-23"></a> **SERV-23** **Usage counts** (decision 2).
   - <a id="SERV-24"></a> **SERV-24** A batch carries the build's version, platform, architecture, macOS version
     and channel, and a list of events, each a name and its properties.
@@ -147,12 +295,39 @@ This reference covers owned endpoints, service behavior, protection and operatio
   - <a id="SERV-30"></a> **SERV-30** A report is stack traces, never a memory dump (no minidump), since memory
     can hold a play's words.
   - <a id="SERV-31"></a> **SERV-31** It carries no message text and no file path, since either can name a play.
+- <a id="SERV-272"></a> **SERV-272** **A published beta's reports are taken as a release's, and
+  counted apart.** A copy reports its whole build version (the version it asks
+  for updates with): a release `X.Y.Z`, the same as its package's, or a track
+  build's `X.Y.Z-beta.N`. A usage batch or a crash report from a beta its track
+  has published is taken as one from a release; one from a beta the track never
+  published, or from an alpha, is refused whole, as a version never released is
+  (SERV-106). Each usage count records its track, `stable` or `beta` (D1
+  `usage_counts.track`, migration 0006), read from the lists when the batch is
+  taken, and the queries count the two apart; a crash report goes on to Sentry
+  with its whole version as its release, which is how Sentry tells them apart.
+  `update_installed` still names releases alone: a move to or from a beta is
+  not reported. A track's list that cannot be read answers 503, so the app
+  keeps the report for later; the admission list is taken as empty then
+  (SERV-268), so a release on it alone is refused until it can be read.
 - <a id="SERV-32"></a> **SERV-32** **Feedback** (decision 7, [feedback.md](../app/preferences-and-help/feedback.md)).
   - <a id="SERV-33"></a> **SERV-33** A message carries a submission id and the writer's text. It carries an
     email and technical details only when the writer gave them, and nothing
     else, not even the app version.
-  - <a id="SERV-34"></a> **SERV-34** The Worker checks the sizes, a well-formed email if there is one, and that
-    no other field is present.
+  - <a id="SERV-276"></a> **SERV-276** The Worker checks the sizes, a well-formed email if there is one,
+    a build's whole version if there is one (SERV-273), and that no other field
+    is present. It replaces SERV-34
+    (docs/engineering/withdrawn-requirements.md#SERV-34).
+  - <a id="SERV-273"></a> **SERV-273** **The Worker keeps a message's build version when the copy
+    says it.** A message may carry `version`, the whole build version it was sent
+    from: `X.Y.Z`, `X.Y.Z-beta.N` or `X.Y.Z-alpha.N`, of that form and nothing
+    else, or it is refused with a reason. It is stored with the message (D1
+    `feedback_messages.version`, migration 0007; NULL when absent), so the
+    messages from copies on a beta can be counted, by the words-free receipts
+    (`feedback-receipts.sql`). A message is never refused for being from a
+    version that was not released: the writer's words matter more. The Worker
+    takes the field before any copy sends it, since a Worker without it refuses
+    the message whole; a copy sends it only once the privacy page lists it
+    (SERV-50), and until then SERV-33 describes what a message carries.
   - <a id="SERV-35"></a> **SERV-35** It stores the message in a private table, then answers 201 with the id.
     That answer is the "confirmed receipt" the sheet waits for.
   - <a id="SERV-36"></a> **SERV-36** The same id again answers the same 201 and stores nothing new, so a retry
@@ -163,9 +338,25 @@ This reference covers owned endpoints, service behavior, protection and operatio
     into a private copy of the list on the Mini, where they are reviewed and analysed.
   - <a id="SERV-38"></a> **SERV-38** Replying is an ordinary email to the address the writer gave.
 - <a id="SERV-39"></a> **SERV-39** **Links:** redirects (302), and nothing else.
+  - <a id="SERV-281"></a> **SERV-281** **A version's link goes to that version's notes.**
+    `releases/v<version>` redirects a release stable has released to its page on
+    GitHub, and a beta its track has published to the Guide's What's new page, at
+    the section that lists the beta that is out
+    (`https://docs.proscenium.ink/whats-new#beta`): GitHub holds releases alone,
+    so a beta has no page there. Every published beta goes to that one address:
+    the section is always the beta that is out. Which version is released is
+    SERV-269's answer, so a halted version keeps its notes. Any other version,
+    an alpha's and a beta's its track never published among them, gets the bare
+    404, and a list that cannot be read answers 503.
 - <a id="SERV-40"></a> **SERV-40** **What it keeps:** the daily counts and the feedback messages, and nothing
   about any single request.
-  - <a id="SERV-41"></a> **SERV-41** Workers Logs stays off, and the Worker writes no log line of its own.
+  - <a id="SERV-275"></a> **SERV-275** Workers Logs stays off. The Worker writes one kind of line of its
+    own, and no other: that the admission list (SERV-268) could not be read, or
+    is not one, naming its key and nothing of any request. With Workers Logs
+    off it is kept nowhere; it shows in a local `wrangler dev` and to a live
+    `wrangler tail`, and the behaviour it names is seen from outside anyway, as a
+    release that is not admitted. It replaces SERV-41
+    (docs/engineering/withdrawn-requirements.md#SERV-41).
   - <a id="SERV-42"></a> **SERV-42** Rate limiting reads the sender's address in memory and forgets it.
 - <a id="SERV-43"></a> **SERV-43** **Reading it.** The maintainer's scheduled jobs on the Mac mini pull the counts
   daily with a read-only Cloudflare token, and send the maintainer a weekly summary:
@@ -320,10 +511,35 @@ reports.
   - <a id="SERV-104"></a> **SERV-104** crash envelopes only for our Sentry project;
   - <a id="SERV-105"></a> **SERV-105** downloads only of the release's own files, from our repository.
 - <a id="SERV-106"></a> **SERV-106** **Plausibility:** a version never released, or a platform we do not build,
-  is refused.
+  is refused. The platforms we build, and the system versions each is built
+  for, are SERV-282's.
+  - <a id="SERV-282"></a> **SERV-282** **The systems we build, and how each names its
+    version.** A copy runs on a Mac (`darwin`) or on Windows (`windows`), on
+    either chip (`aarch64`, `x86_64`). It names its system's version in its
+    update check's `Proscenium-OS` and in a report's `os`, in that system's form
+    and no finer: a Mac's `<major>.<minor>`, from macOS 14, such as `15.6`;
+    Windows' `10.0.<build>`, from Windows 10 22H2's build 19045, such as
+    `10.0.26100` (Windows 11 is 10.0 too, from build 22000). Windows' update
+    revision after the build is not sent, as a Mac's patch number is not. A
+    usage batch's channel is its own system's too: a Mac's `developer-id` (the
+    download) or `app-store`; Windows' `download` (its installer, from the site,
+    GitHub or winget) or `microsoft-store`. An address naming another system is
+    a bare 404 (SERV-98). A version or a channel that is not its own system's, a
+    Mac's from Windows or Windows' from a Mac included, is refused with a 400: a
+    check before it is counted, and a usage batch or a crash report whole.
   - <a id="SERV-250"></a> **SERV-250** A version counts as released when the stable admission list or any
     track's list of published versions holds it, so a copy that changes track is
     never refused for the track it came from.
+  - <a id="SERV-269"></a> **SERV-269** **One answer to "was this version released", for every
+    route.** A release `X.Y.Z` is stable's when the deployed list or the
+    admission list (SERV-268) holds it; a track build's whole version,
+    `X.Y.Z-beta.N` or `X.Y.Z-alpha.N`, is released when its own track's list of
+    published versions holds it. What counts depends on who asks: an update
+    check takes all three (SERV-250); usage counts and crash reports take stable
+    and beta (SERV-272); a `go` link to a version's notes takes stable and beta
+    too (SERV-281), since an alpha has no notes to open. A halt does not change
+    this answer, only what is offered (SERV-270): a copy that installed a
+    release before it was halted is still answered, counted and heard.
 - <a id="SERV-107"></a> **SERV-107** **Secrets** live in Worker secrets, never in the app or the repository: the
   Sentry forwarding target.
   - <a id="SERV-262"></a> **SERV-262** And alpha's key, as its SHA-256 only (`ALPHA_KEY_SHA256`). The key itself
@@ -445,6 +661,37 @@ Proscenium's GitHub sponsors, by level, for Settings › About
     need none; and no other route tells published alphas apart.
   - an Apple-silicon-only track manifest and its files are served, a mixed one
     is refused, and an Intel check on a track gets stable's manifest (SERV-265).
+  - <a id="SERV-277"></a> **SERV-277** a release on the admission list in R2 is answered, offered
+    and served with no deploy, and a list that is not one admits and halts
+    nothing and is said once; a halt stops the offer on every route that offers
+    and deletes nothing, stable offering the release before it or 204 and never
+    an error while it is in force; a published beta's usage counts and crash
+    reports are taken and counted apart, an alpha's refused; a message's version
+    is stored; and the stand-in's own bundle serves a stand-in release from its
+    `stand-in/` keys and its loopback GitHub, asking nothing else. The bundle
+    runs in workerd for each (`bun run test:workerd`).
+  - <a id="SERV-284"></a> **SERV-284** every answer the Worker gave a Mac before it learned
+    Windows is held byte for byte, with every manifest naming the Mac alone,
+    with every one naming Windows beside it, and with every one whose Windows
+    part is broken, each of seven ways (one chip, an installer elsewhere, the
+    other chip's installer, a signature that is not one, a field more, an
+    installer's own key, a system we do not build): each check route, chip,
+    kind of version and OS header, each download and each refusal, in eight
+    states of the service, with what each counted and said, and which of a
+    Mac's usage batches and crash reports are taken (`test/mac-answers.test.ts`,
+    whose record was made from the Worker before the change); a Windows check
+    is answered with Windows' entries alone, or 204 from a manifest that names
+    none, or 502 from one whose Windows part is broken, on a track as on
+    stable, and from a manifest whose Mac part is broken as from any other;
+    Windows' version is held to SERV-282 in a check, a usage batch and a crash
+    report; a release's installers are served only when its manifest names
+    them; and the bundle runs in workerd for it. Under `wrangler dev --local`,
+    `bun test/standin-windows.ts [--against <ref>]` runs the ref's Worker
+    (`origin/main`'s by default) and this one on the stand-in, each with the
+    Mac's manifests, with manifests naming Windows, and with this one's also
+    with a broken Windows part, and passes only when every Mac request is
+    answered and counted as the ref's Worker answers it with the Mac's
+    manifests, and every Windows request as SERV-283 says.
 - <a id="SERV-140"></a> **SERV-140** **Feedback:** a message sent from a release build is stored in the list, and
   a reply to the address the writer gave reaches it.
 - <a id="SERV-141"></a> **SERV-141** **The zone:** DNSSEC, CAA, HSTS and the rate limits are on, and the scheduled jobs'
@@ -510,6 +757,16 @@ There is no prelaunch state any more: before launch one recorded every 502 as
 deploy the service's own fault answered that same 502 for eight days, unseen.
 A mode that silences an alarm must never wait for a person to end it.
 
+A halt changes what the first endpoint should answer, and the proof reads the
+admission list to know it (docs/engineering/services-and-feedback.md#SERV-268).
+While a halt is in force the right answer is the newest admitted release before
+the halted one, or 204 (docs/engineering/services-and-feedback.md#SERV-270), not
+GitHub's `latest.json`; a failure is a 204 too
+(docs/engineering/services-and-feedback.md#SERV-271). The proof compares the
+answer with the release before in place of GitHub's newest, and reports that a
+halt is in force, every day until another release is admitted past it: a halt
+is an incident of its own, never a silenced alarm.
+
 A failed network check gets one retry within five minutes. A bad signature
 alerts immediately. Repeated failure goes to the existing failure bus and
 the maintainer's private notification path, with this job excluded from model-based
@@ -529,18 +786,27 @@ Dates are UTC `YYYY-MM-DD`, with start inclusive and end exclusive.
 |---|---|---|
 | `update-use.sql` | start, end | Checks by version, macOS, chip and day; approximate copies in use |
 | `downloads.sql` | start, end | Release download requests, not completed installations |
-| `launches-by-version.sql` | start, end | Launches per version and channel: how many copies run the newest release. Released versions only; a track build sends no usage counts |
-| `feature-share.sql` | start, end | Event/property counts and actions per 100 launches, by channel |
+| `launches-by-version.sql` | start, end | Launches per version, track and channel: how many copies run the newest release, and how many a published beta (SERV-272). No alpha sends usage counts the service takes |
+| `feature-share.sql` | start, end | Event/property counts and actions per 100 launches, by track and channel, so a beta's copies never move a release's shares |
 | `daily-volume.sql` | start, end | Daily usage, update and feedback totals for comparisons |
 | `feedback-counts.sql` | start, end | Messages per day; no message text |
-| `feedback-receipts.sql` | start, end | Per-message receipts (id, day, length, whether an email or details came) with no words or address; safe to show |
+| `feedback-receipts.sql` | start, end | Per-message receipts (id, day, length, whether an email or details came, and the build version when the copy said it, SERV-273) with no words or address; safe to show, and how feedback from copies on a beta is counted |
 | `feedback-list.sql` | cursor day, cursor id, today | The private pull: id, day, message, email, details; 100 rows a page, completed days only; start with empty cursors |
+| `copies-by-version.sql` | start, end, version | A build's copies for a release's clock (SERV-280): its most checks on one of those days; NULL when no check at all was counted |
+| `feedback-by-version.sql` | start, end, version | The ids of the messages from copies on a build (SERV-280); no words or address |
+| `usage-by-day.sql` | start, end | Each day's count of every event and property value, by version and track: one feature over time, for the usage page (CHECKS-D105) |
+| `launches-by-day.sql` | start, end | Each day's launches by version, track, channel, chip and macOS: which releases and systems the app is opened on (CHECKS-D105) |
 
-Use Cloudflare's D1 query API with a separate **D1 Read** token, never the
-Worker deploy token. Fix the account/database IDs in the reviewed Mini config.
-The query API accepts D1 Read. Reject any response with `success: false`, errors
-or missing results. Verify read-only permissions in the dashboard; do not try a
-write against production as a permission test.
+The scheduled service checks use Cloudflare's D1 query API with a D1 Read
+token. A release's clock reads the two queries it needs through
+`scripts/edge-wrangler.mjs query` with the one deploy token
+(docs/engineering/services-and-feedback.md#SERV-251), which the build host
+already holds for the Worker and the tracks' bucket: a second, narrower token
+on the same machine would guard nothing that machine cannot reach anyway, so
+for the clock the queries being read-only is the SQL's own, reviewed here, and
+not the token's. Either way, fix the account/database IDs in reviewed
+configuration, reject any response with `success: false`, errors or missing
+results, and never try a write against production as a test of anything.
 [Cloudflare query API](https://developers.cloudflare.com/api/resources/d1/subresources/database/methods/query/).
 
 Sentry reads use the project's actual regional API origin and a separate token
@@ -621,3 +887,76 @@ send both to the maintainer's existing private destination. Record receipts and 
 the two jobs only after their inputs and notifications work. Test that a bad
 signature produces a same-day alert and a duplicate run produces no duplicate
 message. Neither live run is claimed by this Proscenium task.
+
+<a id="CHECKS-D105"></a>
+
+### The usage page
+
+The maintainer's private page on the Mini has one more view: how the website,
+the downloads and the app are used, as charts. It reads; it collects nothing.
+Every number on it is a total something already keeps and the privacy page
+already names (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D7,
+docs/app/keeping-work/privacy-and-telemetry.md#PRIV-84), so no event, field,
+beacon or counter is added to the app, the service or the website to feed it.
+
+**What it reads, each a fixed request with fixed parameters:**
+
+| What | From | Its limits |
+|---|---|---|
+| Update checks by day, version, macOS and chip; download requests by day and version | `update-use.sql`, `downloads.sql` | A check is a copy asking, at launch and once a day while it runs, so a day's checks are roughly the copies in use: a copy opened twice is counted twice, and one with update checks switched off not at all. The monitor's own requests are subtracted and labelled |
+| Launches, and every event and property value, by day | `usage-by-day.sql`, `launches-by-day.sql` | Releases and published betas only (SERV-272); an alpha sends none. Copies with usage reports switched off send none |
+| Feedback messages per day | `feedback-counts.sql` | Counts only. A writer's words stay on the feedback page and nowhere else |
+| Crash reports per day, and the top failures | Sentry, the three requests of CHECKS-D102 | As the weekly summary reads them; the country and city Sentry attaches are never read |
+| The website's visits and page views by day, page, referring site, country, browser and device | Cloudflare Web Analytics, through its account analytics API (GraphQL, the `rumPageloadEventsAdaptiveGroups` dataset), filtered to the site's own hosts | Cloudflare samples it, and it counts only browsers that ran its beacon. It is the website's own total (PRIV-84); the app's services still count no country (SERV-143) |
+| Downloads of each release's files | GitHub's public releases API for the public repository: each file's `download_count` | A running total with no dates. The page keeps each day's reading and draws the difference between days, so its history begins the day it first read |
+
+**The credential.** The website's analytics need Account Analytics: Read on the
+same Cloudflare read token the queries use: that token, widened, not a second
+one. It stays read-only and is never the Worker deploy token (CHECKS-D102).
+GitHub's release counts are public and take no token. A request that names the
+service names it only as the monitor does (`User-Agent: proscenium-checks`),
+and carries nothing of the maintainer's.
+
+**What it says.** The rules of CHECKS-D103 hold on the page as in the reports:
+
+- Counts are actions and approximate copies. No chart, table or tooltip counts
+  people or unique anything: there is no identifier to count them by
+  (SERV-66). "Copies in use" is a day's update checks; a visit is Cloudflare's
+  estimate of one.
+- **One estimate of real users, and it is called an estimate.** The maintainer
+  asked for the nearest the counts can come to how many writers use the app,
+  with the project's own machines taken away. The page gives one, labelled as
+  an estimate wherever it appears, with how it was reached and what limits it
+  beside it:
+  - *What is taken away first*, from every chart on the page and not only the
+    estimate: alpha builds, which run on the maintainer's own Macs alone; the
+    monitor's own requests (CHECKS-D101); any version with no published
+    release, since a test build was never anyone else's; and a release's
+    version on days before its publication. What was taken away is said, with
+    its size.
+  - *The estimate*: update checks from published releases and betas, grouped
+    by the kind of Mac that made them (macOS version and chip). Two kinds are
+    certainly two Macs; within a kind, its busiest day says how many were in
+    use at once. The estimate is each kind's busiest day, added together. The
+    page gives beside it the least it can be (the kinds seen) and the most
+    (every check a different Mac).
+  - *What it cannot do*, said on the page: tell two days' checks from one Mac
+    from one day's from two; see a copy with update checks switched off; or
+    tell a release copy on one of the project's own machines from a writer's,
+    because nothing a copy sends says whose it is. The website's visits and
+    GitHub's download counts include the project's own, for the same reason.
+  The reports (CHECKS-D103) are unchanged: they give no such estimate.
+- **Unavailable is never zero.** A source that could not be read, a missing
+  credential, or a day before a stream was collected is drawn as missing and
+  says why. Only a day the source answered for, with no count, is a zero.
+- A share over no launches is unavailable, not 0%. Actions can exceed 100 per
+  100 launches.
+- Days are UTC. Today is a part of a day and is labelled so.
+- No model reads or writes any of it, and no feedback message appears on it.
+
+**How it is kept.** One collector on the Mini makes the requests and writes one
+file of totals beside the monitor's other state, outside any repository. The
+daily check runs it, so each day has a reading; the page runs it again when its
+file is older than fifteen minutes, and shows the file it has, with the reason,
+when a request fails. The page is drawn on the Mini with no script and loads
+nothing from anywhere, as its other views are.

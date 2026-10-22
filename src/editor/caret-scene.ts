@@ -8,7 +8,7 @@
  * inverse, so the two must agree on what counts as a boundary or the inspector
  * would describe one scene while the caret sat in another. Both use
  * `extractScenes`' rule: `##` scene nodes if the script has any, otherwise
- * scene headings.
+ * scene headings (scene-starts.ts, which a comment's scene is read from too).
  *
  * Watching the SELECTION rather than the document, because the answer changes
  * when the writer moves without typing — which is most of the time they are
@@ -17,21 +17,13 @@
 import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { Node as PmNode } from "@tiptap/pm/model";
+import { sceneStarts } from "./scene-starts";
 
 /** 0-based ordinal of the scene containing `pos`, or null before the first. */
 export function sceneOrdinalAt(doc: PmNode, pos: number): number | null {
-  let hasScene = false;
-  doc.forEach((n) => {
-    if (n.type.name === "scene") hasScene = true;
-  });
-  const boundary = hasScene ? "scene" : "sceneHeading";
-  let count = -1;
   let found: number | null = null;
-  doc.forEach((node, offset) => {
-    if (node.type.name === boundary) {
-      count += 1;
-      if (offset <= pos) found = count;
-    }
+  sceneStarts(doc).forEach((start, ordinal) => {
+    if (start <= pos) found = ordinal;
   });
   return found;
 }

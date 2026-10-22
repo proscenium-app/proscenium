@@ -31,7 +31,7 @@ import {
   type ScriptData,
   type SceneRecord,
 } from "./play-file";
-import { ulid } from "./ulid";
+import { ulid } from "../storage/ulid";
 
 /**
  * A scene record plus what the script says about it. In memory only — the

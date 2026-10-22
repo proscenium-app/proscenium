@@ -64,6 +64,14 @@ export interface CastViewProps {
   onOpenScene?: (ordinal: number) => void;
   /** Open the export dialog on this character's sides. */
   onExportSides?: (name: string) => void;
+  /**
+   * Where the writer asked to start editing, by double-clicking the Characters
+   * sheet in page view: the engine's id of the paragraph hit, or null. A new
+   * object asks again, even for the same paragraph.
+   */
+  focusRequest?: { paragraphId: string | null } | null;
+  /** The request above was acted on, so a later remount does not act on it again. */
+  onFocusHandled?: () => void;
 }
 
 function findSheet(binder: BinderItem[], name: string): BinderItem | null {
@@ -155,6 +163,30 @@ export function CastView(props: CastViewProps) {
 
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const names = useRef<(HTMLInputElement | null)[]>([]);
+  const descriptions = useRef<(HTMLInputElement | null)[]>([]);
+  // A double-click on the Characters sheet lands where that line is edited:
+  // an edited page is its own prose, so the caret goes to the paragraph hit;
+  // a page that follows the cast list is these rows, so it goes to the
+  // description of the character hit (the first, from the heading).
+  const [pageFocus, setPageFocus] = useState<{ paragraph: number } | null>(null);
+  const { focusRequest, onFocusHandled } = props;
+  const customPage = props.printedPage !== undefined;
+  useLayoutEffect(() => {
+    if (!focusRequest) return;
+    onFocusHandled?.();
+    const id = focusRequest.paragraphId ?? "";
+    if (customPage) {
+      const prose = /^characters-prose-(\d+)$/.exec(id);
+      setPageFocus({ paragraph: prose ? Number(prose[1]) : 0 });
+      return;
+    }
+    const cast = /^cast-(\d+)$/.exec(id);
+    const row = Math.min(cast ? Number(cast[1]) : 0, rowsRef.current.length - 1);
+    const field = descriptions.current[row] ?? names.current[row];
+    field?.focus();
+    field?.scrollIntoView({ block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
   useLayoutEffect(() => {
     if (focusRow !== null) {
       names.current[focusRow]?.focus();
@@ -199,6 +231,7 @@ export function CastView(props: CastViewProps) {
             label="Printed characters page"
             value={props.printedPage ?? charactersPageText(props.characters)}
             onChange={props.onSavePage}
+            focusAt={pageFocus}
           />
         </div>
         <details className="castview__page-options">
@@ -263,6 +296,9 @@ export function CastView(props: CastViewProps) {
                         onBlur={commit}
                       />
                       <input
+                        ref={(el) => {
+                          descriptions.current[i] = el;
+                        }}
                         aria-label={`Description — ${characterName}`}
                         className="castcard__desc"
                         value={row.description ?? ""}

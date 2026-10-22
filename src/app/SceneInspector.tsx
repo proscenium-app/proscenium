@@ -19,7 +19,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ScenePageMap } from "../layout";
 import type { SceneCard } from "../workspace";
-import { useSceneStatusOptions } from "./settings/scene-statuses";
+import { useSceneStatusOptions } from "../workspace/scene-statuses";
 import type { Card, CardColor } from "../workspace";
 import { Capsule, PopupButton, WarnIcon } from "../ui";
 

@@ -13,6 +13,7 @@
  * off half too ("Off, nothing is underlined"), which doubled each note to say
  * what the label already had.
  */
+import { chipName } from "../../ui/system-words";
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { Switch } from "../../ui";
 import { settings as ipc, type AppInfo } from "../../storage/ipc";
@@ -96,8 +97,8 @@ export function useAppInfo(): AppInfo | null {
 
 /** The architecture in the words About uses. */
 export function archLabel(arch: string): string {
-  if (arch === "aarch64") return "Apple silicon";
-  if (arch === "x86_64") return "Intel";
+  const chip = chipName(arch);
+  if (chip) return chip;
   if (arch === "browser") return "browser preview";
   return arch;
 }

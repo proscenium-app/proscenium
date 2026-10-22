@@ -137,8 +137,15 @@ mod tests {
         std::fs::write(package.join("Metadata/Properties.plist"), b"plist").unwrap();
         std::fs::write(package.join(".iwpv2"), b"verifier").unwrap();
         std::fs::write(dir.path().join("elsewhere.txt"), b"not the package's").unwrap();
+        #[cfg(unix)]
         std::os::unix::fs::symlink(dir.path().join("elsewhere.txt"), package.join("link.txt"))
             .unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(
+            dir.path().join("elsewhere.txt"),
+            package.join("link.txt"),
+        )
+        .unwrap();
         let files = read_package(&package).unwrap().unwrap();
         let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(names, [".iwpv2", "Index.zip", "Metadata/Properties.plist"]);

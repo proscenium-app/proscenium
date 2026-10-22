@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The Mac's accent colour, for Settings › Appearance › Follow Mac.
+//! The system's accent colour, for Settings › Appearance › Follow Mac (or
+//! Follow Windows): AppKit's on a Mac, Windows' own on a PC.
 //!
 //! Follow Mac used to be called System and said it followed macOS, while it
 //! was one fixed blue in tokens.css. The page cannot ask AppKit, and a system
@@ -29,12 +30,21 @@ pub fn system_accent() -> Option<String> {
             srgb.blueComponent(),
         ))
     }
-    #[cfg(not(target_os = "macos"))]
+    // Windows keeps the accent of Settings › Personalization › Colors as a
+    // DWORD, 0xAABBGGRR.
+    #[cfg(windows)]
+    {
+        use crate::registry::{dword, Root};
+        let abgr = dword(Root::User, r"Software\Microsoft\Windows\DWM", "AccentColor")?;
+        let byte = |shift: u32| f64::from((abgr >> shift) & 0xff) / 255.0;
+        Some(hex(byte(0), byte(8), byte(16)))
+    }
+    #[cfg(not(any(target_os = "macos", windows)))]
     None
 }
 
 /// Components in 0…1 as `#rrggbb`; a component outside the range is clamped.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
 fn hex(r: f64, g: f64, b: f64) -> String {
     let byte = |c: f64| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
     format!("#{:02x}{:02x}{:02x}", byte(r), byte(g), byte(b))

@@ -17,6 +17,7 @@
  * section, and Tab from the last control wraps back to the chosen section,
  * not to General.
  */
+import { systemWords } from "../../ui/system-words";
 import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 import { Button, Sheet } from "../../ui";
 import { tabbables } from "../../ui/layers";
@@ -104,7 +105,9 @@ export function SettingsSheet(props: SettingsSheetProps) {
         <>
           {/* settings.json and the formats live in the app's own folders, so
               nothing here travels with a play or changes one. */}
-          <span className="sheet__hint">Settings are saved on this Mac, not in your plays.</span>
+          <span className="sheet__hint">
+            Settings are saved on this {systemWords().machine}, not in your plays.
+          </span>
           <span className="sheet__spacer" />
           <Button treatment="primary" onClick={onClose}>
             Done

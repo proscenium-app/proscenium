@@ -1,0 +1,139 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": Ctrl+B
+  - button "Italic": Ctrl+I
+  - button "Underline": Ctrl+U
+  - button "Line Break Shift+Enter"
+  - button "Page Break Ctrl+Enter"
+  - button "+ Comment Ctrl+M"
+  - button "Comments Ctrl+Shift+M"
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Status
+  - 'button "Scene status: idea"': idea
+  - text: Label
+  - textbox "Label"
+  - text: Colour
+  - radiogroup "Card colour":
+    - radio "Unmarked" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: unmarked
+  - text: Board note · never prints
+  - textbox "Board note"
+  - text: On stage MARA 3 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
+- contentinfo:
+  - button "<plays>\\The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Review Your Draft":
+  - heading "Review Your Draft" [level=2]
+  - text: Harbor.pages · Pages New script name
+  - textbox "New script name"
+  - text: In The Weight of Water
+  - 'button "Add as: New Script"': New Script
+  - button "Choose Different Files…"
+  - strong: 13 paragraphs
+  - text: 1 scene heading 2 characters All elements come from the source or your choices
+  - group: What carries across · 1 note
+  - textbox "Find text in import"
+  - checkbox "Inferred or Unrecognized Only"
+  - text: Inferred or Unrecognized Only
+  - 'button "Unstyled text: Recognize Script Elements"': Recognize Script Elements
+  - region "Paragraph preview":
+    - heading "Reading preview" [level=3]
+    - text: Choose a paragraph to adjust its element.
+    - 'button "Paragraph 1, Act: ACT ONE" [pressed]': 1 ACT ONE Act
+    - 'button "Paragraph 2, Scene: Scene 1. The waiting room."': 2 Scene 1. The waiting room. Scene
+    - 'button "Paragraph 3, Stage Direction: A harbor office after the last ferry."': 3 A harbor office after the last ferry. Stage Direction
+    - 'button "Paragraph 4, Stage Direction: Rain at the windows."': 4 Rain at the windows. Stage Direction
+    - 'button "Paragraph 5, Character: MARA"': 5 MARA Character
+    - 'button "Paragraph 6, Dialogue: You said it would wait."': 6 You said it would wait. Dialogue
+    - 'button "Paragraph 7, Character: ELI"': 7 ELI Character
+    - 'button "Paragraph 8, Parenthetical: (folding the timetable)"': 8 (folding the timetable) Parenthetical
+    - 'button "Paragraph 9, Dialogue: I said we had time."': 9 I said we had time. Dialogue
+    - 'button "Paragraph 10, Stage Direction: She sets down a small blue suitcase."': 10 She sets down a small blue suitcase. Stage Direction
+    - 'button "Paragraph 11, Character: MARA"': 11 MARA Character
+    - 'button "Paragraph 12, Dialogue: There is a difference."': 12 There is a difference. Dialogue
+    - 'button "Paragraph 13, Stage Direction: LIGHTS OUT."': 13 LIGHTS OUT. Stage Direction
+    - button "Previous" [disabled]
+    - text: 1–13 of 13
+    - button "Next" [disabled]
+  - complementary "Adjust paragraph":
+    - heading "Paragraph 1" [level=3]
+    - paragraph: "Source style: Act"
+    - paragraph: ACT ONE
+    - 'button "Element: Act"': Act
+    - paragraph: "Source style: Act"
+    - button "Use for This Source Style"
+    - paragraph: Applies to 1 paragraph. Individual corrections take priority.
+    - button "Reset All Corrections" [disabled]
+  - text: Adds a script to The Weight of Water. Keeps a copy of the original.
+  - button "Cancel"
+  - button "Add Script"
+  - status
+  - alert

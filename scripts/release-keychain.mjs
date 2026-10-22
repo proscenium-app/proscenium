@@ -9,6 +9,9 @@
  *   node scripts/release-keychain.mjs notary    file the notarization key from ~/Downloads, asking the maintainer for its Issuer ID
  *   node scripts/release-keychain.mjs profile   file the Developer ID provisioning profile from ~/Downloads
  *   node scripts/release-keychain.mjs cloudflare file a just-copied deploy token without displaying it
+ *   <token> | node scripts/release-keychain.mjs sentry [--replace]
+ *                                               file the Sentry read token the release clock counts
+ *                                               crashes with, piped or just copied, never displayed
  *   node scripts/release-keychain.mjs log <id>  Apple's reasons for a notarization submission, with the stored key
  *   node scripts/release-keychain.mjs move --host <user@host>
  *                                               copy every item to the build host's own keychain, over SSH
@@ -116,6 +119,15 @@ export const ITEMS = {
   CLOUDFLARE_API_TOKEN: "Proscenium Worker deploy token",
 };
 
+/**
+ * The items only the build host keeps, filed there directly and never moved
+ * or made an Actions secret: what its own scheduled jobs read, which no
+ * other Mac and no workflow needs.
+ */
+export const HOST_ITEMS = {
+  SENTRY_READ_TOKEN: "Sentry read token (org:read), the release clock's crash count",
+};
+
 const DEVELOPER_ID = /\b([0-9A-F]{40}) "(Developer ID Application: (.+) \(([A-Z0-9]{10})\))"/;
 
 /**
@@ -125,15 +137,16 @@ const DEVELOPER_ID = /\b([0-9A-F]{40}) "(Developer ID Application: (.+) \(([A-Z0
  * that installed copies already trust is never overwritten by accident.
  */
 export function store(name, bytes, { replace = false } = {}) {
-  if (!(name in ITEMS)) throw new Error(`release-keychain: no item called ${name}`);
+  const what = ITEMS[name] ?? HOST_ITEMS[name];
+  if (!what) throw new Error(`release-keychain: no item called ${name}`);
   if (has(name) && !replace)
-    throw new Error(`release-keychain: the keychain already holds ${ITEMS[name]} (${name})`);
+    throw new Error(`release-keychain: the keychain already holds ${what} (${name})`);
   const encoded = Buffer.from(bytes).toString("base64");
   unlock();
   // Errors are named by exit status only: security's messages are not known
   // to leave the command they failed on out.
   const result = security(
-    `add-generic-password ${replace ? "-U " : ""}-s "${SERVICE}" -a ${name} -l "${SERVICE}: ${ITEMS[name]}" -w ${encoded}${into()}`,
+    `add-generic-password ${replace ? "-U " : ""}-s "${SERVICE}" -a ${name} -l "${SERVICE}: ${what}" -w ${encoded}${into()}`,
   );
   if (result.status !== 0)
     throw new Error(`release-keychain: could not store ${name} (security exited ${result.status})`);
@@ -188,6 +201,40 @@ function cloudflare() {
   execFileSync("pbcopy", [], { input: "", stdio: ["pipe", "ignore", "ignore"] });
   console.log(
     "The Proscenium Worker deploy token is in the login keychain; the clipboard is clear.",
+  );
+}
+
+/**
+ * A Sentry auth token as Sentry makes them: `sntryu_` and 64 hex digits for a
+ * user's, or the older 64 hex digits alone. Anything else is refused whole.
+ */
+export function sentryToken(text) {
+  const token = String(text ?? "").trim();
+  if (!/^(sntryu_)?[0-9a-f]{64}$/.test(token))
+    throw new Error("That is not a Sentry auth token. Nothing was stored.");
+  return token;
+}
+
+/**
+ * The Sentry read token, into this Mac's keychain, never displayed: from a
+ * pipe, so one machine's copy can reach another's (the build host's jobs
+ * already hold one), or else from the clipboard, which is then cleared.
+ */
+async function sentry() {
+  const piped = !process.stdin.isTTY;
+  let text = "";
+  if (piped) {
+    // Read as a stream: over SSH the pipe can be non-blocking, where a
+    // synchronous read of it fails with EAGAIN before the value arrives.
+    process.stdin.setEncoding("utf8");
+    for await (const chunk of process.stdin) text += chunk;
+  } else
+    text = execFileSync("pbpaste", [], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const token = sentryToken(text);
+  store("SENTRY_READ_TOKEN", token, { replace: args.includes("--replace") });
+  if (!piped) execFileSync("pbcopy", [], { input: "", stdio: ["pipe", "ignore", "ignore"] });
+  console.log(
+    `The Sentry read token is in ${KEYCHAIN ?? "the login keychain"}${piped ? "" : "; the clipboard is clear"}.`,
   );
 }
 
@@ -893,6 +940,11 @@ function status() {
   for (const [name, what] of Object.entries(ITEMS)) {
     lines.push(`${has(name) ? "present " : "MISSING "} ${name.padEnd(26)} ${what}`);
   }
+  for (const [name, what] of Object.entries(HOST_ITEMS)) {
+    lines.push(
+      `${has(name) ? "present " : "absent  "} ${name.padEnd(26)} ${what}, the build host's alone`,
+    );
+  }
   if (existsSync(PROFILE)) {
     const info = readProfile(PROFILE);
     lines.push(`profile       ${info.name} · ${info.appId} · until ${info.expires}`);
@@ -909,13 +961,18 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (command === "notary") notary();
     else if (command === "profile") profile();
     else if (command === "cloudflare") cloudflare();
+    else if (command === "sentry")
+      sentry().catch((e) => {
+        console.error(e.message);
+        process.exit(1);
+      });
     else if (command === "move") move();
     else if (command === "secrets") secrets();
     else if (command === "status") status();
     else if (command === "log") notaryLog(process.argv[3]);
     else {
       console.error(
-        "usage: node scripts/release-keychain.mjs status | notary | profile | cloudflare | move [--host <ssh host>] | secrets | log <submission id>",
+        "usage: node scripts/release-keychain.mjs status | notary | profile | cloudflare | sentry [--replace] | move [--host <ssh host>] | secrets | log <submission id>",
       );
       process.exit(2);
     }

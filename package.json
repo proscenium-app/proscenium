@@ -1,6 +1,6 @@
 {
   "name": "proscenium",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "A local-first, cross-platform playwriting app.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
@@ -69,7 +69,7 @@
     "css-tree": "^3.2.1",
     "dictionary-en": "^4.0.0",
     "dictionary-en-gb": "3.0.0",
-    "playwright": "^1.62.1",
+    "playwright": "1.62.1",
     "typescript": "^5.6.3",
     "vite": "^6.0.3"
   }

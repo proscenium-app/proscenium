@@ -27,8 +27,10 @@
  * turns Tauri's own OS-level drag handler off (`dragDropEnabled: false`) so the
  * webview sees these events at all.
  */
+import { keyStyle } from "../ui/keys";
+import { systemWords } from "../ui/system-words";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BINDER_MIME } from "../app/PaneTree";
+import { BINDER_MIME } from "./binder-drag";
 import { ancestorsOf, dropPlan, filterBinder, findItem, folderIds, type DropWhere } from "./binder";
 import { BinderIcon, DisclosureIcon, PencilIcon, type IconKind } from "./BinderIcons";
 import { Menu, PlusIcon, announce, requestPageFocus, useMenu, type MenuEntry } from "../ui";
@@ -451,8 +453,13 @@ export function Binder(props: BinderProps) {
     /* ⌃⌘ + arrow moves the item. Filing was drag-only,
        so a writer without a pointer could make a document and never put it in
        a folder (WCAG 2.5.7). The moves go through the same drop plan a drag
-       does, so the keyboard cannot file anything a drag would refuse. */
-    if (e.ctrlKey && e.metaKey && !e.altKey && row && !readOnly && !query.trim()) {
+       does, so the keyboard cannot file anything a drag would refuse. A PC's
+       is Ctrl+Shift + arrow: Ctrl+Windows + arrow switches its desktops. */
+    const moveChord =
+      keyStyle() === "pc"
+        ? e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey
+        : e.ctrlKey && e.metaKey && !e.altKey;
+    if (moveChord && row && !readOnly && !query.trim()) {
       const here = findItem(binder, row.item.id);
       if (here) {
         const siblings = here.parentId
@@ -1249,11 +1256,14 @@ export function rowMenuEntries(
     });
   }
   if (actions.onReveal) {
-    entries.push({ label: "Reveal in Finder", onSelect: () => actions.onReveal?.(item.id) });
+    entries.push({
+      label: `Reveal in ${systemWords().fileManager}`,
+      onSelect: () => actions.onReveal?.(item.id),
+    });
   }
   entries.push({ kind: "sep" });
   entries.push({
-    label: "Move to Trash",
+    label: `Move to ${systemWords().trash === "Trash" ? "Trash" : "the Recycle Bin"}`,
     shortcut: "⌘⌫",
     destructive: true,
     onSelect: () => actions.onDelete(item.id),
