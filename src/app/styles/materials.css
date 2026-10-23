@@ -209,6 +209,25 @@
 }
 .material__page {
   line-height: 1.65;
+  /* The whole sheet is the page you type on, margins and the blank paper under
+     the last line included: the margins are the editor's own padding, and the
+     editor is as tall as the sheet. A click anywhere on the paper is then a
+     click in the text, and lands on the nearest line. When the editor was only
+     as tall as its words, a click under a short note took the keyboard away
+     and put the caret nowhere. */
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+.material__page > .prose-host {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+.material__page .prose {
+  flex: 1 0 auto;
+  padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom)
+    var(--fmt-margin-left);
 }
 .material__body {
   /* Source is the file itself, so it reads in the script face. */
@@ -299,6 +318,80 @@
   line-height: 1.65;
   color: var(--ink);
 }
+/* The caret (src/markdown/caret.ts): the page hides the engine's and draws its
+   own, in a layer over the text. The layer is a 100px square at the editor's
+   corner, which is also the ruler that says what one of its px is on screen:
+   a zoomed page reports its boxes differently from one WebKit to the next. */
+.prose-host {
+  position: relative;
+}
+.prose.prose--caret-drawn {
+  caret-color: transparent;
+}
+.prose-caret {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100px;
+  height: 100px;
+  pointer-events: none;
+}
+.prose-caret__bar {
+  position: absolute;
+  background: var(--ink);
+  border-radius: var(--r-pill);
+  animation: prose-caret-a 1s linear infinite;
+}
+.prose-caret__bar[data-beat="b"] {
+  animation-name: prose-caret-b;
+}
+/* Half a second solid, so a caret that has just moved is never the one that is
+   off; then out, off and in again. */
+@keyframes prose-caret-a {
+  0%,
+  50%,
+  100% {
+    opacity: 1;
+  }
+  65%,
+  85% {
+    opacity: 0;
+  }
+}
+@keyframes prose-caret-b {
+  0%,
+  50%,
+  100% {
+    opacity: 1;
+  }
+  65%,
+  85% {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prose-caret__bar {
+    animation: none;
+  }
+}
+/* The Mac's own setting for a cursor that does not blink, which no media query
+   carries: the app asks the system and says so on the document
+   (src/app/settings/system-caret.ts). */
+:root[data-caret="steady"] .prose-caret__bar {
+  animation: none;
+}
+/* Forced colours put every colour the page chose back to the system's, the
+   engine's caret's `transparent` among them, so a writer in a contrast theme
+   saw two carets. A system colour is kept: the engine's caret is painted in
+   the page's own, and the drawn one is the one seen. */
+@media (forced-colors: active) {
+  .prose.prose--caret-drawn {
+    caret-color: Canvas;
+  }
+  .prose-caret__bar {
+    background: CanvasText;
+  }
+}
 .prose > *:first-child {
   margin-top: 0;
 }
@@ -346,8 +439,53 @@
   margin: 0 0 1rem;
   padding-left: 1.4rem;
 }
+/* The page draws its own bullets and numbers, hung in the list's indent beside
+   the item's first line. The engine's own markers are laid out wrong on a
+   zoomed page in the system WebKit of macOS 26: a marker's margins take the
+   zoom twice, so at 125% the first line of every item began 5px left of the
+   lines wrapped under it, a two-figure number hung out into the page margin,
+   and the caret on that first line was painted where the words should have
+   been, on top of the first letter. A marker that is not in the line cannot
+   move it. The count is a counter of the page's own (a list that starts past
+   1 sets it inline, src/markdown/lists.ts), and the bullets by depth are the
+   three every browser draws. */
 .prose li {
   margin: 0.3rem 0;
+  list-style: none;
+  position: relative;
+}
+.prose ol {
+  counter-reset: prose-item;
+}
+.prose ol > li {
+  counter-increment: prose-item;
+}
+.prose li::before {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  margin-right: 0.27em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.prose ol > li::before {
+  content: counter(prose-item) ".";
+}
+/* The bullet characters are smaller than the bullets a browser draws, so each
+   is scaled about its own middle to that size, where it sat. */
+.prose ul > li::before {
+  content: "•";
+  margin-right: 0.75em;
+  transform: translateY(-0.07em) scale(2);
+}
+.prose :is(ul, ol) ul > li::before {
+  content: "◦";
+  transform: translateY(-0.07em) scale(1.8);
+}
+.prose :is(ul, ol) :is(ul, ol) ul > li::before {
+  content: "▪";
+  margin-right: 0.62em;
+  transform: translateY(-0.03em) scale(1.25);
 }
 /* A list item's paragraph is the item — it must not carry block spacing. */
 .prose li > p {

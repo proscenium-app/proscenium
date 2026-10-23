@@ -34,13 +34,20 @@
 import { useEffect, useState } from "react";
 import { AppMarkIcon, Button } from "../ui";
 import { PRIVACY_NOTICE } from "./privacy-notice";
+import { systemWords } from "../ui/system-words";
 
 export interface WelcomeScreenProps {
   /** The iCloud container's path, or null when iCloud is unavailable. */
   cloudRoot: string | null;
+  /**
+   * The first door, from the capability record: the iCloud container (shown
+   * only when it is available), or Documents › Plays where there is none.
+   */
+  suggestedFolder: "icloud" | "documents" | null;
   /** Where plays lived last time, when there was a last time. */
   lastVault: string | null;
   onChooseCloud: () => void;
+  onChooseDocuments: () => void;
   onChooseFolder: () => void;
   /** Try the remembered folder again — shown only when there is one. */
   onReopenLast: () => void;
@@ -54,14 +61,17 @@ export interface WelcomeScreenProps {
 
 export function WelcomeScreen({
   cloudRoot,
+  suggestedFolder,
   lastVault,
   onChooseCloud,
+  onChooseDocuments,
   onChooseFolder,
   onReopenLast,
   privacyNotice,
   onPrivacyNoticeSeen,
   onPrivacySettings,
 }: WelcomeScreenProps) {
+  const words = systemWords();
   // Once shown, it stays for the visit, though being seen is what turns it off.
   const [showNotice, setShowNotice] = useState(privacyNotice);
   useEffect(() => {
@@ -89,22 +99,31 @@ export function WelcomeScreen({
         <h1 className="empty-card__title">Where should your plays live?</h1>
         <p className="empty-card__sub">
           One folder holds them all. Nothing is imported and nothing moves — the folder stays a
-          folder you can open in Finder.
+          folder you can open in {words.fileManager}.
         </p>
 
         <div className="welcome__choices">
-          {cloudRoot && (
+          {suggestedFolder === "icloud" && cloudRoot && (
             <button type="button" className="welcome__choice" onClick={onChooseCloud}>
               <span className="welcome__choiceName">iCloud Drive</span>
               <span className="welcome__choiceNote">
-                Recommended — your plays appear on your other Macs too.
+                Recommended — your plays appear on your other {words.machine}s too.
+              </span>
+            </button>
+          )}
+          {suggestedFolder === "documents" && (
+            <button type="button" className="welcome__choice" onClick={onChooseDocuments}>
+              <span className="welcome__choiceName">Documents › Plays</span>
+              <span className="welcome__choiceNote">
+                Recommended — a Plays folder in your Documents, kept by OneDrive when it keeps your
+                Documents.
               </span>
             </button>
           )}
           <button type="button" className="welcome__choice" onClick={onChooseFolder}>
             <span className="welcome__choiceName">A folder I choose…</span>
             <span className="welcome__choiceNote">
-              Dropbox, an external drive, or just this Mac.
+              Dropbox, an external drive, or just this {words.machine}.
             </span>
           </button>
         </div>

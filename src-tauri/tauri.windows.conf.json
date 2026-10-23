@@ -1,0 +1,19 @@
+{
+  "bundle": {
+    "targets": ["nsis"],
+    "fileAssociations": [
+      {
+        "ext": ["proscenium"],
+        "name": "Proscenium Play",
+        "description": "Proscenium Play",
+        "role": "Editor"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./windows/installer-hooks.nsh"
+      }
+    }
+  }
+}

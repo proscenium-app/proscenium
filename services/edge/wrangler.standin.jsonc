@@ -1,0 +1,42 @@
+// SPDX-FileCopyrightText: 2026 Habiby LLC
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// The stand-in (docs/engineering/services-and-feedback.md#SERV-274): local
+// only, like wrangler.local.jsonc, and never deployed. `bun run dev:standin`
+// serves the update routes, the crash route and the feedback route on the one
+// loopback origin UPDATES names, from the local R2 bucket below, reading every
+// key under `stand-in/`, with the origins production keeps as constants given
+// here as vars. Every address and port the stand-in and its helpers use is one
+// of these vars: rewrite them to move all of it. No account, no route and no
+// remote binding: scripts/edge-wrangler.mjs deploys wrangler.jsonc alone.
+// Whole-line comments only: the stand-in's helpers read the vars too.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "proscenium-services-standin-local-only",
+  "main": "test/standin-entry.ts",
+  "compatibility_date": "2026-09-18",
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "observability": { "enabled": false },
+  "vars": {
+    "UPDATES_ENABLED": "true",
+    "DOWNLOADS_ENABLED": "true",
+    "CRASHES_ENABLED": "true",
+    "FEEDBACK_ENABLED": "true",
+    "RELEASED_VERSIONS_JSON": "[]",
+    "REPOSITORY": "proscenium-app/proscenium",
+    "UPDATES": "http://127.0.0.1:8797",
+    "GITHUB": "http://127.0.0.1:8798/proscenium-app/proscenium/releases",
+    "SENTRY": "http://127.0.0.1:8796",
+    "KEY_PREFIX": "stand-in/"
+  },
+  "d1_databases": [{ "binding": "DB", "database_name": "proscenium-services-standin", "database_id": "00000000-0000-0000-0000-000000000008", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "TRACKS", "bucket_name": "proscenium-updates-standin" }],
+  "ratelimits": [
+    { "name": "UPDATE_LIMIT", "namespace_id": "7001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "DOWNLOAD_LIMIT", "namespace_id": "7002", "simple": { "limit": 12, "period": 60 } },
+    { "name": "FEEDBACK_LIMIT", "namespace_id": "7003", "simple": { "limit": 3, "period": 60 } },
+    { "name": "CRASH_LIMIT", "namespace_id": "7005", "simple": { "limit": 6, "period": 60 } }
+  ]
+}

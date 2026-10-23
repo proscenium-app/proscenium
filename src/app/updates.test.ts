@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import {
   describeUpdates,
   offeredTracks,
+  stableOnly,
   restartProblem,
   slowerTrackNote,
   trackOfVersion,
@@ -129,16 +130,25 @@ describe("tracks", () => {
 
 describe("offeredTracks", () => {
   it("offers Stable and Beta, and Alpha only with its key or to a copy already on it (docs/app/preferences-and-help/settings.md#SET-37)", () => {
-    expect(offeredTracks("aarch64", "stable", false)).toEqual(["stable", "beta"]);
-    expect(offeredTracks("aarch64", "stable", true)).toEqual(["stable", "beta", "alpha"]);
-    expect(offeredTracks("aarch64", "alpha", false)).toEqual(["stable", "beta", "alpha"]);
+    const mac = ["stable", "beta", "alpha"] as const;
+    expect(offeredTracks(mac, "stable", false)).toEqual(["stable", "beta"]);
+    expect(offeredTracks(mac, "stable", true)).toEqual(["stable", "beta", "alpha"]);
+    expect(offeredTracks(mac, "alpha", false)).toEqual(["stable", "beta", "alpha"]);
     expect(offeredTracks(null, "beta", false)).toEqual(["stable", "beta"]);
+  });
+
+  it("offers Windows Stable and Beta, key or none: no Windows alpha is published", () => {
+    for (const track of ["stable", "beta", "alpha"] as const) {
+      expect(offeredTracks(["stable", "beta"], track, true)).toEqual(["stable", "beta"]);
+    }
+    expect(stableOnly(["stable", "beta"])).toBe(false);
   });
 
   it("offers an Intel Mac Stable alone, whatever it holds (docs/app/preferences-and-help/settings.md#SET-40)", () => {
     for (const track of ["stable", "beta", "alpha"] as const) {
-      expect(offeredTracks("x86_64", track, true)).toEqual(["stable"]);
-      expect(offeredTracks("x86_64", track, false)).toEqual(["stable"]);
+      expect(offeredTracks(["stable"], track, true)).toEqual(["stable"]);
+      expect(offeredTracks(["stable"], track, false)).toEqual(["stable"]);
     }
+    expect(stableOnly(["stable"])).toBe(true);
   });
 });

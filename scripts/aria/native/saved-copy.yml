@@ -1,0 +1,7 @@
+- dialog "Saved copy of Second Draft.fountain"
+  - heading "Saved copy of Second Draft.fountain" [level=2]
+  - paragraph
+  - textbox "Saved words from Second Draft.fountain" [readonly]
+  - button "Close"
+  - status [live=polite]
+  - alert [live=assertive]

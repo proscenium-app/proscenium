@@ -8,11 +8,24 @@
  *   node scripts/build-app.mjs --universal --selftest
  *                                                  bun run build:selftest — what CI's native matrix runs
  *   node scripts/build-app.mjs --selftest          the same for this Mac only, for iterating
+ *   node scripts/build-app.mjs --selftest --sandbox
+ *                                                  the Mac App Store's app as a self-test build, under
+ *                                                  the App Sandbox: what CI's sandboxed self-test runs
  *
+ *   node scripts/build-app.mjs --universal --app-store
+ *                                                  the Mac App Store's app, unsigned: no updater, no
+ *                                                  private WebKit key, its store config and keys checked
  *   node scripts/build-app.mjs --local             bun run app:install — this Mac's slice, no updater
  *   node scripts/build-app.mjs --update-proof      the update proof's copy of this version: the self-test
  *                                                  build under the real app's name and identifier, for
  *                                                  the build host's proof only
+ *   node scripts/build-app.mjs --update-proof --version <x.y.z>
+ *                                                  the same, numbered as another release: the proof of a
+ *                                                  release's line against a stand-in of the update
+ *                                                  service, whose copy is the release before it
+ *
+ * On Windows, `--selftest` (the test build, no installer) and `--update-proof`
+ * (the proof's copy, with its per-user installer) alone.
  *
  * `--universal` builds `universal-apple-darwin`: one bundle for Apple silicon and
  * Intel, the loader picks the slice (docs/engineering/release-engineering.md#REL-123). `bun run app:install`
@@ -39,7 +52,14 @@
  * that asks must be that app. Started with PROSCENIUM_UPDATE_PROOF, its updater
  * asks the real service (src-tauri/src/selftest.rs). Only the build host's proof
  * script builds it, into a scratch home that nothing else reads; like every
- * self-test build it is never packaged or shipped.
+ * self-test build it is never packaged or shipped. It turns on the Cargo
+ * feature `update-proof` (which implies `selftest`), the one build that also
+ * takes a stand-in of the update service at launch,
+ * PROSCENIUM_UPDATE_PROOF_ORIGIN, on this Mac's loopback address
+ * (src-tauri/src/telemetry/allowlist.rs). `--version` numbers it as another
+ * release, since a stand-in's copy of "the release before" is built from the
+ * release's own line: macOS, the updater and the update service then all
+ * read that number.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -56,9 +76,32 @@ const PROOF = args.includes("--update-proof");
 const SELFTEST = args.includes("--selftest") || PROOF;
 const DMG = args.includes("--dmg");
 const LOCAL = args.includes("--local");
+const APP_STORE = args.includes("--app-store");
+/** The store's feature set as a self-test build, signed into the App Sandbox. */
+const SANDBOX = args.includes("--sandbox");
+/** The release an update proof's copy is numbered as, when it is not this tree's. */
+const NUMBERED = args.includes("--version") ? args[args.indexOf("--version") + 1] : null;
 
+if (NUMBERED !== null && (!PROOF || !/^\d+\.\d+\.\d+$/.test(NUMBERED))) {
+  console.error(
+    "build-app: --version <x.y.z> numbers an update proof's copy, and nothing else — with --update-proof",
+  );
+  process.exit(1);
+}
 if (SELFTEST && DMG) {
   console.error("build-app: a self-test build is never packaged for distribution — drop --dmg");
+  process.exit(1);
+}
+if (APP_STORE && (SELFTEST || DMG || LOCAL || !UNIVERSAL)) {
+  console.error(
+    "build-app: --app-store is the store's universal app alone — with --universal, not with --selftest, --dmg or --local",
+  );
+  process.exit(1);
+}
+if (SANDBOX && (!SELFTEST || PROOF || APP_STORE)) {
+  console.error(
+    "build-app: --sandbox is the store's app as a self-test build — with --selftest, not with --update-proof or --app-store",
+  );
   process.exit(1);
 }
 if (LOCAL && (SELFTEST || DMG || UNIVERSAL)) {
@@ -68,12 +111,53 @@ if (LOCAL && (SELFTEST || DMG || UNIVERSAL)) {
   process.exit(1);
 }
 
-const conf = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
-const productName = SELFTEST && !PROOF ? "Proscenium Self-Test" : conf.productName;
+/**
+ * On Windows, two test builds and nothing else. `--selftest`: the test build
+ * smoke's WebView2 engine drives from outside (scripts/smoke-webview2.mjs), an
+ * executable with no installer, its identifier its own. `--update-proof`: the
+ * update proof's copy, for its driver on clean hosted machines, the real app's name
+ * and identifier, with its per-user installer, since the update it takes
+ * replaces an installed copy as a writer's does. Every installer that ships
+ * is the release workflow's.
+ */
+const WINDOWS = process.platform === "win32";
+if (WINDOWS && (!SELFTEST || UNIVERSAL || DMG || LOCAL)) {
+  console.error(
+    "build-app: on Windows it builds the test build (--selftest) or the update proof's copy (--update-proof) alone",
+  );
+  process.exit(1);
+}
 
-const tauriArgs = ["build", "--bundles", DMG ? "app,dmg" : "app"];
+const conf = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
+const productName = SANDBOX
+  ? "Proscenium Sandbox Self-Test"
+  : SELFTEST && !PROOF
+    ? "Proscenium Self-Test"
+    : conf.productName;
+
+const tauriArgs = WINDOWS
+  ? PROOF
+    ? ["build", "--bundles", "nsis"]
+    : ["build", "--no-bundle"]
+  : ["build", "--bundles", DMG ? "app,dmg" : "app"];
 if (UNIVERSAL) tauriArgs.push("--target", "universal-apple-darwin");
 if (LOCAL) tauriArgs.push("--features", "custom-protocol,local", "--", "--no-default-features");
+if (APP_STORE) {
+  // No updater and no private WebKit key (Cargo.toml's default features), and
+  // the store's config. Unsigned here, so without its entitlements and
+  // profile: the release signs the store build, with both
+  // (docs/engineering/release-engineering.md#REL-56).
+  tauriArgs.push(
+    "--config",
+    "src-tauri/tauri.appstore.conf.json",
+    "--config",
+    JSON.stringify({ bundle: { macOS: { entitlements: null, files: null } } }),
+    "--features",
+    "custom-protocol",
+    "--",
+    "--no-default-features",
+  );
+}
 /**
  * The self-test app's Info.plist: the real app's keys, and `NSAppSleepDisabled`.
  * App Nap would coalesce the app's own timers once every window is covered, as
@@ -95,35 +179,89 @@ function selftestInfoPlist() {
   return path;
 }
 
+if (SANDBOX) {
+  // The store's features (no updater, no private WebKit key) and its config,
+  // as --app-store builds them, with the self-test's beside them.
+  tauriArgs.push(
+    "--config",
+    "src-tauri/tauri.appstore.conf.json",
+    "--config",
+    JSON.stringify({ bundle: { macOS: { entitlements: null, files: null } } }),
+    "--features",
+    "custom-protocol,selftest",
+  );
+} else if (SELFTEST) {
+  // The update proof's feature implies the self-test's.
+  tauriArgs.push("--features", PROOF ? "update-proof" : "selftest");
+}
 if (SELFTEST) {
-  tauriArgs.push("--features", "selftest");
   // A merge patch replaces arrays whole, so the window list is copied from the
   // real config rather than restated — a window setting added there reaches
   // the self-test build without anyone remembering this file.
   const overlay = {
-    identifier: PROOF ? conf.identifier : `${conf.identifier}.selftest`,
+    // The sandboxed build is an app of its own too: its own container, which
+    // the unsandboxed self-test build never shares.
+    identifier: PROOF
+      ? conf.identifier
+      : SANDBOX
+        ? `${conf.identifier}.sandbox.selftest`
+        : `${conf.identifier}.selftest`,
     productName,
+    ...(NUMBERED ? { version: NUMBERED } : {}),
     // acceptFirstMouse: a click reaches the page even when the window is not
     // key, so a run survives someone clicking another app mid-test. The shipped
     // app keeps the Mac default (the first click only activates).
     app: {
       windows: conf.app.windows.map((w) => ({ ...w, incognito: true, acceptFirstMouse: true })),
     },
-    bundle: { macOS: { infoPlist: selftestInfoPlist() } },
+    ...(WINDOWS ? {} : { bundle: { macOS: { infoPlist: selftestInfoPlist() } } }),
   };
   tauriArgs.push("--config", JSON.stringify(overlay));
 }
+// Cargo's own arguments come last.
+if (SANDBOX) tauriArgs.push("--", "--no-default-features");
+
+/**
+ * The sandboxed self-test's entitlements: the store build's, without the
+ * iCloud keys an ad-hoc signature cannot carry. Refused when they have drifted
+ * apart, since a key the store build gained and this one lacks is a sandbox
+ * the self-test no longer proves.
+ */
+const SANDBOX_ENTITLEMENTS = join(ROOT, "src-tauri/Entitlements.selftest-sandbox.plist");
+function sandboxEntitlements() {
+  const keys = (file) =>
+    Object.keys(
+      JSON.parse(
+        execFileSync("plutil", ["-convert", "json", "-o", "-", file], { encoding: "utf8" }),
+      ),
+    )
+      .filter((k) => !k.startsWith("com.apple.developer.icloud") && !k.includes("ubiquity"))
+      .sort()
+      .join(", ");
+  const store = keys(join(ROOT, "src-tauri/Entitlements.plist"));
+  const ours = keys(SANDBOX_ENTITLEMENTS);
+  if (store !== ours) {
+    console.error(
+      `build-app: the sandboxed self-test's entitlements (${ours}) are not the store build's without iCloud (${store})`,
+    );
+    process.exit(1);
+  }
+  return SANDBOX_ENTITLEMENTS;
+}
+if (SANDBOX) sandboxEntitlements();
 
 const env = {
   ...process.env,
-  // Local installs, universal checks and self-tests never enable automatic reports.
-  PROSCENIUM_REPORTS: "0",
+  // Local installs, universal checks and self-tests never enable automatic
+  // reports. A store build takes what the caller says: the release's own
+  // (scripts/release-app-store.mjs) compiles them in, as the download's does.
+  PROSCENIUM_REPORTS: APP_STORE && process.env.PROSCENIUM_REPORTS === "1" ? "1" : "0",
   // CI skips the AppleScript that arranges the DMG window in Finder: on a
   // desktop it opens Finder windows in front of whatever the person is doing.
   CI: process.env.CI ?? "true",
 };
 
-if (SELFTEST) {
+if (SELFTEST && !WINDOWS) {
   // The in-page half of the self-test, one self-contained script with axe-core
   // inside it. The Rust half embeds it at compile time (src-tauri/build.rs), so
   // it is bundled first, and never into dist/.
@@ -161,11 +299,30 @@ try {
 }
 
 console.log(`build-app: tauri ${tauriArgs.join(" ")}`);
-execFileSync(join(ROOT, "node_modules/.bin/tauri"), tauriArgs, {
-  cwd: ROOT,
-  stdio: "inherit",
-  env,
-});
+// Windows' node_modules/.bin holds Bun's own shims, which bun runs.
+if (WINDOWS)
+  execFileSync("bun", ["run", "tauri", ...tauriArgs], { cwd: ROOT, stdio: "inherit", env });
+else
+  execFileSync(join(ROOT, "node_modules/.bin/tauri"), tauriArgs, {
+    cwd: ROOT,
+    stdio: "inherit",
+    env,
+  });
+
+if (WINDOWS) {
+  const release = join(ROOT, "src-tauri/target/release");
+  if (PROOF) {
+    // Tauri names the installer by the version it was built as, and the chip.
+    const chip = process.arch === "arm64" ? "arm64" : "x64";
+    const installer = join(
+      release,
+      "bundle/nsis",
+      `${conf.productName}_${NUMBERED ?? conf.version}_${chip}-setup.exe`,
+    );
+    console.log(`build-app: ${installer}`);
+  } else console.log(`build-app: ${join(release, "proscenium.exe")}`);
+  process.exit(0);
+}
 
 const app = join(
   ROOT,
@@ -188,12 +345,26 @@ if (SELFTEST) {
     process.exit(1);
   }
   // Ad hoc and WITHOUT Entitlements.plist: its iCloud keys need a provisioning
-  // profile, and an ad-hoc app that claims them is killed at launch.
-  execFileSync("codesign", ["--force", "--deep", "--sign", "-", app], { stdio: "inherit" });
+  // profile, and an ad-hoc app that claims them is killed at launch. The
+  // sandboxed build carries the rest of the store's.
+  execFileSync(
+    "codesign",
+    [
+      "--force",
+      "--deep",
+      "--sign",
+      "-",
+      ...(SANDBOX ? ["--entitlements", SANDBOX_ENTITLEMENTS] : []),
+      app,
+    ],
+    { stdio: "inherit" },
+  );
 }
 
 const checkArgs = [join(ROOT, "scripts/check-bundle.mjs"), app];
 if (UNIVERSAL) checkArgs.push("--universal");
 if (!SELFTEST) checkArgs.push("--release");
+if (APP_STORE || SANDBOX) checkArgs.push("--app-store");
+if (NUMBERED) checkArgs.push("--version", NUMBERED);
 execFileSync(process.execPath, checkArgs, { stdio: "inherit" });
 console.log(`build-app: ${app}`);

@@ -1,0 +1,2123 @@
+{
+  "v": 1,
+  "checks": {
+    "a build without a key leaves the workspace notice pending": {
+      "hash": "4814eed68b407805",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "a comment made on a selection is about the words selected": {
+      "hash": "2a874dcd8a790626",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-07"
+    },
+    "a comment with no room for a card is typed in the feed, signed and answered": {
+      "hash": "72544262bf174c5c",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comment-thread-in-the-feed": "edde03b0b6ba55a4",
+        "new-comment-in-the-feed": "4bf883ea163788f4"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "a comment with room is typed in its card, and its words can be selected": {
+      "hash": "77d8745097144208",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "new-comment-in-its-card": "8177e7209b4876e8"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "a cue's extension stays on the page and is written once": {
+      "hash": "f552c51b03dca772",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-17"
+    },
+    "a document's caret and list markers stand where the words are": {
+      "hash": "138f2987c9d878dc",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "a document's caret holds steady when the Mac asks for one that does not blink": {
+      "hash": "7531b8b3800ea658",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-06"
+    },
+    "a failed version read is spoken in Changes": {
+      "hash": "f5bd77c86113d484",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "version-read-failure": "eaf1ff8dfca69cd7"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "a list in a document holds together": {
+      "hash": "5785a81053336b7f",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-04"
+    },
+    "a relaunch into a play shows the privacy toast once": {
+      "hash": "353716c8ff4a6ab0",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "a scene's color is chosen on its card and its rail row, and the board runs across or down": {
+      "hash": "b01a6ad7df1e7982",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-20"
+    },
+    "a seen notice stays seen on the next launch": {
+      "hash": "96d1607900e588c0",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "a typed sheet's embedded identity follows an external move": {
+      "hash": "b01b72bbcfbae073",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-22"
+    },
+    "accessibility tree · the script is a text box that follows typing, and says the kind": {
+      "hash": "b8ddf60c272ba02b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-14"
+    },
+    "alternate event spelling gates unsaved words and Keep this preserves theirs": {
+      "hash": "8c967432906c9db0",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "alternate watcher spelling reaches the open script and keeps its identity": {
+      "hash": "5ccbf93dbcd5cf6d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-22"
+    },
+    "an installing update holds edits and a failure releases them": {
+      "hash": "630f42d77d3661da",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "update-installation": "6b16038f1f3a40c9"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "an outside change heard while the app's own write is unanswered stays on screen": {
+      "hash": "a6f1a0923e2373d5",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-22"
+    },
+    "binder · an op waiting on a slow write never runs in the Plays folder": {
+      "hash": "89f08bbdf9537cd6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "binder arrows reach and activate scenes without filing them": {
+      "hash": "77abe5cdb8d149e0",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "binder-scenes": "7911a833a37adcac"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "board": {
+      "hash": "115a54bb0dbe6ba5",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "board": "d70cf7c8ecb556ae"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "board · a scene moved while the writer types keeps both": {
+      "hash": "9d47c387abd30c03",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "caret popups activate with clicks and conventional menu keys": {
+      "hash": "a2b92edfe97c26b4",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "character-suggestions": "5960e60d14699fb9",
+        "semicolon-menu": "55b4677dd2b7216f"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "changes · a change heard while the one before is recorded joins its burst": {
+      "hash": "832232839ea790f7",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-17"
+    },
+    "changes · a document's change is read on its own page": {
+      "hash": "cea4e71b35fb08fe",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "changes-a-document-on-its-page": "200abc74e51dba4c"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "changes · Changes in text draws the newest burst, each change once": {
+      "hash": "1ccd5885263c3f60",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "changes-in-text": "5d988ddd60282b85"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "changes · coming back to the app lists nothing that did not change outside": {
+      "hash": "0868f84d629749ae",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-17"
+    },
+    "changes · looking clears the count, and a burst is one entry": {
+      "hash": "560f831bb824371f",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "changes-a-burst-chosen": "fb5496a734af4bdc"
+      },
+      "provenAt": "2026-10-19"
+    },
+    "Changes speaks delayed and unavailable comparisons": {
+      "hash": "371bdd6333add846",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comparison-unavailable": "32ffa153f04c23a3"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "characters page · a double-click opens Cast at the line": {
+      "hash": "f325bb2df8339774",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-01"
+    },
+    "comment actions retain focus and announce the remaining count": {
+      "hash": "681837aa498567a6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comment-margin": "7a5d37054d6d8335",
+        "empty-comments-feed": "9743de40b4f8a041"
+      },
+      "provenAt": "2026-10-06"
+    },
+    "copies kept during a save are readable in Changes": {
+      "hash": "14b3c49ef4dd1eb3",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "saved-copy": "e80366007bb58cdd"
+      },
+      "provenAt": "2026-10-17"
+    },
+    "dialog menus and announcements stay in the active modal scope": {
+      "hash": "a6f843a4397eac72",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "popup-inside-export-dialog": "713b7d23f10935bc"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "docs/app/formatting/formats-and-layout.md#FMT-145 · Export .docx and .odt from the document menu": {
+      "hash": "880e86d440bf5051",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "export-docx": "5b53680d2e1a0e32"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "docs/app/formatting/formats-and-layout.md#FMT-157 · the .docx and .odt downloads hold the play in its styles": {
+      "hash": "fa0ac8bb2f674dfb",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "document import · into the open play, as a script and as a document": {
+      "hash": "b3944aa1a2b9dc9e",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "document-import-into-a-play": "507706f977928aea"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "document menu": {
+      "hash": "edbf6718037f6fb2",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "document-menu": "abca4c44e48accf5"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "editing fields identify their scene or character": {
+      "hash": "a6b5f83273494f98",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "board-field-names": "fe6c0c7fa7892d66",
+        "cast-field-names": "450050c0a443d48e",
+        "outline-field-names": "b1d5b593e64b7d6d"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "editor · page break before a scene": {
+      "hash": "e15e957979fbd528",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-20"
+    },
+    "element bar · fits its pane at every width": {
+      "hash": "ffbaa97ab4dc4e33",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "element-bar-folded": "b70291743456065a",
+        "element-bar-more": "ab77f6268d2a8859",
+        "find-bar-narrow-pane": "fcceb82ab6c0a212"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "export · the preview holds only what goes out, front sheets included": {
+      "hash": "754fab80a43d577f",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "export-an-anonymous-copy": "f4d6a9fc13538115",
+        "export-an-excerpt-with-front-sheets": "cfa26d050ab70545"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "export validates the play language before saving": {
+      "hash": "d308db3a0df34055",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "export-play-language": "fe716a23d237b208"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "exported bytes carry tags and the saved per-play language": {
+      "hash": "2d31638f204b6a67",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "feedback · diagnostics failure does not block a message": {
+      "hash": "ef860aff7f9b4921",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "feedback · drafts, offline retry, details, and enlarged text": {
+      "hash": "1e3d0e6276274752",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "send-feedback-at-200-percent": "e0abfee8fd22cffa"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "feedback · keyboard draft and character limit": {
+      "hash": "8399f11635a14ec3",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "send-feedback-character-limit": "656ad8cf895dce56"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "feedback · three entry points and the acceptance message": {
+      "hash": "629b41ae93f058f6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "send-feedback--2": "c0221cc46cc1dd74",
+        "send-feedback--3": "fa333f1f67c1f8ac",
+        "send-feedback": "c0221cc46cc1dd74"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "find · replace leaves comments alone": {
+      "hash": "40c19038a51e9585",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "find-bar": "569b3b3aacaf1440"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "finder · a loose script becomes a play when asked": {
+      "hash": "0a90ddf05bfa8e9b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "fountain-import-review": "f733e368efb6408f"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "finder · a play elsewhere asks first": {
+      "hash": "6c05dc6cb7fcb7cd",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "open-elsewhere-sheet": "ade858b45e795a4a"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "finder · an .fdx becomes a play and is kept": {
+      "hash": "94efa45866b747d7",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "fdx-import-review": "2258fabafacaffdd"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "folder access can be retried and reauthorised": {
+      "hash": "d9aa8109c6391392",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "folder-access-retry": "53d92b60df672c9c"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "forced colours · keyboard focus is seen on every control the keys reach": {
+      "hash": "7969c3225d15ad64",
+      "runs": {
+        "chromium": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "forced colours · what is chosen is told apart from what is not": {
+      "hash": "71c26ff4e19e106c",
+      "runs": {
+        "chromium": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "formats · designer": {
+      "hash": "41b2b6c4ef133ac7",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "format-designer-this-play": "99aa4c4cbad72d05",
+        "format-designer": "ba31e6f740921bcb"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "formats · move to trash": {
+      "hash": "8d5de02c3ca092cf",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-14"
+    },
+    "formats · settings": {
+      "hash": "b6821da090ba228c",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "formats-settings": "b67d32ceff4863b5"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "formats · unsaved changes and built-ins": {
+      "hash": "f329b2d37a2d58b3",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "format-designer-built-in": "042bb470b3d5a57c",
+        "format-designer-unsaved-changes": "89c68d8032e188c0"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "Go to Scene connects its combobox to selectable listbox results": {
+      "hash": "0b32b89184c4c286",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "scene-combobox": "8c100fe3b12d94e1"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "inspector": {
+      "hash": "23b5ef8aa9d8f1d0",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "inspector": "b0242a75a804bad0"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "interface text reaches 200 percent without changing the page": {
+      "hash": "9d56e52bf08cbfcf",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "comments-at-200-percent": "e57943245c1e7a92",
+        "menu-at-200-percent": "abca4c44e48accf5",
+        "settings-at-200-percent": "6a0b5ed8023a8428"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "keyboard · a key reaches Undo": {
+      "hash": "6b978c3cd6b0f0b2",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "undo-toast": "a8092cf5f5fb1cf3"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "keyboard · accent": {
+      "hash": "8e7628747b6b1fdb",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-appearance-under-velvet": "08dba8709fa4a412"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "keyboard · cancel means cancel": {
+      "hash": "af060c8e78af7a67",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "title-page-sheet": "d689d4dfd2988298"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "keyboard · sheet": {
+      "hash": "150571900c3abf3e",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "export-sheet": "1c8a9e21c1e10e79"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "keyboard · spelling": {
+      "hash": "9ea73b4916c42c51",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "spelling-menu": "70636e7f182b2961"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "launch · watch every relaunch from its first frame": {
+      "hash": "9aaf9025dbb50f78",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "leaving waits for sheet saves already accepted by this play": {
+      "hash": "f658860330e7394d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-19"
+    },
+    "long front matter continues on bounded sheets and export counts them": {
+      "hash": "0f5bab7b70f065aa",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "long-front-matter-export": "255d636494bf4e03"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "outline · a note made while the binder is walked keeps every word": {
+      "hash": "05da2c931730b026",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "outline and cast": {
+      "hash": "24a7365de9b67a86",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "cast": "450050c0a443d48e",
+        "changes": "ac60d4d966f8491a",
+        "outline": "b1d5b593e64b7d6d"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "panes · a pane of several closes by its box, its key and a divider dragged across it": {
+      "hash": "e252953bdc37a1f6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "split-panes": "4deacff6440afeed"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "panes · a window with no room hides a pane, says so, and makes no new one": {
+      "hash": "46608ca044338bf5",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-05"
+    },
+    "play language is keyboard accessible and persists": {
+      "hash": "6c191ea2a5a542e6",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "play-language": "3d66768cf34ecfe6"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "plays screen": {
+      "hash": "7eb8e0739033d338",
+      "runs": {
+        "chromium": 420,
+        "webkit": 420
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "optional-tutorial-invitation": "a29b555188833030",
+        "plays-screen": "b4d1a4e2f289ee6f"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "plays screen · a Plays folder one level too high": {
+      "hash": "a5cfb04fd8e1f135",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "plays-screen-one-level-too-high": "f4f6b9d91b8ab04d"
+      },
+      "provenAt": "2026-10-16"
+    },
+    "print · Print… sends exactly the sheets the preview showed": {
+      "hash": "58c2ac8e7fdfc745",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "print-sheet": "a69666c3deb0bbb3"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "privacy · reports carry nothing of the play": {
+      "hash": "fddde35c2a13c291",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-about-diagnostics": "858a4d6b6b661d9a"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "published formats share editor and print geometry": {
+      "hash": "aa1827e4cb90c2b4",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "dramatists-guild-musical-export": "29f6bb308eb2d59d",
+        "dramatists-guild-musical": "b0242a75a804bad0",
+        "dramatists-guild-traditional-export": "29f6bb308eb2d59d",
+        "dramatists-guild-traditional": "b0242a75a804bad0",
+        "proscenium-house-export": "1c8a9e21c1e10e79",
+        "proscenium-house": "b0242a75a804bad0",
+        "samuel-french-concord-manuscript-export": "7542360228cfba5d",
+        "samuel-french-concord-manuscript": "d4e8e24037d23012",
+        "sketch-comedy-sketchworks-export": "05224005c3201980",
+        "sketch-comedy-sketchworks": "512123b9a6b92193",
+        "uk-international-bbc-export": "b17103a8d4a8de6c",
+        "uk-international-bbc": "d4e8e24037d23012"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "quit · the play says where a quit kept the words, when it opens again": {
+      "hash": "fc07898e8932893d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "toast-words-a-quit-kept": "258d43bb6b3bc5e5"
+      },
+      "provenAt": "2026-10-15"
+    },
+    "quit · the words a quit waits on land, or are kept for the next launch": {
+      "hash": "4528183d1d4a3c1c",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "quit · words that can be kept nowhere hold the quit, and ⏎ does not quit": {
+      "hash": "ba059e699e8c3b53",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "quit-alert": "26b4c7d73f77c6e1"
+      },
+      "provenAt": "2026-10-15"
+    },
+    "recovery · the reopened script offers the words back": {
+      "hash": "17b61acff3f02ec3",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "recovery-banner": "bac8518a8b59f724",
+        "recovery-sheet": "9327be47a322aceb"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "recovery · words behind the banner are kept through a crash": {
+      "hash": "a10418055a2ffe1c",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "reveal in Finder · the status bar's path and a binder row": {
+      "hash": "e1e91dda8b07a4f0",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-14"
+    },
+    "saving · a refused first outline note names the folder it goes in": {
+      "hash": "6fb3754e30f26072",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "saving · a refused save is said once, plainly, and lands when it can": {
+      "hash": "748965232699a07e",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "toast-a-refused-save": "de33207bfbae4106"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "saving · a refused sheet says where its words went": {
+      "hash": "edb1c6b22c3ed327",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "saving · opening a document writes nothing": {
+      "hash": "b41ff8ac0b3fb975",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "saving · opening a play saves nothing and keeps no version": {
+      "hash": "f65493ab832c3f4d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "scripts · a slow open never mixes two scripts": {
+      "hash": "9fae7a29b32e620b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "seeded Find and export results use premounted status regions": {
+      "hash": "362a3fc9e6612766",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "export-range-feedback": "ca0d9c5274ba7cd3"
+      },
+      "provenAt": "2026-10-01"
+    },
+    "settings · a refused status or word says why": {
+      "hash": "05907aea596f313c",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-a-refused-status": "191426de117a45b6",
+        "settings-a-refused-word": "b440f02e8229eae3"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "settings · a store copy offers no update controls": {
+      "hash": "0f697ffeaa01b255",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-updates-store-copy": "879bc30c548d4b68"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "settings · every section": {
+      "hash": "2095da9ac4797648",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-about": "858a4d6b6b661d9a",
+        "settings-appearance": "2b095fbbe61d9b9a",
+        "settings-formats": "b67d32ceff4863b5",
+        "settings-general": "04ecdf82278ce84c",
+        "settings-help-feedback": "6b6ef074beb9004e",
+        "settings-keyboard-shortcuts": "3d90a0817491afc1",
+        "settings-privacy": "6cf3841bfaaef24e",
+        "settings-updates": "e361912c0e0476e1",
+        "settings-writing": "d46b34be1769b0a5"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "settings · Follow Mac takes the Mac's accent": {
+      "hash": "93ec52dd1b6606f8",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-follow-mac-in-62ba46": "9040c052ad322566",
+        "settings-follow-mac-in-8c8c8c": "9040c052ad322566",
+        "settings-follow-mac-in-f7821b": "9040c052ad322566",
+        "settings-follow-mac-in-ffc600": "9040c052ad322566"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "settings · open at launch": {
+      "hash": "b61bb4b808e6e227",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "settings · privacy": {
+      "hash": "bf06fff22722178b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-privacy-reports-off": "5af4e5a9eba9e822"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "settings · updates": {
+      "hash": "cfce01866b2c45f2",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-updates-automatic-off": "c6b4c8fbbc8e4fb0"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "settings · updates, alpha's key": {
+      "hash": "b5468d2b1e1a89c9",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "settings-updates-a-key-refused": "527e09b90f196323",
+        "settings-updates-alpha-track": "ea0f17fc7d83dd70",
+        "settings-updates-alpha-without-a-key": "d65b7412d442a363"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "sheet and outline recovery remain readable after a crash": {
+      "hash": "cd8f6c42ab115af8",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "recovered-document-copy--2": "1643086226a025ba",
+        "recovered-document-copy": "69789ebf615e3c14"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "sheet and outline recovery survive a crash": {
+      "hash": "055dff112d77296d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "sheet and outline recovery survive a crash and remain readable": {
+      "hash": "7cbe7ff816e62f25",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "recovered-document-copy--2": "4a9222a364adeb6a",
+        "recovered-document-copy": "0c903c689d08b3ec"
+      },
+      "provenAt": "2026-10-05"
+    },
+    "sheets · leaving the play keeps a sheet's last words": {
+      "hash": "4390e50584e5ba1d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "sketch opening edits and overflow share editor and export sheets": {
+      "hash": "852bc7834ac59964",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "sketch-opening-overflow-export": "abe61b49e392b81a"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "tutorials · ⌘⇧O reaches All Plays while the play Stop returned to is still reading its script": {
+      "hash": "6b49eb49aa8fffb3",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · a new invitation, for the next check": {
+      "hash": "9458c9ded2f9d795",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · a reset of damaged progress preserves it and every practice play": {
+      "hash": "e90ce77e41c9a517",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · a writer who wanders off is led back, and Take Me There goes there": {
+      "hash": "c2ceb0ea422602ff",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "tutorial-led-back": "adba5b0c46860550"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "tutorials · every lesson, by hand, continues the same play": {
+      "hash": "e92f5d480acfcfae",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "tutorial-inside-a-sheet": "c44517615c6195e9"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "tutorials · legacy practice resumes and copies without moving its original": {
+      "hash": "ae41c3c63e9c8a4d",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · narrow windows keep the guide on screen and its target clear, and a failed save waits": {
+      "hash": "f5cab5f58737bbaa",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "tutorial-narrow": "7866dbe3ce110109"
+      },
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · partial copy keeps the original and retries into a new folder": {
+      "hash": "afa6c65ca18c2789",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · practice as an earlier version kept it": {
+      "hash": "4aafc91fbf724b73",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · reset keeps every practice play, and Saved Practice opens them": {
+      "hash": "72630cf961f94fd4",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "reset-preserves-practice": "6a5ed51702b19be9",
+        "retained-practice-after-reset": "6a23593a362a103f"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "tutorials · Show Me and Skip work at every step, in place, and keep the writer's words": {
+      "hash": "33f914d7353a0ff4",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "tutorial-characters-shown": "a7902d1d8efa51ab",
+        "tutorial-export-shown": "11089443f97a614e",
+        "tutorial-files-shown": "96a1e973875f0a09",
+        "tutorial-first-exchange-shown": "5258e6ab180d6d06",
+        "tutorial-format-shown": "00bb122b0c88d300",
+        "tutorial-scene-cards-shown": "6a483fb7d9a8688e"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "tutorials · stale progress and damaged reset preserve practice": {
+      "hash": "b588c38b49e9d401",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-06"
+    },
+    "tutorials · stale progress is refused and changes no practice words": {
+      "hash": "41bff256f27d3122",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "tutorials · stop returns to the play, Continue returns to the same place, and the keyboard reaches the guide": {
+      "hash": "72b8c19f09afb711",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "tutorial-keyboard-in-the-guide": "ee350c2157140dcb"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "tutorials · the guide shows where to type, catches a wrong turn and moves on by itself": {
+      "hash": "7c4d136b71a3b7a5",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "tutorial-a-correction": "fc471dd035c3d23b",
+        "tutorial-inside-a-menu": "5033293c39b83489",
+        "tutorial-lesson-finished": "3e3d494665c05764",
+        "tutorial-type-here": "60a2ebed6c9fd5a6"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "usability · add and reorder cast independently of the printed page": {
+      "hash": "ffaca8105b68be27",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "editable-characters-page-and-cast-tools": "eb8d5222b9194876"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "usability · tutorials, appearance, dictionary and formats": {
+      "hash": "127fe2b6b4211362",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "appearance-override": "59fcf2b7324afb68",
+        "tutorials": "c0d45f3c9a3cbad8"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "versions": {
+      "hash": "632ee8e81f4f4f8b",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "versions": "b34b34f59a71e322"
+      },
+      "provenAt": "2026-10-20"
+    },
+    "versions · a restore lands in the script it was chosen from, or nowhere": {
+      "hash": "d018cc4d6b0f75d8",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-17"
+    },
+    "watcher · foreground catches a missed edit and health stays visible": {
+      "hash": "435b8a4ece301d27",
+      "runs": {
+        "chromium": 60,
+        "webkit": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "file-watcher-status": "000eb0c85a24a3ac"
+      },
+      "provenAt": "2026-10-22"
+    },
+    "welcome": {
+      "hash": "ebeda68d1187ce27",
+      "runs": {
+        "chromium": 420,
+        "webkit": 420
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "welcome": "19004e06e609e643"
+      },
+      "provenAt": "2026-10-14"
+    },
+    "Windows · a play named in other scripts, its paths past 260 characters, is made, saved and opened again": {
+      "hash": "2e5be9ea3ca5a437",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "Windows · a play OneDrive keeps online only opens and saves": {
+      "hash": "a18c3e6ec433a1c1",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "Windows · a play whose name a Mac wrote decomposed saves in its own folder, never a twin": {
+      "hash": "6c4942892154c6b0",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "Windows · a Plays folder deep in the disk, named in other scripts, opens a play that saves": {
+      "hash": "f2d688fb364622e6",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "Windows · a script another program keeps open is said once, and saves when it is let go": {
+      "hash": "ce0a58ba157cfa3c",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "windows/toast-a-script-another-program-keeps-open": "d8b993c554566132"
+      },
+      "provenAt": "2026-10-16"
+    },
+    "Windows · a script held open for a moment is waited out, and nothing is said": {
+      "hash": "a807460b328a4ba7",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    },
+    "Windows · a script marked Read-only says so in File Explorer's words, and saves once it is cleared": {
+      "hash": "57638739810eb77c",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "windows/toast-a-script-marked-read-only": "d8b993c554566132"
+      },
+      "provenAt": "2026-10-16"
+    },
+    "Windows · a script the sync client replaces while it is open shows the other device's words": {
+      "hash": "d0d17c48357add2c",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "Windows · Documents in OneDrive: Documents › Plays is made there, and said to be kept by OneDrive": {
+      "hash": "3e09dabf62c98431",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {
+        "windows/plays-screen-an-empty-plays-folder-onedrive-keeps": "cee087ae0b9d8b25"
+      },
+      "provenAt": "2026-10-15"
+    },
+    "Windows · names Windows forbids become names it takes, and those plays save": {
+      "hash": "c614ab7a6427689a",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-16"
+    },
+    "Windows · plays a sync client brings in later appear, and nothing is written beside them": {
+      "hash": "55d501481382a7a0",
+      "runs": {
+        "webview2": 60
+      },
+      "loaded": 10,
+      "clocks": {
+        "+1 day": 5,
+        "+1 year": 5
+      },
+      "snapshots": {},
+      "provenAt": "2026-10-15"
+    }
+  }
+}

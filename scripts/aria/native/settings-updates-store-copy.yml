@@ -1,0 +1,21 @@
+- dialog "Settings"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections"
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy"
+    - tab "Updates" [selected]
+    - tab "About"
+  - tabpanel "Updates"
+    - heading "Updates" [level=3]
+    - heading "THIS VERSION" [level=4]
+    - status [live=polite]
+    - paragraph
+      - link "Release notes"
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

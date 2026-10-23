@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { describe, expect, it } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -13,6 +13,10 @@ import {
   underwritten,
 } from "../../../scripts/patrons.mjs";
 import { billed, EMPTY_ROLL, inTheWings, isDark, ROLL } from "./patrons";
+
+/** Every folder these tests make is in this one, which goes when they are done. */
+const TOP = mkdtempSync(join(tmpdir(), "patrons-"));
+afterAll(() => rmSync(TOP, { recursive: true, force: true }));
 
 const roll = (o: Partial<typeof EMPTY_ROLL> = {}) => ({ ...EMPTY_ROLL, ...o });
 
@@ -68,7 +72,7 @@ describe("scripts/patrons.mjs", () => {
 
   it("bakes the file a release names, and the empty roll otherwise", () => {
     expect(bakedRoll({})).toEqual(roll());
-    const file = join(mkdtempSync(join(tmpdir(), "patrons-")), "roll.json");
+    const file = join(mkdtempSync(join(TOP, "roll-")), "roll.json");
     writeFileSync(file, JSON.stringify(roll({ benefactors: ["Ada"] })));
     expect(bakedRoll({ PROSCENIUM_PATRONS_FILE: file })).toEqual(roll({ benefactors: ["Ada"] }));
     writeFileSync(file, JSON.stringify({ version: 1 }));

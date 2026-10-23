@@ -144,6 +144,43 @@ describe("recording a change", () => {
     expect(await store.readBaseline("Characters/clay.md")).toBe("# Clay\n\nThe older brother.\n");
   });
 
+  // The reload a change sets off writes the new text as the baseline, a moment
+  // after the change read it. In the Mac app that write could land first, and
+  // the change was compared with itself: Changes listed nothing.
+  it("docs/app/keeping-work/storage-and-file-format.md#STOR-119: a change heard before the reload moves the baseline is still recorded", async () => {
+    const store = openChanges("HEARD-FIRST");
+    await store.writeBaseline("Play.fountain", "what the writer saw\n");
+    let release!: () => void;
+    const blocked = new Promise<void>((done) => {
+      release = done;
+    });
+    delayRead = () => blocked;
+    let reload: Promise<void>;
+    let before: Promise<string | null>;
+    try {
+      before = store.readBaseline("Play.fountain");
+      reload = store.writeBaseline("Play.fountain", "what arrived\n");
+    } finally {
+      delayRead = null;
+    }
+    release();
+    await reload;
+    const recorded = await recordExternalChange(store, {
+      ...look("Play.fountain", "what arrived\n"),
+      before,
+    });
+    if (!recorded) throw new Error("the change was compared with itself");
+    expect(await store.readBefore(recorded.id)).toBe("what the writer saw\n");
+  });
+
+  it("a baseline read asked after a write reads what it wrote", async () => {
+    const store = openChanges("WRITE-THEN-READ");
+    await store.writeBaseline("Play.fountain", "older\n");
+    const writing = store.writeBaseline("Play.fountain", "newer\n");
+    expect(await store.readBaseline("Play.fountain")).toBe("newer\n");
+    await writing;
+  });
+
   it("a baseline that cannot be read is not mistaken for one never taken", async () => {
     const store = openChanges("UNREADABLE-BASELINE");
     await store.writeBaseline("v2.fountain", "what the writer saw\n");

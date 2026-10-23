@@ -73,3 +73,44 @@ export function touchedScenes(before: string, after: string): Set<number> {
 export function isActHeading(line: string): boolean {
   return SECTION_ACT.test(line) && !SECTION_SCENE.test(line);
 }
+
+/**
+ * The scenes a change touched, by their headings in the AFTER text, in script
+ * order: what a summary names ("ACT ONE · SCENE 3", the act's heading with
+ * the scene's, since two acts can each have a SCENE 1). A change above the
+ * first scene is "before the first scene".
+ */
+export function touchedSceneNames(before: string, after: string): string[] {
+  const lines = after.split("\n");
+  const sectioned = usesSections(lines);
+  const headingAt: (string | null)[] = [];
+  let current: string | null = null;
+  let act: string | null = null;
+  for (const line of lines) {
+    if (sectioned && isActHeading(line)) {
+      act = line.replace(SECTION_ACT, "").trim() || null;
+      current = act;
+    } else if (sectioned ? SECTION_SCENE.test(line) : FORCED_HEADING.test(line)) {
+      const scene = line.replace(sectioned ? SECTION_SCENE : /^\./, "").trim() || null;
+      current = scene && act ? `${act} · ${scene}` : scene;
+    }
+    headingAt.push(current);
+  }
+  const touched: (string | null)[] = [];
+  const mark = (i: number) => {
+    const name = headingAt[Math.min(i, headingAt.length - 1)] ?? null;
+    if (!touched.includes(name)) touched.push(name);
+  };
+  let afterIdx = 0;
+  for (const line of diffLines(before, after)) {
+    if (line.kind === "same") afterIdx += 1;
+    else {
+      mark(afterIdx);
+      if (line.kind === "add") afterIdx += 1;
+    }
+  }
+  const order = (name: string | null) => (name === null ? -1 : headingAt.indexOf(name));
+  return touched
+    .sort((a, b) => order(a) - order(b))
+    .map((name) => name ?? "before the first scene");
+}

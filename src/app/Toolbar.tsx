@@ -26,12 +26,14 @@
 import { useRef, useState } from "react";
 import { LanguageSheet } from "./LanguageSheet";
 import { openSettings } from "./settings";
-import { useSettings } from "./settings/store";
+import { useSettings } from "../ui/settings-store";
 import { openFeedback } from "../feedback";
 import { openHelp } from "../tutorial/events";
 import type { FormatSpec } from "../format";
 import {
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   Button,
   DocIcon,
   IconButton,
@@ -47,15 +49,28 @@ import {
   type SegmentedOption,
 } from "../ui";
 import type { Surface } from "./panes";
+import type { RedlineSteps } from "./use-redline-steps";
+import { keys } from "../ui/keys";
+import { systemWords } from "../ui/system-words";
 
 export type ViewId = "script" | "corkboard" | "outliner" | "cast" | "changes";
 
-const VIEWS: SegmentedOption<ViewId>[] = [
-  { id: "script", label: "Script", title: "Show the script in the focused pane (⌘1)" },
-  { id: "corkboard", label: "Board", title: "Show the board in the focused pane (⌘2)" },
-  { id: "outliner", label: "Outline", title: "Show the outline in the focused pane (⌘3)" },
-  { id: "cast", label: "Cast", title: "Show the cast in the focused pane (⌘4)" },
-  { id: "changes", label: "Changes", title: "Show what arrived from outside (⌘5)" },
+// A function, not a constant: its keys are written as this system writes them,
+// which the page learns at boot (ui/keys.ts).
+const viewsWithKeys = (): SegmentedOption<ViewId>[] => [
+  { id: "script", label: "Script", title: `Show the script in the focused pane (${keys("⌘1")})` },
+  { id: "corkboard", label: "Board", title: `Show the board in the focused pane (${keys("⌘2")})` },
+  {
+    id: "outliner",
+    label: "Outline",
+    title: `Show the outline in the focused pane (${keys("⌘3")})`,
+  },
+  { id: "cast", label: "Cast", title: `Show the cast in the focused pane (${keys("⌘4")})` },
+  {
+    id: "changes",
+    label: "Changes",
+    title: `Show your changes and what arrived from outside (${keys("⌘5")})`,
+  },
 ];
 
 export interface DocumentMenuActions {
@@ -87,7 +102,11 @@ export interface DocumentMenuActions {
 export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => void): MenuEntry[] {
   return [
     { label: "All Plays", shortcut: "⌘⇧O", onSelect: a.onAllPlays },
-    { label: "Reveal in Finder", disabled: !a.onReveal, onSelect: a.onReveal },
+    {
+      label: `Reveal in ${systemWords().fileManager}`,
+      disabled: !a.onReveal,
+      onSelect: a.onReveal,
+    },
     { kind: "sep" },
     { kind: "section", label: "Script format" },
     ...a.formats.slice(0, 3).map((f) => ({
@@ -164,6 +183,7 @@ export function Toolbar({
   hasTrackedChanges,
   showTracked,
   onSetShowTracked,
+  trackedSteps,
   onSplit,
   document: doc,
   scriptOpen,
@@ -183,6 +203,8 @@ export function Toolbar({
   hasTrackedChanges: boolean;
   showTracked: boolean;
   onSetShowTracked: (on: boolean) => void;
+  /** Previous and Next through the changes drawn on the script. */
+  trackedSteps: RedlineSteps;
   onSplit: (dir: "row" | "col") => void;
   document: DocumentMenuActions | null;
   scriptOpen: boolean;
@@ -204,7 +226,7 @@ export function Toolbar({
   const [languageOpen, setLanguageOpen] = useState(false);
   const addMenu = useMenu();
 
-  const views = VIEWS.map((v) =>
+  const views = viewsWithKeys().map((v) =>
     v.id === "changes" && pendingChanges > 0 ? { ...v, badge: pendingChanges } : v,
   );
 
@@ -218,7 +240,7 @@ export function Toolbar({
         {scriptOpen && (
           <IconButton
             label={binderOpen ? "Hide the binder" : "Show the binder"}
-            title={`${binderOpen ? "Hide" : "Show"} the binder (⌘⌥B)`}
+            title={`${binderOpen ? "Hide" : "Show"} the binder (${keys("⌘⌥B")})`}
             on={binderOpen}
             neutral
             onClick={onToggleBinder}
@@ -312,31 +334,62 @@ export function Toolbar({
         <Button size="small" treatment="borderless" onClick={() => openFeedback()}>
           Feedback
         </Button>
-        {/* Inline tracked changes. Only offered when there is something to
-            show — a dead toggle teaches nothing. */}
+        {/* The newest changes from outside, drawn on the script. Only
+            offered when there is something new to show — a dead toggle
+            teaches nothing — and, while it is on, the way from one change to
+            the next. */}
         {scriptOpen && hasTrackedChanges && (
-          <label className="trackedswitch">
-            <span className="trackedswitch__label">Changes in text</span>
-            <Switch
-              mini
-              on={showTracked}
-              onChange={onSetShowTracked}
-              label="Changes in text — show what arrived from outside, marked in the script"
-            />
-          </label>
+          <span className="trackedswitch">
+            <label className="trackedswitch__toggle">
+              <span className="trackedswitch__label">Changes in text</span>
+              <Switch
+                mini
+                on={showTracked}
+                onChange={onSetShowTracked}
+                label="Changes in text — show what arrived from outside, marked in the script"
+              />
+            </label>
+            {showTracked && trackedSteps.count > 0 && (
+              <>
+                <IconButton
+                  label="Previous change"
+                  size="small"
+                  neutral
+                  disabled={trackedSteps.index <= 0}
+                  onClick={() => trackedSteps.go(-1)}
+                >
+                  <ChevronLeftIcon size={10} />
+                </IconButton>
+                <span className="trackedswitch__count">
+                  {trackedSteps.index < 0
+                    ? `${trackedSteps.count} ${trackedSteps.count === 1 ? "change" : "changes"}`
+                    : `${trackedSteps.index + 1} of ${trackedSteps.count}`}
+                </span>
+                <IconButton
+                  label="Next change"
+                  size="small"
+                  neutral
+                  disabled={trackedSteps.index >= trackedSteps.count - 1}
+                  onClick={() => trackedSteps.go(1)}
+                >
+                  <ChevronRightIcon size={10} />
+                </IconButton>
+              </>
+            )}
+          </span>
         )}
         {scriptOpen && (
           <>
             <IconButton
               label="Split side by side"
-              title="Split the focused pane side by side (⌥-click for top and bottom)"
+              title={`Split the focused pane side by side (${keys("⌥")}-click for top and bottom)`}
               onClick={(e) => onSplit(e.altKey ? "col" : "row")}
             >
               <SplitIcon size={16} />
             </IconButton>
             <IconButton
               label={inspectorOpen ? "Hide the inspector" : "Show the inspector"}
-              title={`${inspectorOpen ? "Hide" : "Show"} the inspector (⌘⌥I)`}
+              title={`${inspectorOpen ? "Hide" : "Show"} the inspector (${keys("⌘⌥I")})`}
               on={inspectorOpen}
               neutral
               onClick={onToggleInspector}

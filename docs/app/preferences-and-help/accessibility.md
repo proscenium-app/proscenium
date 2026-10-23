@@ -43,10 +43,15 @@ replaces A11Y-1 (docs/engineering/withdrawn-requirements.md#A11Y-1).
 - <a id="A11Y-7"></a> **A11Y-7** **⌃⇥ / ⌃⇧⇥ move between the areas** (`app/regions.ts`): toolbar, a banner
   waiting on an answer, binder, the play, inspector, status bar. Tab in the
   script is the element ring, so without this the page is a keyboard trap. A
-  banner lands on the answer it leads with, arrows reach the others.
+  banner lands on the answer it leads with, arrows reach the others. Tab in a
+  document's list indents, and is spent where it cannot
+  (docs/app/organizing/workspace-model.md#WORK-72); in a sheet, where these
+  keys do not reach, a Tab the list cannot use moves on.
 - <a id="A11Y-8"></a> **A11Y-8** **Every drag has keys and a click-through alternative.** Binder rows move
   with ⌃⌘ + arrows or Actions › Move… (folder and position); scenes move from
-  the outline's Move buttons; splitters take arrows. Right-click has ⇧F10 and ⌘;.
+  the outline's Move buttons; splitters take arrows, and the pane a splitter
+  dragged all the way closes has a close box, ⌫ on its tab and View › Close Pane
+  (docs/app/organizing/workspace-model.md#WORK-78). Right-click has ⇧F10 and ⌘;.
 - <a id="A11Y-9"></a> **A11Y-9** **Every control has a name that contains its visible words** (Voice Control
   says what it sees), and a popup says its value: "What to export: Whole Script".
 - <a id="A11Y-10"></a> **A11Y-10** **What changes without focus is spoken** through `ui/announce.ts` — two live
@@ -58,8 +63,23 @@ replaces A11Y-1 (docs/engineering/withdrawn-requirements.md#A11Y-1).
 - <a id="A11Y-11"></a> **A11Y-11** **Targets are 24px, or 24px apart** (WCAG 2.5.8). The zoom steps, tab close boxes and outline Move buttons retain their glyph sizes inside compliant targets.
 - <a id="A11Y-12"></a> **A11Y-12** **Contrast**: labels 4.5:1 on every surface in both schemes and every accent;
   icons and the focus line 3:1 (docs/engineering/design-system.md#UI-D101). `prefers-contrast: more` steps past
-  that; `prefers-reduced-motion` stops the sheet drop; `prefers-reduced-
-  transparency` makes the vibrant layer opaque.
+  that; `prefers-reduced-motion` stops the sheet drop and holds a document's
+  caret steady (docs/app/organizing/workspace-model.md#WORK-83); `prefers-reduced-
+  transparency` makes the vibrant layer opaque. The Mac's setting for a cursor
+  that does not blink holds that caret steady too. The caret a document draws is
+  the colour of its text, so it has the text's contrast, and takes the
+  system's text colour in forced colours. Forced colours give the engine's own
+  caret, which the page hides, a colour again; it is given the page's own
+  system colour there, so one caret is seen, not two. Under forced colours (Windows' high
+  contrast themes, which drop every box-shadow and lay every fill on the
+  page's colour), keyboard focus is an outline in the system's highlight
+  colour, and what is chosen (the view, a binder row, a Settings tab, a menu's
+  lit row) is drawn in the system's selection colours, or outlined where its
+  rail does not have the keyboard (`src/app/styles/accessibility.css`). An
+  accent's swatch is the one fill that is its content: it keeps its colour,
+  drawn round in the system's text colour, and the chosen one is ringed in the
+  system's colours.
+  Smoke's forced colours act holds both, in Chromium and in the real Windows app.
 - <a id="A11Y-13"></a> **A11Y-13** **The PDF names itself**: title shown in the viewer's title bar, language set.
 
 <a id="A11Y-D2"></a>
@@ -105,7 +125,10 @@ last promise was a human VoiceOver pass that will never run.
   surface's tree is held against the checked-in
   `scripts/aria/native/<surface>.yml`, and the dedicated checks of A11Y-19
   ask the same questions of it. It runs natively and for the Intel slice under
-  Rosetta, on the macOS the build host runs. Limits: the tree is not speech,
+  Rosetta, on the macOS the build host runs. A surface an Intel Mac shows
+  otherwise (Settings › Updates, where it takes Stable alone) is audited under
+  its own name, "… on an Intel Mac", with its own tree, which only the Intel
+  slice reads. Limits: the tree is not speech,
   and the Mac's own VoiceOver settings, verbosity and rotor never enter it.
 - <a id="A11Y-17"></a> **A11Y-17** **What may be claimed.** The app, the site and the records
   claim only what A11Y-19 and A11Y-16 hold: WCAG 2.2 AA as axe-core checks it,
@@ -113,6 +136,12 @@ last promise was a human VoiceOver pass that will never run.
   builds as expected on every surface the checks visit. None of them claims a
   screen reader was used, a VoiceOver or Voice Control pass, a participant
   walkthrough, or conformance or certification beyond those checks.
+  Of Windows they claim what smoke's WebView2 pass holds against the real
+  app (docs/engineering/release-engineering.md#REL-128): axe-core in both
+  schemes, the keys a PC presses, and Playwright's reading of the PC copy's
+  tree. Nothing is claimed of Narrator or any other screen reader, nor of the
+  tree Windows' UI Automation builds beyond the window and first screen the
+  installed-artifact proof finds.
 
 ## Design
 
@@ -125,7 +154,7 @@ The shared smoke definitions (`scripts/smoke-checks.mjs`) drive Chromium, Playwr
 - a text box's words, which are the play;
 - the pressed state of Bold, Italic and Underline, which is wherever the caret was left.
 
-A snapshot that differs is read again for up to three seconds before it fails, as Playwright's own `toMatchAriaSnapshot` waits. A changed surface is accepted by writing its file: `bun run smoke -- --update-aria` for Playwright's, and `node scripts/aria-accept.mjs <run>` from a pipeline run's evidence for WebKit's.
+A snapshot that differs is read again for up to three seconds before it fails, as Playwright's own `toMatchAriaSnapshot` waits. A changed surface is accepted by writing its file: `bun run smoke -- --update-aria` for Playwright's, `node scripts/aria-accept.mjs <run>` from a pipeline run's evidence for WebKit's, and `node scripts/aria-accept.mjs --windows <run>` for the PC copy's (`scripts/aria/windows/`), from the trees a run of the real Windows app kept with `smoke.mjs --aria-out`.
 
 WebKit reads some markup differently from Chromium, and the native tree is where that shows. On 2026-09-25 its first reading found the binder's tree read as unnamed `generic` rows. WebKit keeps a `tree` only while everything between it and its `treeitem`s is a group, a treeitem or `presentation`, and it does not count the ARIA synonym `none`. The binder uses `presentation` now (`src/workspace/BinderView.tsx`).
 

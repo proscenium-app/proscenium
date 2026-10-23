@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { afterAll, afterEach, describe, expect, it } from "bun:test";
-import { onOwnWrite, sendingWrite, vaultOpenedAt, type OwnWrite } from "./own-writes";
+import { onOwnWrite, sendingWrite, vaultOpenedAt, writeState, type OwnWrite } from "./own-writes";
 
 describe("the app's own writes", () => {
   const heard: OwnWrite[] = [];
@@ -23,6 +23,18 @@ describe("the app's own writes", () => {
         content: "## Appearances\n\n- SCENE 3\n",
       },
     ]);
+  });
+
+  it("a write is out from its sending to its answer, whatever the answer", () => {
+    const before = writeState("Notes/Outline.md").sent;
+    const first = sendingWrite("Notes/Outline.md", "one");
+    const second = sendingWrite("Notes/Outline.md", "two");
+    expect(writeState("Notes/Outline.md")).toEqual({ sent: before + 2, out: true });
+    first(true);
+    first(true);
+    expect(writeState("Notes/Outline.md").out).toBe(true);
+    second(false);
+    expect(writeState("Notes/Outline.md")).toEqual({ sent: before + 2, out: false });
   });
 
   it("a write that collides or is refused is not", () => {

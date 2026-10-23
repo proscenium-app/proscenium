@@ -1,0 +1,15 @@
+{
+  "plugins": {
+    "updater": null
+  },
+  "bundle": {
+    "targets": ["app"],
+    "createUpdaterArtifacts": false,
+    "macOS": {
+      "entitlements": "Entitlements.plist",
+      "files": {
+        "embedded.provisionprofile": "../.release/appstore.provisionprofile"
+      }
+    }
+  }
+}

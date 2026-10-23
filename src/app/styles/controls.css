@@ -243,6 +243,11 @@
   :where(:root[data-theme="dark"]) .seg__btn {
     color: var(--ink-2);
   }
+  /* On the hover tint, ink-2 is 4.2:1 in the dark, under AA's 4.5:1 at this
+     size: a hovered segment's words take the full ink. */
+  :where(:root[data-theme="dark"]) .seg__btn:hover:not(.is-on) {
+    color: var(--ink);
+  }
 }
 .seg__btn:hover:not(.is-on) {
   background: var(--hover);

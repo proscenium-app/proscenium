@@ -24,7 +24,7 @@
  *    list behind it changes.
  *
  * The dictionary itself is loaded by the caller and pushed in with
- * `setSpeller`, for the reason tracked-changes.ts documents at length: plugin
+ * `setSpeller`, for the reason live-redline.ts documents: plugin
  * state is the channel, `this.options` is not.
  */
 import { Extension, type Editor } from "@tiptap/core";

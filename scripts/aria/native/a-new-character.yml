@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder"
   - sectionheader
     - button "Collapse all folders"
@@ -23,24 +23,17 @@
     - treeitem "Jonah" [level=2]
     - treeitem "Research" [level=1] [expanded]
     - treeitem "1953 North Sea Flood" [level=2]
-    - treeitem "Untitled" [level=2]
-    - treeitem "Wren Thackeray Rename “Wren Thackeray” Actions for “Wren Thackeray”" [level=2] [selected]
-      - button "Rename “Wren Thackeray”"
-      - button "Actions for “Wren Thackeray”"
     - treeitem "Notes" [level=1] [expanded]
     - treeitem "Structure" [level=2]
     - treeitem "Loglines" [level=1] [expanded]
     - treeitem "Logline" [level=2]
+    - treeitem "Wren Thackeray Rename “Wren Thackeray” Actions for “Wren Thackeray”" [level=1] [selected]
+      - button "Rename “Wren Thackeray”"
+      - button "Actions for “Wren Thackeray”"
   - sectionfooter
     - button "New" [haspopup]
 - main "Play"
   - group "Open in this pane"
-    - listitem "Cast"
-      - button "Cast"
-    - listitem "The Weight of Water"
-      - button "The Weight of Water"
-    - listitem "1953 North Sea Flood"
-      - button "1953 North Sea Flood"
     - listitem "Wren Thackeray"
       - button "Wren Thackeray" [current=true]
       - button "Close Wren Thackeray"
@@ -63,6 +56,25 @@
     - button "Insert table"
     - button "Insert divider"
   - textbox
+- complementary "Inspector"
+  - tablist "Inspector"
+    - tab "Sheet" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - generic
+  - heading "Wren Thackeray" [level=2]
+  - generic
+  - generic "Other names they go by, comma-separated."
+  - generic
+    - textbox "aka"
+  - generic "Age, or a range. Leave blank rather than guessing."
+  - generic
+    - textbox "age"
+  - generic "e.g. she/her. Blank when the play has not said."
+  - generic
+    - textbox "pronouns"
+  - generic "Free-form list, e.g. [family, act-two]."
+  - button "Add a tag"
 - contentinfo
   - button "<plays folder>/The Weight of Water"
   - button "Zoom out"

@@ -197,7 +197,7 @@ export const LESSONS: Lesson[] = [
         "summary",
         "Describe a scene",
         "corkboard",
-        "A summary says what happens. It is for you and is not printed. Details on the card holds separate notes and a label.",
+        "A summary says what happens. It is for you and is not printed. Notes on the card hold anything else you want to remember about it.",
       ),
       step(
         "move-scene",

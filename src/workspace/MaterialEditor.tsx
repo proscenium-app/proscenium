@@ -40,6 +40,7 @@
  * two pages off one desk. The sheet used to be a 520px card 60% of the window
  * tall, whatever the format or the zoom said.
  */
+import { keys } from "../ui/keys";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { formatCssVars, type FormatSpec } from "../format";
@@ -569,6 +570,26 @@ export function MaterialEditor({
                 </Button>
               </form>
             )}
+            {/* An empty character sheet can start from the prompts. It sits in
+                the header, beside the tags, rather than in a strip of its own
+                under the format bar, which drew over it. */}
+            {kind === "character" && !body.trim() && (
+              <Button
+                size="mini"
+                treatment="borderless"
+                disabled={!!gate}
+                onClick={() =>
+                  onChange(
+                    (schemaFor("character")?.sections ?? [])
+                      .filter((s) => !s.managed)
+                      .map((s) => `## ${s.heading}\n\n`)
+                      .join(""),
+                  )
+                }
+              >
+                Start with Character Prompts
+              </Button>
+            )}
           </div>
           <div className="material__headright">
             <span
@@ -583,7 +604,7 @@ export function MaterialEditor({
                 className={`material__mode${mode === "page" ? " material__mode--on" : ""}`}
                 onClick={() => show("page")}
                 aria-pressed={mode === "page"}
-                title="Write on the page · ⌘E"
+                title={`Write on the page · ${keys("⌘E")}`}
               >
                 Page
               </button>
@@ -591,7 +612,7 @@ export function MaterialEditor({
                 className={`material__mode${mode === "source" ? " material__mode--on" : ""}`}
                 onClick={() => show("source")}
                 aria-pressed={mode === "source"}
-                title="Edit the Markdown source · ⌘E"
+                title={`Edit the Markdown source · ${keys("⌘E")}`}
               >
                 Source
               </button>
@@ -611,24 +632,6 @@ export function MaterialEditor({
       {mode === "page" ? (
         <>
           <FormatBar editor={editor} />
-          {kind === "character" && !body.trim() && (
-            <div className="settings__actions">
-              <Button
-                size="small"
-                treatment="borderless"
-                onClick={() =>
-                  onChange(
-                    (schemaFor("character")?.sections ?? [])
-                      .filter((s) => !s.managed)
-                      .map((s) => `## ${s.heading}\n\n`)
-                      .join(""),
-                  )
-                }
-              >
-                Start with Character Prompts
-              </Button>
-            </div>
-          )}
           <div className="material__desk">
             <div className="material__page" data-tutorial="material-page" style={sheetZoom}>
               <ProseEditor markdown={body} onChange={onChange} onBlur={flush} onReady={setEditor} />

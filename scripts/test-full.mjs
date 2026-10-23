@@ -8,6 +8,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SCRIPT_TESTS } from "./gates.mjs";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const args = process.argv.slice(2);
@@ -20,6 +21,10 @@ const out = join(root, ".selftest", "full", id);
 const app = join(root, "src-tauri/target/release/bundle/macos/Proscenium Self-Test.app");
 const steps = [
   ["types", "Type checking", "bun", ["run", "typecheck"]],
+  ["lint", "Lint", "bun", ["run", "lint"]],
+  ["format", "Formatting", "bun", ["run", "format:check"]],
+  // With the suite's limit for one test, which scripts/gates.mjs sets.
+  ["scripts", "The scripts' own tests", SCRIPT_TESTS[0], SCRIPT_TESTS.slice(1)],
   ["layout", "Script layout rules", "bun", ["run", "check:layout"]],
   ["design", "Design tokens", "bun", ["run", "check:design"]],
   ["licenses", "License headers", "bun", ["run", "check:spdx"]],

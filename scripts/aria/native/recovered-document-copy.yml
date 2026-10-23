@@ -1,0 +1,7 @@
+- dialog "Saved copy of Characters/Mara.md"
+  - heading "Saved copy of Characters/Mara.md" [level=2]
+  - paragraph
+  - textbox "Saved words from Characters/Mara.md" [readonly]
+  - button "Close"
+  - status [live=polite]
+  - alert [live=assertive]

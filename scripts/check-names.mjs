@@ -52,7 +52,7 @@ const MARKER = "names: import tool";
  * which read out the names that screen shows a writer.
  */
 const IMPORT_TOOL_TREES =
-  /^scripts\/aria\/(?:native\/)?(?:document-import|fdx-import)[a-z0-9-]*(?:\.[a-z]+)*\.yml$/;
+  /^scripts\/aria\/(?:native\/|windows\/)?(?:document-import|fdx-import)[a-z0-9-]*(?:\.[a-z]+)*\.yml$/;
 
 const exempt = (rel) =>
   IMPORT_TOOL_TREES.test(rel) ||

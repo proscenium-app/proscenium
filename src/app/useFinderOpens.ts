@@ -23,6 +23,7 @@
  * way of the files behind it, which may not need one — and goes as soon as the
  * writer chooses one.
  */
+import { baseName } from "../storage/path-key";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onOpened, opened } from "../storage";
 import type { ToastSpec } from "../ui";
@@ -106,7 +107,7 @@ export function useFinderOpens(
   };
 
   const route = async (path: string): Promise<Outcome> => {
-    const name = path.slice(path.lastIndexOf("/") + 1);
+    const name = baseName(path);
     const couldNot = (why: string) =>
       notifyRef.current({
         kind: "error",
@@ -169,7 +170,7 @@ export function useFinderOpens(
           // A file that throws on the way in is taken out of the line, and
           // said; it used to stay at the head and stop every later open.
           queue.current.shift();
-          const name = path.slice(path.lastIndexOf("/") + 1);
+          const name = baseName(path);
           notifyRef.current({
             kind: "error",
             title: `Proscenium couldn't open “${name}”.`,

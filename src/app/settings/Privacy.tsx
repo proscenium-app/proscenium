@@ -8,11 +8,12 @@
  * was waiting. The update check is not a report and has its own switch, so the
  * section says where it is rather than let "off" read as "silent".
  */
+import { systemWords } from "../../ui/system-words";
 import { useUpdateState } from "../updates";
 import { Button, useToast } from "../../ui";
 import { settings as ipc } from "../../storage/ipc";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 export function PrivacySlot() {
   const { shareAnalytics } = useSettings();
@@ -26,7 +27,7 @@ export function PrivacySlot() {
           label="Share anonymous usage and crash reports"
           on={shareAnalytics}
           onChange={(on) => updateSettings({ shareAnalytics: on })}
-          note="Counts launches and features used, with the Proscenium and macOS versions and chip. Crash reports include stack traces and the kind of failure. Never includes your writing, titles, character names, file names, paths, error messages or memory dumps."
+          note={`Counts launches and features used, with the Proscenium and ${systemWords().system} versions and chip. Crash reports include stack traces and the kind of failure. Never includes your writing, titles, character names, file names, paths, error messages or memory dumps.`}
         />
         <Note>
           Turning this off also discards reports that haven’t been sent.

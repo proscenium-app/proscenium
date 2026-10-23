@@ -14,7 +14,7 @@
  * app does not own. What we can do — and do here — is remember what the writer
  * had, so the change can be shown as a change and undone in one click.
  */
-import { ulid } from "../workspace/ulid";
+import { ulid } from "../storage/ulid";
 import { diffLines } from "./diff";
 import type { ChangesStore, LedgerEntry } from "./store";
 
@@ -50,6 +50,11 @@ export function countStats(before: string, after: string): { added: number; remo
  * Returns the entry, or null when there was nothing to record. A baseline that
  * cannot be read throws rather than reading as "never seen": taking the new
  * bytes as the baseline would overwrite the one thing a revert needs.
+ *
+ * `before` is the baseline read as the change was heard, when the caller has
+ * one: what the change sets off next (a reload that shows the writer the new
+ * text) moves the baseline, and a read made only after `after` was read could
+ * find the new text there already.
  */
 export async function recordExternalChange(
   store: ChangesStore,
@@ -58,9 +63,10 @@ export async function recordExternalChange(
     after: string;
     afterHash: string;
     nowIso: string;
+    before?: Promise<string | null>;
   },
 ): Promise<LedgerEntry | null> {
-  const before = await store.readBaseline(args.path);
+  const before = await (args.before ?? store.readBaseline(args.path));
   if (before === args.after) return null;
   if (before === null) {
     await store.writeBaseline(args.path, args.after);
@@ -93,6 +99,9 @@ export async function recordExternalChange(
   // Keep the pre-change bytes under this entry's own id: the baseline is about
   // to move forward, so it cannot also be what a revert restores.
   await store.writeBefore(entry.id, before);
+  // And what it left: by the time the writer reads an older change the file
+  // has moved on, and the change is shown as itself, not as all since it.
+  await store.writeAfter(entry.id, args.after);
   await store.appendEntry(entry);
   // The change the writer is now looking at becomes the next baseline, so a
   // second edit diffs against what they saw rather than against history.

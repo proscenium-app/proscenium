@@ -18,5 +18,6 @@ export declare function fetchRoll(options?: {
   timeoutMs?: number;
 }): Promise<Roll>;
 export declare function bakedRoll(env?: Record<string, string | undefined>): Roll;
+export declare function bakedText(env?: Record<string, string | undefined>): string;
 export declare function listed(names: readonly string[]): string;
 export declare function underwritten(roll: Roll): string | null;

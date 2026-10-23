@@ -7,8 +7,11 @@ import { App } from "./app/App";
 import { isTauri } from "@tauri-apps/api/core";
 import { applyStoredAccent } from "./ui/use-accent";
 import { startSystemAccent } from "./app/settings/system-accent";
+import { startSystemCaret } from "./app/settings/system-caret";
 import { pageErrorSignal } from "./diagnostics/page-error";
 import { platform, telemetry } from "./storage/ipc";
+import { setKeyStyle } from "./ui/keys";
+import { setSystemWords } from "./ui/system-words";
 import "./app/styles.css";
 
 const root = document.getElementById("root");
@@ -20,6 +23,7 @@ if (!root) throw new Error("missing #root");
 applyStoredAccent();
 // Follow Mac asks the Mac for its accent now, and again whenever the window comes forward.
 startSystemAccent();
+startSystemCaret();
 
 /*
  * macOS draws its traffic lights OVER the toolbar (`titleBarStyle: Overlay` in
@@ -82,11 +86,29 @@ window.addEventListener("unhandledrejection", (e) => {
   reportBootFailure("Unhandled rejection", String((e.reason as Error)?.stack ?? e.reason));
 });
 
-ReactDOM.createRoot(root).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+/*
+ * What this system writes and calls things, from the capability record
+ * (docs/engineering/cross-platform.md#PLAT-35), before the first render: every
+ * key the app shows goes through one formatter (ui/keys.ts) and every
+ * platform word through one store (ui/system-words.ts), which read it
+ * synchronously. A record that cannot be read leaves a Mac's, which is what a
+ * page that has not been told anything has always said.
+ */
+function render() {
+  ReactDOM.createRoot(root as HTMLElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+}
+void platform
+  .capabilities()
+  .then((caps) => {
+    setKeyStyle(caps.keys);
+    setSystemWords(caps.words);
+  })
+  .catch(() => {})
+  .finally(render);
 
 /*
  * Two frames on, the page has painted: WebKit may draw its own background

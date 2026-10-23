@@ -10,14 +10,14 @@
   - paragraph: 2 plays · sample-vault
   - paragraph: Your plays live in a folder on this Mac only. They will not appear on other devices.
   - table "Plays":
-    - 'row "The Lighthouse Not counted Status for The Lighthouse: No Status —"':
+    - 'row "The Lighthouse 1 page Status for The Lighthouse: drafting <date and time>"':
       - cell "The Lighthouse":
         - button "The Lighthouse"
         - textbox "Logline for The Lighthouse"
-      - cell "Not counted"
-      - 'cell "Status for The Lighthouse: No Status"':
-        - 'button "Status for The Lighthouse: No Status"': No Status
-      - cell "—"
+      - cell "1 page"
+      - 'cell "Status for The Lighthouse: drafting"':
+        - 'button "Status for The Lighthouse: drafting"': drafting
+      - cell "<date and time>"
     - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. 2 pages Status for The Weight of Water: drafting <date and time>"':
       - cell "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull.":
         - button "The Weight of Water"

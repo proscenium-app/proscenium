@@ -42,7 +42,7 @@ pub fn desk(appearance: &str, system_dark: bool) -> Color {
 
 /// WebKit paints its own background again: the page has painted its first
 /// frame, so nothing of it shows (see the module comment for why it was off).
-#[cfg(feature = "webkit-background")]
+#[cfg(all(target_os = "macos", feature = "webkit-background"))]
 pub fn draw_webkit_background(webview: &tauri::Webview) {
     let _ = webview.with_webview(|platform| {
         use objc2::runtime::NSObject;
@@ -76,6 +76,29 @@ pub fn system_is_dark() -> bool {
     appearance
         .bestMatchFromAppearancesWithNames(&NSArray::from_slice(&[aqua, dark]))
         .is_some_and(|name| name.isEqualToString(dark))
+}
+
+/// Whether Windows has apps in Dark mode right now — what
+/// `prefers-color-scheme` will say to the page.
+#[cfg(windows)]
+pub fn system_is_dark() -> bool {
+    use crate::registry::{dword, Root};
+    dword(
+        Root::User,
+        r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+        "AppsUseLightTheme",
+    ) == Some(0)
+}
+
+/// The window's own theme for Settings › Appearance: Windows draws the title
+/// bar dark or light with it. None follows the system, as the page does.
+#[cfg(windows)]
+pub fn theme(appearance: &str) -> Option<tauri::Theme> {
+    match appearance {
+        "dark" => Some(tauri::Theme::Dark),
+        "light" => Some(tauri::Theme::Light),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

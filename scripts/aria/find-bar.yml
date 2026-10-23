@@ -42,13 +42,6 @@
   - text: in Loglines
 - main "Play":
   - list "Open in this pane":
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-      - button "Close The Weight of Water"
-    - listitem "Outline":
-      - button "Outline"
-    - listitem "1953 North Sea Flood":
-      - button "1953 North Sea Flood"
   - button "Add a surface to this pane"
   - 'button "What this line is: Action"': Action
   - button "Bold": ⌘B
@@ -85,22 +78,18 @@
   - heading "SCENE 1" [level=2]
   - text: Page 2 · 1 page · 3 speeches Summary · not printed
   - textbox "Summary"
-  - text: Status
-  - 'button "Scene status: idea"': idea
-  - text: Label
-  - textbox "Label"
-  - text: Colour
-  - radiogroup "Card colour":
-    - radio "Unmarked" [checked]
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
     - radio "Setup"
     - radio "Turns"
     - radio "Interior"
     - radio "Subplot"
     - radio "Revise"
     - radio "Parked"
-    - text: unmarked
-  - text: Board note · never prints
-  - textbox "Board note"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
   - text: On stage MARA 3 Comments here 1 in this scene
   - button "Show"
   - paragraph: The synopsis is part of the script. The rest is card metadata.

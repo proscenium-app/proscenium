@@ -203,8 +203,22 @@ export class DocumentSession {
     return null;
   }
 
-  /** A watcher external-change event. Returns the docs/app/keeping-work/storage-and-file-format.md#STOR-D104 decision. */
-  onExternalChange(newHash: Hash | null): ExternalChangeDecision {
+  /**
+   * A watcher external-change event, or the app's own re-read of the file
+   * (`revalidated`: the return to the app, a watcher's recovery). Returns the
+   * docs/app/keeping-work/storage-and-file-format.md#STOR-D104 decision.
+   */
+  onExternalChange(
+    newHash: Hash | null,
+    { revalidated = false }: { revalidated?: boolean } = {},
+  ): ExternalChangeDecision {
+    // A re-read of the bytes this session already knows says nothing new,
+    // even while a write of ours is under way. Back in the window after a
+    // refused save, the re-read and the save's retry start together; held
+    // for the write and decided after it, the old bytes read as a change
+    // from outside, and the app reloaded its own words.
+    if (revalidated && newHash === this._lastKnownHash)
+      return { kind: "ignore", reason: "unchanged" };
     // A write of ours is mid-flight: we cannot tell our own echo from a real
     // external edit yet, because lastKnownHash still names the pre-write
     // state. Hold it and re-decide once the write resolves (docs/app/keeping-work/storage-and-file-format.md#STOR-104 is preserved —

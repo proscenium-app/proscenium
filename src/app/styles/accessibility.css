@@ -83,3 +83,71 @@
 :root[data-large-text="true"] .viewswitch .seg__btn {
   min-height: var(--h-regular);
 }
+
+/*
+ * Windows' high contrast themes force every colour to the system's, lay every
+ * fill on the page's own colour and draw no box-shadow
+ * (docs/app/preferences-and-help/accessibility.md#A11Y-12). The focus ring is a
+ * box-shadow (docs/engineering/design-system.md#UI-51) and what is chosen is a
+ * fill, so under forced colours each is drawn in the system's own colours: the
+ * focus as an outline, which every control's own `outline: none` would take
+ * away, and what is chosen as the system's selection. The script and a sheet's
+ * words show their focus by their caret.
+ */
+@media (forced-colors: active) {
+  :focus-visible:not([contenteditable="true"]) {
+    outline: 2px solid Highlight !important;
+    outline-offset: 1px;
+  }
+  /* Rows and tabs that sit in a scroll box of their own: the line inside them. */
+  .menu__item:focus-visible,
+  .binder__row:focus-visible,
+  .pane__tabbtn:focus-visible,
+  .pane__tabclose:focus-visible,
+  .prefs__tab:focus-visible,
+  .seg__btn:focus-visible {
+    outline-offset: -2px;
+  }
+  /* The system's selection colours, taken by the element itself: forced
+     colours lay a plate of the page's colour behind its words otherwise, and
+     the selection's own text colour vanishes into it. */
+  .seg__btn.is-on,
+  .binder .binder__row.is-selected,
+  .prefs__nav .prefs__tab.is-selected,
+  .menu__item.is-cursor:not(:disabled) {
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+  :is(
+      .seg__btn.is-on,
+      .binder .binder__row.is-selected,
+      .prefs__nav .prefs__tab.is-selected,
+      .menu__item.is-cursor:not(:disabled)
+    )
+    * {
+    color: inherit;
+  }
+  /* Chosen in a rail that does not have the keyboard: drawn round, not filled,
+     as the unemphasized fill it stands for is quieter than the selection. */
+  .binder:not(:focus-within) .binder__row.is-selected,
+  .prefs__nav:not(:focus-within) .prefs__tab.is-selected {
+    background: Canvas;
+    color: CanvasText;
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+  /* An accent's swatch is its colour: forced colours made every swatch the
+     same button face, and dropped the ring round the chosen one. It keeps its
+     own colour, drawn round in the theme's text colour, and the chosen one is
+     ringed in the theme's colours. */
+  .accentswatch {
+    forced-color-adjust: none;
+    border: 1px solid CanvasText;
+  }
+  .accentswatch.is-on {
+    box-shadow:
+      0 0 0 2px Canvas,
+      0 0 0 4px CanvasText;
+  }
+}

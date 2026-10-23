@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 Habiby LLC
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# What a repository made by a test of the scripts starts with: git copies this
+# file into it (scripts/scratch-git.mjs says how, and why).
+[maintenance]
+	auto = false

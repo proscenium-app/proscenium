@@ -13,7 +13,18 @@
 // the states, the live region, and its accessibility children. Nothing here
 // needs a grant: the inspector is the app's own, connected in-process, in a
 // self-test build only.
-const D = WI.mainTarget.DOMAgent;
+// The inspector records every request the page makes, and each of the app's
+// IPC calls is one: tens of thousands between two navigations. When the page
+// navigates, the inspector's page drops that record, and doing so blocked it
+// for up to 35 s after the tutorial checks' relaunch, every walk waiting
+// behind it. The walk needs the DOM alone, so this inspector records no
+// requests and no animations.
+const T = WI.mainTarget;
+if (!T.__quiet) {
+  T.__quiet = true;
+  await Promise.all([T.NetworkAgent?.disable?.(), T.AnimationAgent?.disable?.()].map((p) => p?.catch?.(() => {})));
+}
+const D = T.DOMAgent;
 const doc = await D.getDocument();
 const { nodeId: start } = await D.querySelector(doc.root.nodeId, selector);
 if (!start) return JSON.stringify({ error: `nothing matches ${selector}` });

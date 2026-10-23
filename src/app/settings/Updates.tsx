@@ -26,6 +26,7 @@
  * **An Intel Mac takes Stable alone** (docs/app/preferences-and-help/settings.md#SET-40): the track is a
  * line of text, not a menu of one, with no key to add.
  */
+import { systemWords } from "../../ui/system-words";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Button, PopupButton, announce } from "../../ui";
 import { updates as ipc } from "../../storage/ipc";
@@ -36,6 +37,7 @@ import {
   describeUpdates,
   INTEL_TRACK_NOTE,
   offeredTracks,
+  stableOnly,
   restartProblem,
   restartToUpdate,
   slowerTrackNote,
@@ -43,7 +45,7 @@ import {
   useUpdateState,
 } from "../updates";
 import { Group, Note, SectionBody, SwitchRow, useAppInfo } from "./parts";
-import { updateSettings, useSettings } from "./store";
+import { updateSettings, useSettings } from "../../ui/settings-store";
 
 /** What arrives on each track, in one sentence. */
 const TRACK_NOTES: Record<UpdateTrack, string> = {
@@ -140,12 +142,13 @@ export function UpdatesSlot() {
   const info = useAppInfo();
   const { checkForUpdates, updateTrack, hasUpdateTrackKey } = useSettings();
   const trackRow = useRef<HTMLDivElement | null>(null);
-  const intel = info?.arch === "x86_64";
-  const trackOptions = offeredTracks(info?.arch, updateTrack, hasUpdateTrackKey).map((value) => ({
+  const intel = stableOnly(info?.tracks);
+  const alphaBuilt = info?.tracks.includes("alpha") ?? true;
+  const trackOptions = offeredTracks(info?.tracks, updateTrack, hasUpdateTrackKey).map((value) => ({
     value,
     label: TRACK_LABELS[value],
   }));
-  const alphaWithoutKey = updateTrack === "alpha" && !hasUpdateTrackKey && !intel;
+  const alphaWithoutKey = updateTrack === "alpha" && !hasUpdateTrackKey && alphaBuilt;
   const state = useUpdateState();
   const version = info?.version ?? null;
   const asked = useRef(false);
@@ -224,7 +227,7 @@ export function UpdatesSlot() {
           {slowerTrackNote(updateTrack, version) && (
             <Note>{slowerTrackNote(updateTrack, version)}</Note>
           )}
-          {!hasUpdateTrackKey && !intel && <AlphaKey trackRow={trackRow} />}
+          {!hasUpdateTrackKey && alphaBuilt && <AlphaKey trackRow={trackRow} />}
         </Group>
       )}
 
@@ -232,7 +235,7 @@ export function UpdatesSlot() {
         <div className="settings__row">
           <span className="settings__rowlabel">
             {local
-              ? `Proscenium ${version}, built on this Mac. It doesn’t update itself.`
+              ? `Proscenium ${version}, built on this ${systemWords().machine}. It doesn’t update itself.`
               : describeUpdates(state, version)}
           </span>
           {fromStore ? null : state.kind === "ready" ? (
@@ -284,13 +287,20 @@ export function UpdatesSlot() {
             {updateTrack === "stable"
               ? "Updates come from proscenium.ink, or from Proscenium’s releases on GitHub if proscenium.ink doesn’t respond."
               : "Updates come from proscenium.ink."}{" "}
-            {updateTrack === "alpha"
-              ? "A check sends the Proscenium and macOS versions, whether this Mac has Apple silicon or Intel, and this copy’s key for Alpha."
-              : "A check sends the Proscenium and macOS versions, and whether this Mac has Apple silicon or Intel."}{" "}
-            Each update is verified as coming from Proscenium before it installs.
+            {checkSends(updateTrack === "alpha" && alphaBuilt)} Each update is verified as coming
+            from Proscenium before it installs.
           </Note>
         )}
       </Group>
     </SectionBody>
   );
+}
+
+/** What an update check sends, in this system's words. */
+function checkSends(withKey: boolean): string {
+  const { machine, system } = systemWords();
+  const chips = machine === "Mac" ? "Apple silicon or Intel" : "an x64 or an Arm64 chip";
+  return withKey
+    ? `A check sends the Proscenium and ${system} versions, whether this ${machine} has ${chips}, and this copy’s key for Alpha.`
+    : `A check sends the Proscenium and ${system} versions, and whether this ${machine} has ${chips}.`;
 }

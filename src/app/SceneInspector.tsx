@@ -10,28 +10,18 @@
  * looking at the scene, not at a grid of cards, so the same fields come to the
  * page instead.
  *
- * The field labels name their write target, because these two rows go to
+ * The field labels name their write target, because these rows go to
  * different files and that has always been invisible: **Synopsis writes the
- * script** (the `=` line, canonical in the .fountain) and everything else
- * writes the play file. Getting that backwards is how a
+ * script** (the `=` line, canonical in the .fountain) and the color and the
+ * note write the play file. Getting that backwards is how a
  * board note would end up printed.
  */
 import { useEffect, useRef, useState } from "react";
 import type { ScenePageMap } from "../layout";
 import type { SceneCard } from "../workspace";
-import { useSceneStatusOptions } from "./settings/scene-statuses";
-import type { Card, CardColor } from "../workspace";
-import { Capsule, PopupButton, WarnIcon } from "../ui";
-
-const COLORS: { id: CardColor; name: string }[] = [
-  { id: "cream", name: "Unmarked" },
-  { id: "oxide", name: "Setup" },
-  { id: "ink", name: "Turns" },
-  { id: "sea", name: "Interior" },
-  { id: "moss", name: "Subplot" },
-  { id: "amber", name: "Revise" },
-  { id: "ash", name: "Parked" },
-];
+import { CARD_COLORS as COLORS } from "../workspace/card-colors";
+import type { Card } from "../workspace";
+import { Capsule, WarnIcon } from "../ui";
 
 /** A field that commits on blur, so every keystroke is not a disk write. */
 function LazyField({
@@ -116,7 +106,6 @@ export function SceneInspector({
   pendingChange: { when: string } | null;
   onReviewChange: () => void;
 }) {
-  const statuses = useSceneStatusOptions(scene?.card.status ?? "");
   if (!scene) {
     return (
       <div className="emptysurface">
@@ -171,36 +160,14 @@ export function SceneInspector({
         />
       </section>
 
-      <div className="insp__pair">
-        <section className="insp__group">
-          <div className="seclabel">Status</div>
-          <PopupButton
-            label="Scene status"
-            options={statuses}
-            value={scene.card.status}
-            onChange={(v) => onSetCard(scene.id, { status: v })}
-            menuWidth={150}
-          />
-        </section>
-        <section className="insp__group">
-          <div className="seclabel">Label</div>
-          <LazyField
-            label="Label"
-            value={scene.card.label ?? ""}
-            placeholder="Thread A"
-            onCommit={(v) => onSetCard(scene.id, { label: v })}
-          />
-        </section>
-      </div>
-
       <section className="insp__group">
-        <div className="seclabel">Colour</div>
+        <div className="seclabel">Color</div>
         {/* A radio group moves on arrows, with one Tab stop for the set —
             seven Tab stops in a row was a corridor, and ← → did nothing. */}
         <div
           className="insp__swatches"
           role="radiogroup"
-          aria-label="Card colour"
+          aria-label="Scene color"
           onKeyDown={(e) => {
             const step =
               e.key === "ArrowRight" || e.key === "ArrowDown"
@@ -238,7 +205,7 @@ export function SceneInspector({
               />
             );
           })}
-          {/* Colour is never the only carrier: the chosen hue says its name. */}
+          {/* Color is never the only carrier: the chosen hue says its name. */}
           <span className="insp__swatchname">
             {COLORS.find((c) => c.id === scene.card.color)?.name.toLowerCase()}
           </span>
@@ -247,10 +214,10 @@ export function SceneInspector({
 
       <section className="insp__group">
         <div className="seclabel">
-          Board note <span className="insp__where">· never prints</span>
+          Notes <span className="insp__where">· never prints</span>
         </div>
         <LazyField
-          label="Board note"
+          label="Notes"
           area
           value={scene.card.boardNote ?? ""}
           placeholder="Thinking that is not in the script yet."
