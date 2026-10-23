@@ -69,14 +69,18 @@ This contract defines the privacy promise, permitted network traffic, report con
 **PRIV-14** Usage is stored as daily totals in Cloudflare D1. There is no analytics account or key in the app. Rust posts to
 `reports.proscenium.ink/v1/events`; the page only names an event from its closed
 IPC enum. A release build opts in at compile time with
-`PROSCENIUM_REPORTS=1`, set by release.mjs. Rehearsals, development builds and
-app:install builds send no usage or crash reports.
+`PROSCENIUM_REPORTS=1`, set by release.mjs and, for the Mac App Store's copy,
+release-app-store.mjs; each release's check refuses a binary without the mark
+that build carries. Rehearsals, development builds and app:install builds send
+no usage or crash reports.
 
 <a id="PRIV-15"></a>
 
 **PRIV-15** The batch is `{ version, platform, arch, os, channel, events }`. `platform` is
-`darwin`; `arch` is `aarch64` or `x86_64`; `os` is the macOS major/minor version;
-`channel` is `developer-id` or `app-store`. Each event is `{ name, props }`.
+`darwin` on a Mac and `windows` on Windows; `arch` is `aarch64` or `x86_64`; `os`
+is the macOS major/minor version, or Windows' version and build (`10.0.<build>`,
+never the monthly patch number); `channel` is `developer-id` or `app-store` on a
+Mac, and `download` or `microsoft-store` on Windows. Each event is `{ name, props }`.
 There is no client timestamp, session id, user id, locale, device name, cookie
 or user-agent. No property accepts arbitrary text. Unknown names, properties,
 values, versions or platforms cause the Worker to refuse the whole batch.
@@ -90,6 +94,7 @@ values, versions or platforms cause the Worker to refuse the whole batch.
 | `format_saved` | none | <a id="PRIV-20"></a>PRIV-20 |
 | `update_installed` | `from`, `to`: released versions | <a id="PRIV-21"></a>PRIV-21 |
 | `error_shown` | `code`: one of the error codes in events.rs | <a id="PRIV-22"></a>PRIV-22 |
+| `copy_active` | `period`: `day`, `week`, `month`; `installed`: `new`, `recent`, `earlier`; at most once a period (PRIV-86) | <a id="PRIV-87"></a>PRIV-87 |
 
 <a id="PRIV-23"></a>
 
@@ -103,9 +108,12 @@ The usage event list excludes `crash_reported`. Sentry receives crash reports se
 **PRIV-24** The Worker stores only a UTC day, the batch dimensions, an event name, its
 properties and a count. Each accepted event adds one to its combination. D1
 never stores the original batch or a request record. Daily totals are kept
-for two years, then deleted by the Worker's daily retention job. These are
-counts of actions, not people. A repeated launch checks again; a retry after a
-lost response can count again. No identifier is added to deduplicate people.
+for two years, then deleted by the Worker's daily retention job. Every event
+but `copy_active` counts actions, not people: a repeated launch counts again.
+`copy_active` counts copies, and is deduplicated on the copy itself (PRIV-86),
+never by an identifier: nothing in a batch, and nothing the Worker stores, tells
+one copy from another. A retry after a lost response can count again,
+`copy_active` included. No identifier is added to deduplicate people or copies.
 
 <a id="PRIV-25"></a>
 
@@ -119,12 +127,40 @@ use either switch.
 
 <a id="PRIV-26"></a>
 
-**PRIV-26** Usage events wait in memory, never on disk: at most 100, oldest first. A batch
+**PRIV-26** Usage events wait in memory, never on disk: at most 100, oldest first. What
+the copy keeps on disk is only what PRIV-86 names, the day it first ran and the
+periods it has counted itself in: never an event, and none of it sent. A batch
 holds at most 25. Events seven days old are discarded. A network failure,
 server failure or rate limit puts the batch back; another event must arrive
 before the next scheduled attempt. There is no retry timer for a failed batch.
 Other 4xx replies discard the batch. A normal quit has at most two seconds for
 one final flush, subject to the same notice, grace period and consent gates.
+
+<a id="PRIV-86"></a>
+
+**PRIV-86** **Active copies.** A copy counts itself with one `copy_active` the first
+time it runs in each UTC day, ISO week (Monday to Sunday, UTC) and calendar
+month, including a period that begins while it is open: it asks at launch and
+each minute after. `installed` is how long ago it first ran: `new` on that day
+and the six after, `recent` on days 8 to 30, `earlier` from day 31. The copy
+keeps in app data, never in the Plays folder, the UTC day it first ran and the
+last day, week and month it counted itself in. A copy that ran before it kept
+these takes its first day from the day its app-data folder was made. None of
+it is sent, and the event carries nothing else, so the service cannot link two
+events to one copy, and summing a period's events over the days it covers gives
+that period's active copies exactly. A period is written down only once the
+service answers a batch carrying its event, so a copy offline at launch still
+counts once it connects; an event still unsent when its period ends is dropped
+unsent, because the service counts an event on the day it arrives and a late
+one would count the copy twice in the next period. A batch the service refuses
+spends the periods it carried, so a refusal is not repeated each minute. The
+switch, the notice, the grace period and the queue are every usage event's
+(PRIV-25, PRIV-26): switched off, nothing is queued, sent or written down but
+the first day, which is kept so a copy switched on later says its true age. The
+Worker refuses a batch carrying two for one period. Betas count on their own
+track (docs/engineering/services-and-feedback.md#SERV-272); alpha builds send
+none the service takes. Days, weeks and months follow the copy's clock, so one
+set wrong may count a copy in a neighbouring period.
 
 <a id="PRIV-D4"></a>
 
@@ -202,7 +238,7 @@ Sources:
   `E-EXPORT-FONT`, …), kept in a small local ring log. The local ring excludes the retired `conflict-repro.log` instrumentation.
 - <a id="PRIV-35"></a> **PRIV-35** **Help › Copy Diagnostics** (also in Settings › About) puts plain text on the
   clipboard:
-  - <a id="PRIV-36"></a> **PRIV-36** app version and channel, architecture, macOS version;
+  - <a id="PRIV-36"></a> **PRIV-36** app version and channel, architecture, the system's version (macOS's major/minor, or Windows' `10.0.<build>`);
   - <a id="PRIV-37"></a> **PRIV-37** the accent, and the format ids in use (user formats as `user`);
   - <a id="PRIV-38"></a> **PRIV-38** the settings switches;
   - <a id="PRIV-39"></a> **PRIV-39** the Plays folder's provider kind (iCloud, Dropbox, Syncthing or local) —
@@ -241,26 +277,26 @@ Sources:
 
 <a id="PRIV-52"></a>
 
-**PRIV-52** Your plays and files stay on your Mac. Proscenium never collects your writing:
+**PRIV-52** Your plays and files stay on your Mac or PC. Proscenium never collects your writing:
 no play text, titles, character names, filenames or paths. Usage counts record
 which features are used, never what you write with them. Send Feedback sends
 only the words you choose to put in its form. Exporting, copying and sharing a
-file do what you ask them to do. A Plays folder in a sync service and macOS
-features such as Writing Tools, Services and Universal Clipboard follow their
-own settings.
+file do what you ask them to do. A Plays folder in a sync service and the
+system's own features, such as Writing Tools, Services and Universal Clipboard
+on a Mac, follow their own settings.
 
 <a id="PRIV-53"></a>
 
 **PRIV-53** **Everything Proscenium collects, and why.** The table below is the complete
-list of data that may leave your Mac; anything not in it is not collected. No
+list of data that may leave your Mac or PC; anything not in it is not collected. No
 reason, no field. A test holds the table to the app's list of events and to our
 service's, so neither can send something this page does not list.
 
 | What is sent | Fields and allowed values | Why | Requirement |
 |---|---|---| --- |
-| Update check | platform `darwin`; chip `aarch64` or `x86_64`; current app version; macOS major/minor in `Proscenium-OS` | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. | <a id="PRIV-54"></a>PRIV-54 |
-| Release download | release version and one of its own DMG, signed archive or signature filenames | Deliver the chosen release and count downloads by version. These are our release filenames, never yours. | <a id="PRIV-55"></a>PRIV-55 |
-| Every usage batch | `version`, `platform`, `arch`, `os`, `channel` (`developer-id` or `app-store`) | See which releases, systems and delivery channels need support. | <a id="PRIV-56"></a>PRIV-56 |
+| Update check | platform `darwin` or `windows`; chip `aarch64` or `x86_64`; current app version; in `Proscenium-OS`, macOS major/minor, or Windows' version and build (`10.0.<build>`) | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. | <a id="PRIV-54"></a>PRIV-54 |
+| Release download | release version and one of its own DMG, Windows installer, signed archive or signature filenames | Deliver the chosen release and count downloads by version. These are our release filenames, never yours. | <a id="PRIV-55"></a>PRIV-55 |
+| Every usage batch | `version`, `platform`, `arch`, `os`, `channel` (`developer-id` or `app-store` on a Mac; `download` or `microsoft-store` on Windows) | See which releases, systems and delivery channels need support. | <a id="PRIV-56"></a>PRIV-56 |
 | Usage batch shape | `events`: up to 25 items, each with `name` and `props` from the rows below | Group counts into fewer requests without identifying a session. | <a id="PRIV-57"></a>PRIV-57 |
 | `app_launched` | no extra properties | Count how often the app opens each day. | <a id="PRIV-58"></a>PRIV-58 |
 | `play_opened` | `plays`: `1`, `2-5`, `6-20`, `21+` | Guide work on the Plays screen without an exact play count. | <a id="PRIV-59"></a>PRIV-59 |
@@ -268,16 +304,17 @@ service's, so neither can send something this page does not list.
 | `pdf_exported` | `kind`: `whole`, `range`, `sides`; `format`: `dg-modern`, `stage-us-modern`, `stage-uk`, `samuel-french`, `dg-traditional`, `dg-musical`, `sketch-comedy`, `user` | Decide which exports and built-in formats to improve. | <a id="PRIV-61"></a>PRIV-61 |
 | `format_saved` | no extra properties | Know whether writers make their own formats. | <a id="PRIV-62"></a>PRIV-62 |
 | `update_installed` | `from`: released version numbers; `to`: released version numbers | Check whether updates arrive and how far behind copies fall. | <a id="PRIV-63"></a>PRIV-63 |
+| `copy_active` | `period`: `day`, `week`, `month`; `installed`: `new`, `recent`, `earlier` | Count how many copies are in use each day, week and month, and how many are new, without anything that tells one copy from another. Each copy sends it at most once a day, once a week and once a month; it remembers when on your computer and never sends that. `installed` says whether the copy first ran in the last 7 days, the last 30, or before. | <a id="PRIV-88"></a>PRIV-88 |
 | `error_shown` | `code`: `E-BOOT`, `E-FOLDER-OPEN`, `E-FOLDER-REFUSED`, `E-FOLDER-ACCESS`, `E-ICLOUD`, `E-PLAY-OPEN`, `E-PLAY-MISSING`, `E-PLAY-CREATE`, `E-SAVE`, `E-SAVE-LOCKED`, `E-SAVE-PERMISSION`, `E-SAVE-NOT-ALLOWED`, `E-SAVE-DISK-FULL`, `E-SAVE-READ-ONLY`, `E-SAVE-FOLDER-GONE`, `E-SAVE-UNREACHABLE`, `E-CHANGED-ON-DISK`, `E-VERSIONS`, `E-BINDER`, `E-ACTION-STALE`, `E-VAULT-READ`, `E-VAULT-PERMISSION`, `E-EXPORT-PDF`, `E-EXPORT-FONT`, `E-PRINT`, `E-FORMAT-READ`, `E-FORMAT-IMPORT`, `E-FORMAT-EXPORT`, `E-FORMAT-SAVE`, `E-FORMAT-TRASH`, `E-FORMATS-FOLDER`, `E-REVEAL`, `E-FINDER-OPEN`, `E-UPDATE-RESTART`, `E-WATCH`, `E-WORKSPACE`, `E-OTHER` | Fix the errors writers actually meet without collecting error messages. | <a id="PRIV-64"></a>PRIV-64 |
 | One crash | `event_id`: a random UUID for that crash, repeated in the envelope | Let Sentry recognize a retry of the same crash. It does not identify a writer, device or session. | <a id="PRIV-65"></a>PRIV-65 |
-| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip and macOS major/minor; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves the Mac. | <a id="PRIV-66"></a>PRIV-66 |
+| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip, and macOS major/minor or Windows' `10.0.<build>`; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves your computer. | <a id="PRIV-66"></a>PRIV-66 |
 | Crash failure | `level`: fatal; one `exception` with a kind from the closed list and a `stacktrace` | Group failures by where execution stopped. No exception message or value is allowed. | <a id="PRIV-67"></a>PRIV-67 |
 | Each stack frame | `module`: native or webview; optional compiled `function`, `lineno`, `colno` | Locate the failing code. No filename, path, source line, memory address or local variable is sent. | <a id="PRIV-68"></a>PRIV-68 |
 | Crash envelope | item `type`: event; byte `length`; event id | Give Sentry the format and size of its single crash event. No other item type is allowed. | <a id="PRIV-69"></a>PRIV-69 |
 | Feedback | `id`: one random submission UUID; `message`: your text | Store the message once, including when a response is lost, and let you tell us what you need. | <a id="PRIV-70"></a>PRIV-70 |
 | Optional feedback email | `email`: only when you enter it | Reply to you. It is not used for marketing or added to a usage or crash report. | <a id="PRIV-71"></a>PRIV-71 |
 | Optional feedback details | The exact text under View Details, only when Include technical details is checked | Help understand the problem you are reporting. | <a id="PRIV-72"></a>PRIV-72 |
-| Included diagnostic facts | app version/channel, chip, macOS version, accent, built-in format ids or `user`, default format, preference switches, sync-provider kind | Reproduce the setup that matters to your feedback. No play, user-format name, learned word or path appears. | <a id="PRIV-73"></a>PRIV-73 |
+| Included diagnostic facts | app version/channel, chip, the system's version, accent, built-in format ids or `user`, default format, preference switches, sync-provider kind | Reproduce the setup that matters to your feedback. No play, user-format name, learned word or path appears. | <a id="PRIV-73"></a>PRIV-73 |
 | Included diagnostic history | last 20 error codes with their local times/repeat counts; safe local crash summaries | Understand the failures you chose to show us. These precise local times appear only in details you inspect and include. | <a id="PRIV-74"></a>PRIV-74 |
 | A browser link you choose | releases, one release version, license, support or privacy | Open the page you requested. These links are not usage events. | <a id="PRIV-75"></a>PRIV-75 |
 
@@ -311,7 +348,8 @@ counts are kept only as daily totals, for two years, with no record of any
 single request. Crash reports are kept for 30 days, and our service keeps no
 copy of them. On your Mac, unsent usage counts wait only in memory, for up to
 seven days, and at most 20 crash records wait until they are sent or replaced
-by newer ones.
+by newer ones. The app also keeps on your computer, and never sends, the day
+it first ran and the last day, week and month it counted itself as in use.
 
 <a id="PRIV-80"></a>
 
@@ -350,7 +388,9 @@ what GitHub keeps and shows us.
 <a id="PRIV-82"></a>
 
 **PRIV-82** For a store submission, describe Product Interaction and Crash Data as not
-linked to a person and not used for tracking. Manual feedback also carries
+linked to a person and not used for tracking. `copy_active` keeps both true: it
+carries no identifier, and nothing the service receives or keeps can link two
+of them to one copy (PRIV-86). Manual feedback also carries
 user-provided Other User Content and, optionally, Email Address. Confirm the
 store's current definitions and the deployed service settings at submission;
 do not claim Data Not Collected. The separately maintained website,

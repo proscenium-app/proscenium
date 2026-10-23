@@ -48,7 +48,7 @@ shows is not covered.
 
 <a id="REL-D2"></a>
 
-### The macOS floor
+### The macOS and WebView2 floors
 
 - <a id="REL-7"></a> **REL-7** Set `bundle.macOS.minimumSystemVersion` to `"14.0"` in `tauri.conf.json`, and
   assert the built `Info.plist` says so.
@@ -63,6 +63,20 @@ shows is not covered.
 
 **REL-9** **Acceptance:** the plist floor is 14.0, `check:webkit-floor` is in CI, and a
 deliberately newer CSS feature makes it fail.
+
+<a id="REL-127"></a>
+
+**REL-127** **The Windows engine floor.** On Windows the webview is WebView2's
+Evergreen runtime, which updates itself, so no Windows release fixes the engine
+the way a macOS release fixes Safari's: the floor is a runtime that has stopped
+updating. It is WebView2 131 (Chromium 131), declared once, with its reasons,
+as `WEBVIEW2_FLOOR` in `scripts/webkit-floor.ts`. `check:webkit-floor` reads
+`dist/` against it as well as against Safari 17, from the compat data's Edge
+statements, each engine with its own canary and its own allowed exceptions. A
+Windows release is built and proven on the current runtime, which its workflow
+installs and records before it tests. The floor is not given to Tauri as
+`minimumWebview2Version`: the per-user installer would then update an older
+runtime itself, and that asks for an administrator.
 
 <a id="REL-D3"></a>
 
@@ -114,6 +128,70 @@ both on 2026-09-22, and they are withdrawn (docs/engineering/withdrawn-requireme
   Under Rosetta that is the Intel slice's launch to export, which is the Intel
   slice's whole proof. Reveal in Finder is kept
   the same way: what the app asked Finder to show is recorded, not opened.
+- <a id="REL-128"></a> **REL-128** **On Windows it is driven from outside.** WebView2 can be
+  driven, as Microsoft and Playwright document, so the Windows test build
+  (`node scripts/build-app.mjs --selftest` there) carries no harness in the
+  page: it is the release build with its own identifier, WebView2's DevTools
+  port opened on the loopback address when `PROSCENIUM_SELFTEST_DEVTOOLS`
+  names one (an elevated process ignores WebView2's own variables), and the
+  folder picker, the save panel and Reveal in File Explorer answered as on a
+  Mac. `node scripts/smoke.mjs --engine webview2
+  --app <proscenium.exe>` (scripts/smoke-webview2.mjs) starts it for each act
+  with a scratch home, a fresh copy of `sample-vault/` and its DevTools port on
+  the loopback address, attaches Playwright, and runs smoke's own checks, acts
+  and audits against it, pressing a PC's keys for a Mac's. The PC copy's tree
+  is held against `scripts/aria/windows/`. `--break flex` is its negative
+  control. Each act's app is ended through the handle smoke holds on it, and
+  its WebView2 by the act's own profile folder: never a process found by its
+  number, since Windows reuses a number once its process has gone and a tree
+  by number can take in a process smoke never started, and never by its name,
+  which would end a writer's own copy on a PC where this runs by hand. A run
+  keeps a journal of where it is (scripts/smoke-journal.mjs), each line written
+  before what it names begins, so a run ended from outside, which prints
+  nothing, still says where it stopped: `scripts/windows/smoke.ps1` says it as
+  a failure, with what the exit code means and what the machine recorded, and
+  for a run ended from outside runs every act once more from the start, the
+  second run's verdict the step's. Every check runs there, the faults it stages included
+  (docs/engineering/release-engineering.md#REL-129). An act that stages what a
+  PC does to a writer's files, another program holding a file open or Windows'
+  Read-only, runs in this engine alone: its checks reach the act's Plays
+  folder, and a program of their own on the PC, through `page.host`
+  (scripts/smoke-pc-host.mjs), and the other engines skip it and say why. Such
+  a check is proven on a PC, with `--prove` and `--engine webview2`. Its
+  acceptance is this section's: three clean passes in a row, and the negative
+  control caught. Variant passes (`--variants`, scripts/smoke-variants.mjs) run
+  the acts again in this engine as a writer's PC is set up otherwise: the
+  screen at 150% and 200%, forced colours, and another display language, which
+  the test build passes to WebView2 from `PROSCENIUM_SELFTEST_LANG`. Each is
+  checked to have taken before its act starts. A variant's tree has a file of
+  its own only where it reads a surface otherwise; dates and times in the
+  language's own forms read as the English ones do (scripts/aria-snapshots.mjs).
+- <a id="REL-129"></a> **REL-129** **The faults a check stages, staged in the
+  real apps.** In a browser a check stages a failure through the in-memory
+  vault's hooks (`window.__prosceniumGate` holds or refuses a vault call,
+  `__prosceniumPeek` reads the disk, `__prosceniumExternalChange` is another
+  program's write, and the rest in `src/storage/dev-mock.ts`). A test build
+  answers the same hooks on the real Rust vault, its app data and its watcher
+  (`src-tauri/src/selftest_fixture.rs`, through one command, `selftest_fixture`);
+  the page's half, `scripts/selftest/fixture.mjs`, is carried by the Mac's
+  harness and injected by smoke's WebView2 driver. So the check is written once,
+  and its failure path is proven in Chromium, in WebKit, in the Mac app and in
+  the Windows app. A hook answers a promise there, so a check awaits what it
+  reads. The fault a check stages is the one that system's vault gives: a file
+  locked in Finder on a Mac is a Read-only file on a PC, and a check says each
+  through `said()`. What would leave the test machine is kept instead: a test
+  build sends no feedback and no report, and a quit a check asks for never ends
+  it. What the test machine cannot give is stood in for, and said: Windows
+  refuses its clipboard to a session that is not in front, as the locked test
+  PC's never is, so there a test build keeps what it would have copied, and its
+  log says so. The module, its command and every call into it exist with
+  the `selftest` feature alone; a release build has none of them, which
+  `scripts/check-bundle.mjs --release` proves of a Mac's binary and the Windows
+  release build's own scan of each executable (`scripts/windows/release-build.mjs`)
+  proves of a PC's. No check is the browser's alone: none is skipped in either
+  app for staging its fault through the in-memory vault
+  (`scripts/selftest/fixture.test.ts`). An act made for one engine (`engines`)
+  runs there alone, and the others say so.
 
 **Acceptance** on the build host: three clean passes on `main` in a row, the negative control
 (`--break flex`) caught on the collapsed frame, snapshots of the real surfaces kept as the run's
@@ -164,8 +242,10 @@ build has no `selftest` symbols (docs/engineering/release-engineering.md#REL-29)
     - <a id="REL-40"></a> **REL-40** Create a **Developer ID** provisioning profile for it.
     - <a id="REL-41"></a> **REL-41** Embed it as `Contents/embedded.provisionprofile` through
       `bundle.macOS.files` in `tauri.conf.json`.
-    - <a id="REL-42"></a> **REL-42** The App Store build embeds its own Mac App Store profile, from
-      `tauri.appstore.conf.json`.
+    - <a id="REL-42"></a> **REL-42** The App Store build embeds its own Mac App Store profile:
+      `tauri.appstore.conf.json` names it at `.release/appstore.provisionprofile`,
+      where `scripts/release-app-store.mjs` stages it from the release keychain's
+      folder before it signs.
     - <a id="REL-43"></a> **REL-43** Profiles are not secret, but they expire with the certificate: keep them
       out of the repository (in the login keychain before launch, through
       `scripts/release-keychain.mjs`; an Actions secret if releases move
@@ -196,10 +276,107 @@ build has no `selftest` symbols (docs/engineering/release-engineering.md#REL-29)
 
 <a id="REL-56"></a>
 
-**REL-56** **Channel 2 (after 1.0): the Mac App Store.** Spec only for now:
-`tauri.appstore.conf.json`, the full `Entitlements.plist`, a Mac App Store
-provisioning profile, a Transporter upload, and the `app-store` channel flag.
-The updater is compiled out of that channel — the store updates it.
+**REL-56** **Channel 2 (after 1.0): the Mac App Store.** The build is
+`node scripts/build-app.mjs --universal --app-store`: Cargo's default features
+off, so no updater (the store updates it) and no private WebKit key, which App
+Review refuses; `src-tauri/tauri.appstore.conf.json`, which drops the updater's
+configuration and names the full `Entitlements.plist` and the Mac App Store
+profile; and `check-bundle.mjs --app-store`, which fails a binary carrying
+either and an Info.plist without the category and export-compliance keys App
+Store Connect requires. The channel reports itself as `app-store`, and the
+Updates pane says the store updates it. Everything the app hands to the
+system goes through NSWorkspace (`shell.rs`), never a child process, which
+would inherit the sandbox. Exports write only the file the Save panel granted
+(docs/app/keeping-work/storage-and-file-format.md#STOR-187).
+
+The release half is `scripts/release-app-store.mjs` and
+`scripts/app-store-connect.mjs`, on the build host, from its release keychain,
+as a stable release's last stage, after the download's release has closed. A
+stable release is the maintainer's word for its store version too: the store
+follows it with nothing more asked.
+
+- **Built from the release's tag**, with automatic reports compiled in and the
+  sponsors' roll fetched, as the download is. The store's privacy answers say
+  it sends reports, so `check-bundle.mjs --reports` refuses a signed app whose
+  binary does not carry the mark `src-tauri/build.rs` gives a build compiled
+  with `PROSCENIUM_REPORTS=1`; every release's download is held to it too.
+- **Its build number rises with every upload.** CFBundleVersion is
+  `X.Y.(Z×1000+N)`, N the upload's number for that version (1.0.3's first is
+  1.0.3001): App Store Connect takes at most three integers there and never
+  the same one twice, and the next release always reads higher.
+  CFBundleShortVersionString stays `X.Y.Z`. Only stable releases go to the
+  store.
+- **Signed for the store**: the Apple Distribution identity the store profile
+  names (the profile itself made through the App Store Connect API whenever
+  there is none, it names another certificate, or it lapses within a month); `Entitlements.plist` completed with the application and team
+  identifiers read from that profile, since codesign does not expand Xcode's
+  variables; the profile embedded as `Contents/embedded.provisionprofile`; the
+  hardened runtime. Any other code in the bundle is signed first, with the
+  sandbox's inheritance.
+- **Audited against its own profile** (`scripts/release-profile.mjs`
+  `assertStoreProfileAuthorizes`), before the build and on the signed app: a
+  Mac App Store profile (no devices, not every Mac), the team, the
+  application identifier, its expiry, the signing certificate among the
+  profile's, the sandbox and the iCloud container signed exactly, every other
+  restricted entitlement authorised by the profile, and no `get-task-allow`.
+- **Packaged** with `productbuild --component … /Applications`, signed with
+  the Mac Installer Distribution identity, which `pkgutil --check-signature`
+  must name and trust.
+- **Validated, uploaded and waited on** with `xcrun altool`
+  (`--validate-app`, then `--upload-package --wait`), with the App Store
+  Connect API key that notarizes the download. The key file lives in a
+  private temporary folder for the one command, and nothing prints a value.
+- **Written and submitted**, through the App Store Connect API
+  (`release-app-store.mjs submit`): the version made if it is missing, set to
+  go on sale once App Review approves it; its build chosen; its What's New, on
+  every version after the first, from the release's own notes without the
+  lines about the updater or Windows; its listing from
+  `scripts/store/listing.json`, held to App Store Connect's limits; the
+  screenshots `bun run store:screenshots` makes from the release's commit; and
+  one review submission sent. It refuses only a release with no notes.
+- **App Review's answer** is read by the release machine. An approval puts the
+  version on sale by itself. A rejection, whose reason only App Store
+  Connect's Resolution Center shows, goes to the maintainer as a question and
+  an incident: a refused listing is mended in `listing.json` and the same
+  build goes again by itself; a refused build is mended for the next release.
+- **Until the store's certificates and the app's record exist** the build says
+  what is missing and uploads nothing, and the release goes on without it.
+- **A stand-in proves the path** with none of Apple's material: a self-signed
+  identity of each kind and a profile in Apple's form, in a scratch keychain
+  made and removed by the run. The audit, `productbuild` and `pkgutil` run as
+  for a release, and App Store Connect's validation must refuse the package
+  for what it is, never for the key; its submission is a dry run that makes
+  the What's New, the listing and the screenshots and sends nothing.
+
+**The sandbox is proven by the native self-test, not claimed.**
+`node scripts/build-app.mjs --selftest --sandbox` builds the store's features
+with the self-test's as an app of its own, signed ad hoc into the App Sandbox
+with `src-tauri/Entitlements.selftest-sandbox.plist`: the store's entitlements
+without the iCloud keys, which need a provisioning profile and kill an ad-hoc
+app at launch. The self-test drives no system panel, so under the sandbox its
+driver stands in for each one with the grant that panel gives, a sandbox
+extension for that one path: the folder picked, the file the Save panel
+names, the file Finder opens, read and written for a play or a script and
+read only for a document the app imports (`src-tauri/src/selftest_sandbox.rs`,
+`scripts/selftest/sandbox.mjs`). Each launch's Plays folder is laid out
+outside the container, where only that grant reaches it. Every act then runs
+as it does unsandboxed, and the run fails unless the sandbox refused a write
+nothing granted, the app's data resolved inside its container
+(docs/app/keeping-work/storage-and-file-format.md#STOR-142), no iCloud
+container appeared without iCloud (docs/app/keeping-work/storage-and-file-format.md#STOR-131), and the
+exports folder holds only the files the Save panel named
+(docs/app/keeping-work/storage-and-file-format.md#STOR-187). A relaunch then
+proves the bookmark: a second process, with the first one's settings and no
+grant, finds the Plays folder refused, and listed once the bookmark it stored
+resolves. A store copy has no updater, so the three checks that install an
+update or change its settings are reported skipped, and its Updates pane is
+held to a tree of its own (`scripts/aria/native/settings-updates.store.yml`).
+The pipeline runs every act this way in a full or T2 run, and the acts where
+the sandbox draws its lines, with the relaunch, in every batch with app or
+Rust files.
+
+Still to come: the iCloud container itself, which only a build signed with
+its provisioning profile can reach.
 
 <a id="REL-57"></a>
 
@@ -216,6 +393,20 @@ draft release, which opens cleanly from a quarantined download.
   private key has exactly four copies: the maintainer's login keychain, the build host's release
   keychain, an encrypted archive and the Actions secrets. It is never committed and
   never printed.
+- **Windows updates through the same key (since 2026-10-14).** Each release's and
+  each beta's per-user installers, x64 and Arm64, are built unsigned on GitHub's
+  hosted Windows machines and signed for the updater by the build host, with the
+  same private key and nowhere else (`tauri signer sign`); each signature is
+  checked against the key the app trusts before anything is written, since the
+  CLI only warns on a mismatch. A version's manifest names each platform's build:
+  a track's `latest.json` is merged per platform whenever one is written, the
+  Mac's entries never rewritten by Windows' or Windows' by the Mac's, and never
+  one version beside another; alpha is the Mac's alone. On Windows the updater
+  runs the signed installer for the current user, passively, after the save
+  beacon, and the installer starts the new version (REL-63's restart, as a
+  writer's word). A Windows track build's whole version, `X.Y.Z-beta.N`, is
+  compiled in and kept whole in the executable (`version.rs`), where a check
+  from outside reads it as a Mac's reads `ProsceniumVersion`.
 - <a id="REL-60"></a> **REL-60** **Behaviour:**
   - <a id="REL-61"></a> **REL-61** Check at launch and every 24 hours while the app runs, only if "Check for
     updates automatically" is on (on by default).
@@ -226,7 +417,12 @@ draft release, which opens cleanly from a quarantined download.
     install. An unreadable beacon is unsafe. A failed install releases editing.
   - <a id="REL-64"></a> **REL-64** The app menu gets "Check for Updates…". The Updates section in Settings
     (T3a's slot) has the switch, Check Now, the current version and the release
-    notes link.
+    notes link. Once an update is downloaded the link names it, "What’s new in
+    <version>", and opens that version's notes through
+    `go.proscenium.ink/releases/v<version>`
+    (docs/engineering/services-and-feedback.md#SERV-281). The app makes that
+    address only from a release's `X.Y.Z` or a beta's `X.Y.Z-beta.N`, the whole
+    version the update was offered as, and opens nothing for anything else.
 - <a id="REL-124"></a> **REL-124** **An Intel Mac takes stable releases alone.** Alpha and beta builds are
   Apple silicon only (`aarch64-apple-darwin`), and each one's manifest names
   `darwin-aarch64` alone; a release stays universal. The Intel build follows
@@ -315,6 +511,11 @@ dark and tinted modes, and it holds up at 16px.
   differ.
 - <a id="REL-80"></a> **REL-80** **`CHANGELOG.md`** in Keep a Changelog form; the release draft takes its notes
   from it.
+- <a id="REL-126"></a> **REL-126** **The public changelog says what is released.** The export sends
+  `CHANGELOG.md` out with nothing under Unreleased: what only a pre-release build of
+  `main` holds is not public until its version is a beta's or a release's. The heading
+  stays, since the version's own tooling reads it, and a version's section, dated or
+  still in beta, goes out as it is.
 - <a id="REL-81"></a> **REL-81** **Numbering.** 0.9.x for release candidates and updater tests, then 1.0.0.
 - <a id="REL-82"></a> **REL-82** **Homebrew.** A personal tap, `proscenium-app/homebrew-tap`, with a cask for the
   universal DMG (with `livecheck`), updated by the release workflow. Submission
@@ -728,7 +929,8 @@ Builds from that commit on can verify updates, and the release script refuses
 to run without the public key.
 
 Distribution builds enable reports with `PROSCENIUM_REPORTS=1`, set by the
-release script. There is no analytics account or key. Rehearsals and local
+release script, and `check-bundle.mjs --reports` refuses a release whose binary
+lacks the mark such a build carries. There is no analytics account or key. Rehearsals and local
 installs keep automatic usage and crash reports off. The owned update endpoint
 is the update endpoint; reports and feedback follow the service
 readiness checks in [docs/engineering/services-and-feedback.md](services-and-feedback.md).
@@ -858,88 +1060,107 @@ full name is how Homebrew 6 lets someone trust a single cask from a tap.
 
 #### Every release
 
+A release goes alpha, then beta, then stable, and every stable release first
+went out as a beta from the same line.
+
+- **Alpha** is every green batch of `main`, built for Apple silicon and offered
+  only to a copy that holds the alpha track's key.
+- **Beta** is the maintainer's choice to send one out. The first beta of a
+  version cuts its line, `release/X.Y.Z`, at the newest green alpha's commit,
+  with one commit, `X.Y.Z on its line`: every file that states the version
+  says X.Y.Z, and the changelog's Unreleased entries become an undated
+  `## [X.Y.Z]` section (`node scripts/version.mjs line X.Y.Z`). The same
+  change lands on `main` the same minute, so `main`'s next release is X.Y.Z+1
+  and its alphas go on. The beta's tag, `vX.Y.Z-beta.N`, is tested and built
+  in one job and published to the beta track, and the release before it, set
+  to Beta, is proven to update to it. A fix during the soak lands on `main`
+  first; a commit whose message says `Beta: X.Y.Z` is carried to the line and
+  rides the next beta, which starts the soak again.
+- **The soak** counts days from the beta's publishing. A day is clean when the
+  beta reported no crash, no feedback from a copy on it is still unmarked as no
+  blocker, no incident is open, its proofs are green and no advisory is open
+  against what it ships. A day that is not clean holds the beta until the
+  maintainer lets it go. From day 7 the maintainer may send a clean beta to
+  stable; on day 14 it goes by itself unless held; before day 7 only the
+  maintainer's override, with its reason, sends it.
+- **Stable** is then a machine's, stage by stage, each recorded as it begins
+  and ends and each able to run again: the steps below. From its first stage
+  to its close nothing changes how releases are made.
+
 <a id="SHIP-D107"></a>
 
 #### Prepare
 
-*Agent:*
-
-1. Every gate green on `main`, and the update service's stable route proven
-   against GitHub itself, not a stand-in: `cd services/edge && bun run test:live`
-   (docs/engineering/services-and-feedback.md#SERV-267). The tag's own run
-   repeats it before the build.
-2. [CHANGELOG.md](../../CHANGELOG.md) under **Unreleased**, in words a playwright
-   reads: what they can do now, what is better, what was broken and is fixed.
-3. `bun run version 1.0.1`. That updates every file that states the version and
-   turns Unreleased into this version's section. Versions are `x.y.z`; release
-   candidates were 0.9.x.
-   - Add the version to `RELEASED_VERSIONS_JSON` in
-     [services/edge/wrangler.jsonc](../../services/edge/wrangler.jsonc).
-     `updates.proscenium.ink` answers only for versions on that list.
-4. Commit (`Proscenium 1.0.1`), tag `v1.0.1`, push both.
+1. **Preflight,** before anything is built: the build host's disk and the test
+   bench free; the signing identity, the notarization key and the Cloudflare
+   token in its keychain; the release token more than 30 days from its expiry;
+   the tap's `main`; the deployed update service answering; the version the
+   same in every file; the changelog's section written; no advisory open.
+2. **The changelog's date,** the line's only change from the beta that soaked:
+   `node scripts/version.mjs date X.Y.Z`.
 
 <a id="SHIP-D108"></a>
 
 #### Build and draft
 
-5. *Agent:* `node scripts/release.mjs --publish`. It takes 15–30 minutes, most of
-   it Apple. The first notarization for a new team can take hours; the script
-   waits. If it fails, its last line names the step. The common ones:
+3. **The public sync:** the commit's public tree, committed to the public
+   repository with a one-line message and no attribution, and its `vX.Y.Z` tag.
+4. **The tag,** whose one job tests the commit in full, with the universal
+   build and the Intel slice under Rosetta, and builds it with
+   `node scripts/release.mjs`: universal, signed, notarized and checked, its
+   seven files kept. Nothing takes the build host between the test and the
+   build. If the build fails, its last line names the step. The common ones:
    - **missing signing material:** `node scripts/release-keychain.mjs status`
      names what is gone, and the setup step above makes it again.
    - **notarization rejected:** the output has a submission ID;
      `node scripts/release-keychain.mjs log <id>` shows Apple's reasons.
    - **stapling failed:** Apple's ticket had not reached its servers yet. Run
-     the script again.
-   - **the tag on GitHub is not this tree:** the commit that was tagged is not
-     the commit checked out. Check out the tag and run it again.
+     the stage again.
+5. **The draft,** on the public repository, from those seven files
+   (`node scripts/release.mjs --draft <folder>`), its id recorded: that draft,
+   and nothing else, is what is published.
 
 <a id="SHIP-D109"></a>
 
 #### Check the draft
 
-6. *Agent:* download the draft's DMG with `gh release download`, mark it as
-   downloaded (as in setup step 7), and check it: `spctl -a -vv` on the app
-   inside says `source=Notarized Developer ID`, and its Info.plist says the
-   right version. The draft must hold:
+6. The draft's seven files download, each is the file `SHA256SUMS` names,
+   `latest.json` says the version, `build.json` names the tag's commit, and
+   Gatekeeper accepts the image as notarized:
    - `Proscenium_1.0.1_universal.dmg`
    - `Proscenium_1.0.1_universal.app.tar.gz` and its `.sig` (what the updater downloads)
    - `latest.json` (what the updater reads), `notes.md`, `SHA256SUMS`, `build.json`
-7. *Agent,* for every release: setup step 7's file checks on the draft's app,
-   and, once the release is published, the **Stable update proof** workflow on
-   the build host (`from`: the release before it, `to`: this one), whose report
-   must say proven. It builds the release before from its tag as a test copy
-   with the app's real identity, lets that copy update itself through the real
-   update address, with a line typed just before Restart to Update, and passes
-   only when the scratch folder holds this release, notarized and running, with
-   the line in the play. 1.0.0 has no release before it that carries the proof.
 
 <a id="SHIP-D110"></a>
 
 #### Publish
 
-8. The *maintainer* says publish, and says yes to deploying the Worker. The *agent* runs
-   `node scripts/edge-wrangler.mjs deploy` first, so `updates.proscenium.ink`
-   admits 1.0.1 and serves its files: until then a 1.0.1 copy's own check is
-   refused (400) and its archive is not served (404), and every copy falls back
-   to GitHub directly. Then the *maintainer* publishes the draft the pipeline
-   made, and nothing else: its edit page is
-   `https://github.com/proscenium-app/proscenium/releases/edit/v1.0.1` (the
-   release's page, then Edit), and **Publish release** at the bottom of it is
-   the click. Never **Draft a new release** from the tag's page, and never a
-   release made by hand on the tag: that makes a second, empty release beside
-   the pipeline's, GitHub serves no `latest.json`, and the website's Download
-   answers 404, as it did for five minutes on 2026-09-26 until the empty one
-   went back to draft. An agent's `gh release edit v1.0.1 --draft=false` is
-   refused as a public action, so the click is the maintainer's; the agent
-   gives the edit address and checks afterwards: one release on the tag, its
-   seven files, `proscenium.ink/download` redirecting to the DMG whose SHA-256
-   is `SHA256SUMS`'s, and GitHub's `latest.json` answering the version.
-   Homebrew's workflow runs within a minute; the agent checks it went green and
-   that `brew install --cask proscenium-app/tap/proscenium` installs 1.0.1.
+7. **Admit** the version: the update service's list of what it admits and what
+   it has halted is a file in the tracks' bucket, which the service reads
+   within a minute, so a release is admitted by writing it there, with no
+   deploy (docs/engineering/services-and-feedback.md#SERV-268). Until it is admitted, a copy of the new version is refused its own
+   check and its archive is not served.
+8. **Publish that draft, by its id.** One release on the tag, never a second
+   one made by hand: a second, empty release beside the draft makes GitHub
+   serve no `latest.json` and the website's Download answer 404, as it did for
+   five minutes on 2026-09-26.
+9. **From outside:** `proscenium.ink/download` redirects to the DMG whose
+   SHA-256 is `SHA256SUMS`'s, GitHub's `latest.json` answers the version, and
+   so does the update service.
+10. **Homebrew:** the tap's workflow names the version within a minute, and an
+    install of the cask (`brew install --cask proscenium-app/tap/proscenium`,
+    into a scratch folder) gives it.
+11. **The update proof:** the release before it, built from its tag as a test
+    copy with the app's real identity and driven by the current harness,
+    updates itself through the real update address, with a line typed just
+    before Restart to Update, and passes only when the scratch folder holds
+    this release, notarized and running, with the line in the play.
+12. **The line merged back** into `main`, the **record** written from the
+    release's own file, and the release **closed**.
 
 A bad published release is fixed by publishing a better one, never by deleting
-it: installed copies may already be updating to it.
+it: installed copies may already be updating to it. A halt stops the update
+service offering it, through the same list, and deletes nothing.
 
 ---
 
@@ -951,7 +1172,9 @@ it: installed copies may already be updating to it.
 |---|---|---|---|
 | Developer ID Application certificate | 5 years | Apps already signed keep working; new builds cannot be signed | Setup step 2 again, **then step 4's profile again** (a profile names its certificate) |
 | Developer ID provisioning profile | 18 years, or until the certificate is replaced or the App ID's capabilities change | **The app stops launching** once its profile expires | Regenerate it (setup step 4, point 3), file it, ship a release |
-| App Store Connect API key | No expiry | — | If it leaks, revoke it in App Store Connect and repeat setup step 3 |
+| App Store Connect API key | No expiry | — | If it leaks, revoke it in App Store Connect and repeat setup step 3, with App Manager access while the store channel is on |
+| Apple Distribution and Mac Installer Distribution certificates | 1 year | New store builds cannot be signed or packaged; the store keeps selling what it has | The Mac App Store's step 1 again, then `move`; the profile follows by itself |
+| Mac App Store provisioning profile | Until its certificate expires or is replaced | — | The store build makes it again through the API a month before it lapses |
 | Updater key | Forever | — | Rotate only if the private key leaks: ship one release signed with the OLD key that contains the NEW public key, then sign everything after with the new key. Copies that skip that release can't update. |
 | `HOMEBREW_TAP_TOKEN` | What you chose (a year) | Homebrew's workflow fails on publish | Make a new token and replace the secret |
 
@@ -994,16 +1217,51 @@ opens only with `-legacy`.
 
 <a id="SHIP-D113"></a>
 
-#### Later: the Mac App Store
+#### The Mac App Store
 
-After 1.0 (docs/engineering/release-engineering.md#REL-D5, channel 2). What it will take:
+After 1.0 (docs/engineering/release-engineering.md#REL-56). The app's side and
+the release's are built: `build-app.mjs --app-store`,
+`tauri.appstore.conf.json`, the sandboxed
+[src-tauri/Entitlements.plist](../../src-tauri/Entitlements.plist), and
+`scripts/release-app-store.mjs`, which builds, signs, packages, validates,
+uploads and submits each stable release's store build by itself. Until the
+material below exists, each release says what is missing and goes on without
+the store. Everything that recurs (the profile, the listing, What's New, the
+screenshots, the submission and its release once approved) is the machine's;
+what follows has no API, or is a private key, and is done once.
 
-- `src-tauri/tauri.appstore.conf.json`, signing with the sandboxed
-  [src-tauri/Entitlements.plist](../../src-tauri/Entitlements.plist);
-- a Mac App Store provisioning profile and an Apple Distribution certificate;
-- a build without the updater (`--no-default-features --features custom-protocol`),
-  because the store updates the app itself;
-- an upload with Transporter.
+*Maintainer,* once, at
+[developer.apple.com/account](https://developer.apple.com/account) and
+[appstoreconnect.apple.com](https://appstoreconnect.apple.com):
+
+1. **The two certificates.** In **Xcode → Settings… → Accounts → Manage
+   Certificates…**, click **+** and choose **Apple Distribution**, then **+**
+   again and choose **Mac Installer Distribution**. Xcode keeps both, with
+   their private keys, in the login keychain beside the Developer ID one.
+2. **The app's record.** In App Store Connect, **Apps → + → New App**:
+   platform macOS, name Proscenium, the bundle ID `org.habiby.proscenium`, a
+   SKU of your choosing. Then, once, the pages no API writes: **App
+   Privacy**, the **age rating**, **Pricing and Availability** (free, every
+   territory), the **categories**, and **App Review Information** (contact and
+   notes). The listing's text, What's New and the screenshots are the
+   machine's, with each release.
+3. **The key's access.** The notarization key (setup step 3) has
+   **Developer** access, which may upload a build but not submit one for
+   review or make a profile. In **Users and Access → Integrations → Team
+   Keys**, give that key **App Manager** access. If App Store Connect offers
+   no change of access, generate one team key with App Manager access in its
+   place and run `notary` with it: one key notarizes and uploads, never a
+   second beside it.
+4. **Each year, the certificates again.** Both last a year; step 1 again, then
+   `move`. The profile follows by itself.
+
+*Agent:* `node scripts/release-keychain.mjs move` takes both new identities
+and their chains to the build host with the rest; its `status` there names
+each. `node scripts/release-app-store.mjs material`, on the build host, says
+what the store build still lacks. Should App Store Connect refuse the key a
+profile, the build says so, and `node scripts/release-keychain.mjs profile`
+files one made by hand (**Profiles → +** → **Mac App Store Connect**, type
+Mac, App ID `org.habiby.proscenium`, the Apple Distribution certificate).
 
 The App Store build is sandboxed, so its preferences live inside its container.
 The download build is not, so moving between the two channels means choosing

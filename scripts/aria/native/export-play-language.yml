@@ -40,7 +40,7 @@
     - none
       - checkbox "Opening notes" [checked]
   - none
-    - checkbox "Anonymous copy" [checked]
+    - checkbox "Anonymous copy"
   - none
     - textbox "Play language"
   - button "Cancel"

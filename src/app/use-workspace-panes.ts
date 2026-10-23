@@ -1,11 +1,24 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { announce, useToast } from "../ui";
 import { titleOf, type BinderItem } from "../workspace";
 import type { Workspace } from "./useWorkspace";
 import { usePanes } from "./use-panes";
-import { findLeaf, leaves, surfaceKey, type Surface } from "./panes";
+import {
+  allSurfaces,
+  closeNode,
+  findLeaf,
+  findNode,
+  leaves,
+  paneNeed,
+  panesWithoutRoom,
+  surfaceKey,
+  type PaneBox,
+  type Surface,
+} from "./panes";
+import { playLanding } from "./regions";
 import type { DropZone } from "./PaneTree";
 import type { ViewId } from "./Toolbar";
 
@@ -167,13 +180,104 @@ export function useWorkspacePanes({
   /** Every pane, for the sheet a fit solves against when none shows the script. */
   const paneRootRef = useRef<HTMLElement | null>(null);
 
-  /** The surface showing in each pane right now (the active tab of each leaf). */
+  /* The room the panes have, measured: the element comes and goes with the
+     play, so it is held in state and the box is read whenever it or the window
+     changes. `resize` beside the observer for the reason use-narrow-layout.ts
+     gives: it is a plain event, delivered with or without a frame loop. */
+  const [paneRoot, setPaneRootEl] = useState<HTMLElement | null>(null);
+  const setPaneRoot = useCallback((el: HTMLElement | null) => {
+    paneRootRef.current = el;
+    setPaneRootEl(el);
+  }, []);
+  const [paneBox, setPaneBox] = useState<PaneBox | null>(null);
+  useLayoutEffect(() => {
+    if (!paneRoot) {
+      setPaneBox(null);
+      return;
+    }
+    const read = () => {
+      const { width, height } = paneRoot.getBoundingClientRect();
+      setPaneBox((was) =>
+        was && Math.abs(was.width - width) < 0.5 && Math.abs(was.height - height) < 0.5
+          ? was
+          : { width, height },
+      );
+    };
+    read();
+    const observer = new ResizeObserver(read);
+    observer.observe(paneRoot);
+    window.addEventListener("resize", read);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", read);
+    };
+  }, [paneRoot]);
+
+  /**
+   * The panes this window has no room for (panes.ts `panesWithoutRoom`): left
+   * out of the drawing, never out of the tree, so each is back when there is
+   * room. Derived on every render from the box and the tree, as a rail a
+   * narrow window suppresses is.
+   */
+  const paneKeep = panes.focusedLeaf;
+  const hiddenPanes = useMemo(
+    () => (paneBox ? panesWithoutRoom(paneTree, paneBox, paneKeep) : new Set<string>()),
+    [paneTree, paneBox, paneKeep],
+  );
+
+  /* A pane that would not be drawn is not made: Split, Open in New Pane and a
+     drop on a pane's edge say so instead. They used to make it anyway, and in
+     a small window the new pane, or the one beside it, was a sliver. */
+  const toast = useToast();
+  panes.room.current = {
+    fits: (next) => {
+      const need = paneNeed(next);
+      return (
+        !paneBox ||
+        !need ||
+        (need.width <= paneBox.width + 0.5 && need.height <= paneBox.height + 0.5)
+      );
+    },
+    refuse: () =>
+      toast({
+        kind: "plain",
+        title: "No room for another pane",
+        detail: "Make the window larger, or close a pane first.",
+      }),
+  };
+
+  /* Said, since nothing takes focus when a window is resized (the app's rule
+     for what changes without it). Only of a pane that was on screen a moment
+     ago: a layout restored into a smaller window is how the play opens, not a
+     change, and its panes are new to this window. */
+  const paneRoom = useRef<{ drawn: Set<string>; hidden: Map<string, string> }>({
+    drawn: new Set(),
+    hidden: new Map(),
+  });
+  useEffect(() => {
+    const drawn = new Set<string>();
+    const hidden = new Map<string, string>();
+    for (const l of leaves(paneTree)) {
+      const surface = l.tabs[l.active];
+      if (!hiddenPanes.has(l.id)) drawn.add(l.id);
+      else if (surface) hidden.set(l.id, labelForSurface(surface, binder, scriptTitle));
+    }
+    const was = paneRoom.current;
+    paneRoom.current = { drawn, hidden };
+    const gone = [...hidden].filter(([id]) => was.drawn.has(id)).map(([, label]) => label);
+    const back = [...was.hidden].filter(([id]) => drawn.has(id)).map(([, label]) => label);
+    if (gone.length > 0) announce(`No room for ${gone.join(", ")}. Hidden until there is.`);
+    else if (back.length > 0) announce(`${back.join(", ")} back.`);
+  }, [hiddenPanes, paneTree, binder, scriptTitle]);
+
+  /** The surface showing in each pane right now (the active tab of each leaf on screen). */
   const visibleSurfaces = useMemo(
     () =>
       leaves(paneTree)
+        .filter((l) => !hiddenPanes.has(l.id))
         .map((l) => l.tabs[l.active])
         .filter(Boolean),
-    [paneTree],
+    [paneTree, hiddenPanes],
   );
   const scriptVisible = visibleSurfaces.some((s) => s.kind === "script");
 
@@ -255,6 +359,9 @@ export function useWorkspacePanes({
     return null;
   }, [paneTree, panes.focusedLeaf]);
 
+  /** A close the writer asked for took a pane with it (see the effect below). */
+  const closedByWriter = useRef(false);
+
   /**
    * Closing a tab. A material's buffer belongs to its tab, so this is where it
    * is released — but only when the LAST tab showing that sheet goes: the same
@@ -264,7 +371,9 @@ export function useWorkspacePanes({
    */
   const onCloseTab = useCallback(
     (leafId: string, index: number) => {
-      const surface = findLeaf(paneTree, leafId)?.tabs[index];
+      const leaf = findLeaf(paneTree, leafId);
+      const surface = leaf?.tabs[index];
+      closedByWriter.current = leaf?.tabs.length === 1;
       panes.close(leafId, index);
       if (surface?.kind !== "material") return;
       const stillOpen = leaves(paneTree).some((l) =>
@@ -277,6 +386,54 @@ export function useWorkspacePanes({
     },
     [paneTree, panes, root, binder, openMaterials, selectItem, view, setView, closeMaterial],
   );
+
+  /**
+   * Closing a whole pane, by View › Close Pane or a divider dragged across it:
+   * every tab in it, and every pane under it when it is a split. Each sheet's
+   * buffer goes with its last tab, as above.
+   */
+  const onClosePane = useCallback(
+    (nodeId: string, heirId?: string) => {
+      const node = findNode(paneTree, nodeId);
+      // The last pane is not closed: there is nothing to give its room to.
+      if (!node || node === paneTree) return;
+      const after = closeNode(paneTree, nodeId, heirId);
+      const kept = new Set((after ? allSurfaces(after) : []).map(surfaceKey));
+      const closed = allSurfaces(node);
+      closedByWriter.current = true;
+      panes.closePane(nodeId, heirId);
+      for (const surface of closed) {
+        if (surface.kind === "material" && !kept.has(surfaceKey(surface))) {
+          closeMaterial(surface.id);
+        }
+      }
+      const names = leaves(node)
+        .map((l) => l.tabs[l.active])
+        .filter(Boolean)
+        .map((surface) => labelForSurface(surface, binder, scriptTitle));
+      announce(`Closed ${names.join(", ")}.`);
+    },
+    [paneTree, panes, closeMaterial, binder, scriptTitle],
+  );
+
+  /** View › Close Pane: the focused pane, when it is one of several. */
+  const closeFocusedPane = useCallback(() => {
+    const id = panes.focusedLeaf ?? leaves(paneTree)[0]?.id;
+    if (id) onClosePane(id);
+  }, [panes.focusedLeaf, paneTree, onClosePane]);
+
+  /* A pane the writer closes can take the keyboard with it: its close box, a
+     field in it, the script. The keyboard then goes to the pane that has the
+     focus, where ⌃⇥ would land in the play, rather than to nothing. Only after
+     a close asked for here: a pane that goes because its document was moved to
+     the Trash leaves the keyboard to the binder that did it. */
+  useEffect(() => {
+    if (!closedByWriter.current) return;
+    closedByWriter.current = false;
+    const active = document.activeElement;
+    if (active && active !== document.body && active.isConnected) return;
+    playLanding()?.focus({ preventScroll: true });
+  }, [paneTree]);
 
   /** Clicking a binder row opens it in the focused pane. */
   const onSelectBinderItem = useCallback(
@@ -332,6 +489,8 @@ export function useWorkspacePanes({
     scriptScrollerRef,
     setScriptSlot,
     paneRootRef,
+    setPaneRoot,
+    hiddenPanes,
     scriptVisible,
     visibleSurfaces,
     labelFor,
@@ -340,6 +499,8 @@ export function useWorkspacePanes({
     onActivateTab,
     switcherView,
     onCloseTab,
+    onClosePane,
+    closeFocusedPane,
     onSelectBinderItem,
     onDropBinderItem,
     splitFocused,

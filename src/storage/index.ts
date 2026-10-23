@@ -52,7 +52,7 @@ export {
   DEFAULT_AUTOSAVE,
 } from "./autosave";
 export type { AutosaveOptions, TimerHost } from "./autosave";
-export { SnapshotPolicy } from "./version-policy";
+export { SnapshotPolicy, WritingVersions, type TakeVersion } from "./version-policy";
 export { RecoverySnapshots, RECOVERY_INTERVAL_MS } from "./recovery";
 export type { RecoveryIO, RecoveryScript, RecoveryTarget } from "./recovery";
 export {

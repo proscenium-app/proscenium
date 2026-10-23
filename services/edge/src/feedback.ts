@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { boundedBytes, json, response } from "./updates";
+import { boundedBytes, json, response, TRACK_VERSION, VERSION } from "./updates";
 export const FEEDBACK = "https://feedback.proscenium.ink";
 export const MAX_BODY = 1024 * 1024;
 export interface Message {
@@ -8,6 +8,12 @@ export interface Message {
   message: string;
   email?: string;
   details?: string;
+  /**
+   * The whole build version the message was sent from, when the copy says it
+   * (docs/engineering/services-and-feedback.md#SERV-273): a release's `X.Y.Z`,
+   * or a track build's `X.Y.Z-beta.N` or `X.Y.Z-alpha.N`.
+   */
+  version?: string;
 }
 export interface FeedbackEnv {
   DB: D1Database;
@@ -31,7 +37,7 @@ export function parseMessage(value: unknown): Message {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Invalid message.");
   const v = value as Record<string, unknown>;
-  if (Object.keys(v).some((k) => !["id", "message", "email", "details"].includes(k)))
+  if (Object.keys(v).some((k) => !["id", "message", "email", "details", "version"].includes(k)))
     throw new Error("Unexpected field.");
   if (
     typeof v.id !== "string" ||
@@ -49,11 +55,17 @@ export function parseMessage(value: unknown): Message {
     (typeof v.details !== "string" || new TextEncoder().encode(v.details).length > 65536)
   )
     throw new Error("Technical details are too long.");
+  if (
+    v.version !== undefined &&
+    (typeof v.version !== "string" || !(VERSION.test(v.version) || TRACK_VERSION.test(v.version)))
+  )
+    throw new Error("Invalid version.");
   return {
     id: v.id,
     message: v.message,
     ...(typeof v.email === "string" ? { email: v.email } : {}),
     ...(typeof v.details === "string" ? { details: v.details } : {}),
+    ...(typeof v.version === "string" ? { version: v.version } : {}),
   };
 }
 export async function feedback(
@@ -100,17 +112,18 @@ export async function feedback(
             : (error as Error).message,
       });
     }
-    const result =
-      await env.DB.prepare(`INSERT INTO feedback_messages (id, message, email, details, received_day)
-      VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
-        .bind(
-          message.id,
-          message.message,
-          message.email ?? null,
-          message.details ?? null,
-          deps.now().toISOString().slice(0, 10),
-        )
-        .run();
+    const result = await env.DB.prepare(`INSERT INTO feedback_messages
+      (id, message, email, details, received_day, version)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
+      .bind(
+        message.id,
+        message.message,
+        message.email ?? null,
+        message.details ?? null,
+        deps.now().toISOString().slice(0, 10),
+        message.version ?? null,
+      )
+      .run();
     if (!result.success) return response(503);
     return json(201, { id: message.id });
   } catch {

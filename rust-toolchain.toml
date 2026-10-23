@@ -8,9 +8,15 @@
 #
 # Both macOS targets, because every release is universal (release-engineering
 # §1): `tauri build --target universal-apple-darwin` needs the Intel slice's
-# standard library as well as this Mac's.
+# standard library as well as this Mac's. Both Windows targets, because every
+# Windows release is built for x64 and for Arm64 from the same commit.
 [toolchain]
 channel = "1.96.0"
 components = ["clippy", "rustfmt"]
-targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+targets = [
+  "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+]
 profile = "minimal"

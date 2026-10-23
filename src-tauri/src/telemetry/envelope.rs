@@ -31,7 +31,7 @@ pub fn encode(record: &CrashRecord) -> Option<Vec<u8>> {
         platform: if native { "native" } else { "javascript" }.into(),
         timestamp: midnight.into(),
         tags: [
-            ("app_platform".into(), "darwin".into()),
+            ("app_platform".into(), super::platform().into()),
             ("arch".into(), record.arch.clone()),
             ("os".into(), record.os.clone()),
         ]
@@ -65,7 +65,7 @@ mod tests {
                 colno: Some(234),
             }],
             "1.0.0",
-            "15.6.1",
+            crate::telemetry::example::SENT,
             "aarch64",
             chrono::DateTime::parse_from_rfc3339("2026-09-18T12:34:56Z")
                 .unwrap()
@@ -105,8 +105,12 @@ mod tests {
             item,
             serde_json::json!({"type":"event","length":lines[2].len()})
         );
-        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../services/edge/test/fixtures/crash.envelope");
+        // Each system's real envelope, which the Worker's tests read.
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(if cfg!(windows) {
+            "../services/edge/test/fixtures/crash.windows.envelope"
+        } else {
+            "../services/edge/test/fixtures/crash.envelope"
+        });
         assert_eq!(
             std::fs::read_to_string(fixture).unwrap(),
             text,

@@ -12,7 +12,7 @@ import { getSchema } from "@tiptap/core";
 import { EditorState } from "@tiptap/pm/state";
 import { fromEditorDoc, toEditorDoc } from "./bridge";
 import { DEFAULT_FIND_OPTIONS, findMatches, partitionForReplace } from "./find-core";
-import { searchBlocks } from "./find";
+import { searchBlocks, speakersInDoc } from "./find";
 import { playExtensions } from "./schema";
 import { parse, serialize, type Doc } from "../fountain";
 
@@ -70,5 +70,44 @@ describe("find: comments in a real document", () => {
     expect(noteMatches).toHaveLength(1);
     expect(replaceable).toHaveLength(1);
     expect(replaceAll(state, "id", "ID")).toContain("[[id:01J9ZS1AAAAAAAAAAAAAAAAAA1]]");
+  });
+});
+
+/** Who speaks is the cue's own text (docs/app/writing/comments.md#COMM-67). */
+describe("find: a cue with a comment on it", () => {
+  const NOTED = [
+    "@MARA[[Robin: rename Mara?]]",
+    "The water again.",
+    "",
+    "@JONAH (O.S.)[[Sam: louder]]",
+    "Is it water?",
+    "",
+  ].join("\n");
+
+  it("names the speaker without the comment's words", () => {
+    const state = stateOf(NOTED);
+    expect(speakersInDoc(state.doc)).toEqual(["JONAH", "MARA"]);
+    expect(searchBlocks(state.doc).map((b) => [b.type, b.speaker])).toEqual([
+      ["character", "MARA"],
+      ["dialogue", "MARA"],
+      ["character", "JONAH"],
+      ["dialogue", "JONAH"],
+    ]);
+  });
+
+  it("finds her speeches under her name, and the comment as a comment", () => {
+    const state = stateOf(NOTED);
+    const hers = findMatches(searchBlocks(state.doc), "water", {
+      ...DEFAULT_FIND_OPTIONS,
+      scope: { kind: "speaker", name: "MARA" },
+    });
+    expect(hers.map((m) => [m.blockType, m.speaker])).toEqual([["dialogue", "MARA"]]);
+    const named = findMatches(searchBlocks(state.doc), "mara", DEFAULT_FIND_OPTIONS);
+    expect(named.map((m) => [m.blockType, m.inNote])).toEqual([
+      ["character", false],
+      ["character", true],
+    ]);
+    // Neither is replaced: one is a rename, the other a comment.
+    expect(replaceAll(state, "mara", "EDDA")).toBe(NOTED);
   });
 });

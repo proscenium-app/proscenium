@@ -24,7 +24,18 @@
  * Playwright.
  */
 import axe from "axe-core";
-import { AUDIT_TAGS, recordAudit, runAxe, selected, smokeChecks } from "../smoke-checks.mjs";
+import {
+  AUDIT_TAGS,
+  INIT_SCRIPTS,
+  SETTLE_TIMEOUT_MS,
+  actsOf,
+  pageSettles,
+  recordAudit,
+  runAxe,
+  smokeChecks,
+  startOf,
+} from "../smoke-checks.mjs";
+import { installFixture } from "./fixture.mjs";
 import {
   SurfaceNames,
   firstDifference,
@@ -44,6 +55,23 @@ try {
 } catch {
   /* storage may be unavailable; the checks will report the state */
 }
+
+// The in-memory vault's hooks, answered by the real vault (fixture.mjs), from
+// this new page's first moment, before the app's own scripts run.
+installFixture(true);
+
+// The init scripts a check of this act asked for (page.addInitScript), by
+// name, kept for the act's pages: each runs here, as the page begins, before
+// the app's own scripts, as Playwright's do.
+const INIT_KEY = "selftest:init";
+const initScripts = () => {
+  try {
+    return JSON.parse(sessionStorage.getItem(INIT_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+};
+for (const name of initScripts()) INIT_SCRIPTS[name]?.();
 
 const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -437,7 +465,12 @@ class Locator {
     );
   }
 
-  async click() {
+  /** Playwright's dblclick: the same checks as a click, then two presses. */
+  async dblclick() {
+    return this.click({ clickCount: 2 });
+  }
+
+  async click({ clickCount = 1 } = {}) {
     // Stable for two frames, enabled, and the element itself is what a click
     // at its centre would hit — the checks Playwright makes before it clicks.
     // A click on a disabled button reaches the page as pointerdown and
@@ -477,7 +510,7 @@ class Locator {
         last = { x, y };
         if (steady && !isDisabled(el)) {
           if (hit && (hit === el || el.contains(hit))) {
-            await nativeClick(x, y);
+            await nativeClick(x, y, clickCount);
             return;
           }
           // Still, enabled, and something else is on top of it — a sticky bar
@@ -753,9 +786,9 @@ function clickSeen(timeout = 1500) {
   });
 }
 
-async function nativeClick(x, y) {
+async function nativeClick(x, y, clicks = 1) {
   const seen = clickSeen();
-  await invoke("selftest_click", { x, y });
+  await invoke("selftest_click", { x, y, clicks });
   if (!(await seen)) {
     const hit = document.elementFromPoint(x, y);
     const facts = await invoke("selftest_input_facts").catch(() => ({}));
@@ -827,6 +860,16 @@ const page = {
   },
   mouse: { click: nativeClick },
   evaluate: async (fn, arg) => fn(arg),
+  /**
+   * Playwright's init script, for the pages after this one: a function from
+   * smoke-checks.mjs's INIT_SCRIPTS, whose name is kept for the act's pages,
+   * since a check's own function cannot reach the next page.
+   */
+  async addInitScript(fn) {
+    const name = Object.keys(INIT_SCRIPTS).find((key) => INIT_SCRIPTS[key] === fn);
+    if (!name) throw new Error("an init script is one of smoke-checks.mjs's INIT_SCRIPTS");
+    sessionStorage.setItem(INIT_KEY, JSON.stringify([...new Set([...initScripts(), name])]));
+  },
   waitForTimeout: sleep,
   /**
    * A reload replaces the page this harness runs in, so it ends the check that
@@ -838,6 +881,7 @@ const page = {
     const failed = audits.findings.length
       ? `accessibility:\n        ${audits.findings.join("\n        ")}`
       : null;
+    // A quiet start's check (none reloads) is never reported.
     await report(running.check, failed);
     await invoke("selftest_reload", {
       resumeAt: running.index + 1,
@@ -854,23 +898,46 @@ const page = {
 const audits = { findings: [], advisories: new Map() };
 window.axe = axe;
 
-/** The check in progress, for a reload that has to report it. */
-const running = { index: 0, check: null, started: 0, scheme: "" };
+/** The check in progress, for a reload that has to report it: its act, and which attempt of it. */
+const running = { index: 0, check: null, started: 0, scheme: "", act: "", attempt: 1 };
 
 const advisoryObject = () =>
   Object.fromEntries(
     [...audits.advisories].map(([id, a]) => [id, { help: a.help, surfaces: [...a.surfaces] }]),
   );
 
+/**
+ * The checks that install an update, which a store copy cannot: it has no
+ * updater, since the store updates it (the sandboxed build,
+ * docs/engineering/release-engineering.md#REL-56). Reported as skipped there,
+ * by name: a check renamed here runs, and fails, which says to rename it.
+ * A store copy's own Updates pane is checked in every build
+ * ("settings · a store copy offers no update controls").
+ */
+const NEEDS_UPDATER = new Set([
+  "an installing update holds edits and a failure releases them",
+  "settings · updates",
+  "settings · updates, alpha's key",
+]);
+
 async function report(check, error, skipped = null) {
   const ms = Math.round(performance.now() - running.started);
-  const shot = `${running.scheme}-${check.name.replace(/[^a-z0-9]+/gi, "-")}`;
+  const shot = `${running.scheme}-${running.act.replace(/[^a-z0-9]+/gi, "-")}-${running.attempt}-${check.name.replace(/[^a-z0-9]+/gi, "-")}`;
   if (!skipped) {
     await invoke("selftest_capture", { name: shot }).catch((e) => log(`capture failed: ${e}`));
   }
+  const where = { act: running.act, attempt: running.attempt };
   const result = skipped
-    ? { scheme: running.scheme, name: check.name, ok: true, ms, error: null, skipped }
-    : { scheme: running.scheme, name: check.name, ok: !error, ms, error, screenshot: shot };
+    ? { scheme: running.scheme, name: check.name, ok: true, ms, error: null, skipped, ...where }
+    : {
+        scheme: running.scheme,
+        name: check.name,
+        ok: !error,
+        ms,
+        error,
+        screenshot: shot,
+        ...where,
+      };
   await invoke("selftest_check", { result }).catch(() => {});
   const status = skipped ? "skip" : error ? "FAIL" : "ok  ";
   log(
@@ -893,8 +960,74 @@ async function parkPointer() {
   await frame();
 }
 
+/**
+ * The audit gate, as far as WebKit's own tree allows: before axe reads the page
+ * and its tree is held, the page has settled. Its fonts are loaded and no
+ * animation that will end is still running (pageSettles, which lets one that
+ * never ends, a spinner, run on: runAxe holds it at its end while axe reads).
+ * Then two readings of the page the same: smoke reads Playwright's tree twice,
+ * but WebKit's tree comes through the Web Inspector, a second or two a reading
+ * and far longer after a relaunch, and two at every audit would add minutes to
+ * a pass. So the two readings are of what that tree is made from, a frame
+ * apart: no node, attribute or text of the document changed, and the focus
+ * where it was. The one reading of WebKit's tree after axe is then held, and
+ * read again until it matches if it does not (holdText). Whatever never
+ * settled is said as a finding of the check, and the audit goes on.
+ */
+async function settled(surface) {
+  const timeout = SETTLE_TIMEOUT_MS;
+  const deadline = performance.now() + timeout;
+  try {
+    await pageSettles(timeout);
+    for (;;) {
+      const records = [];
+      const watch = new MutationObserver((batch) => records.push(...batch));
+      watch.observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeOldValue: true,
+        characterData: true,
+        characterDataOldValue: true,
+      });
+      const focus = document.activeElement;
+      await frame();
+      await frame();
+      watch.disconnect();
+      // A write that leaves a value as it was is no change: the tutorial's guide
+      // card places itself every frame, its side and position written each time
+      // whether they moved or not. A value that went and came back still shows,
+      // in the record whose old value is not the one that stands.
+      const changed = records.filter((r) =>
+        r.type === "attributes"
+          ? r.oldValue !== r.target.getAttribute(r.attributeName)
+          : r.type === "characterData"
+            ? r.oldValue !== r.target.data
+            : true,
+      );
+      if (!changed.length && document.activeElement === focus) return;
+      if (performance.now() > deadline) {
+        const what = changed
+          .slice(0, 4)
+          .map((r) => {
+            const on = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+            return `${r.type}${r.attributeName ? ` ${r.attributeName}` : ""} on <${on?.localName} class="${on?.className ?? ""}">`;
+          })
+          .join(", ");
+        throw new Error(
+          `the page still changing after ${timeout}ms: ${what || "the focus moving"}`,
+        );
+      }
+      await pageSettles(Math.max(1, deadline - performance.now()));
+    }
+  } catch (e) {
+    audits.findings.push(`${surface} · the page never settled for its audit: ${e?.message ?? e}`);
+  }
+}
+
 async function audit(_page, surface) {
   await parkPointer();
+  await settled(surface);
   recordAudit(await runAxe(AUDIT_TAGS), surface, audits);
   await holdTree(surface);
 }
@@ -928,8 +1061,15 @@ async function webkitTree(selector) {
  * The tree is kept with the run's evidence either way, so a changed surface
  * is accepted by copying it (scripts/aria-accept.mjs). The names count within a
  * pass, across a check's reload, so a surface audited twice has two files.
+ *
+ * A surface with no tree yet, and one the batch declared changed (its commit's
+ * `ARIA:` trailer, which rewrote the surface's snapshot beside it), is
+ * recorded on first read, not held: its new tree is in the evidence to accept,
+ * and no run is red for a change a commit said it made.
  */
 const surfaceNames = new SurfaceNames(() => sessionStorage, "selftest:aria-names");
+/** The surfaces the batch declared changed (the run's `--aria`). */
+let declaredAria = [];
 async function holdTree(surface) {
   const take = async () => forSurface(await webkitTree("body"));
   let tree;
@@ -956,6 +1096,13 @@ async function hold(_page, name, text) {
 async function holdText(surface, tree, retake) {
   const name = surfaceNames.next(surface);
   let expected = await invoke("selftest_aria", { name, text: tree, scheme: running.scheme });
+  const declared = declaredAria.some((d) => d === name || d === name.replace(/--\d+$/, ""));
+  if (declared || expected == null) {
+    log(
+      `recorded on first read: ${name} (${running.scheme}), ${declared ? "declared changed" : "no tree yet"}`,
+    );
+    return;
+  }
   // Still settling: read again until it matches or the settle time is up, and
   // keep the last reading as the evidence.
   if (expected != null && retake) {
@@ -970,7 +1117,7 @@ async function holdText(surface, tree, retake) {
   }
   if (expected == null) {
     audits.findings.push(
-      `accessibility tree of ${surface}: no expectation in scripts/aria/native/${name}.yml (WebKit's tree is in the run's evidence, aria/${name}.yml)`,
+      `accessibility tree of ${surface}: scripts/aria/native/${name}.yml went while it was read`,
     );
   } else if (normalizeTree(expected) !== tree) {
     audits.findings.push(
@@ -1000,13 +1147,12 @@ async function visibleOrFail() {
 async function main() {
   const ctx = await invoke("selftest_context");
   const scheme = ctx.pass;
-  /** The features a narrowed pass keeps (smoke-checks.mjs `selected`). */
-  const features = (ctx.features ?? "").split(/[,\s]+/).filter(Boolean);
+  declaredAria = ctx.aria ?? [];
   log(`pass ${ctx.index + 1}/${ctx.total} (${scheme}) — ${navigator.userAgent}`);
-  if (features.length)
-    log(`narrowed to ${features.join(", ")}: the other detachable features' checks are left out`);
+  // Whether WebKit draws is measured once a pass, at its first act: a second
+  // of frames at every act's launch was half a minute a pass.
   const drawing = {
-    framesPerSecond: await frameRate(),
+    framesPerSecond: ctx.act === 0 && ctx.attempt !== 2 && !ctx.resumeAt ? await frameRate() : null,
     visibility: document.visibilityState,
     hasFocus: document.hasFocus(),
   };
@@ -1022,26 +1168,34 @@ async function main() {
     log("deliberate break: .editor-frame { flex: initial }");
   }
 
-  const checks = smokeChecks({ audit, hold });
+  // One act per page load: its start, quietly, then its checks, so an act
+  // owes nothing to the act before it. The app reset itself to a fresh
+  // first launch before this page loaded, as it does between passes.
+  const act = actsOf(smokeChecks({ audit, hold }), [ctx.acts[ctx.act]])[0];
+  const start = startOf(act, smokeChecks({ audit: async () => {}, hold: async () => {} }));
+  const checks = [
+    ...start.map((check) => ({ check, quiet: true })),
+    ...act.checks.map((check) => ({ check, quiet: false })),
+  ];
+  Object.assign(running, { act: act.name, attempt: ctx.attempt ?? 1 });
+  log(
+    `act ${ctx.act + 1}/${ctx.acts.length}: ${act.name}${running.attempt > 1 ? ", its second try" : ""}`,
+  );
   // Set when the Mac stops being the self-test's — the screen locked or the
   // window hidden ("hidden"), or the keyboard taken ("keyboard"). No later check
   // could mean anything then, and the run proves nothing either way.
   let interrupted = null;
-  if (ctx.resumeAt) log(`resuming at "${checks[ctx.resumeAt]?.name}" after a reload`);
+  let failed = false;
+  if (ctx.resumeAt) log(`resuming at "${checks[ctx.resumeAt]?.check.name}" after a reload`);
   for (let index = ctx.resumeAt ?? 0; index < checks.length; index++) {
-    const check = checks[index];
+    const { check, quiet } = checks[index];
     Object.assign(running, { index, check, started: performance.now(), scheme });
-    if (ctx.only && !check.name.includes(ctx.only)) {
+    if (!quiet && ctx.only && !check.name.includes(ctx.only)) {
       await report(check, null, "not selected (--only)");
       continue;
     }
-    if (!selected(check, features)) {
-      await report(check, null, "not in this run's features");
-      continue;
-    }
-    // A check that drives the dev-mock's hooks has nothing to drive here.
-    if (check.devMock) {
-      await report(check, null, "dev-mock only");
+    if (!quiet && ctx.store && NEEDS_UPDATER.has(check.name)) {
+      await report(check, null, "a store copy has no updater: the store updates it");
       continue;
     }
     audits.findings.length = 0;
@@ -1054,8 +1208,14 @@ async function main() {
       // does). Inside the try, because these are keys too: a keyboard taken
       // here fails this check with the reason, rather than the whole harness.
       for (let i = 0; i < 4 && document.querySelector(".menu, .sheet, .alert"); i++) {
+        const open = document.querySelectorAll(".menu, .sheet, .alert").length;
         await page.keyboard.press("Escape");
-        await sleep(120);
+        // One layer fewer, or, where the key closed nothing, on to the next press.
+        await until(
+          "a layer to close",
+          () => document.querySelectorAll(".menu, .sheet, .alert").length < open,
+          1000,
+        ).catch(() => {});
       }
       await visibleOrFail();
       await check.run(page);
@@ -1066,24 +1226,46 @@ async function main() {
       if (e instanceof NotVisibleError) interrupted = "hidden";
       if (e instanceof NoKeyboardError) interrupted = "keyboard";
     }
+    // A start that fails is the act's failure, said as the act's. One that
+    // passes is said too, without a picture or a line: a check that failed
+    // there in a first try and passes in the second is a flake, as in smoke.
+    if (quiet) {
+      if (!error) {
+        const ms = Math.round(performance.now() - running.started);
+        const where = { act: running.act, attempt: running.attempt };
+        const result = {
+          scheme,
+          name: check.name,
+          ok: true,
+          ms,
+          error: null,
+          start: true,
+          ...where,
+        };
+        await invoke("selftest_check", { result }).catch(() => {});
+        continue;
+      }
+      error = `the act's start failed at "${check.name}": ${error.split("\n")[0]}`;
+    }
     await report(check, error);
+    if (error) failed = true;
     // A deliberate break has made its point at the first failure; every check
     // after it would only wait out its timeout on a layout that is not there.
-    if (error && (ctx.break || interrupted)) break;
+    if (error && (ctx.break || interrupted || quiet)) break;
   }
 
-  await invoke("selftest_done", {
-    result: {
-      stop: !!ctx.break || !!interrupted,
-      interrupted,
-      scheme,
-      // Whether WebKit was drawing: at the pass's start, and every wait for a frame since.
-      drawing: { ...drawing, framesWaited: { ...frames } },
-      userAgent: navigator.userAgent,
-      console: [...consoleErrors],
-      advisories: advisoryObject(),
-    },
-  });
+  const result = {
+    failed,
+    stop: !!ctx.break || !!interrupted,
+    interrupted,
+    scheme,
+    // Whether WebKit was drawing: at the pass's start, and every wait for a frame since.
+    drawing: { ...drawing, framesWaited: { ...frames } },
+    userAgent: navigator.userAgent,
+    console: [...consoleErrors],
+    advisories: advisoryObject(),
+  };
+  await invoke("selftest_act_done", { result });
 }
 
 if (window.top === window && !window.__prosceniumSelftestStarted) {

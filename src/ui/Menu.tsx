@@ -36,6 +36,7 @@ import {
 import { createPortal } from "react-dom";
 import { CheckIcon, ChevronRightIcon } from "./Icons";
 import { registerLayer, useFocusReturn, useLayer } from "./layers";
+import { keys } from "./keys";
 import { portalHost } from "./portal-host";
 
 let caretPopupId = 0;
@@ -518,7 +519,8 @@ export function Menu({
           : "menuitemcheckbox";
     // The shortcut stays in the row's name: VoiceOver reads a native
     // menu row as "All Plays, command shift O", and so does this one.
-    const trail = a.submenu ? undefined : (a.shortcut ?? a.hint);
+    // A shortcut is written as this system writes it (keys.ts).
+    const trail = a.submenu ? undefined : a.shortcut !== undefined ? keys(a.shortcut) : a.hint;
     return (
       <button
         key={a.id ?? i}

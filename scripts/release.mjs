@@ -17,9 +17,24 @@
  *                                             first-parent commits on main, so N only rises
  *   node scripts/release.mjs --track beta     a beta, X.Y.Z-beta.N, from the vX.Y.Z-beta.N tag at HEAD
  *   --publish on a track                      …then publish it to that track, in R2
+ *   --private on a track                      a private run's build: made, notarized and checked
+ *                                             from any branch, never published
+ *   --apple-limit 15m                         how long to wait for Apple on a track build; past it
+ *                                             the build waits on Apple instead of the run
+ *   --pickup                                  publish the alphas that were waiting on Apple and
+ *                                             that Apple has since accepted, by their ids
  *   --base-url <url>                          where latest.json says the archive is (default: the
  *                                             GitHub release the updater endpoint names, or the
  *                                             track's own download route)
+ *
+ * **A track build asks Apple once:** the app is signed and put in its DMG,
+ * and the DMG is notarized, which notarizes the app inside it; then both are
+ * stapled. A release still notarizes the app and the DMG apart. With
+ * `--apple-limit`, a submission Apple has not answered in that time is not
+ * waited on: the build's files are kept on the build host with the
+ * submission's id (its operations state, `ops/notary.json`), the step ends
+ * "waiting on Apple", and a later run's `--pickup` asks Apple about that same
+ * submission and publishes it once accepted. Nothing is ever submitted twice.
  *
  * **One script, three places.** It runs here, on the build host and in any
  * GitHub Actions job. Only the source of the signing material differs:
@@ -62,8 +77,9 @@
  * entitlements and profile staged in .release/.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash, X509Certificate } from "node:crypto";
+import { createHash } from "node:crypto";
 import {
+  appendFileSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -73,9 +89,10 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { holdHostBench } from "./host-bench.mjs";
 import {
   KEYCHAIN,
   PROFILE,
@@ -83,20 +100,40 @@ import {
   load,
   minisignKeyId,
   p12Leaf,
+  pemFingerprints,
   readProfile,
 } from "./release-keychain.mjs";
 import { assertProfileAuthorizes, requiredEntitlements } from "./release-profile.mjs";
-import { fetchRoll, underwritten } from "./patrons.mjs";
+import { bakedText, fetchRoll, underwritten } from "./patrons.mjs";
+import { inPassing, wranglerSaid } from "./wrangler-said.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const PUBLISH = args.includes("--publish");
 const REHEARSE = args.includes("--rehearse");
+/** A private run's track build: from any branch, notarized and checked, never published. */
+const PRIVATE = args.includes("--private");
+const PICKUP = args.includes("--pickup");
+/**
+ * A stand-in's build: the whole of a release, where no writer can reach it. Its
+ * tags are under `stand-in/` in this repository, its files under `stand-in/`
+ * in the tracks' bucket, and a stable's draft is made and published here, on
+ * this repository, never on the public one.
+ */
+const STAND_IN = args.includes("--stand-in");
+const TAG_PREFIX = STAND_IN ? "stand-in/" : "";
+const KEY_PREFIX = STAND_IN ? "stand-in/" : "";
 const IN_CI = process.env.GITHUB_ACTIONS === "true";
 const opt = (name) => {
   const i = args.indexOf(name);
   return i >= 0 ? args[i + 1] : undefined;
 };
+/**
+ * `--draft <folder>`: draft a release that is already built, from the seven
+ * files its build job kept, and build nothing. The tag's test and build are one
+ * job on the runner; drafting, which only talks to GitHub, is the next.
+ */
+const DRAFT_FROM = opt("--draft") ?? null;
 
 /** The Actions secrets are read only in a job that names no keychain of its own. */
 const FROM_SECRETS = IN_CI && !KEYCHAIN;
@@ -105,6 +142,21 @@ if (TRACK !== null && !["alpha", "beta"].includes(TRACK)) {
   console.error(`release: --track is alpha or beta, not ${TRACK}`);
   process.exit(1);
 }
+if (PRIVATE && (PUBLISH || !TRACK)) {
+  console.error("release: --private is a track build that is never published");
+  process.exit(1);
+}
+/** How long a track build waits for Apple, in seconds; none, for as long as Apple takes. */
+const APPLE_LIMIT = (() => {
+  const said = opt("--apple-limit");
+  if (!said) return null;
+  const m = /^(\d+)(s|m|h)$/.exec(said);
+  if (!m) {
+    console.error(`release: --apple-limit is a duration like 15m, not ${said}`);
+    process.exit(1);
+  }
+  return Number(m[1]) * { s: 1, m: 60, h: 3600 }[m[2]];
+})();
 
 /** What is built: every Mac for a release, Apple silicon alone for a track. */
 const RUST_TARGET = TRACK ? "aarch64-apple-darwin" : "universal-apple-darwin";
@@ -113,12 +165,19 @@ const SLICE = TRACK ? "aarch64" : "universal";
 const TARGET = join(ROOT, `src-tauri/target/${RUST_TARGET}/release/bundle`);
 const STAGE = join(ROOT, ".release");
 const conf = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
-/** The release this build is, or is a pre-release of: the release supersedes its pre-releases by semver. */
+/**
+ * The release this build is, or is a pre-release of: the release supersedes
+ * its pre-releases by semver. A beta is of the release whose line it is on
+ * (`version.mjs lineof`: the files' version, its changelog section not yet
+ * dated); an alpha, of the next release.
+ */
+const versionOf = (verb) =>
+  execFileSync(process.execPath, ["scripts/version.mjs", verb], {
+    cwd: ROOT,
+    encoding: "utf8",
+  }).trim();
 const BASE = TRACK
-  ? execFileSync(process.execPath, ["scripts/version.mjs", "next"], {
-      cwd: ROOT,
-      encoding: "utf8",
-    }).trim()
+  ? (TRACK === "beta" ? versionOf("lineof") : "") || versionOf("next")
   : JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 /** The whole version: X.Y.Z, or on a track X.Y.Z-alpha.N or X.Y.Z-beta.N. */
 const version = TRACK ? `${BASE}-${TRACK}.${trackNumber()}` : BASE;
@@ -147,17 +206,19 @@ function trackNumber() {
     encoding: "utf8",
   }).split("\n");
   const betas = tags
-    .map((t) => t.trim().match(/^v(\d+\.\d+\.\d+)-beta\.(0|[1-9]\d*)$/))
+    .map((t) => t.trim())
+    .filter((t) => t.startsWith(TAG_PREFIX))
+    .map((t) => t.slice(TAG_PREFIX.length).match(/^v(\d+\.\d+\.\d+)-beta\.(0|[1-9]\d*)$/))
     .filter(Boolean);
   if (betas.length !== 1) {
     console.error(
-      `release: a beta is built from one vX.Y.Z-beta.N tag at HEAD; found ${betas.length}`,
+      `release: a beta is built from one ${TAG_PREFIX}vX.Y.Z-beta.N tag at HEAD; found ${betas.length}`,
     );
     process.exit(1);
   }
   if (betas[0][1] !== BASE) {
     console.error(
-      `release: the tag names ${betas[0][1]}, but the next release is ${BASE} (CHANGELOG.md's Unreleased)`,
+      `release: the tag names ${betas[0][1]}, but this is the line of ${BASE} (CHANGELOG.md, \`version.mjs lineof\`)`,
     );
     process.exit(1);
   }
@@ -165,6 +226,17 @@ function trackNumber() {
 }
 
 let temp = null;
+
+/**
+ * This run's one folder in the OS temp folder, made when first asked for.
+ * What the run keeps there until its end goes inside it, and cleanup()
+ * removes it when the run ends, pass or fail: a folder made there under a
+ * name of its own is one nothing ever removes.
+ */
+function scratch() {
+  temp ??= mkdtempSync(join(tmpdir(), "proscenium-release-"));
+  return temp;
+}
 
 function step(what) {
   console.log(`\nrelease: ${what}`);
@@ -185,8 +257,18 @@ function capture(command, commandArgs, options = {}) {
   return execFileSync(command, commandArgs, { cwd: ROOT, encoding: "utf8", ...options }).trim();
 }
 
-/** `https://github.com/<owner>/<repo>`, from the updater endpoint: one source for both. */
+/**
+ * `<owner>/<repo>`, from the updater endpoint: one source for both. A
+ * stand-in's is this repository, where its draft is made and published.
+ */
 function repository() {
+  if (STAND_IN) {
+    const here =
+      process.env.GITHUB_REPOSITORY ||
+      capture("gh", ["repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]);
+    if (!/^[\w.-]+\/[\w.-]+$/.test(here)) fail(`cannot tell which repository this is (${here})`);
+    return here;
+  }
   const endpoint =
     conf.plugins?.updater?.endpoints?.find((url) => url.startsWith("https://github.com/")) ?? "";
   const m = endpoint.match(
@@ -215,7 +297,9 @@ function publishedTree(repo) {
     });
     return r.status === 0 ? r.stdout.trim() : null;
   };
-  const ref = gh(`repos/${repo}/git/ref/tags/v${version}`, '.object.type + " " + .object.sha');
+  // A stand-in's sync is a branch and a tag of this repository (`stand-in/public/vX.Y.Z`).
+  const tag = STAND_IN ? `stand-in/public/v${version}` : `v${version}`;
+  const ref = gh(`repos/${repo}/git/ref/tags/${tag}`, '.object.type + " " + .object.sha');
   if (!ref) return null;
   let [type, sha] = ref.split(" ");
   if (type === "tag") sha = gh(`repos/${repo}/git/tags/${sha}`, ".object.sha");
@@ -257,8 +341,8 @@ function preflight() {
   const dirty = capture("git", ["status", "--porcelain"]);
   if (dirty && !REHEARSE)
     fail("the working tree has uncommitted changes — a release is built from a commit");
-  const ref = TRACK === "alpha" ? "main" : `v${version}`;
-  if (IN_CI && process.env.GITHUB_REF_NAME !== ref) {
+  const ref = TRACK === "alpha" ? "main" : `${TAG_PREFIX}v${version}`;
+  if (IN_CI && !PRIVATE && process.env.GITHUB_REF_NAME !== ref) {
     fail(
       `this run is for ${process.env.GITHUB_REF_NAME}, but ${version} is built from ${ref}${TRACK ? "" : " — run `bun run version` and tag that commit"}`,
     );
@@ -286,13 +370,20 @@ function preflight() {
     }
     const tree = publishedTree(repo);
     if (!tree)
-      fail(`there is no tag v${version} on ${repo}: push the release commit and its tag first`);
+      fail(
+        `there is no tag ${STAND_IN ? "stand-in/public/" : ""}v${version} on ${repo}: sync the release commit and its tag first`,
+      );
     // The public repository holds this commit's public tree, which leaves out
     // the development repository's private folders, so that is the tree its
     // tag must name. A checkout without the exporter is the public tree itself.
     const exporter = join(ROOT, "scripts/public-tree.mjs");
     const expected = existsSync(exporter)
-      ? capture(process.execPath, [exporter, "--tree-sha", "HEAD"])
+      ? capture(process.execPath, [
+          exporter,
+          "--tree-sha",
+          "HEAD",
+          ...(STAND_IN ? ["--stand-in"] : []),
+        ])
       : capture("git", ["rev-parse", "HEAD^{tree}"]);
     if (tree !== expected) {
       fail(
@@ -316,7 +407,7 @@ function signingMaterial() {
       ? "a throwaway update key"
       : `signing material from ${FROM_SECRETS ? "Actions secrets" : KEYCHAIN ? KEYCHAIN : "this Mac's keychain"}`,
   );
-  temp = mkdtempSync(join(tmpdir(), "proscenium-release-"));
+  scratch();
 
   if (REHEARSE) {
     const key = join(temp, "rehearsal.key");
@@ -406,10 +497,11 @@ function signingMaterial() {
       // A Keychain Access export is legacy PKCS#12; p12Leaf reads both kinds.
       const pem = p12Leaf(p12, process.env.APPLE_CERTIFICATE_PASSWORD);
       if (!pem) fail("could not read the CI signing certificate");
-      certificate = createHash("sha1")
-        .update(new X509Certificate(pem).raw)
-        .digest("hex")
-        .toUpperCase();
+      // The P12 holds every identity of the login keychain it was exported
+      // from, the Mac App Store's too: the one that signs is the one the
+      // profile names.
+      const leaves = pemFingerprints(pem);
+      certificate = leaves.find((f) => info.certificates.includes(f)) ?? leaves[0];
     } finally {
       rmSync(p12, { force: true });
     }
@@ -450,9 +542,12 @@ function signingMaterial() {
             APPLE_CERTIFICATE_PASSWORD: process.env.APPLE_CERTIFICATE_PASSWORD,
           }
         : {}),
-      APPLE_API_KEY: keyId,
-      APPLE_API_ISSUER: issuer,
-      APPLE_API_KEY_PATH: p8Path,
+      // A release has the bundler notarize the app, and then the DMG apart.
+      // A track build notarizes the DMG alone, which covers the app in it, so
+      // the bundler is not given the key.
+      ...(TRACK
+        ? {}
+        : { APPLE_API_KEY: keyId, APPLE_API_ISSUER: issuer, APPLE_API_KEY_PATH: p8Path }),
       TAURI_SIGNING_PRIVATE_KEY: updaterKey,
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "",
       PROSCENIUM_REPORTS: "1",
@@ -480,7 +575,8 @@ async function program(plan) {
     console.warn(`  WARNING: no sponsors' roll (${e.message}); this build carries the empty one`);
     return;
   }
-  const file = join(mkdtempSync(join(tmpdir(), "proscenium-program-")), "roll.json");
+  // The build reads it long after this step, so it stays until the run is over.
+  const file = join(scratch(), "roll.json");
   writeFileSync(file, JSON.stringify(roll));
   process.env.PROSCENIUM_PATRONS_FILE = file;
   const line = underwritten(roll);
@@ -524,7 +620,11 @@ function build(material) {
     ),
   );
   // CI=true skips the AppleScript that arranges the DMG window, which would open
-  // Finder windows over whatever this Mac's owner is doing.
+  // Finder windows over whatever this Mac's owner is doing. It costs one empty
+  // file in the temp folder a build: the bundler's DMG script makes that
+  // AppleScript's file first (`mktemp -t createdmg.tmp.…`) and removes it only
+  // after running it. `TMPDIR` cannot move it: macOS's `mktemp -t` asks the
+  // system for the user's temp folder and reads `TMPDIR` only without one.
   Object.assign(env, material.env, { CI: "true" });
   step(`tauri ${tauriArgs.join(" ")}`);
   searchable(() => run(join(ROOT, "node_modules/.bin/tauri"), tauriArgs, { env }));
@@ -596,6 +696,8 @@ function checkApp() {
     APP,
     TRACK ? "--arm64" : "--universal",
     "--release",
+    // Every build its privacy answers describe sends reports; a rehearsal none.
+    ...(REHEARSE ? [] : ["--reports"]),
     "--version",
     BASE,
   ]);
@@ -656,13 +758,75 @@ function checkApp() {
     team,
     certificate,
   });
+  // A track build is notarized by its DMG's submission, after this.
+  if (TRACK) return;
   step("the app: notarized and stapled");
   run("xcrun", ["stapler", "validate", APP]);
   notarizedBy("execute", APP);
 }
 
+/**
+ * A track build's one notarization: the DMG, which covers the app inside it.
+ * Returns `{ accepted: true }` once Apple accepts and both are
+ * stapled, or `{ accepted: false, id }` when Apple has not answered within
+ * `--apple-limit`: the submission goes on at Apple, and is never sent again.
+ */
+function notarizeTrack(material, dmg) {
+  step(
+    `the DMG, and the app in it: one notarization${APPLE_LIMIT ? `, waited on for ${APPLE_LIMIT / 60} minutes at most` : ""}`,
+  );
+  const submitted = spawnSync(
+    "xcrun",
+    ["notarytool", "submit", dmg, ...material.notary, "--no-wait", "--output-format", "json"],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  const id = /"id"\s*:\s*"([0-9a-f-]{36})"/.exec(submitted.stdout ?? "")?.[1];
+  if (submitted.status !== 0 || !id)
+    fail(
+      `notarytool could not submit the DMG: ${(submitted.stderr || submitted.stdout).trim().split("\n").pop()}`,
+    );
+  console.log(`  submission ${id}`);
+  const waited = spawnSync(
+    "xcrun",
+    [
+      "notarytool",
+      "wait",
+      id,
+      ...material.notary,
+      "--output-format",
+      "json",
+      ...(APPLE_LIMIT ? ["--timeout", `${APPLE_LIMIT}s`] : []),
+    ],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  const status = /"status"\s*:\s*"([^"]+)"/.exec(waited.stdout ?? "")?.[1] ?? null;
+  if (status === "Accepted") {
+    stapleTrack(dmg, APP);
+    return { accepted: true, id };
+  }
+  if (status === "Invalid" || status === "Rejected")
+    fail(
+      `Apple did not accept the DMG (${status}); \`node scripts/release-keychain.mjs log ${id}\` shows why`,
+    );
+  // Still at Apple: the limit ran out, or notarytool gave up waiting.
+  console.log(
+    `  Apple has not answered (${status ?? (waited.stderr || waited.stdout).trim().split("\n").pop()}): the build waits on Apple, and the run does not`,
+  );
+  return { accepted: false, id, status: status ?? "no answer" };
+}
+
+/** Both stapled, and Gatekeeper's word on each. */
+function stapleTrack(dmg, app) {
+  run("xcrun", ["stapler", "staple", dmg]);
+  run("xcrun", ["stapler", "validate", dmg]);
+  notarizedBy("open", dmg, ["--context", "context:primary-signature"]);
+  run("xcrun", ["stapler", "staple", app]);
+  run("xcrun", ["stapler", "validate", app]);
+  notarizedBy("execute", app);
+}
+
 function checkDmg(material, dmg) {
-  if (!REHEARSE) {
+  if (!REHEARSE && !TRACK) {
     step("the DMG: notarized and stapled (tauri notarizes only the app)");
     run("xcrun", ["notarytool", "submit", dmg, ...material.notary, "--wait"]);
     run("xcrun", ["stapler", "staple", dmg]);
@@ -681,7 +845,12 @@ function checkDmg(material, dmg) {
     if (sha256(join(inside, exe)) !== sha256(join(APP, exe)))
       fail("the DMG's app is not the app that was checked");
     if (!existsSync(join(mount, "Applications"))) fail("the DMG has no Applications shortcut");
-    if (!REHEARSE) run("xcrun", ["stapler", "validate", inside]);
+    // A track's DMG holds the app as it was submitted: notarized, by the
+    // DMG's ticket, and stapled outside it.
+    if (!REHEARSE) {
+      if (TRACK) notarizedBy("execute", inside);
+      else run("xcrun", ["stapler", "validate", inside]);
+    }
   } finally {
     spawnSync("hdiutil", ["detach", mount, "-quiet"], { stdio: "ignore" });
   }
@@ -714,7 +883,12 @@ function checkArchive(pubkey) {
   if (sha256(join(inside, exe)) !== sha256(join(APP, exe)))
     fail("the update archive's app is not the app that was checked");
   run("codesign", ["--verify", "--deep", "--strict", inside]);
-  if (!REHEARSE) run("xcrun", ["stapler", "validate", inside]);
+  if (!REHEARSE) {
+    // The bundler packs a track's archive before its one notarization: the
+    // app in it is notarized, by the DMG's ticket, and not stapled.
+    if (TRACK) notarizedBy("execute", inside);
+    else run("xcrun", ["stapler", "validate", inside]);
+  }
   return { archive, signature: readFileSync(signature, "utf8").trim() };
 }
 
@@ -734,7 +908,7 @@ function artifacts({ notes, repo, dirty }, material, dmg, { archive, signature }
     opt("--base-url") ??
     (TRACK
       ? `${UPDATES}/v1/${TRACK}/download/v${version}`
-      : `https://github.com/${repo}/releases/download/v${version}`)
+      : `https://github.com/${repo}/releases/download/${TAG_PREFIX}v${version}`)
   ).replace(/\/$/, "");
   // One universal archive serves both architectures; the updater asks for its
   // own (`darwin-aarch64`, or `darwin-x86_64` for the Intel slice, Rosetta
@@ -772,6 +946,9 @@ function artifacts({ notes, repo, dirty }, material, dmg, { archive, signature }
         uncommittedChanges: dirty,
         rehearsal: REHEARSE,
         signedBy: material.identity ?? "ad hoc",
+        // The sponsors' roll baked in, by the hash of its text: Windows' build
+        // of the same release records its own, and the two are held equal.
+        roll: createHash("sha256").update(bakedText()).digest("hex"),
         notarized: !REHEARSE,
         builtOn: IN_CI
           ? `GitHub Actions, signed from ${FROM_SECRETS ? "its secrets" : KEYCHAIN}`
@@ -780,14 +957,12 @@ function artifacts({ notes, repo, dirty }, material, dmg, { archive, signature }
             : "a local Mac",
         ...(TRACK ? { track: TRACK, release: BASE, slice: SLICE } : {}),
         // What the pipeline tested before this build: its tier, and for a
-        // narrowed run the features it ran, so the build says how far it was proven.
+        // narrowed run the acts it ran, so the build says how far it was proven.
         ...(process.env.PROSCENIUM_PIPELINE_TIER
           ? {
               pipeline: {
                 tier: process.env.PROSCENIUM_PIPELINE_TIER,
-                features: (process.env.PROSCENIUM_PIPELINE_FEATURES ?? "")
-                  .split(",")
-                  .filter(Boolean),
+                acts: (process.env.PROSCENIUM_PIPELINE_ACTS ?? "").split(",").filter(Boolean),
                 run: process.env.GITHUB_RUN_ID ?? null,
               },
             }
@@ -823,33 +998,45 @@ const EDGE = join(ROOT, "services/edge");
 /**
  * Wrangler, with the deploy token in its environment and nowhere else, and its
  * debug log in a private folder removed afterwards (as scripts/edge-wrangler.mjs
- * does). Only the tracks' bucket is ever named.
+ * does). Only the tracks' bucket is ever named. A failure in passing (a dropped
+ * connection, a timeout, Cloudflare's 429 or 5xx) is made again, twice, after 5
+ * and then 20 seconds: every command here reads, or writes the same bytes to
+ * the same key, so making it again changes nothing but the outcome. On
+ * 2026-09-28 one such failure of a read ended a beta's run before its build.
  */
 function wrangler(args, { output = false } = {}) {
   const token = load("CLOUDFLARE_API_TOKEN");
   if (!token) fail("no Cloudflare token in the keychain: publishing a track writes to R2 with it");
-  const logs = mkdtempSync(join(tmpdir(), "proscenium-wrangler-"));
-  try {
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(([k]) => !/^(APPLE_|TAURI_SIGNING_)/.test(k)),
-    );
-    return spawnSync(
-      join(EDGE, "node_modules/.bin/wrangler"),
-      [...args, "--config", "wrangler.jsonc"],
-      {
-        cwd: EDGE,
-        encoding: "utf8",
-        stdio: ["ignore", output ? "pipe" : "inherit", "pipe"],
-        env: {
-          ...env,
-          CLOUDFLARE_API_TOKEN: token.toString().trim(),
-          WRANGLER_SEND_METRICS: "false",
-          WRANGLER_LOG_PATH: logs,
+  const env = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !/^(APPLE_|TAURI_SIGNING_)/.test(k)),
+  );
+  for (let attempt = 1; ; attempt++) {
+    const logs = mkdtempSync(join(tmpdir(), "proscenium-wrangler-"));
+    let r;
+    try {
+      r = spawnSync(
+        join(EDGE, "node_modules/.bin/wrangler"),
+        [...args, "--config", "wrangler.jsonc"],
+        {
+          cwd: EDGE,
+          encoding: "utf8",
+          stdio: ["ignore", output ? "pipe" : "inherit", "pipe"],
+          env: {
+            ...env,
+            CLOUDFLARE_API_TOKEN: token.toString().trim(),
+            WRANGLER_SEND_METRICS: "false",
+            WRANGLER_LOG_PATH: logs,
+          },
         },
-      },
-    );
-  } finally {
-    rmSync(logs, { recursive: true, force: true });
+      );
+    } finally {
+      rmSync(logs, { recursive: true, force: true });
+    }
+    const said = r.status === 0 ? "" : wranglerSaid(r.stderr, r.status);
+    if (r.status === 0 || attempt === 3 || !inPassing(said)) return { ...r, said };
+    const wait = attempt === 1 ? 5 : 20;
+    console.log(`  ${args.slice(0, 4).join(" ")}: ${said}; made again in ${wait} s`);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, wait * 1000);
   }
 }
 
@@ -860,7 +1047,8 @@ function trackKey(key) {
     )
   )
     fail(`${key} is not a track's key`);
-  return `${BUCKET}/${key}`;
+  // A stand-in's keys are under `stand-in/`, which the update service never serves.
+  return `${BUCKET}/${KEY_PREFIX}${key}`;
 }
 
 function put(key, file, contentType) {
@@ -875,7 +1063,7 @@ function put(key, file, contentType) {
     contentType,
     "--remote",
   ]);
-  if (r.status !== 0) fail(`could not write ${key} to R2: ${r.stderr.trim().split("\n").pop()}`);
+  if (r.status !== 0) fail(`could not write ${key} to R2: ${r.said}`);
   console.log(`  put ${key}`);
 }
 
@@ -887,9 +1075,7 @@ function trackVersions() {
   );
   if (r.status !== 0) {
     if (/NoSuchKey|does not exist|not found|404/i.test(r.stderr)) return [];
-    fail(
-      `could not read the ${TRACK} track's versions from R2: ${r.stderr.trim().split("\n").pop()}`,
-    );
+    fail(`could not read the ${TRACK} track's versions from R2: ${r.said}`);
   }
   const list = JSON.parse(r.stdout);
   if (
@@ -916,28 +1102,71 @@ function newerThan(a, b) {
 }
 
 /**
+ * The track's manifest, merged per platform when written, never rewritten by
+ * one platform over another (docs/engineering/release-engineering.md#REL-D6):
+ * a beta's Windows entries, which the release machine adds beside the Mac's
+ * once both are built, are kept when the Mac's half of the same version is
+ * written again. Another version's are not: one manifest is one version. An
+ * alpha carries the Mac alone, and is never merged.
+ */
+function mergedManifest(file, v) {
+  if (TRACK !== "beta") return file;
+  const r = wrangler(
+    ["r2", "object", "get", trackKey(`${TRACK}/latest.json`), "--pipe", "--remote"],
+    {
+      output: true,
+    },
+  );
+  if (r.status !== 0) return file;
+  let there = null;
+  try {
+    there = JSON.parse(r.stdout);
+  } catch {
+    return file;
+  }
+  if (there?.version !== v) return file;
+  const ours = JSON.parse(readFileSync(file, "utf8"));
+  const kept = Object.fromEntries(
+    Object.entries(there.platforms ?? {}).filter(([key]) => key.startsWith("windows-")),
+  );
+  if (!Object.keys(kept).length) return file;
+  const merged = join(scratch(), "latest.json");
+  writeFileSync(
+    merged,
+    `${JSON.stringify({ ...ours, platforms: { ...ours.platforms, ...kept } }, null, 2)}\n`,
+  );
+  console.log(`  ${Object.keys(kept).join(" and ")} kept beside the Mac's in ${TRACK}/latest.json`);
+  return merged;
+}
+
+/**
  * The files, then the version list, then the manifest:
  * a copy that reads the manifest finds everything it names. Then the files of
  * the version that fell out of the newest five go, so R2 stays on its free tier.
  */
-function publishTrack(published) {
-  step(`publish ${version} to the ${TRACK} track`);
-  const names = (v, slice = SLICE) => [
-    `${conf.productName}_${v}_${slice}.dmg`,
-    `${conf.productName}_${v}_${slice}.app.tar.gz`,
-    `${conf.productName}_${v}_${slice}.app.tar.gz.sig`,
+function publishTrack(published, v = version, dir = OUT) {
+  step(`publish ${v} to the ${TRACK} track`);
+  const names = (x, slice = SLICE) => [
+    `${conf.productName}_${x}_${slice}.dmg`,
+    `${conf.productName}_${x}_${slice}.app.tar.gz`,
+    `${conf.productName}_${x}_${slice}.app.tar.gz.sig`,
   ];
-  for (const name of names(version))
-    put(`${TRACK}/${version}/${name}`, join(OUT, name), "application/octet-stream");
-  const list = [...published, version];
-  const listFile = join(temp, "versions.json");
+  for (const name of names(v))
+    put(`${TRACK}/${v}/${name}`, join(dir, name), "application/octet-stream");
+  const list = [...published, v];
+  const listFile = join(scratch(), "versions.json");
   writeFileSync(listFile, `${JSON.stringify(list)}\n`);
   put(`${TRACK}/versions.json`, listFile, "application/json");
-  put(`${TRACK}/latest.json`, join(OUT, "latest.json"), "application/json");
+  put(`${TRACK}/latest.json`, mergedManifest(join(dir, "latest.json"), v), "application/json");
   if (list.length > 5) {
     const gone = list[list.length - 6];
-    // A version from before tracks were Apple silicon alone has universal files.
-    for (const name of [...names(gone, "aarch64"), ...names(gone, "universal")]) {
+    // A version from before tracks were Apple silicon alone has universal
+    // files; a beta that carried Windows, its installers and their signatures.
+    const windows = ["x64", "arm64"].flatMap((chip) => [
+      `${conf.productName}_${gone}_${chip}-setup.exe`,
+      `${conf.productName}_${gone}_${chip}-setup.exe.sig`,
+    ]);
+    for (const name of [...names(gone, "aarch64"), ...names(gone, "universal"), ...windows]) {
       const r = wrangler([
         "r2",
         "object",
@@ -945,20 +1174,18 @@ function publishTrack(published) {
         trackKey(`${TRACK}/${gone}/${name}`),
         "--remote",
       ]);
-      if (r.status !== 0)
-        console.log(
-          `  could not delete ${gone}'s ${name}, kept: ${r.stderr.trim().split("\n").pop()}`,
-        );
+      if (r.status !== 0) console.log(`  could not delete ${gone}'s ${name}, kept: ${r.said}`);
     }
     console.log(`  ${gone}'s files removed: the ${TRACK} track keeps the newest five`);
   }
 }
 
 function publish(repo, files) {
-  step(`a draft release on ${repo}`);
+  const tag = `${TAG_PREFIX}v${version}`;
+  step(`a draft release on ${repo}, on ${tag}`);
   const view = spawnSync(
     "gh",
-    ["release", "view", `v${version}`, "--repo", repo, "--json", "isDraft", "--jq", ".isDraft"],
+    ["release", "view", tag, "--repo", repo, "--json", "isDraft", "--jq", ".isDraft"],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
@@ -967,19 +1194,19 @@ function publish(repo, files) {
   const notes = join(OUT, "notes.md");
   if (view.status === 0 && view.stdout.trim() !== "true") {
     fail(
-      `v${version} is already published — a published release is replaced by a newer one, never rebuilt`,
+      `${tag} is already published — a published release is replaced by a newer one, never rebuilt`,
     );
   }
   if (view.status === 0) {
-    run("gh", ["release", "upload", `v${version}`, "--repo", repo, "--clobber", ...files]);
-    run("gh", ["release", "edit", `v${version}`, "--repo", repo, "--notes-file", notes]);
+    run("gh", ["release", "upload", tag, "--repo", repo, "--clobber", ...files]);
+    run("gh", ["release", "edit", tag, "--repo", repo, "--notes-file", notes]);
   } else {
     // Drafted, never published, by a script: a person checks it first. Not a
     // prerelease either: the updater reads releases/latest, which skips them.
     run("gh", [
       "release",
       "create",
-      `v${version}`,
+      tag,
       "--repo",
       repo,
       "--draft",
@@ -991,6 +1218,20 @@ function publish(repo, files) {
       ...files,
     ]);
   }
+  // The draft by its id, so that it and nothing else is published: a tag can
+  // carry more than one draft, and publishing by tag could pick another.
+  const id = capture("gh", [
+    "api",
+    `repos/${repo}/releases?per_page=100`,
+    "--jq",
+    `[.[] | select(.tag_name == "${tag}" and .draft)] | if length == 1 then .[0].id else error("\\(length) drafts on the tag") end`,
+  ]);
+  if (!/^\d+$/.test(id)) fail(`the draft on ${tag} has no single id (${id})`);
+  writeFileSync(
+    join(OUT, "draft.json"),
+    `${JSON.stringify({ v: 1, repo, tag, id: Number(id), version }, null, 2)}\n`,
+  );
+  console.log(`  draft ${id} on ${tag}, written to draft.json`);
 }
 
 process.on("SIGINT", () => {
@@ -998,21 +1239,219 @@ process.on("SIGINT", () => {
   process.exit(130);
 });
 
-try {
-  const plan = preflight();
-  await program(plan);
-  const material = signingMaterial();
-  build(material);
-  checkApp();
-  const dmg = one(join(TARGET, "dmg"), (f) => f.endsWith(".dmg"), "DMG");
-  checkDmg(material, dmg);
-  const archive = checkArchive(
-    material.overlay?.plugins?.updater?.pubkey ?? conf.plugins?.updater?.pubkey,
+/** What the run's Triage step reads of this build: the version, and whether it went out (scripts/ci-triage.mjs). */
+function tellRun(fields) {
+  const dir =
+    process.env.PIPELINE_PLAN_DIR ||
+    (process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "pipeline-plan") : null);
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "alpha.json"), `${JSON.stringify({ version, ...fields })}\n`);
+}
+
+// --- waiting on Apple ---------------------------------------------------------------
+
+/** Where a track build waits on Apple. */
+const NOTARY_DIR = join(homedir(), ".proscenium", "notary");
+/**
+ * The build host's operations state, which only a parked build and a pickup
+ * write: its module is the build host's and not in the public tree, so it is
+ * loaded only there.
+ */
+const opsState = () => import("./ops/state.mjs");
+
+async function notaryState() {
+  const { dirs } = await opsState();
+  const file = join(dirs().ops, "notary.json");
+  return existsSync(file)
+    ? JSON.parse(readFileSync(file, "utf8"))
+    : { v: 1, waiting: [], resolved: [] };
+}
+
+async function writeNotary(state) {
+  const { dirs, writeJson } = await opsState();
+  writeJson(dirs(), "notary", state);
+}
+
+/**
+ * Keep a track build's files with its submission's id, and say the step is
+ * waiting on Apple: the run's verdict stands on its tests.
+ */
+async function park(id, status, files) {
+  const dir = join(NOTARY_DIR, version);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  for (const f of files) copyFileSync(f, join(dir, f.split("/").pop()));
+  run("ditto", [APP, join(dir, `${conf.productName}.app`)]);
+  const state = await notaryState();
+  state.waiting = state.waiting.filter((w) => w.version !== version);
+  state.waiting.push({
+    version,
+    commit: capture("git", ["rev-parse", "HEAD"]),
+    run: process.env.GITHUB_RUN_ID
+      ? `${process.env.GITHUB_SERVER_URL ?? "https://github.com"}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+      : null,
+    id,
+    submittedAt: new Date().toISOString(),
+    dir,
+    checkedAt: new Date().toISOString(),
+    status: String(status).slice(0, 200),
+  });
+  await writeNotary(state);
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, "waiting=true\n");
+  console.log(
+    `\nrelease: ${version} waits on Apple (submission ${id}); its files are in ${dir}, and a later run's --pickup publishes it`,
   );
-  const files = artifacts(plan, material, dmg, archive);
-  if (PUBLISH && TRACK) publishTrack(plan.published);
-  else if (PUBLISH) publish(plan.repo, files);
-  console.log(`\nrelease: ${version}${REHEARSE ? " rehearsal" : ""} done — ${OUT}`);
+}
+
+/**
+ * The alphas that waited on Apple: each submission asked about by its id,
+ * never sent again. Accepted: stapled, checked and published, unless the
+ * track has a newer version already. Rejected, or waiting a day: dropped, and
+ * said so.
+ */
+async function pickup() {
+  const state = await notaryState();
+  if (!state.waiting.length) {
+    console.log("release: nothing waits on Apple");
+    return;
+  }
+  const material = signingMaterial();
+  const keep = [];
+  for (const w of state.waiting) {
+    const info = spawnSync(
+      "xcrun",
+      ["notarytool", "info", w.id, ...material.notary, "--output-format", "json"],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+      },
+    );
+    const status = /"status"\s*:\s*"([^"]+)"/.exec(info.stdout ?? "")?.[1] ?? "no answer";
+    const resolved = (outcome, detail) => {
+      state.resolved = [
+        ...state.resolved,
+        {
+          version: w.version,
+          id: w.id,
+          outcome,
+          at: new Date().toISOString(),
+          detail: detail.slice(0, 400),
+        },
+      ].slice(-20);
+      console.log(`release: ${w.version} (submission ${w.id}): ${outcome}: ${detail}`);
+    };
+    if (status === "Accepted") {
+      const dmg = one(w.dir, (f) => f.endsWith(".dmg"), "DMG");
+      stapleTrack(dmg, join(w.dir, `${conf.productName}.app`));
+      const published = trackVersions();
+      const newest = published.at(-1);
+      if (newest && !newerThan(w.version, newest)) {
+        resolved("dropped", `Apple accepted it, but ${newest} was published meanwhile`);
+      } else {
+        publishTrack(published, w.version, w.dir);
+        resolved("published", "Apple accepted it after the run that built it had ended");
+      }
+      rmSync(w.dir, { recursive: true, force: true });
+    } else if (status === "Invalid" || status === "Rejected") {
+      resolved(
+        "rejected",
+        `Apple said ${status}; \`node scripts/release-keychain.mjs log ${w.id}\` shows why`,
+      );
+      rmSync(w.dir, { recursive: true, force: true });
+    } else if (Date.now() - Date.parse(w.submittedAt) > 24 * 3600 * 1000) {
+      resolved("dropped", `Apple has not answered in a day (${status}); a newer alpha replaces it`);
+      rmSync(w.dir, { recursive: true, force: true });
+    } else {
+      keep.push({ ...w, checkedAt: new Date().toISOString(), status: status.slice(0, 200) });
+      console.log(`release: ${w.version} still waits on Apple (${status})`);
+    }
+  }
+  state.waiting = keep;
+  await writeNotary(state);
+}
+
+try {
+  if (DRAFT_FROM) {
+    if (TRACK) fail("--draft is a stable release's: a track publishes to its track, not a draft");
+    const plan = preflight();
+    const files = readdirSync(DRAFT_FROM)
+      .filter((f) => !f.startsWith(".") && f !== "draft.json")
+      .map((f) => join(DRAFT_FROM, f));
+    const want = [
+      `${conf.productName}_${version}_${SLICE}.dmg`,
+      `${conf.productName}_${version}_${SLICE}.app.tar.gz`,
+      `${conf.productName}_${version}_${SLICE}.app.tar.gz.sig`,
+      "latest.json",
+      "notes.md",
+      "build.json",
+      "SHA256SUMS",
+    ];
+    const missing = want.filter((w) => !files.some((f) => f.endsWith(`/${w}`)));
+    if (missing.length)
+      fail(`${DRAFT_FROM} lacks ${missing.join(", ")}: the build keeps seven files`);
+    // What the checksums name is what is drafted, byte for byte.
+    const sums = readFileSync(join(DRAFT_FROM, "SHA256SUMS"), "utf8").trim().split("\n");
+    for (const line of sums) {
+      const [hash, name] = line.trim().split(/\s+\*?/);
+      if (sha256(join(DRAFT_FROM, name)) !== hash) fail(`${name} is not the file SHA256SUMS names`);
+    }
+    mkdirSync(OUT, { recursive: true });
+    for (const f of files) copyFileSync(f, join(OUT, f.split("/").pop()));
+    // The same seven files a build drafts, the notes among them.
+    publish(
+      plan.repo,
+      want.map((w) => join(OUT, w)),
+    );
+  } else if (PICKUP) {
+    await pickup();
+  } else {
+    const plan = preflight();
+    await program(plan);
+    const material = signingMaterial();
+    // A signed build shares the host with the native self-test: it takes the bench.
+    if (!REHEARSE) await holdHostBench("a release build");
+    build(material);
+    checkApp();
+    const dmg = one(join(TARGET, "dmg"), (f) => f.endsWith(".dmg"), "DMG");
+    const apple = TRACK && !REHEARSE ? notarizeTrack(material, dmg) : { accepted: true };
+    if (!apple.accepted) {
+      // The files are made, and checked but for Apple's word; they wait for it.
+      const archive = one(
+        join(TARGET, "macos"),
+        (f) => f.endsWith(".app.tar.gz"),
+        "update archive",
+      );
+      const files = artifacts(plan, material, dmg, {
+        archive,
+        signature: readFileSync(`${archive}.sig`, "utf8").trim(),
+      });
+      if (PUBLISH)
+        await park(
+          apple.id,
+          apple.status,
+          files.map((f) => join(OUT, f.split("/").pop())),
+        );
+      else
+        console.log(
+          `\nrelease: ${version} waits on Apple (submission ${apple.id}); a private build is not kept`,
+        );
+      if (TRACK === "alpha")
+        tellRun({ published: false, waiting: Boolean(PUBLISH), submission: apple.id });
+    } else {
+      checkDmg(material, dmg);
+      const archive = checkArchive(
+        material.overlay?.plugins?.updater?.pubkey ?? conf.plugins?.updater?.pubkey,
+      );
+      const files = artifacts(plan, material, dmg, archive);
+      if (PUBLISH && TRACK) publishTrack(plan.published);
+      else if (PUBLISH) publish(plan.repo, files);
+      if (TRACK === "alpha") tellRun({ published: Boolean(PUBLISH), waiting: false });
+      console.log(
+        `\nrelease: ${version}${REHEARSE ? " rehearsal" : ""}${PRIVATE ? ", a private build" : ""} done — ${OUT}`,
+      );
+    }
+  }
 } catch (e) {
   console.error(`\nrelease: ${e.message}`);
   process.exitCode = 1;

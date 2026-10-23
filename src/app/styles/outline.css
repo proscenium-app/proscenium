@@ -58,8 +58,7 @@
   border-radius: var(--r-chip);
 }
 .outliner__synopsis:focus,
-.outliner__note:focus,
-.outliner__label:focus {
+.outliner__note:focus {
   outline: none;
   background: var(--field);
   box-shadow: var(--focus-ring);
@@ -101,6 +100,9 @@
   flex: none;
   border-radius: var(--r-pill);
   background: var(--card-hue);
+}
+.outliner__row.card--cream .outliner__huedot {
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
 }
 /* The keyboard's way to reorder scenes (the board's drag has no key), so each
    is a 24px target: at 16×14, stacked flush, up and down were one blur. */

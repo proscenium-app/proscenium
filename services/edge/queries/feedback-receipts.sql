@@ -2,7 +2,10 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Bind ?1=start UTC day inclusive, ?2=end UTC day exclusive.
 -- Proof that messages arrived, without their words or addresses: safe to show.
+-- `version` is the whole build version a message came from when its copy said
+-- it (docs/engineering/services-and-feedback.md#SERV-273), so the messages from
+-- copies on a beta can be counted; NULL when it did not.
 SELECT received_day AS day, id, length(message) AS characters,
-       email IS NOT NULL AS with_email, details IS NOT NULL AS with_details
+       email IS NOT NULL AS with_email, details IS NOT NULL AS with_details, version
 FROM feedback_messages WHERE received_day >= ?1 AND received_day < ?2
 ORDER BY received_day, id;

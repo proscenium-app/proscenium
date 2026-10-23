@@ -37,7 +37,7 @@ import {
 } from "./play-file";
 import { fileName, titleFromFileName } from "./filename";
 import type { KeptFile } from "../storage/import-bytes";
-import { ulid } from "./ulid";
+import { ulid } from "../storage/ulid";
 import {
   BINDER_CHANGED,
   reconcileDelta,
@@ -74,7 +74,8 @@ export interface BinderContext {
 }
 
 export type ApplyResult =
-  | { ok: true; play: PlayFile; hash: string; createdId?: string }
+  /** `over`: the version the write replaced (PlayCommit). */
+  | { ok: true; play: PlayFile; hash: string; over: string; createdId?: string }
   | { ok: false; reason: "collision" | "error"; message?: string; blocked?: boolean };
 
 /**
@@ -108,7 +109,7 @@ async function commit(
       (prior) => build(prior ?? ctx.play),
       new Date().toISOString(),
     );
-    if (out.status === "ok") return { ok: true, play: out.data, hash: out.hash };
+    if (out.status === "ok") return { ok: true, play: out.data, hash: out.hash, over: out.over };
     if (out.status === "read-only") {
       return {
         ok: false,
@@ -147,11 +148,16 @@ async function freshPath(binderPath: string, selfPath?: string): Promise<string>
   return candidate;
 }
 
+/**
+ * `home`, when no parent is named, files the item in that top-level folder's
+ * row rather than at the root, making the row if the play has none.
+ */
 function addAt(
   ctx: BinderContext,
   parentId: string | null,
   item: BinderItem,
   atIndex: number,
+  home?: string,
 ): Promise<ApplyResult> {
   const parentPath = parentId ? findItem(ctx.play.binder, parentId)?.item.path : undefined;
   return commit(ctx, (play) => {
@@ -161,7 +167,10 @@ function addAt(
     ) {
       throw new Error(BINDER_CHANGED);
     }
-    return withBinder(play, insert(play.binder, parentId, item, atIndex));
+    let binder = play.binder;
+    let parent = parentId;
+    if (!parentId && home) ({ binder, id: parent } = withFolder(binder, home));
+    return withBinder(play, insert(binder, parent, item, atIndex));
   });
 }
 
@@ -346,6 +355,7 @@ export async function newMaterial(
   type: BinderItemType,
   title: string,
   atIndex = Infinity,
+  opts: { home?: boolean } = {},
 ): Promise<ApplyResult> {
   const kind = normalizeType(type);
   const parentDir = parentId
@@ -362,7 +372,12 @@ export async function newMaterial(
   });
   await vault.create(path, body);
   const item: BinderItem = { id, type: kind, path };
-  const res = await addAt(ctx, parentId, item, atIndex);
+  // `home`: a sheet the Cast's Add Notes makes goes in the Characters folder's
+  // row, where the cast reads it, never loose at the root beside a folder
+  // holding its file (docs/app/organizing/workspace-model.md#WORK-84). The
+  // binder's New at the top level means the top level, and keeps its row there.
+  const home = opts.home && !parentId ? parentDir : undefined;
+  const res = await addAt(ctx, parentId, item, atIndex, home);
   return res.ok ? { ...res, createdId: id } : res;
 }
 

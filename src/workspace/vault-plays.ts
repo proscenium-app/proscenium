@@ -29,7 +29,7 @@ import {
 } from "./play-file";
 import { startingBinder } from "./play-shape";
 import type { FolderOfPlays } from "./plays-folder";
-import { ulid } from "./ulid";
+import { ulid } from "../storage/ulid";
 import type { KeptFile } from "../storage/import-bytes";
 // The `generator` stamp says which version wrote the file (docs/app/keeping-work/storage-and-file-format.md#STOR-D5), so it is
 // the app's one version (`bun run version`), not a literal: it said 1.0.0 while

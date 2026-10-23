@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { folderPanel } from "../ui/system-words";
 import { useEffect, useRef, useState } from "react";
 import { folderAccess, type FolderAccessIssue } from "../storage/ipc";
 import { Button, Sheet, useToast } from "../ui";
@@ -111,7 +112,7 @@ export function FolderAccessNotice({ chooseFolder }: { chooseFolder: () => void 
       <div className="sheet-copy">
         <p>Proscenium needs permission to reopen your Plays folder next time.</p>
         <p>{issue.message.replace(/^E-FOLDER-ACCESS:\s*/, "")}</p>
-        <p>Try saving access again, or choose the folder in the Mac’s folder panel.</p>
+        <p>Try saving access again, or choose the folder in {folderPanel()}.</p>
         <p role="status">{failure ?? ""}</p>
       </div>
     </Sheet>

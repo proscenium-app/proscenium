@@ -137,6 +137,27 @@ describe("DocumentSession", () => {
       expect(s.canAutosave).toBe(false);
     });
 
+    it("a re-read of the bytes it already knows, made as its own write starts, says nothing", () => {
+      // Back in the window after a refused save: the return's re-read and the
+      // save's retry start together, and the re-read finds the old bytes.
+      const s = new DocumentSession("a.fountain", "sha256:base");
+      s.markDirty();
+      s.beginWrite();
+      expect(s.onExternalChange("sha256:base", { revalidated: true })).toEqual({
+        kind: "ignore",
+        reason: "unchanged",
+      });
+      s.onSaved({ status: "ok", hash: "sha256:mine" });
+      expect(s.drainDeferred()).toBeNull(); // not a reload of the app's own words
+      expect(s.status).toBe("clean");
+      // A re-read that finds other bytes is still held, and decided after.
+      s.markDirty();
+      s.beginWrite();
+      s.onExternalChange("sha256:theirs", { revalidated: true });
+      s.onSaved({ status: "ok", hash: "sha256:mine2" });
+      expect(s.drainDeferred()).toEqual({ kind: "reload" });
+    });
+
     it("a GENUINE external edit landing mid-write still gates afterwards", () => {
       const s = new DocumentSession("a.fountain", "sha256:base");
       s.markDirty();

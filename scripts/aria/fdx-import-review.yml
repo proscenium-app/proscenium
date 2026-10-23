@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Undertow
   - button "Collapse all folders"
@@ -35,7 +35,6 @@
   - text: at the top level
 - main "Play":
   - 'button "What this line is: Dialogue"': Dialogue
-  - text: Tab cycles · ; menu
   - button "Bold": ⌘B
   - button "Italic": ⌘I
   - button "Underline": ⌘U
@@ -46,6 +45,30 @@
   - text: Page 1 of 1
   - textbox "Script"
   - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: Scene 1
+  - heading "INT. PIER - DAWN" [level=2]
+  - text: Page 1 · 1 page · 1 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage NELL 1 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/sample-vault/The Undertow"
   - text: <save status>

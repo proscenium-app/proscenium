@@ -180,6 +180,28 @@ describe("Enter (docs/app/writing/editor-ux.md#EDIT-29)", () => {
     expect(enterDecision(action("BLACKOUT."))).toEqual({ kind: "confirm", as: "transition" });
   });
 
+  /** A comment on a line is no part of what the line says (docs/app/writing/comments.md#COMM-67). */
+  it("reads a name with a comment on it as the name it is", () => {
+    const noted = (text: string, comment: string) =>
+      schema.nodeFromJSON({
+        type: "action",
+        content: [
+          { type: "text", text },
+          { type: "note", content: [{ type: "text", text: comment }] },
+        ],
+      });
+    expect(confirmActionAs(noted("MARA", "Robin: rename?"))).toBe("character");
+    expect(confirmActionAs(noted("CUT TO:", "Sam: too abrupt"))).toBe("transition");
+    expect(confirmActionAs(noted("She waits.", "CUT"))).toBeNull();
+    // A line that is only a comment is no name.
+    const alone = schema.nodeFromJSON({
+      type: "action",
+      content: [{ type: "note", content: [{ type: "text", text: "CUT THIS" }] }],
+    });
+    expect(confirmActionAs(alone)).toBeNull();
+    expect(enterDecision(alone)).toEqual({ kind: "advance", to: "action" });
+  });
+
   /** "I do not want to lose shift enter making line spaces, very important." */
   it("treats a line holding only a Shift+Enter break as written in, not empty", () => {
     expect(enterDecision(action("", ""))).toEqual({ kind: "advance", to: "action" });

@@ -16,6 +16,8 @@
  * it lives inside that sheet's accessible scope; any other sheet hides it
  * until it closes.
  */
+import { keyCap, keyStyle } from "../ui/keys";
+import { forThisSystem } from "../ui/system-words";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
@@ -37,19 +39,11 @@ import { blockPos } from "./ghost";
 import { placeCard, scrollFor, type Band, type Box, type Side } from "./place";
 import type { Tutorial } from "./useTutorial";
 
-const KEYS: Record<string, string> = {
-  Return: "⏎ Return",
-  Tab: "⇥ Tab",
-  Escape: "esc",
-  "⇧Return": "⇧⏎",
-  "⌘Return": "⌘⏎",
-  Shift: "⇧ Shift",
-};
 export function Say({ parts }: { parts: Part[] }) {
   const piece = (p: Exclude<Part, string>, i: number) =>
     "key" in p ? (
-      <kbd key={i} className="keycap" aria-label={p.key}>
-        {KEYS[p.key] ?? p.key}
+      <kbd key={i} className="keycap" aria-label={keyStyle() === "mac" ? p.key : keyCap(p.key)}>
+        {keyCap(p.key)}
       </kbd>
     ) : "type" in p ? (
       <span key={i} className="tutorial-cue__type">
@@ -63,7 +57,7 @@ export function Say({ parts }: { parts: Part[] }) {
     const p = parts[i],
       next = parts[i + 1];
     if (typeof p === "string") {
-      out.push(<Fragment key={i}>{p}</Fragment>);
+      out.push(<Fragment key={i}>{forThisSystem(p)}</Fragment>);
       continue;
     }
     // A key cap keeps the punctuation after it on its line: "press ⏎ Return." never orphans the full stop.
@@ -414,7 +408,9 @@ export function CueCard({ guide: g, editor }: { guide: Tutorial; editor: Editor 
           <Say parts={cue.say} />
         )}
       </p>
-      {g.state.moreHelp && g.step && <p className="tutorial-cue__help">{g.step.help}</p>}
+      {g.state.moreHelp && g.step && (
+        <p className="tutorial-cue__help">{forThisSystem(g.step.help)}</p>
+      )}
       {g.error && (
         <p className="tutorial-cue__error" role="alert">
           {g.error}

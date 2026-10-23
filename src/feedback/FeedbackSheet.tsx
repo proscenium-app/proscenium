@@ -1,10 +1,22 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { commandKey } from "../ui/keys";
 import { useEffect, useRef, useState } from "react";
 import { diagnostics, feedback } from "../storage/ipc";
 import { Button, Checkbox, Sheet } from "../ui";
 import { announce } from "../ui/announce";
-import { canSend, characters, emptyDraft, hasDraft, validEmail, type FeedbackDraft } from "./model";
+import {
+  canSend,
+  characters,
+  emptyDraft,
+  hasDraft,
+  MESSAGE_LIMIT,
+  validEmail,
+  type FeedbackDraft,
+} from "./model";
+
+/** The limit as the count beside it is written: both in the PC's own digits and separators. */
+const limit = MESSAGE_LIMIT.toLocaleString();
 
 export function FeedbackSheet() {
   const [formats, setFormats] = useState<string[] | null>(null);
@@ -73,7 +85,7 @@ function FeedbackForm({ formats, close }: { formats: string[]; close: () => void
   useEffect(() => {
     if (count >= 9000)
       announce(
-        `${count.toLocaleString()} of 10,000 characters.${count > 10000 ? " Shorten your message to send." : ""}`,
+        `${count.toLocaleString()} of ${limit} characters.${count > MESSAGE_LIMIT ? " Shorten your message to send." : ""}`,
       );
   }, [count]);
   useEffect(() => {
@@ -160,8 +172,8 @@ function FeedbackForm({ formats, close }: { formats: string[]; close: () => void
             value={draft.message}
             disabled={busy || !loaded || loadFailed}
             placeholder="What would you like us to know?"
-            aria-describedby={`feedback-hint${count >= 9000 ? " feedback-count" : ""}${count > 10000 ? " feedback-limit" : ""}`}
-            aria-invalid={count > 10000 || undefined}
+            aria-describedby={`feedback-hint${count >= 9000 ? " feedback-count" : ""}${count > MESSAGE_LIMIT ? " feedback-limit" : ""}`}
+            aria-invalid={count > MESSAGE_LIMIT || undefined}
             onChange={(e) => edit({ message: e.target.value })}
           />
         </label>
@@ -170,15 +182,15 @@ function FeedbackForm({ formats, close }: { formats: string[]; close: () => void
         </p>
         {count >= 9000 && (
           <p
-            className={`feedback__hint${count > 10000 ? " feedback__error" : ""}`}
+            className={`feedback__hint${count > MESSAGE_LIMIT ? " feedback__error" : ""}`}
             id="feedback-count"
           >
-            {count.toLocaleString()} / 10,000 characters
+            {count.toLocaleString()} / {limit} characters
           </p>
         )}
-        {count > 10000 && (
+        {count > MESSAGE_LIMIT && (
           <p className="feedback__error" id="feedback-limit">
-            Shorten your message to 10,000 characters to send.
+            Shorten your message to {limit} characters to send.
           </p>
         )}
         <label className="feedback__field" htmlFor="feedback-email">
@@ -193,7 +205,7 @@ function FeedbackForm({ formats, close }: { formats: string[]; close: () => void
             aria-invalid={!validEmail(draft.email) || undefined}
             onChange={(e) => edit({ email: e.target.value })}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.metaKey) e.preventDefault();
+              if (e.key === "Enter" && !commandKey(e)) e.preventDefault();
             }}
           />
         </label>

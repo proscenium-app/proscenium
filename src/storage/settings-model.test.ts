@@ -14,8 +14,8 @@ import { ACCENTS } from "../ui/use-accent";
 import {
   ACCENT_IDS,
   DEFAULT_PLAY_STATUSES,
-  DEFAULT_SCENE_STATUSES,
   DEFAULT_SETTINGS,
+  MAX_COMMENT_NAME_CHARS,
   MAX_STATUSES,
   LEGACY_KEYS,
   SETTINGS_MIRROR_KEY,
@@ -78,7 +78,6 @@ describe("the model agrees with settings.rs", () => {
       accent: "gilt",
       appearance: "system",
       formatOrder: [],
-      sceneStatuses: [...DEFAULT_SCENE_STATUSES],
       interfaceTextSize: 100,
       runningTimeStrip: true,
       spellcheck: true,
@@ -104,6 +103,7 @@ describe("the model agrees with settings.rs", () => {
       defaultFormat: null,
       shareAnalytics: true,
       privacyNoticeSeen: false,
+      commentName: "",
     });
     // settings.rs spells the same defaults.
     expect(rust).toContain('const DEFAULT_ACCENT: &str = "gilt"');
@@ -127,14 +127,15 @@ describe("readSettings", () => {
       accent: "iris",
       appearance: "system",
       formatOrder: [],
-      sceneStatuses: [...DEFAULT_SCENE_STATUSES],
+      // Scene statuses were a setting until the board stopped offering them;
+      // a file that still has the list reads without it.
+      sceneStatuses: ["idea", "drafting", "revising", "ready for reading"],
       runningTimeStrip: false,
     });
     expect(s).toEqual({
       accent: "iris",
       appearance: "system",
       formatOrder: [],
-      sceneStatuses: [...DEFAULT_SCENE_STATUSES],
       interfaceTextSize: 100,
       runningTimeStrip: false,
       spellcheck: true,
@@ -152,6 +153,7 @@ describe("readSettings", () => {
       // And before reports existed: on, with the notice still to be seen.
       shareAnalytics: true,
       privacyNoticeSeen: false,
+      commentName: "",
     });
   });
 
@@ -272,8 +274,29 @@ describe("validatePatch", () => {
       { learnedWords: { add: ["   "] } },
       { learnedWords: { add: ["x".repeat(101)] } },
       { learnedWords: { set: ["x"] } },
+      { commentName: "Robin:" },
+      { commentName: "[[Robin]]" },
+      { commentName: " Robin" },
+      { commentName: "Robin\nSam" },
+      { commentName: "A name that runs on past any name" },
+      { commentName: 7 },
     ] as unknown as SettingsPatch[];
     for (const patch of bad) expect(validatePatch(patch)).not.toBeNull();
+  });
+
+  it("docs/app/writing/comments.md#COMM-52: holds the name comments are signed with, or nothing", () => {
+    for (const commentName of ["Robin", "Zoë", "Mary Ann O'Neil-Park", "J. R.", ""]) {
+      expect(validatePatch({ commentName })).toBeNull();
+      expect(applyPatch({ ...DEFAULT_SETTINGS }, { commentName }).commentName).toBe(commentName);
+    }
+    // A mangled value in the file costs only the name.
+    expect(readSettings({ commentName: "Robin: no", accent: "iris" })).toMatchObject({
+      commentName: "",
+      accent: "iris",
+    });
+    // settings.rs holds the same length and refuses the same three characters.
+    expect(rust).toContain(`const MAX_COMMENT_NAME_CHARS: usize = ${MAX_COMMENT_NAME_CHARS};`);
+    expect(rust).toContain("matches!(c, ':' | '[' | ']')");
   });
 });
 
@@ -286,7 +309,7 @@ describe("applying a patch", () => {
       accent: "iris",
       appearance: "system",
       formatOrder: [],
-      sceneStatuses: [...DEFAULT_SCENE_STATUSES],
+      sceneStatuses: ["idea", "drafting"],
     };
     const next = applyPatchToObject(file, { accent: "velvet", spellcheck: false });
     expect(next).toEqual({ ...file, accent: "velvet", spellcheck: false });
@@ -409,17 +432,17 @@ it("docs/app/preferences-and-help/accessibility.md#A11Y-2: interface text size p
   }
 });
 
-it("persists appearance, ordered formats and the writer's scene statuses", () => {
+it("persists appearance and ordered formats", () => {
   const patch: SettingsPatch = {
     appearance: "dark",
     formatOrder: ["stage-us-modern", "dg-modern"],
-    sceneStatuses: ["sketch", "needs a read", "ready"],
   };
   expect(validatePatch(patch)).toBeNull();
   expect(readSettings(applyPatchToObject({}, patch))).toMatchObject(patch);
   expect(
     readSettings({ appearance: "unknown", formatOrder: ["bad/id", "dg-modern", "dg-modern"] }),
   ).toMatchObject({ appearance: "system", formatOrder: ["dg-modern"] });
-  expect(validatePatch({ sceneStatuses: ["draft", "DRAFT"] })).not.toBeNull();
+  // Scene statuses are no longer a setting, so settings.rs refuses the key.
+  expect(validatePatch({ sceneStatuses: ["draft"] } as SettingsPatch)).not.toBeNull();
   expect(validatePatch({ formatOrder: ["dg-modern", "dg-modern"] })).not.toBeNull();
 });

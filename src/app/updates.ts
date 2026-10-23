@@ -17,6 +17,7 @@
  * while the unsaved-work beacon still says dirty, so this retries for a few
  * seconds while the save lands, and says plainly if it never does.
  */
+import { storeName } from "../ui/system-words";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { updates, type UpdateState } from "../storage/ipc";
 import { UPDATE_TRACKS, type UpdateTrack } from "../storage/settings-model";
@@ -156,7 +157,7 @@ export function describeUpdates(state: UpdateState, version: string | null): str
     case "unconfigured":
       return `${self}. This copy can’t check for updates.`;
     case "unavailable":
-      return `${self}. Updates for this copy come from the App Store.`;
+      return `${self}. Updates for this copy come from ${storeName()}.`;
     case "checking":
       return "Checking for updates…";
     case "upToDate":
@@ -189,21 +190,28 @@ export const TRACK_LABELS: Record<UpdateTrack, string> = {
 };
 
 /**
- * The tracks Settings › Updates offers. Alpha only to a copy that holds its key
- * or is on it already (docs/app/preferences-and-help/settings.md#SET-37), so
- * nobody's choice vanishes from under them. An Intel Mac is offered Stable
- * alone (docs/app/preferences-and-help/settings.md#SET-40): alpha and beta are
+ * The tracks Settings › Updates offers, of those this build is published on
+ * (`AppInfo.tracks`; all three until it is known). Alpha only to a copy that
+ * holds its key or is on it already (docs/app/preferences-and-help/settings.md#SET-37),
+ * so nobody's choice vanishes from under them; never on Windows, where no
+ * alpha is published. An Intel Mac is offered Stable alone
+ * (docs/app/preferences-and-help/settings.md#SET-40): alpha and beta are
  * built for Apple silicon only, and the app follows stable there whatever was
  * stored.
  */
 export function offeredTracks(
-  arch: string | null | undefined,
+  built: readonly UpdateTrack[] | null | undefined,
   current: UpdateTrack,
   hasKey: boolean,
 ): UpdateTrack[] {
-  if (arch === "x86_64") return ["stable"];
-  return UPDATE_TRACKS.filter((t) => t !== "alpha" || hasKey || current === "alpha");
+  return UPDATE_TRACKS.filter(
+    (t) => (built ?? UPDATE_TRACKS).includes(t) && (t !== "alpha" || hasKey || current === "alpha"),
+  );
 }
+
+/** Whether this build is published on Stable alone: an Intel Mac's. */
+export const stableOnly = (built: readonly UpdateTrack[] | null | undefined): boolean =>
+  built?.length === 1;
 
 /** What an Intel Mac is told in place of a track's sentence. */
 export const INTEL_TRACK_NOTE =

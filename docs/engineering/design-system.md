@@ -234,7 +234,7 @@ form on cream.
 <a id="UI-51"></a>
 
 **UI-51** **Focus** is `--focus-ring` on `:focus-visible` only: a 1.5px line in
-`--accent-text` inside a 4px `--accent-ring` halo. The line supplies the required 3:1 contrast; the halo supplies the surrounding appearance.
+`--accent-text` inside a 4px `--accent-ring` halo. The line supplies the required 3:1 contrast; the halo supplies the surrounding appearance. A ring is a box-shadow, which forced colours drop, so under forced colours focus is a 2px outline in `Highlight` instead (docs/app/preferences-and-help/accessibility.md#A11Y-12).
 
 <a id="UI-D107"></a>
 
@@ -297,7 +297,7 @@ vector fallbacks on other platforms.
 
 <a id="UI-64"></a>
 
-**UI-64** Color is **never the only carrier of meaning**: a card's `status` and `label` are shown as text/shape chips too, so the board stays legible in monochrome high-contrast mode and for color-blind users ([cross-platform e-ink rules](cross-platform.md#PLAT-D110)). In e-ink mode the tokens map to high-contrast fills/patterns rather than hues.
+**UI-64** Color is **never the only carrier of meaning**: a scene's color is named beside its swatch, on the card's color button and in every menu that offers one, so the board stays legible in monochrome high-contrast mode and for color-blind users ([cross-platform e-ink rules](cross-platform.md#PLAT-D110)). In e-ink mode the tokens map to high-contrast fills/patterns rather than hues.
 
 ## Design
 

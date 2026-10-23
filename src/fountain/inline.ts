@@ -216,9 +216,16 @@ export function serializeInline(nodes: InlineNode[]): string {
   return out;
 }
 
+/**
+ * A note's text as it is written. A note may hold line breaks and no blank
+ * line: one would end the block the note stands in, and cut the note and its
+ * line in two. A line of the note with nothing on it but white space is
+ * written as Fountain's two spaces, which keep a block going.
+ */
 function noteInner(note: NoteNode): string {
   if (!note.content) return "";
-  return note.content.map((n) => (n.type === "text" ? n.text : "")).join("");
+  const text = note.content.map((n) => (n.type === "text" ? n.text : "")).join("");
+  return text.replace(/\n[^\S\n]*(?=\n)/g, "\n  ");
 }
 
 /** Plain text of an inline run, dropping notes and marks (for synopsis caches). */

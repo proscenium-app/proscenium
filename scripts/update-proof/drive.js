@@ -33,13 +33,18 @@
     );
   const settingsOpen = () => !!document.querySelector(".prefs");
 
+  // A Mac's ⌘, is a PC's Ctrl+, (src/ui/keys.ts): a Windows copy's page
+  // listens for that.
+  const pc = /Windows/.test(navigator.userAgent);
+
   async function openUpdates() {
     if (!settingsOpen()) {
       window.dispatchEvent(
         new KeyboardEvent("keydown", {
           key: ",",
           code: "Comma",
-          metaKey: true,
+          metaKey: !pc,
+          ctrlKey: pc,
           bubbles: true,
           cancelable: true,
         }),

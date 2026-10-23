@@ -25,19 +25,23 @@ fn bounded(mut reader: impl Read) -> io::Result<Vec<u8>> {
     }
     Ok(bytes)
 }
+/// A document's bytes, to the bound. A program that has it open for a moment
+/// is waited out (`atomic_file::read_patiently`).
 pub fn read_document(path: &Path) -> io::Result<Vec<u8>> {
-    let file = File::open(path)?;
-    let metadata = file.metadata()?;
-    if !metadata.is_file() {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "This document is not a regular file.",
-        ));
-    }
-    if metadata.len() > MAX_DOCUMENT_BYTES {
-        return Err(too_large());
-    }
-    bounded(file)
+    super::atomic_file::read_patiently(|| {
+        let file = File::open(path)?;
+        let metadata = file.metadata()?;
+        if !metadata.is_file() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "This document is not a regular file.",
+            ));
+        }
+        if metadata.len() > MAX_DOCUMENT_BYTES {
+            return Err(too_large());
+        }
+        bounded(file)
+    })
 }
 
 /// A package's files: each one's `/`-separated path inside it, and its bytes.
@@ -137,8 +141,15 @@ mod tests {
         std::fs::write(package.join("Metadata/Properties.plist"), b"plist").unwrap();
         std::fs::write(package.join(".iwpv2"), b"verifier").unwrap();
         std::fs::write(dir.path().join("elsewhere.txt"), b"not the package's").unwrap();
+        #[cfg(unix)]
         std::os::unix::fs::symlink(dir.path().join("elsewhere.txt"), package.join("link.txt"))
             .unwrap();
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(
+            dir.path().join("elsewhere.txt"),
+            package.join("link.txt"),
+        )
+        .unwrap();
         let files = read_package(&package).unwrap().unwrap();
         let names: Vec<&str> = files.iter().map(|(n, _)| n.as_str()).collect();
         assert_eq!(names, [".iwpv2", "Index.zip", "Metadata/Properties.plist"]);

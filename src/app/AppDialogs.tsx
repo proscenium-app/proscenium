@@ -18,8 +18,7 @@ import { OpenFileSheet } from "./OpenFileSheet";
 import type { useFinderOpens } from "./useFinderOpens";
 import { quitHoldWords, type useQuitGate } from "./quit";
 import { RecoveryPanel } from "./RecoveryPanel";
-import { HistoryPanel } from "./HistoryPanel";
-import type { Workspace, VersionsTarget } from "./useWorkspace";
+import type { Workspace } from "./useWorkspace";
 
 interface Props {
   ws: Pick<
@@ -51,9 +50,6 @@ interface Props {
     | "currentScriptText"
     | "recoverOffer"
     | "discardOffer"
-    | "listVersions"
-    | "readVersion"
-    | "restoreVersion"
     | "castWeights"
     | "playLanguage"
     | "exporting"
@@ -75,9 +71,6 @@ interface Props {
   quitGate: ReturnType<typeof useQuitGate>;
   showRecovery: boolean;
   setShowRecovery: Dispatch<SetStateAction<boolean>>;
-  showHistory: { id: string | null } | null;
-  setShowHistoryFor: Dispatch<SetStateAction<{ id: string | null } | null>>;
-  historyTarget: VersionsTarget | null;
 }
 
 export function AppDialogs({
@@ -96,9 +89,6 @@ export function AppDialogs({
   quitGate,
   showRecovery,
   setShowRecovery,
-  showHistory,
-  setShowHistoryFor,
-  historyTarget,
 }: Props) {
   return (
     <>
@@ -213,29 +203,6 @@ export function AppDialogs({
           onClose={() => setShowRecovery(false)}
         />
       )}
-      {showHistory &&
-        (() => {
-          const other = historyTarget;
-          return other ? (
-            <HistoryPanel
-              scriptTitle={other.title}
-              listVersions={other.list}
-              readVersion={other.read}
-              restoreVersion={other.restore}
-              currentScriptText={other.current}
-              onClose={() => setShowHistoryFor(null)}
-            />
-          ) : (
-            <HistoryPanel
-              scriptTitle={ws.scriptTitle}
-              listVersions={ws.listVersions}
-              readVersion={ws.readVersion}
-              restoreVersion={ws.restoreVersion}
-              currentScriptText={ws.currentScriptText}
-              onClose={() => setShowHistoryFor(null)}
-            />
-          );
-        })()}
     </>
   );
 }

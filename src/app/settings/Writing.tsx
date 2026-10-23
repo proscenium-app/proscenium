@@ -2,27 +2,77 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Settings › Writing — the page map, spell check, and the words the writer has
- * taught the checker.
+ * Settings › Writing — the page map, the name comments are signed with, spell
+ * check, and the words the writer has taught the checker.
  *
  * Spell check here and Check Spelling as You Type in the document menu are one
- * setting in one store (store.ts), so neither can show a state the other does
- * not.
+ * setting in one store (ui/settings-store.ts), so neither can show a state the
+ * other does not.
  *
  * **Two checkers, and the notes say which is which.** This switch and this
  * word list are the script's own checker (editor/spellcheck.ts). Documents and
  * character sheets are checked by macOS through WebKit whatever the switch
  * says, and Learn Spelling there goes to the macOS dictionary.
  */
-import { useLayoutEffect, useRef, useState } from "react";
+import { systemWords } from "../../ui/system-words";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, CloseIcon, IconButton, announce } from "../../ui";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
-import { forgetWord, learnWord, updateSettings, useSettings } from "./store";
+import { forgetWord, learnWord, updateSettings, useSettings } from "../../ui/settings-store";
+import { cleanCommentName, commentNameInput } from "../../comments/model";
 
-import { StatusList } from "./StatusList";
+/**
+ * The name the writer's comments are signed with (docs/app/writing/comments.md#COMM-52).
+ * The same name the comment field asks for the first time a comment is made:
+ * this is where it is changed, or cleared to sign nothing. Stored when the
+ * field is left or ⏎ is pressed, not on every letter.
+ */
+function CommentName() {
+  const { commentName } = useSettings();
+  const [value, setValue] = useState(commentName);
+  // A name given in a comment's own field shows here too.
+  useEffect(() => setValue(commentName), [commentName]);
+  const commit = () => {
+    const name = cleanCommentName(value);
+    setValue(name);
+    if (name === commentName) return;
+    updateSettings({ commentName: name });
+    announce(name ? `Comments will be signed ${name}.` : "Comments will not be signed.");
+  };
+  // Esc closes the sheet without the field ever losing focus: a name typed and
+  // not yet stored is stored as the field goes, like every other setting here.
+  const leaving = useRef(commit);
+  leaving.current = commit;
+  useEffect(() => () => leaving.current(), []);
+  return (
+    <Group label="Comments">
+      <label className="settings__row">
+        <span className="settings__rowlabel">Your name</span>
+        <input
+          className="field"
+          aria-label="Your name"
+          aria-describedby="comment-name-note"
+          value={value}
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          onChange={(e) => setValue(commentNameInput(e.target.value))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+          }}
+        />
+      </label>
+      <Note id="comment-name-note">
+        Signs the comments and replies you add, so a reader can tell them from someone else’s. The
+        name is written into the script with each one.
+      </Note>
+    </Group>
+  );
+}
 
 export function Writing() {
-  const { runningTimeStrip, spellcheck, learnedWords, sceneStatuses } = useSettings();
+  const { runningTimeStrip, spellcheck, learnedWords } = useSettings();
   const [newWord, setNewWord] = useState("");
   /* A word already in the dictionary used to be "Added" to VoiceOver and
      cleared from the field, with nothing changed and nothing on screen. */
@@ -75,19 +125,22 @@ export function Writing() {
         />
       </Group>
 
+      <CommentName />
+
       <Group label="Spelling">
         <SwitchRow
           label="Check spelling as you type"
           on={spellcheck}
           onChange={(on) => updateSettings({ spellcheck: on })}
-          note="Underlines misspelled words in scripts. Documents and character sheets are checked by macOS, which this switch doesn’t affect."
+          note={`Underlines misspelled words in scripts. Documents and character sheets are checked by ${systemWords().system}, which this switch doesn’t affect.`}
         />
       </Group>
 
       <Group label="Proscenium dictionary">
         <Note>
-          Words added here are accepted in every script on this Mac. Documents and character sheets
-          use the macOS dictionary, which is shared with other apps.
+          Words added here are accepted in every script on this {systemWords().machine}. Documents
+          and character sheets use the {systemWords().system} dictionary, which is shared with other
+          apps.
         </Note>
         <div>
           <form
@@ -146,17 +199,6 @@ export function Writing() {
             ))}
           </ul>
         )}
-      </Group>
-      <Group label="Scene statuses">
-        <Note>
-          Offered for scenes in Board, Outline and the Inspector, in this order. Renaming or
-          deleting a status doesn’t change scenes that already have it.
-        </Note>
-        <StatusList
-          statuses={sceneStatuses}
-          onChange={(sceneStatuses) => updateSettings({ sceneStatuses })}
-          subject="Scenes"
-        />
       </Group>
     </SectionBody>
   );

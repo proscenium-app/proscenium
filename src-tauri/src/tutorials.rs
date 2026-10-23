@@ -5,7 +5,7 @@ use crate::{
     authority::{Authority, FolderGrant},
     store,
     vault::{
-        atomic_file::{create_dir_durable, sync_dir, FileLock},
+        atomic_file::{create_dir_durable, read_patiently, sync_dir, FileLock},
         resolve_under, LocalFsVault, SelfWrites, Vault, WriteOutcome,
     },
 };
@@ -55,7 +55,9 @@ fn read(path: &Path) -> Result<Progress, String> {
             "The tutorial progress file is a symbolic link. It was not read or changed.".into(),
         );
     }
-    match std::fs::read_to_string(path) {
+    // A program that has the file open for a moment is waited out, as a
+    // save waits it out (vault/atomic_file.rs).
+    match read_patiently(|| std::fs::read_to_string(path)) {
         Ok(content) => Ok(Progress {
             hash: crate::vault::sha256_hex(content.as_bytes()),
             content: Some(content),
@@ -253,8 +255,10 @@ fn copy_file(
     Ok(())
 }
 
+/// One file of Keep as a Play, copied into the Plays folder. Off the main
+/// thread, as every vault write is: a slow disk holds this call, not the window.
 #[tauri::command]
-pub fn tutorials_copy_file(
+pub async fn tutorials_copy_file(
     app: AppHandle,
     state: crate::ManagerState<'_>,
     id: Option<String>,
@@ -266,6 +270,13 @@ pub fn tutorials_copy_file(
     let source =
         practice_source(&base, id.as_deref(), legacy.as_deref()).map_err(|e| e.to_string())?;
     let target = crate::current_vault(&state)?;
+    // A test build's gate, as on any vault write (selftest_fixture.rs).
+    #[cfg(feature = "selftest")]
+    let _passage = crate::selftest_fixture::pass(
+        crate::selftest_fixture::Op::Write,
+        Some(&target.root().join(&destination)),
+    )
+    .await?;
     copy_file(&source, target.as_ref(), &relative, &destination).map_err(|e| e.to_string())
 }
 
