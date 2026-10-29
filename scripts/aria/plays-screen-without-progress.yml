@@ -17,13 +17,13 @@
       - 'cell "Status for The Lighthouse: drafting"':
         - 'button "Status for The Lighthouse: drafting"': drafting
       - cell "<date and time>"
-    - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. Status for The Weight of Water: drafting Today, <time>"':
+    - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. Status for The Weight of Water: drafting <date and time>"':
       - cell "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull.":
         - button "The Weight of Water"
         - textbox "Logline for The Weight of Water"
       - 'cell "Status for The Weight of Water: drafting"':
         - 'button "Status for The Weight of Water: drafting"': drafting
-      - cell "Today, <time>"
+      - cell "<date and time>"
     - row "Play Status Modified":
       - columnheader "Play"
       - columnheader "Status"

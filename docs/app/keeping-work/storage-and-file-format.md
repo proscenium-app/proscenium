@@ -85,7 +85,10 @@ is an empty folder, and it stays that way until the first play is created.
 
 **STOR-21** **Discovery.** A directory is a play iff it directly contains a file with the
 `.proscenium` extension (docs/app/keeping-work/storage-and-file-format.md#STOR-D5). That is the whole rule. No file at the root
-lists the plays; the folder does.
+lists the plays; the folder does. So the Plays screen lists a play that comes
+or goes while it is up with nothing pressed, once a burst of its files has
+settled: a sync client brings a play down a file at a time, often after the
+app has opened. Coming back to the window looks at the folder again too.
 
 <a id="STOR-22"></a>
 
@@ -458,6 +461,12 @@ change the watcher reports:
   happened.
 - <a id="STOR-81"></a> **STOR-81** An iCloud stub (`.<name>.icloud`) or a File Provider dataless file is the
   file, not an absence (docs/app/keeping-work/storage-and-file-format.md#STOR-D11).
+  **Gone means gone a moment later too.** A walk that finds a row's file gone
+  looks again a quarter of a second later, and only what is gone then is
+  missing (STOR-79) or removed (STOR-80): a save that replaces a file can leave
+  its name free for an instant (on Windows, STOR-178), as can a sync client
+  renaming a download into place. The window's return once walked the folder
+  in that instant and drew the script missing until the next walk.
 
 <a id="STOR-82"></a>
 
@@ -493,6 +502,37 @@ discarded merely because it is old. The watcher and reconciler ignore the
 temporary-file pattern. **Copies kept during a save** in Changes lets the
 writer read and copy preserved bytes without changing a canonical file.
 
+<a id="STOR-178"></a>
+
+**STOR-178** **On Windows the same floor holds, in Windows' own terms.** The
+temporary sibling is made exclusively and marked hidden until just before it is
+installed, since a rename keeps a file's attributes. An install is `MoveFileExW`
+with write-through: NTFS journals the rename and has it on disk when the call
+returns, which is what a folder's sync promises elsewhere. Windows has no sync
+for a folder, so none is made, and a journal record's own name is as durable as
+NTFS's journal makes it. The exchange is `ReplaceFileW`, which keeps the
+displaced file at a side name (`.<name>.<token>x.tmp`, still a temporary
+sibling), then a write-through move of the displaced file to the temporary
+name. It is two renames where a Mac's is one, so for a moment the file's name is
+free; nothing is lost in that moment, since the displaced file is held at its
+side name, and recovery puts a file left there back where the journal looks
+before it reads anything. The per-file lock is `LockFileEx`. A sharing
+violation from an indexer, an antivirus scanner or a sync client is waited out
+for up to two seconds and the step tried again; a file still held after that is
+a failed save, which the next save tries again. A read waits out the same hold
+for the same time, the read a save makes first among them: a program that
+opens a file and shares it with no one refuses every reader too, as the app's
+own exchange does for its moment. A file marked Read-only is
+refused at once, before it is touched: waiting does not clear it, and a replace
+of it renames it aside and back before Windows refuses it, in which moment a
+listing found the script gone. A path is kept, compared and
+shown in its plain form at any length, and Windows is given the `\\?\` form
+where a call does not make it itself (the folder watch;
+`src-tauri/src/long_path.rs`): the app does not declare itself long-path aware
+and a writer's Windows does not allow it by default, so a play whose folder or
+files pass Windows' old limit of 260 characters, as a long title a few folders
+deep does, opens, saves and is watched as any other.
+
 <a id="STOR-85"></a>
 
 **STOR-85** On Android's Storage Access Framework, where same-directory rename is not
@@ -512,7 +552,17 @@ share the token lock, so an old own-write token cannot hide a later external
 rollback. The watcher retries failures, rescans after errors and directory
 changes, and periodically checks the complete tree. An uncertain scan keeps
 the previous map. The status bar exposes recovery as **Checking file changes…**;
-returning to the app also revalidates open files on desktop.
+returning to the app also revalidates open files on desktop. A re-read the app
+makes itself that finds the bytes it already knows says nothing, even while a
+save of its own is under way: back in the window after a refused save, the
+re-read and the save's retry start together, and the old bytes, held for the
+write and decided after it, once read as a change from outside, so the app
+reloaded its own words. The Changes ledger records only the bytes the change
+it heard of left: bytes newer than those are another change's, or a save of
+the app's, whose baseline the save writes itself. A folder just
+opened is not in recovery while its watch starts: for its first two seconds
+nothing is shown or said, and a start that takes longer is shown and said as
+any recovery is (src/app/watcher-words.ts).
 
 <a id="STOR-D104"></a>
 
@@ -553,6 +603,18 @@ are still kept: theirs stays on disk, ours becomes a pinned version. The play fi
 legitimate writers (the reconciler, card edits, sync), so it rebases rather
 than collides: re-read, rebuild the change on the new base, retry once; a
 second mismatch is reported, never looped.
+
+<a id="STOR-188"></a>
+
+**STOR-188** **A write's answer never undoes a newer version of the play file.**
+The answer to a write of the play file comes after its bytes are durable, and
+in that moment another writer can replace the file; the watcher can report
+their version, and the app show it, before the answer arrives. The app takes
+up the version it wrote only while it still holds the version that write
+replaced. Holding any other, it reads the play file again and shows what is
+there. A read of the play file that an answer overtakes is read again too.
+Before this, the binder went back to the app's own older order, the disk
+kept the other writer's, and no later event said so.
 
 <a id="STOR-89"></a>
 
@@ -733,9 +795,13 @@ disposable cache.
 
 <a id="STOR-115"></a>
 
-**STOR-115** **Versions.** Snapshots of a script's state: first save of a session, then at
-most one `save` per 5 minutes, plus always-on `pre-reload`, `pre-keep`,
-`pre-restore`, and `collision`. Identical content dedups, except that a pinned
+**STOR-115** **Versions.** Snapshots of a script's, a sheet's or outline notes' state:
+first save of a session (with the text that save was made over, just before
+it, so a session's changes have a start — and likewise the first save after a
+change arrived from outside), then at most one `save` per 5
+minutes, and one more once saves have gone quiet for 2 minutes, so each
+sitting ends on what was written; plus always-on `pre-reload`, `pre-keep`,
+`pre-restore`, and `collision`. Opening keeps none. Identical content dedups, except that a pinned
 reason never dedups into an unpinned entry. Ring of 300 per
 script, oldest pruned, **except pinned reasons** (`collision`, `pre-keep`,
 `pre-reload` taken at a banner, `recovery`), which are never pruned. Unsaved
@@ -780,10 +846,24 @@ the play. These originals are retained.
 
 <a id="STOR-119"></a>
 
-**STOR-119** **Changes.** What changed in the play outside this window since the writer
-last saw it, with the previous text kept so each change can be put back. It is
-the surface a writer meets when the iPad, iCloud, or Dropbox did something
-while the app was closed. Its store (baseline per file, before-text per
+**STOR-119** **Changes.** One timeline of the play, newest first: the writer's own
+sittings, read from Versions, and what changed in the play outside this window
+since the writer last saw it, with the previous text kept so each change can be
+put back. A sitting is a run of versions, of any document, with no gap over 30
+minutes and no change from outside between them; one after such a change
+starts from the text that change left, so it is never counted as the
+writer's. A change's entry is stamped when it was heard, and the copy kept
+because it arrived counts as just before it, so their order never depends on
+which was written first. A sitting made of nothing but such copies, each kept
+for a change the list shows, is not listed: it says again what those changes
+say, and the change's own entry carries its way back ([STOR-184](#STOR-184)).
+An entry chosen shows what changed in each document, as a whole or one version
+against the one before, with a restore through that document's guarded write
+(a document not open is opened first). ↑ and ↓, or Newer and Older, move from
+one entry to the next and choose it; All, Mine and From Outside, and one
+document, filter it. **Versions…** opens it on the writer's own versions of the
+document in front. Changes from outside are also the surface a writer meets
+when the iPad, iCloud, or Dropbox did something while the app was closed. Its store (baseline per file, before-text per
 entry, an append-only ledger) lives here, not in the play. Store instances and
 queues are play-scoped. An entry is a difference from the baseline, the last
 text this device showed the writer or wrote itself; every write the app lands
@@ -793,6 +873,120 @@ the same bytes record nothing, and a file with no baseline gets one instead of
 an entry, so the next change to it has a diff and a way back. Revert verifies
 the reviewed after-hash, pins the exact current content under the item's ID,
 then writes against that hash; newer or unsaved words require a fresh choice.
+
+<a id="STOR-177"></a>
+
+**STOR-177** **A change is read on the page.** Every comparison Changes opens (a
+sitting, one version against the one before, a change from outside, another
+version left by a sync) has two looks, chosen once for all of them and
+remembered on this Mac: **On the Page**, which Changes opens in, and **Line by
+Line**. On the Page is a redline: the text as it now stands, the words that
+were cut struck through and the words that were added underlined where they
+stand, a rule in the margin beside every block a change touched, and the
+unchanged stretches left out, with a few blocks kept around each change. A
+script is drawn as the script, its elements in the play's format by the
+editor's own rules, for reading only: two speeches spoken together stand side
+by side, a speech is never shown without its cue, and a left-out stretch names
+the act and scene of what follows it when their headings are not on show. The
+texts are compared block against block (an element of a script, a line of any
+other document), then word against word inside a block that was rewritten: one
+at least half of whose words, counted over both versions, are the same words,
+or one block that replaced one of its kind. A block rewritten past that is
+struck whole, its replacement after it. A script's opening pages are not
+elements of it: when they differ the page says so, and Line by Line shows
+them. A document (a note, a character sheet, an outline) is drawn the same
+way on its own page: the sheet it is written on, the play's page width and
+margins, its headings, lists and emphasis as written and never its Markdown,
+compared element against element (a heading, a paragraph, a list item, a
+quote), a nested list item never shown without the item it hangs from. The
+details kept above a sheet's text are not on its page: when they differ the
+page says so, and Line by Line shows them. Any other text is drawn as its
+lines, with the same marks. Line by Line is the stored text as added and
+removed lines, title page and markup included. The redline is made when a comparison opens and is never written
+anywhere: its marks are no part of a play's schema, and neither look changes a
+file, a version or the ledger. Cut and added words are deletions and insertions
+to a screen reader, and a line through or a line under to the eye, so a change
+is never told by colour alone. The space either side of a run of cut or added
+words is drawn as space, neither struck nor underlined.
+
+<a id="STOR-183"></a>
+
+**STOR-183** **Looking is seeing.** What Changes counts on its tab is what the
+writer has not seen: each burst of changes from outside ([STOR-184](#STOR-184)),
+however many saves made it, and each copy kept during a save or before a crash
+that has not been in front of them. Every one of them is seen once Changes is in
+front, and the count goes at once; nothing has to be kept or dismissed one by
+one. Seeing removes nothing: the list keeps every entry, and the ones that were
+new when the writer looked are marked New, and counted beside the filters,
+while Changes stays in front. A change from outside is already in the play when
+it is heard, so seeing it is all that keeping it asks, and putting it back stays
+a choice of its own. Drawing a change on the script ([STOR-185](#STOR-185))
+sees it too. A change's entry records being seen in the ledger; a kept copy's,
+in this Mac's browser storage, where a loss counts it once more and does
+nothing else. The marks on the board's cards and the outline's rows show where
+changes the writer has not seen landed, and go when they are seen. It replaces
+the Keep each entry used to ask for, which left forty-four on the tab of a
+writer who had read every one.
+
+<a id="STOR-184"></a>
+
+**STOR-184** **A burst is one change.** Changes from outside to one file, one
+after another, with nothing of the writer's between them and no gap over 30
+minutes, are one entry, as a sitting is: something that edits a script in
+several writes, or a sync that lands a morning's work in pieces, is read as
+what it did, once. The entry says what changed in words added and cut, where
+in the play (each act named once, with its scenes), and how many saves made
+it; chosen, it shows the whole burst from before its first change to what its
+last left, or one save against the one before. Each change keeps what it left
+beside what was there before it, so an older one is shown as itself and never
+as all that came to the file since; an entry recorded before this falls back
+to what the next change found, then to the file as it stands. A change heard
+while the one before it to the same file is still being recorded began from
+what that one left, and is compared with that, not with a baseline the record
+has not moved yet: compared with the older text, it carried the change before
+it, and the two read as apart. Revert puts back
+the text from before the burst's first change, only while the file still reads
+as its last left it; once the file has moved on, the copy of the writer's text
+kept as the first change arrived is put back as a version is
+([STOR-115](#STOR-115)), what the document says now kept first. A change put
+back ends a burst. A burst of less than five minutes is said as the time of
+its last save.
+
+<a id="STOR-185"></a>
+
+**STOR-185** **Changes in text draws the newest burst on the script.** While
+the open script has a burst from outside the writer has not seen, the toolbar
+offers Changes in text. On, it draws that burst, and only that one, on the
+script being written: the same redline as Changes' page ([STOR-177](#STOR-177)),
+cut words struck through where they stood, added ones underlined, a cut
+element drawn in its own column and struck through, a rule in the margin
+beside every element the burst touched, each drawn once. Previous and Next,
+with how many there are, go from one changed element to the next, and turning
+it on goes to the first. It is a layer over the page, never the document:
+nothing drawn can be typed into or saved, and turning it off leaves the script
+as it was. The writer's own typing since the burst carries the marks along and
+is never marked as the burst's: an element the writer has rewritten since keeps
+the rule in its margin and no word marks. A script read again from its file
+while it is on is drawn again. Turning it on sees the burst
+([STOR-183](#STOR-183)); off, with nothing unseen left, the toolbar stops
+offering it, and Show in Script on the burst's entry in Changes draws it again.
+It replaces a layer that laid every change the writer had not kept over the
+script at once, the same cut line drawn once for each, in the file's own
+markup.
+
+<a id="STOR-186"></a>
+
+**STOR-186** **The timeline is a list beside a page.** Wide enough, Changes is
+two columns that scroll on their own: the list of entries, newest first under
+their day, each saying who (You wrote, Kept by Proscenium, Changed somewhere
+else), when, which document, where in it and how many words; and beside it the
+entry chosen, drawn on the page ([STOR-177](#STOR-177)) with its way back and
+how many changes it holds, which Previous and Next step through. It opens on
+the newest entry the writer had not seen, else the newest of all, so a change
+is on the page without a click. Narrower than a list and a page side by side,
+an entry chosen opens under its line instead. A sitting with nothing kept from
+before it has nothing to compare with, and says so: a script is never shown
+underlined from its first word to its last as though all of it were new.
 
 <a id="STOR-120"></a>
 
@@ -870,6 +1064,15 @@ for File Provider clients; Dropbox's own `~/.dropbox/info.json` for its
 classic client; a `.stfolder` marker at or above the folder for Syncthing;
 otherwise local.
 
+<a id="STOR-181"></a>
+
+**STOR-181** **On Windows** the providers recognized are OneDrive's (the folders
+Windows names in `OneDrive`, `OneDriveConsumer` and `OneDriveCommercial`),
+iCloud for Windows' (`iCloudDrive` in the writer's home), Dropbox's (its
+`info.json` under the writer's app data) and Google Drive's (`My Drive` on its
+own drive, found by the drive's name). The sentence names the PC: "…in a
+folder on this PC only." Syncthing's marker is read as on a Mac.
+
 <a id="STOR-D12"></a>
 
 ### First run and where plays live
@@ -904,6 +1107,17 @@ different folder.
 **STOR-134** **What a writer sees before doing anything:** an empty Plays screen with New
 Play, and the sentence saying where plays live. In Finder, an empty folder.
 
+<a id="STOR-182"></a>
+
+**STOR-182** **On Windows there is no iCloud container.** The Welcome screen's
+question offers Documents › Plays first (*recommended: a Plays folder in your
+Documents, kept by OneDrive when it keeps your Documents*), then "A folder I
+choose…", which opens Windows' folder picker. Documents › Plays is made when
+chosen, and granted as a folder the app owns, so it needs no picker
+(docs/app/keeping-work/storage-and-file-format.md#STOR-137). Where Documents
+is in OneDrive, the sentence says the plays are in OneDrive
+(docs/app/keeping-work/storage-and-file-format.md#STOR-181).
+
 <a id="STOR-174"></a>
 
 **STOR-174** Tutorials remain optional and reachable before a Plays folder is chosen. The compact, nonmodal first-use invitation appears only on the Plays screen after boot, authoritative settings, folder discovery, recovery questions and privacy notices are ready. It is remembered only after painting in the visible foreground window. Skip creates no practice, and choosing another task or leaving ends the invitation. Reset does not re-enable it.
@@ -915,6 +1129,8 @@ on the screen or in New Play's menu, only once it has looked one folder down and
 found no plays there (docs/app/keeping-work/storage-and-file-format.md#STOR-D2), or once the writer has kept the folder. While it
 looks, it offers no sample play; when the plays look to be in a folder inside,
 it asks. A blank play or a draft stays available: a play the writer names is their answer.
+The sample play is an excerpt of Noël Coward's *Hay Fever* (1925), the play the
+tutorials write from too ([TUT-11](../preferences-and-help/tutorials.md#TUT-11)).
 Keeping the folder lasts while the app runs; the next launch asks again, until
 a play is made there.
 
@@ -938,6 +1154,13 @@ outside app-owned storage without a working bookmark requires selection again.
   path as a hint, on every platform. This is the iOS design already in
   `settings.rs` (`lastVaultBookmark`), made universal. A bookmark can renew at
   resolve time; the renewal is persisted immediately.
+- <a id="STOR-179"></a> **STOR-179** **On Windows**, which has no sandbox and no
+  bookmark, the grant is what Rust recorded when the writer chose the folder in
+  the native picker: its path, and the identity NTFS gives the folder (its
+  volume and file id). Rust alone writes it, and only at a native pick; the page
+  never names a folder into it. A reopen opens the path only while the folder
+  there is still the one chosen: a folder moved, replaced or made again at that
+  path is not, and the writer is asked again.
 - <a id="STOR-139"></a> **STOR-139** A failed bookmark renewal or settings write is reported as durable-access
   failure (`E-FOLDER-ACCESS`); a usable folder stays open. The app retains that
   failure until it can save access and offers **Try Again** and **Choose
@@ -957,12 +1180,29 @@ outside app-owned storage without a working bookmark requires selection again.
 - <a id="STOR-143"></a> **STOR-143** Nothing can create a default folder under Documents without the panel,
   which is why the container is the zero-click default and not
   `~/Documents/Plays`.
+- <a id="STOR-187"></a> **STOR-187** An export writes only the file the Save panel named. The panel
+  grants that file, not the folder around it, so the temporary copy is staged
+  in the folder macOS makes for replacing that one item, on the same volume,
+  and installed with one rename (`vault::write_granted`). Nothing else appears
+  beside the export, even for a moment. Every Mac build writes exports this
+  way, and the native self-test runs the store build's under the App Sandbox,
+  with the Save panel's grant of that one file, and fails on anything else in
+  the folder (docs/engineering/release-engineering.md#REL-56).
 
 <a id="STOR-144"></a>
 
 **STOR-144** **Opening a file from Finder** (double-click, Open With, or the Dock icon;
 `src/workspace/open-route.ts` classifies, `src/app/useFinderOpens.ts` routes):
 
+- <a id="STOR-180"></a> **STOR-180** **On Windows**, File Explorer starts the app with
+  the file it opens as an argument, and those files are queued as a Mac's
+  launch open is. A file opened while a copy runs starts a second process,
+  which hands its paths to the copy already running and ends; that copy comes
+  forward and routes them as here. The direct download's installer makes
+  Proscenium the default only for `.proscenium`, the one type it owns, and adds
+  it to Open With for every other type it reads (`.fountain`, `.fdx`, `.docx`,
+  `.odt`, `.rtf`, `.txt`, `.md`, `.pages`), taking no default from the app a
+  writer chose for them, as a Mac's bundle is only an alternate for those.
 - <a id="STOR-145"></a> **STOR-145** **A `.proscenium` file, or a `.fountain` inside a play**, opens that play,
   with that script in front. A play is the nearest folder above the file that
   holds a play file.
@@ -1100,6 +1340,6 @@ git.
 
 The native vault in `src-tauri/src/vault/` owns byte reads, guarded atomic writes, durable intents and root identity. The watcher classifies changes against the vault's generation tokens. TypeScript in `src/storage/` owns buffer ancestry, autosave, recovery choices and plain failure messages.
 
-`src/workspace/play-file.ts` reads and serializes the play schema. Reconciliation joins the disk tree to binder identities and the parsed script to scene records. The app-data store holds Versions, Changes and recovery under the play id. Native folder authority is separate from a path displayed in the page.
+`src/workspace/play-file.ts` reads and serializes the play schema. Reconciliation joins the disk tree to binder identities and the parsed script to scene records. The app-data store holds Versions, Changes and recovery under the play id. A comparison's redline is derived, not stored: `src/review/redline.ts` compares blocks and then words, `src/editor/redline-doc.ts` turns a script's result into a read-only editor document, and `src/review/Comparison.tsx` draws any other text ([STOR-177](#STOR-177)). Native folder authority is separate from a path displayed in the page.
 
 The algorithms, schema, failure branches and limits above are normative. Storage tests exercise the native write boundary and the TypeScript session/reconciliation policies; browser and native smoke exercise the writer's recovery and conflict choices.

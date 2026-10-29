@@ -1,6 +1,6 @@
 [package]
 name = "proscenium"
-version = "1.0.0"
+version = "1.0.5"
 description = "A local-first, cross-platform playwriting app"
 authors = ["Habiby LLC"]
 edition = "2021"
@@ -38,6 +38,10 @@ rustls = { version = "0.23.45", default-features = false, features = ["ring"] }
 # Only SDK protocol types: no transport, integrations or automatic metadata.
 sentry-types = "=0.36.0"
 backtrace = "=0.3.74"
+# A canonical path as the platform writes one: on Windows `C:\…`, never the
+# `\\?\C:\…` std hands back, which compares unequal to every path Windows gives
+# the app itself (the home folder, app data). std's own everywhere else.
+dunce = "1"
 unicode-normalization = "0.1.25"
 unicode-segmentation = "1"
 uuid = { version = "1", features = ["v4"] }
@@ -75,6 +79,9 @@ objc2-foundation = { version = "0.3", default-features = false, features = [
   "NSData",
   "NSError",
   "NSFileManager",
+  # NSItemReplacementDirectory: where an export is staged under the sandbox,
+  # which grants the file the Save panel named and not its folder (vault/mod.rs).
+  "NSPathUtilities",
   "NSProcessInfo",
   "NSString",
   "NSURL",
@@ -106,6 +113,8 @@ objc2-app-kit = { version = "0.3", default-features = false, features = [
   "NSView",
   "NSPasteboard",
   "NSWindow",
+  # Opening a folder, file or address, and showing a file in Finder (shell.rs).
+  "NSWorkspace",
   "NSImage",
   "NSImageRep",
   "NSBitmapImageRep",
@@ -141,6 +150,33 @@ block2 = "0.6"
 [target.'cfg(unix)'.dependencies]
 # File locks and exclusive/exchange renames protect local writes in store builds too.
 libc = "0.2"
+
+# Windows. The save floor in Windows' own terms (vault/atomic_file.rs): write-
+# through renames, ReplaceFileW's exchange, LockFileEx, NTFS's file ids; and the
+# hand-off of a double-clicked file to the copy already running (opens.rs). The
+# versions are the ones Tauri's own crates already bring.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_Storage_Packaging_Appx",
+  "Win32_System_Com",
+  "Win32_System_DataExchange",
+  "Win32_System_IO",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_Registry",
+  "Win32_System_Shutdown",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+# WebView2's resource filter, the page's network fence (webview_fence.rs): the
+# same webview2-com and windows wry builds the webview with, so its interfaces
+# are the ones Tauri hands over.
+webview2-com = "0.38"
+windows = "0.61"
 
 [dev-dependencies]
 tempfile = "3"
@@ -184,3 +220,12 @@ selftest = [
   "objc2-foundation/NSValue",
   "objc2-web-kit/WKPreferences",
 ]
+# The update proof's copy (`scripts/build-app.mjs --update-proof`): the self-test
+# build under the real app's name and identifier, and the one build that takes
+# an update address at launch, `PROSCENIUM_UPDATE_PROOF_ORIGIN`, the origin of a
+# stand-in of the update service on this Mac's loopback address (selftest.rs,
+# telemetry/allowlist.rs). A released app refuses every address but the real
+# ones. NEVER in a release build, like `selftest`, which it implies: the
+# pipeline refuses either in the default build, and
+# `scripts/check-bundle.mjs --release` a binary that carries either's words.
+update-proof = ["selftest"]

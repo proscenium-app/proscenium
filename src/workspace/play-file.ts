@@ -248,8 +248,10 @@ export function validPlayShape(value: unknown): value is PlayFile {
         ids.has(item.id) ||
         typeof item.path !== "string" ||
         !item.path ||
-        item.path.startsWith("/") ||
-        item.path.split("/").some((part) => part === "..") ||
+        // Inside the play on every system: no root, no drive, no way up by
+        // either system's separator.
+        /^[\\/]|^[A-Za-z]:/.test(item.path) ||
+        item.path.split(/[\\/]/).some((part) => part === "..") ||
         !["script", "folder", "character", "document", "outline", "reference"].includes(
           String(item.type),
         )
@@ -343,7 +345,12 @@ export function sameIgnoringModified(a: PlayFile, b: PlayFile): boolean {
 }
 
 export type PlayCommit =
-  | { status: "ok"; data: PlayFile; hash: string }
+  /**
+   * `over` is the version the write replaced: the file's hash when it was
+   * written, or `hash` itself when nothing needed writing. A page holding
+   * neither has taken up another version since (useWorkspace's takeWritten).
+   */
+  | { status: "ok"; data: PlayFile; hash: string; over: string }
   /**
    * Not written. `data`/`hash` are what is actually on disk now — adopt them.
    * Re-asserting the old expectation is exactly what looped before.
@@ -387,11 +394,12 @@ export async function commitPlay(
     if (priorData && sameIgnoringModified(priorData, next)) {
       // Nothing this file owns actually changed. Writing would only move
       // `modified` and produce a file event in a watched, synced tree.
-      return { status: "ok", data: priorData, hash: priorHash ?? "" };
+      return { status: "ok", data: priorData, hash: priorHash ?? "", over: priorHash ?? "" };
     }
     next.modified = nowIso;
     const out = await writePlayFile(rel, next, priorHash);
-    if (out.status === "ok") return { status: "ok", data: next, hash: out.hash };
+    if (out.status === "ok")
+      return { status: "ok", data: next, hash: out.hash, over: priorHash ?? "" };
     const fresh = await readPlayFile(rel);
     if (fresh.status === "unsupported") return { status: "read-only" };
     // A failed decode is never permission to write with the collision's raw

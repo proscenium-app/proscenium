@@ -77,11 +77,11 @@ pub fn folder_access_retry(app: AppHandle) -> Result<(), String> {
         return Err("Choose the folder again to restore access.".into());
     }
     let bookmark = crate::scope::bookmark(&issue.path);
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     let problem = bookmark.is_none().then(|| {
         "Proscenium could not make a bookmark for this folder. Choose the folder again.".to_string()
     });
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", windows)))]
     let problem = None;
     retain(&app, issue.path, bookmark, problem)
 }

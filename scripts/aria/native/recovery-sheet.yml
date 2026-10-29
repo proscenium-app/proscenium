@@ -1,0 +1,65 @@
+- dialog "Unsaved Changes"
+  - heading "Unsaved Changes" [level=2]
+  - region "What Recover would change"
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+    - generic
+  - button "Discard"
+  - button "Not Now"
+  - button "Recover These Changes"
+  - status [live=polite]
+  - alert [live=assertive]

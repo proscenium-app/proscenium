@@ -7,8 +7,12 @@
  *   node scripts/release-keychain.mjs status    what is in place: names, dates, present or not — never a value
  *   node scripts/release-keychain.mjs status --apple   …and whether Apple still accepts the notarization key
  *   node scripts/release-keychain.mjs notary    file the notarization key from ~/Downloads, asking the maintainer for its Issuer ID
- *   node scripts/release-keychain.mjs profile   file the Developer ID provisioning profile from ~/Downloads
+ *   node scripts/release-keychain.mjs profile   file a provisioning profile from ~/Downloads: the Developer ID
+ *                                               one, or the Mac App Store's, told apart by what it provisions
  *   node scripts/release-keychain.mjs cloudflare file a just-copied deploy token without displaying it
+ *   <token> | node scripts/release-keychain.mjs sentry [--replace]
+ *                                               file the Sentry read token the release clock counts
+ *                                               crashes with, piped or just copied, never displayed
  *   node scripts/release-keychain.mjs log <id>  Apple's reasons for a notarization submission, with the stored key
  *   node scripts/release-keychain.mjs move --host <user@host>
  *                                               copy every item to the build host's own keychain, over SSH
@@ -26,7 +30,14 @@
  *     "Proscenium release", each named for the environment variable CI would
  *     give it;
  *   - the provisioning profile, which is not secret, as a file in
- *     ~/Library/Application Support/Proscenium Release/.
+ *     ~/Library/Application Support/Proscenium Release/;
+ *   - for the Mac App Store (docs/engineering/release-engineering.md#REL-56), an
+ *     Apple Distribution certificate and a Mac Installer Distribution
+ *     certificate with their private keys, in the login keychain beside the
+ *     Developer ID one, and the Mac App Store profile in the same folder. Only
+ *     the build host signs a store build: they are never Actions secrets of
+ *     their own, though `secrets` exports every identity, so theirs travel
+ *     inside the certificate's P12 too.
  *
  * **Nothing here prints a secret or logs one.** A value travels from a file or
  * a dialog into the keychain over a pipe to `security -i`, and from the
@@ -64,6 +75,8 @@ const opt = (name) => {
 export const SERVICE = "Proscenium release";
 export const PROFILE_DIR = join(homedir(), "Library/Application Support/Proscenium Release");
 export const PROFILE = join(PROFILE_DIR, "Proscenium_Developer_ID.provisionprofile");
+/** The Mac App Store's profile, beside it (docs/engineering/release-engineering.md#REL-42). */
+export const STORE_PROFILE = join(PROFILE_DIR, "Proscenium_Mac_App_Store.provisionprofile");
 
 /**
  * Which keychain holds the items. Unset on the maintainer's Mac: the login keychain,
@@ -116,7 +129,26 @@ export const ITEMS = {
   CLOUDFLARE_API_TOKEN: "Proscenium Worker deploy token",
 };
 
+/**
+ * The items only the build host keeps, filed there directly and never moved
+ * or made an Actions secret: what its own scheduled jobs read, which no
+ * other Mac and no workflow needs.
+ */
+export const HOST_ITEMS = {
+  SENTRY_READ_TOKEN: "Sentry read token (org:read), the release clock's crash count",
+};
+
 const DEVELOPER_ID = /\b([0-9A-F]{40}) "(Developer ID Application: (.+) \(([A-Z0-9]{10})\))"/;
+/**
+ * The Mac App Store's two identities. Apple's portal calls the first
+ * certificate Apple Distribution (once "Mac App Distribution", whose identity
+ * says "3rd Party Mac Developer Application"), and the second Mac Installer
+ * Distribution, whose identity says "3rd Party Mac Developer Installer".
+ */
+const DISTRIBUTION =
+  /\b([0-9A-F]{40}) "((?:Apple Distribution|3rd Party Mac Developer Application): (.+) \(([A-Z0-9]{10})\))"/;
+const INSTALLER =
+  /\b([0-9A-F]{40}) "((?:3rd Party Mac Developer Installer|Mac Installer Distribution): (.+) \(([A-Z0-9]{10})\))"/;
 
 /**
  * Store a value, base64 so every item is one line whatever the file held. The
@@ -125,15 +157,16 @@ const DEVELOPER_ID = /\b([0-9A-F]{40}) "(Developer ID Application: (.+) \(([A-Z0
  * that installed copies already trust is never overwritten by accident.
  */
 export function store(name, bytes, { replace = false } = {}) {
-  if (!(name in ITEMS)) throw new Error(`release-keychain: no item called ${name}`);
+  const what = ITEMS[name] ?? HOST_ITEMS[name];
+  if (!what) throw new Error(`release-keychain: no item called ${name}`);
   if (has(name) && !replace)
-    throw new Error(`release-keychain: the keychain already holds ${ITEMS[name]} (${name})`);
+    throw new Error(`release-keychain: the keychain already holds ${what} (${name})`);
   const encoded = Buffer.from(bytes).toString("base64");
   unlock();
   // Errors are named by exit status only: security's messages are not known
   // to leave the command they failed on out.
   const result = security(
-    `add-generic-password ${replace ? "-U " : ""}-s "${SERVICE}" -a ${name} -l "${SERVICE}: ${ITEMS[name]}" -w ${encoded}${into()}`,
+    `add-generic-password ${replace ? "-U " : ""}-s "${SERVICE}" -a ${name} -l "${SERVICE}: ${what}" -w ${encoded}${into()}`,
   );
   if (result.status !== 0)
     throw new Error(`release-keychain: could not store ${name} (security exited ${result.status})`);
@@ -192,6 +225,40 @@ function cloudflare() {
 }
 
 /**
+ * A Sentry auth token as Sentry makes them: `sntryu_` and 64 hex digits for a
+ * user's, or the older 64 hex digits alone. Anything else is refused whole.
+ */
+export function sentryToken(text) {
+  const token = String(text ?? "").trim();
+  if (!/^(sntryu_)?[0-9a-f]{64}$/.test(token))
+    throw new Error("That is not a Sentry auth token. Nothing was stored.");
+  return token;
+}
+
+/**
+ * The Sentry read token, into this Mac's keychain, never displayed: from a
+ * pipe, so one machine's copy can reach another's (the build host's jobs
+ * already hold one), or else from the clipboard, which is then cleared.
+ */
+async function sentry() {
+  const piped = !process.stdin.isTTY;
+  let text = "";
+  if (piped) {
+    // Read as a stream: over SSH the pipe can be non-blocking, where a
+    // synchronous read of it fails with EAGAIN before the value arrives.
+    process.stdin.setEncoding("utf8");
+    for await (const chunk of process.stdin) text += chunk;
+  } else
+    text = execFileSync("pbpaste", [], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const token = sentryToken(text);
+  store("SENTRY_READ_TOKEN", token, { replace: args.includes("--replace") });
+  if (!piped) execFileSync("pbcopy", [], { input: "", stdio: ["pipe", "ignore", "ignore"] });
+  console.log(
+    `The Sentry read token is in ${KEYCHAIN ?? "the login keychain"}${piped ? "" : "; the clipboard is clear"}.`,
+  );
+}
+
+/**
  * The key id inside a minisign signature or public key, as Tauri stores them:
  * base64 of the whole file, whose second line is base64 of
  * `<2 bytes algorithm><8 bytes key id><…>`.
@@ -203,21 +270,50 @@ export function minisignKeyId(encodedFile, what) {
   return Buffer.from(line.trim(), "base64").subarray(2, 10).toString("hex");
 }
 
-/** Every valid Developer ID Application identity in the keychains. Public names, not keys. */
-export function developerIds() {
-  unlock();
-  const out = execFileSync(
-    "security",
-    ["find-identity", "-v", "-p", "codesigning", ...(KEYCHAIN ? [KEYCHAIN] : [])],
-    {
-      encoding: "utf8",
-    },
-  );
+/** The valid identities `security find-identity` lists that `pattern` matches. */
+export function identitiesIn(out, pattern) {
+  const seen = new Set();
   return out
     .split("\n")
-    .map((line) => line.match(DEVELOPER_ID))
-    .filter(Boolean)
+    .map((line) => line.match(pattern))
+    .filter((m) => m && !seen.has(m[1]) && seen.add(m[1]))
     .map((m) => ({ sha1: m[1], identity: m[2], name: m[3], team: m[4] }));
+}
+
+function findIdentities(policy) {
+  unlock();
+  return execFileSync(
+    "security",
+    ["find-identity", "-v", ...(policy ? ["-p", policy] : []), ...(KEYCHAIN ? [KEYCHAIN] : [])],
+    { encoding: "utf8" },
+  );
+}
+
+/** Every valid Developer ID Application identity in the keychains. Public names, not keys. */
+export function developerIds() {
+  return identitiesIn(findIdentities("codesigning"), DEVELOPER_ID);
+}
+
+/**
+ * The Mac App Store's identities: `distribution` signs the app, `installer`
+ * the package it travels in. An installer identity is not a code-signing one,
+ * so both are read from the basic policy's list.
+ */
+export function storeIds() {
+  const out = findIdentities(null);
+  return {
+    distribution: identitiesIn(out, DISTRIBUTION),
+    installer: identitiesIn(out, INSTALLER),
+  };
+}
+
+/** The SHA-1 fingerprint of every certificate in a PEM text, as find-identity prints them. */
+export function pemFingerprints(pem) {
+  return [
+    ...String(pem).matchAll(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g),
+  ].map((m) =>
+    createHash("sha1").update(new X509Certificate(m[0]).raw).digest("hex").toUpperCase(),
+  );
 }
 
 /**
@@ -262,6 +358,20 @@ export function readProfile(path) {
       team: get("Entitlements.com\\.apple\\.developer\\.team-identifier"),
       expires: get("ExpirationDate"),
       allDevices: get("ProvisionsAllDevices") === "true",
+      // A development profile names the Macs it runs on; neither a Developer
+      // ID profile nor the Mac App Store's names any.
+      devices: (() => {
+        try {
+          return JSON.parse(
+            execFileSync("plutil", ["-extract", "ProvisionedDevices", "json", "-o", "-", plist], {
+              encoding: "utf8",
+              stdio: ["ignore", "pipe", "ignore"],
+            }),
+          ).length;
+        } catch {
+          return 0;
+        }
+      })(),
       name: get("Name"),
     };
   } finally {
@@ -368,17 +478,26 @@ function profile() {
   if (!info.appId?.endsWith(`.${want}`)) {
     throw new Error(`release-keychain: that profile is for ${info.appId ?? "no app"}, not ${want}`);
   }
-  if (!info.allDevices) {
-    throw new Error(
-      "release-keychain: that is not a Developer ID profile (it names devices) — make a Developer ID one",
-    );
-  }
+  const to = profileKind(info);
   // Not secret, and made again from the developer website whenever needed,
   // so it is filed rather than archived.
   mkdirSync(PROFILE_DIR, { recursive: true, mode: 0o700 });
-  renameSync(file, PROFILE);
+  renameSync(file, to.path);
   console.log(
-    `release-keychain: profile "${info.name}" for ${info.appId}, until ${info.expires}\n  filed at ${PROFILE}`,
+    `release-keychain: ${to.kind} profile "${info.name}" for ${info.appId}, until ${info.expires}\n  filed at ${to.path}`,
+  );
+}
+
+/**
+ * Where a profile is filed, by what it provisions: every Mac is Developer ID,
+ * none named is the Mac App Store's, and a list of Macs is a development
+ * profile, which no release uses.
+ */
+export function profileKind(info) {
+  if (info.allDevices) return { kind: "Developer ID", path: PROFILE };
+  if (!info.devices) return { kind: "Mac App Store", path: STORE_PROFILE };
+  throw new Error(
+    "release-keychain: that is a development profile (it names Macs) — make a Developer ID or a Mac App Store one",
   );
 }
 
@@ -442,8 +561,10 @@ function move() {
     );
 
   // `security export -t identities` takes EVERY identity in the keychain.
-  // With a second one present it would travel too, silently, and nothing
-  // downstream would say so — so refuse rather than guess which was meant.
+  // With a second one of a kind present it would travel too, silently, and
+  // nothing downstream would say so — so refuse rather than guess which was
+  // meant. The Mac App Store's two (docs/engineering/release-engineering.md#REL-56)
+  // travel beside the Developer ID one, one of each at most.
   const ids = developerIds();
   if (ids.length !== 1) {
     throw new Error(
@@ -452,6 +573,14 @@ function move() {
         : `release-keychain: this keychain holds ${ids.length} identities; move exports all of them. Narrow it first.`,
     );
   }
+  const store = storeIds();
+  for (const [kind, list] of Object.entries(store)) {
+    if (list.length > 1)
+      throw new Error(
+        `release-keychain: this keychain holds ${list.length} Mac App Store ${kind} identities; move exports all of them. Narrow it first.`,
+      );
+  }
+  const travelling = [...ids, ...store.distribution, ...store.installer];
   const missing = Object.keys(ITEMS).filter((name) => !has(name));
   if (missing.length)
     throw new Error(
@@ -461,7 +590,7 @@ function move() {
     throw new Error(`release-keychain: no provisioning profile at ${PROFILE}`);
 
   console.log(`release-keychain: moving to ${host}`);
-  console.log(`  identity  ${ids[0].identity}`);
+  for (const id of travelling) console.log(`  identity  ${id.identity}`);
 
   const dir = remote(host, SETUP, { capture: true }).trim();
   if (!dir.startsWith("/"))
@@ -495,11 +624,15 @@ function move() {
     // and NO VALID IDENTITY exists — which reads exactly like a key that never
     // arrived. Taken from this keychain rather than fetched, so what the host
     // trusts is provably the chain that issued this certificate.
-    send(host, join(dir, "chain.pem"), chain(ids[0]));
+    // Each identity's own: the store's are issued by Apple's Worldwide
+    // Developer Relations intermediate, not Developer ID's.
+    send(host, join(dir, "chain.pem"), Buffer.concat(travelling.map((id) => chain(id))));
 
-    // The four keychain items, and the profile, which is not secret.
+    // The keychain items, and the profiles, which are not secret.
     for (const name of Object.keys(ITEMS)) send(host, join(dir, name), load(name));
     send(host, join(dir, "profile"), readFileSync(PROFILE));
+    if (existsSync(STORE_PROFILE))
+      send(host, join(dir, "store-profile"), readFileSync(STORE_PROFILE));
 
     console.log(remote(host, install(dir), { capture: true }).trimEnd());
   } finally {
@@ -552,7 +685,7 @@ printf 'unlock-keychain -p "%s" ${HOST_KEYCHAIN}\\n' "$(cat "$PW")" | security -
 security import "$DIR/chain.pem" -k ${HOST_KEYCHAIN} -f pemseq >/dev/null 2>&1 || true
 # -T codesign and the partition list together are what stop macOS stopping a
 # headless build to ask whether codesign may use the key.
-printf 'import "%s" -k ${HOST_KEYCHAIN} -f pkcs12 -P "%s" -T /usr/bin/codesign -T /usr/bin/security\\n' \\
+printf 'import "%s" -k ${HOST_KEYCHAIN} -f pkcs12 -P "%s" -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/security\\n' \\
   "$DIR/id.p12" "$(cat "$DIR/id.pass")" | security -i >/dev/null 2>&1 || true
 printf 'set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "%s" ${HOST_KEYCHAIN}\\n' "$(cat "$PW")" \\
   | security -i >/dev/null 2>&1 || true
@@ -568,15 +701,21 @@ ${names
 
 mkdir -p "$HOME/Library/Application Support/Proscenium Release"
 cp "$DIR/profile" "$HOME/Library/Application Support/Proscenium Release/Proscenium_Developer_ID.provisionprofile"
+if [ -f "$DIR/store-profile" ]; then
+  cp "$DIR/store-profile" "$HOME/Library/Application Support/Proscenium Release/Proscenium_Mac_App_Store.provisionprofile"
+fi
 
 echo "  on the build host:"
-identity=$(security find-identity -v -p codesigning ${HOST_KEYCHAIN} | sed -n 's/^ *1) [0-9A-F]* "\\(.*\\)"$/\\1/p')
+identity=$(security find-identity -v -p codesigning ${HOST_KEYCHAIN} | sed -n 's/^ *[0-9]*) [0-9A-F]* "\\(Developer ID Application: .*\\)"$/\\1/p' | head -1)
 if [ -z "$identity" ]; then
   echo "    NO VALID IDENTITY — the certificate is there but nothing can sign with it" >&2
   security find-identity ${HOST_KEYCHAIN} >&2
   exit 1
 fi
 echo "    identity  $identity"
+# The Mac App Store's, each valid or not there: an installer identity is not
+# a code-signing one, so the basic policy's list names both.
+security find-identity -v ${HOST_KEYCHAIN} | sed -n -E 's/^ *[0-9]+\\) [0-9A-F]+ "((Apple Distribution|3rd Party Mac Developer|Mac Installer Distribution)[^"]*)"$/    identity  \\1/p' | sort -u
 
 # The only proof that matters: the identity, its chain and the partition list
 # all have to be right for an unattended codesign to succeed and for what it
@@ -793,11 +932,9 @@ function secrets() {
       throw new Error(
         "release-keychain: openssl cannot read the exported certificate, so CI could not either. Nothing was uploaded.",
       );
-    const sha1 = createHash("sha1")
-      .update(new X509Certificate(leaf).raw)
-      .digest("hex")
-      .toUpperCase();
-    if (sha1 !== ids[0].sha1)
+    // Every identity in the login keychain travels, the Mac App Store's
+    // among them, so the Developer ID certificate is one leaf of several.
+    if (!pemFingerprints(leaf).includes(ids[0].sha1))
       throw new Error(
         "release-keychain: the exported certificate is not the one in the keychain. Nothing was uploaded.",
       );
@@ -893,11 +1030,35 @@ function status() {
   for (const [name, what] of Object.entries(ITEMS)) {
     lines.push(`${has(name) ? "present " : "MISSING "} ${name.padEnd(26)} ${what}`);
   }
+  for (const [name, what] of Object.entries(HOST_ITEMS)) {
+    lines.push(
+      `${has(name) ? "present " : "absent  "} ${name.padEnd(26)} ${what}, the build host's alone`,
+    );
+  }
   if (existsSync(PROFILE)) {
     const info = readProfile(PROFILE);
     lines.push(`profile       ${info.name} · ${info.appId} · until ${info.expires}`);
   } else {
     lines.push(`profile       MISSING — ${PROFILE}`);
+  }
+  // The Mac App Store's (docs/engineering/release-engineering.md#REL-56):
+  // absent until the maintainer makes them, and no release waits on them.
+  const store = storeIds();
+  for (const [kind, what] of [
+    ["distribution", "Apple Distribution"],
+    ["installer", "Mac Installer Distribution"],
+  ]) {
+    lines.push(
+      store[kind].length
+        ? `store ${kind.padEnd(12)} ${store[kind].map((i) => i.identity).join("; ")}`
+        : `store ${kind.padEnd(12)} absent — no ${what} identity (docs/engineering/release-engineering.md#SHIP-D113)`,
+    );
+  }
+  if (existsSync(STORE_PROFILE)) {
+    const info = readProfile(STORE_PROFILE);
+    lines.push(`store profile ${info.name} · ${info.appId} · until ${info.expires}`);
+  } else {
+    lines.push(`store profile absent — ${STORE_PROFILE}`);
   }
   if (args.includes("--apple")) lines.push(`notarization  ${askApple()}`);
   console.log(lines.join("\n"));
@@ -909,13 +1070,18 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (command === "notary") notary();
     else if (command === "profile") profile();
     else if (command === "cloudflare") cloudflare();
+    else if (command === "sentry")
+      sentry().catch((e) => {
+        console.error(e.message);
+        process.exit(1);
+      });
     else if (command === "move") move();
     else if (command === "secrets") secrets();
     else if (command === "status") status();
     else if (command === "log") notaryLog(process.argv[3]);
     else {
       console.error(
-        "usage: node scripts/release-keychain.mjs status | notary | profile | cloudflare | move [--host <ssh host>] | secrets | log <submission id>",
+        "usage: node scripts/release-keychain.mjs status | notary | profile | cloudflare | sentry [--replace] | move [--host <ssh host>] | secrets | log <submission id>",
       );
       process.exit(2);
     }

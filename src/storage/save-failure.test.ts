@@ -4,6 +4,7 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { ERROR_CODES, workspaceErrorCode } from "../diagnostics/error-codes";
+import { setPCWords } from "./pc-words";
 import {
   saveProblem,
   saveRefusal,
@@ -198,5 +199,35 @@ describe("what the writer reads", () => {
         }
       }
     }
+  });
+});
+
+describe("on Windows", () => {
+  it("reads the vault's words, which carry no number (vault/mod.rs in_app_words)", () => {
+    const cases: [string, SaveRefusal][] = [
+      ["locked: Permission denied", "locked"],
+      ["in-use: The file is open in another program", "in-use"],
+      ["Permission denied", "no-permission"],
+      ["No such file or directory", "folder-gone"],
+      ["No space left on device", "disk-full"],
+      ["Disk quota exceeded", "disk-full"],
+      ["Read-only file system", "read-only"],
+      ["Input/output error", "unreachable"],
+    ];
+    for (const [said, refusal] of cases) expect([said, saveRefusal(said)]).toEqual([said, refusal]);
+  });
+
+  it("says Windows' Read-only, File Explorer and Windows Security", () => {
+    const subject = { kind: "script" as const, name: "Draft", folder: "The Tide" };
+    setPCWords(true);
+    try {
+      expect(saveProblem("locked", subject).title).toBe("“Draft” is marked Read-only.");
+      expect(saveProblem("no-permission", subject).detail).toContain("Controlled folder access");
+      expect(saveProblem("in-use", subject).title).toBe("“Draft” is open in another program.");
+      expect(saveProblem("locked", subject).code).toBe("E-SAVE-LOCKED");
+    } finally {
+      setPCWords(false);
+    }
+    expect(saveProblem("locked", subject).title).toBe("“Draft” is locked in Finder.");
   });
 });

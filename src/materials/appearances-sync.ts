@@ -16,10 +16,14 @@
  *     wrote the sheet in between we recompute on the next cycle. Pinning a
  *     version to save a list we can rebuild in a millisecond would be a bad
  *     trade, and it would fill Versions with noise.
+ *
+ * Only the sheets in the Characters folder are kept current (cast-sheets.ts):
+ * a sheet filed away with an earlier draft stays as it was filed.
  */
 import { vault } from "../storage";
 import { titleFromFileName } from "../workspace/filename";
 import type { BinderItem, SceneAppearance } from "../workspace";
+import { castSheets } from "./cast-sheets";
 import { hasManagedSection, renderAppearances, writeManagedSection } from "./managed";
 
 const HEADING = "Appearances";
@@ -27,18 +31,6 @@ const HEADING = "Appearances";
 export interface AppearanceSyncResult {
   written: string[];
   skipped: number;
-}
-
-/** Every `character` item in a binder tree, flattened. */
-function characters(items: BinderItem[], out: BinderItem[] = []): BinderItem[] {
-  for (const item of items) {
-    if (item.type === "folder") {
-      if (item.children) characters(item.children, out);
-    } else if (item.type === "character") {
-      out.push(item);
-    }
-  }
-  return out;
 }
 
 /**
@@ -74,7 +66,7 @@ export async function syncAppearances(args: {
   const written: string[] = [];
   let skipped = 0;
 
-  for (const item of characters(args.binder)) {
+  for (const item of castSheets(args.binder)) {
     const rel = item.path;
     if (args.skip?.(rel)) continue;
     try {

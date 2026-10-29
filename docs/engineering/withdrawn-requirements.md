@@ -361,3 +361,81 @@ The maintainer, 2026-09-25: "import off of the plays page to make a new play, im
 **IMPT-55 — Withdrawn 2026-09-25.** Replaced by [IMPT-99](../app/importing/document-import.md#IMPT-99). Original contract:
 
  Fixed footer: the create/copy consequence, Cancel, optional Skip This File, and **Create New Play**.
+
+## Withdrawn 2026-09-27: admission and halts with no deploy
+
+The update service now reads which releases it admits, and which versions it has halted, from a list a release writes to its R2 bucket, so a release is admitted and a bad one stopped within a minute and with no deploy. Reading a list it cannot rely on is the one thing the Worker has to say of its own, and a message may now carry the build version it came from.
+
+<a id="SERV-41"></a>
+
+**SERV-41 — Withdrawn 2026-09-27.** It read: “Workers Logs stays off, and the Worker writes no log line of its own.” The Worker now says, in one kind of line and nothing of any request, that its admission list could not be read or is not one. Replaced by [SERV-275](services-and-feedback.md#SERV-275).
+
+<a id="SERV-34"></a>
+
+**SERV-34 — Withdrawn 2026-09-27.** It read: “The Worker checks the sizes, a well-formed email if there is one, and that no other field is present.” A message may also carry the whole build version it came from, which the Worker checks and keeps. Replaced by [SERV-276](services-and-feedback.md#SERV-276) and [SERV-273](services-and-feedback.md#SERV-273).
+
+## Withdrawn 2026-10-07: a comment is about the words it was made on
+
+A comment made on a selection highlighted the whole sentence before it, because a Fountain note stands at a point and nothing recorded where the selection began. The script now fences the stretch with two marker notes, which another editor shows as two short notes; that cost was the reason ranges were out of scope, and it is accepted.
+
+<a id="COMM-19"></a>
+
+**COMM-19 — Withdrawn 2026-10-07.** Replaced by [COMM-59](../app/writing/comments.md#COMM-59). Original contract:
+
+> **The anchor highlight.** An inline decoration over the phrase the comment follows (`model.ts anchorSpan`: back to the last clause ending, inside that text run, capped at 64 characters). It sets a *background colour and nothing else* — no padding, no border, no metrics — so it cannot move a wrap. Clicking it reads that comment; clicking the card darkens it. This is presentation, not a stored range: the scope limits still hold.
+
+<a id="COMM-35"></a>
+
+**COMM-35 — Withdrawn 2026-10-07.** Replaced by [COMM-60](../app/writing/comments.md#COMM-60). Original contract:
+
+> **Comment on the selection**: **⌘⌥M** and a `+ Comment` button in the element bar. The note lands immediately after the selection and its card opens in the margin for typing (⌘⏎ saves, Esc cancels and takes the empty note with it). Honesty about anchoring: a Fountain note anchors at a *point*, so "comment on this phrase" means "the comment sits immediately after the phrase" — a selection is a placement gesture, not a persisted range, and what the highlight then paints is derived from the text, not from what was selected. The note is born with placeholder text because an empty inline node cannot hold the DOM caret (breaks.ts); the first save replaces it, and a save with nothing in it deletes the note.
+
+<a id="COMM-39"></a>
+
+**COMM-39 — Withdrawn 2026-10-07.** Replaced by [COMM-61](../app/writing/comments.md#COMM-61) and the requirements beside it. Original contract, under Scope limits:
+
+> **Range highlights.** Not expressible in Fountain without inventing markers other tools would print or display. Point anchors only — the margin's highlight is *derived* from the phrase before the note on every render, and a different tool, a hand edit, or a re-parse changes what it paints without changing a byte. Nothing stores a range.
+
+## Withdrawn 2026-10-06: a comment can be answered, and a name is any script's
+
+A script traded with a reader has two voices in its margin, and the second needs answering where it spoke. A reply is the adjacent comment the scope limit already named, now read as one conversation; and a name is no longer held to ASCII, which read a comment signed “Zoë” as nobody's.
+
+<a id="COMM-37"></a>
+
+**COMM-37 — Withdrawn 2026-10-06.** Replaced by [COMM-50](../app/writing/comments.md#COMM-50) and the requirements beside it. Original contract, under Scope limits:
+
+> **Threads / replies.** A reply in the margin is an adjacent comment. Revisit only with real multi-human collaboration, which is itself out of scope.
+
+<a id="COMM-12"></a>
+
+**COMM-12 — Withdrawn 2026-10-06.** Replaced by [COMM-51](../app/writing/comments.md#COMM-51). Original contract:
+
+> **Attribution is a leading `Name:` token, display-parsed only.** `[[Robin: is this earned?]]` · `[[Sam: repeats the sc. 3 argument]]`. Pattern: `^\s*([A-Za-z][A-Za-z0-9 .'-]{0,23}):\s`. The panel and margin bubble render the token as a chip; the source of truth remains the note text, verbatim, and a note with no token is simply unattributed. Never stored anywhere else, never required.
+
+## Withdrawn 2026-10-19: a card holds what a writer uses on one
+
+A writer looking at the board asked what a scene's status and label were for, found the status's choices in Settings, and could not change the color the rail drew beside every scene. The card now holds the heading, the summary, the notes and a color chosen where it shows, and the board runs across or down.
+
+<a id="WORK-24"></a>
+
+**WORK-24 — Withdrawn 2026-10-19.** Replaced by [WORK-85](../app/organizing/workspace-model.md#WORK-85). Original contract:
+
+> Each card shows: the scene heading (or act/scene label), the **synopsis** (the Fountain `=` line — editable on the card, writes back to the script), and the card chips — **color**, **status** (`idea · outline · draft · revised · locked`), and **label**. Heading and synopsis come from the script and are recomputed on every reconcile, never stored; color/status/label come from the play file (`scripts[<binder id>].scenes[].card`, canonical there). This is the one-home-per-datum rule from docs/app/keeping-work/storage-and-file-format.md#STOR-D6 made visible.
+
+<a id="WORK-35"></a>
+
+**WORK-35 — Withdrawn 2026-10-19.** Replaced by [WORK-87](../app/organizing/workspace-model.md#WORK-87). Original contract:
+
+> **The table**, below it: the same scenes as rows in a sortable, scannable list — heading · synopsis · status · label · length (estimated pages/lines). Good for a bird's-eye pass: retitle, rewrite synopses, bulk-set status, spot a sagging act. Editing a synopsis or heading writes to the script; editing status/label writes to the sidecar. Reordering rows reorders scenes exactly as the corkboard does.
+
+<a id="WORK-70"></a>
+
+**WORK-70 — Withdrawn 2026-10-19.** Replaced by [WORK-85](../app/organizing/workspace-model.md#WORK-85) and [WORK-87](../app/organizing/workspace-model.md#WORK-87). Original contract:
+
+> Board cards use a drag handle and keyboard-accessible move buttons; notes and labels live under Details. Outline summaries and notes share a text-control treatment. Scene status is a free-form label, with the offered choices edited in Settings → Writing. Existing labels are preserved when that list changes.
+
+<a id="SET-9"></a>
+
+**SET-9 — Withdrawn 2026-10-19.** Replaced by [SET-42](../app/preferences-and-help/settings.md#SET-42). Original contract:
+
+> **Writing** — the scene navigation strip (formerly Page map); spell check on or off (the same setting the document menu toggles); dictionary words with Add Word and Forget; editable scene status labels.

@@ -8,14 +8,18 @@
  * boundary, so e.g. `rel_dir` is passed as `relDir`. This is the ONLY module
  * that talks to the backend; everything else goes through the higher-level store.
  */
-import type { FeedbackDraft } from "../feedback/model";
+import { setPCWords } from "./pc-words";
+import { relativeTo } from "./path-key";
+import type { KeyStyle } from "../ui/keys";
+import type { SystemWords } from "../ui/system-words";
+import type { FeedbackDraft } from "./feedback-draft";
 import { invoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
 import type { ErrorCode } from "../diagnostics/error-codes";
 import { VaultWriteError } from "./save-failure";
 import { decodeBytes } from "./import-bytes";
 import { sendingWrite, vaultOpenedAt } from "./own-writes";
-import type { Settings, SettingsPatch } from "./settings-model";
+import type { Settings, SettingsPatch, UpdateTrack } from "./settings-model";
 
 /** How often, and how long, letting go of a listener is tried again. */
 const UNLISTEN_RETRY_MS = 20;
@@ -192,13 +196,15 @@ function rememberFolder(grant: FolderGrant | null): string | null {
 async function folderHandle(path: string): Promise<string> {
   const known = folderGrants.get(path);
   if (known) return known.handle;
-  const parent = [...folderGrants.values()]
-    .filter((g) => path.startsWith(`${g.path}/`))
-    .sort((a, b) => b.path.length - a.path.length)[0];
-  if (!parent) throw new Error("Choose this folder in the folder panel before opening it.");
+  const below = [...folderGrants.values()]
+    .map((g) => ({ g, relative: relativeTo(path, g.path) }))
+    .filter((c): c is { g: FolderGrant; relative: string } => c.relative !== null)
+    .sort((a, b) => b.g.path.length - a.g.path.length)[0];
+  if (!below) throw new Error("Choose this folder in the folder panel before opening it.");
+  const parent = below.g;
   const grant = await invoke<FolderGrant>("vault_folder_below", {
     handle: parent.handle,
-    relative: path.slice(parent.path.length + 1),
+    relative: below.relative,
   });
   rememberFolder(grant);
   return grant.handle;
@@ -322,6 +328,7 @@ export const vault = {
         return out;
       },
       (said: unknown) => {
+        landed(false);
         throw new VaultWriteError(said);
       },
     );
@@ -386,6 +393,17 @@ export const vault = {
       ? mock().then((m) => m.cloudRoot())
       : invoke<FolderGrant | null>("vault_cloud_root").then(rememberFolder),
   /**
+   * Windows' first door (docs/app/keeping-work/storage-and-file-format.md#STOR-D12): Documents › Plays,
+   * made if need be and granted as a folder the writer chose.
+   */
+  documentsRoot: (): Promise<string> =>
+    USE_MOCK
+      ? mock().then((m) => m.defaultRoot())
+      : invoke<FolderGrant>("vault_documents_root").then((grant) => {
+          rememberFolder(grant);
+          return grant.path;
+        }),
+  /**
    * The app's own Documents directory — always available, needing no picker
    * and no grant. Mobile's fallback when there is no container.
    */
@@ -412,25 +430,62 @@ export interface Capabilities {
   canExportAnywhere: boolean;
   /** False where the external-change contract rests on foreground rescan. */
   canWatchFiles: boolean;
+  /** How a shortcut is written: a Mac's glyphs, or a PC's words (src/ui/keys.ts). */
+  keys: KeyStyle;
+  /** What this system calls things (src/ui/system-words.ts). */
+  words: SystemWords;
+  /**
+   * The Welcome screen's first door: the iCloud Drive container, or
+   * Documents › Plays where there is none; null where neither is offered.
+   */
+  suggestedFolder: "icloud" | "documents" | null;
+  /** How File › Print… prints: the system's print panel, or the PDF opened in the writer's PDF app. */
+  print: "panel" | "pdf-app";
 }
 
-/** Browser dev is a desktop-shaped host: everything except the native bits. */
+/** Browser dev is a desktop-shaped host: everything except the native bits, in a Mac's words. */
 const MOCK_CAPABILITIES: Capabilities = {
   canPickFolder: true,
   pickerShowsMessage: true,
   canReveal: false,
   canExportAnywhere: false,
   canWatchFiles: true,
+  keys: "mac",
+  words: { machine: "Mac", system: "macOS", fileManager: "Finder", trash: "Trash" },
+  suggestedFolder: "icloud",
+  print: "panel",
 };
+
+/**
+ * A PC's record, as `capabilities` in src-tauri/src/lib.rs answers on Windows,
+ * for a fixture page that asks to be drawn as the Windows app
+ * (`__PROSCENIUM_FIXTURE_PC__`: the Microsoft Store's screenshots, made by
+ * scripts/store-screenshots.mjs --pc). Inside the real app the flag is never read.
+ */
+const MOCK_PC_CAPABILITIES: Capabilities = {
+  ...MOCK_CAPABILITIES,
+  keys: "pc",
+  words: { machine: "PC", system: "Windows", fileManager: "File Explorer", trash: "Recycle Bin" },
+  suggestedFolder: "documents",
+  print: "pdf-app",
+};
+
+const mockCapabilities = (): Capabilities =>
+  (globalThis as { __PROSCENIUM_FIXTURE_PC__?: boolean }).__PROSCENIUM_FIXTURE_PC__ === true
+    ? MOCK_PC_CAPABILITIES
+    : MOCK_CAPABILITIES;
 
 /** Memoized: a build's capabilities cannot change while it runs. */
 let capsPromise: Promise<Capabilities> | null = null;
 
 export const platform = {
   capabilities: (): Promise<Capabilities> =>
-    (capsPromise ??= USE_MOCK
-      ? Promise.resolve(MOCK_CAPABILITIES)
-      : invoke<Capabilities>("capabilities")),
+    (capsPromise ??= (
+      USE_MOCK ? Promise.resolve(mockCapabilities()) : invoke<Capabilities>("capabilities")
+    ).then((caps) => {
+      setPCWords(caps.keys === "pc");
+      return caps;
+    })),
   /** The page's first frame is on screen (src-tauri/src/window_color.rs). */
   pagePainted: (): Promise<void> => (USE_MOCK ? Promise.resolve() : invoke<void>("page_painted")),
 };
@@ -448,6 +503,9 @@ export interface VersionEntry {
   pinned: boolean;
 }
 
+/** Fired on the window after a version is kept, so what lists them can read the list again. */
+export const VERSION_KEPT_EVENT = "proscenium:version-kept";
+
 /**
  * Versions — a script's earlier states, under the app's own data directory
  * keyed by play id (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), never inside the Plays folder.
@@ -464,9 +522,14 @@ export const versions = {
     content: string,
     ext = "fountain",
   ): Promise<string> =>
-    USE_MOCK
+    (USE_MOCK
       ? mock().then((m) => m.versionSnapshot(playId, scriptId, reason, content, ext))
-      : invoke("versions_snapshot", { playId, scriptId, reason, content, ext }),
+      : invoke<string>("versions_snapshot", { playId, scriptId, reason, content, ext })
+    ).then((name) => {
+      // Changes lists every version; it reads the list again when one is kept.
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(VERSION_KEPT_EVENT));
+      return name;
+    }),
   list: (playId: string, scriptId: string): Promise<VersionEntry[]> =>
     USE_MOCK
       ? mock().then((m) => m.versionList(playId, scriptId))
@@ -670,7 +733,9 @@ export interface AppInfo {
    * What updates this copy: `developer-id` the app itself, `app-store` the
    * store, `local` nothing (a copy built here by app:install). `browser` in dev.
    */
-  channel: "developer-id" | "app-store" | "local" | "browser";
+  channel: "developer-id" | "app-store" | "download" | "microsoft-store" | "local" | "browser";
+  /** The tracks this build is published on, slowest first (settings.rs `TRACKS`). */
+  tracks: UpdateTrack[];
 }
 
 /**
@@ -714,6 +779,14 @@ export const settings = {
     USE_MOCK
       ? mock().then((m) => m.systemAccent())
       : invoke<string | null>("system_accent").catch(() => null),
+  /**
+   * Whether the Mac asks for a text cursor that does not blink (caret.rs), for
+   * the caret a document draws; false where there is no such setting to ask.
+   */
+  steadyCaret: (): Promise<boolean> =>
+    USE_MOCK
+      ? mock().then((m) => m.steadyCaret())
+      : invoke<boolean>("steady_caret").catch(() => false),
   getLastVault: (): Promise<string | null> =>
     USE_MOCK ? mock().then((m) => m.getLastVault()) : invoke("get_last_vault"),
   /**
@@ -831,7 +904,23 @@ export type TelemetryEvent =
   | { name: "pdf_exported"; kind: "whole" | "range" | "sides"; format: string }
   | { name: "format_saved" }
   /** Also kept in the local log of error codes, whatever the switch says. */
-  | { name: "error_shown"; code: ErrorCode };
+  | { name: "error_shown"; code: ErrorCode }
+  | { name: "tutorial_offered"; choice: TutorialChoice }
+  | {
+      name: "lesson_progress";
+      lesson: import("../tutorial/lessons").LessonId;
+      moment: LessonMoment;
+    }
+  | {
+      name: "lesson_stopped";
+      lesson: import("../tutorial/lessons").LessonId;
+      step: import("../tutorial/lessons").Task;
+    };
+
+/** The tutorial invitation shown, or the button chosen on it (telemetry/events.rs). */
+export type TutorialChoice = "shown" | "try" | "see-all" | "skip";
+/** Where a lesson got to (telemetry/events.rs). */
+export type LessonMoment = "started" | "continued" | "finished" | "finished-with-skips";
 
 /**
  * Anonymous usage and crash reports go out from Rust only; the page can ask for

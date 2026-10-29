@@ -219,12 +219,38 @@ pub async fn feedback_send(
     let _guard = lock(&root)?;
     let saved = keep(&root, draft, true)?;
     let body = message(&saved, details.as_deref())?;
+    // A test keeps what would be sent, and never reaches the service; it can
+    // be told it is offline (selftest_fixture.rs).
+    #[cfg(feature = "selftest")]
+    if crate::selftest_fixture::testing() {
+        crate::selftest_fixture::keep_feedback(
+            serde_json::to_value(&body).map_err(|_| failure())?,
+        )?;
+        return remove(&root);
+    }
     deliver(crate::telemetry::allowlist::FEEDBACK, &body).await?;
     remove(&root)
 }
 #[tauri::command]
-pub fn feedback_copy(message: String) -> Result<(), String> {
-    crate::telemetry::copy_text(&message)
+pub fn feedback_copy(app: tauri::AppHandle, message: String) -> Result<(), String> {
+    let copied = crate::telemetry::copy_text(&app, &message);
+    // What reached the clipboard, for a test build's checks (selftest_fixture.rs).
+    #[cfg(feature = "selftest")]
+    if copied.is_ok() {
+        crate::selftest_fixture::feedback_copied(&message);
+    }
+    copied
+}
+
+/// The draft as it is kept, `{ draft, id }`, or null: what a test build's
+/// checks read back (selftest_fixture.rs).
+#[cfg(feature = "selftest")]
+pub(crate) fn saved_for_check(app: &tauri::AppHandle) -> serde_json::Value {
+    root(app)
+        .ok()
+        .and_then(|root| read(&root).ok().flatten())
+        .and_then(|saved| serde_json::to_value(saved).ok())
+        .unwrap_or(serde_json::Value::Null)
 }
 #[cfg(test)]
 mod tests;

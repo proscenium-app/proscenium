@@ -9,11 +9,13 @@
 //! version is the one it reports to the update service, compares an offered
 //! update against, and shows in Settings and Copy Diagnostics. A release has no
 //! such key, and neither does a local or development build: their version is
-//! the package's, `X.Y.Z`.
+//! the package's, `X.Y.Z`. A Windows track build is given its whole version at
+//! build time instead (`PROSCENIUM_VERSION`), since it has no Info.plist.
 
 use tauri::{AppHandle, Runtime};
 
 /// The key a track build adds to its Info.plist.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const KEY: &str = "ProsceniumVersion";
 
 /// This copy's whole version.
@@ -50,7 +52,23 @@ fn bundle_version() -> Option<String> {
     Some(text.to_string())
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Windows has no Info.plist: a track build is given its whole version when it
+/// is built, as `PROSCENIUM_VERSION`, and keeps it (build.rs). It is held to
+/// the same rule as a Mac's key, so a stray value is ignored.
+#[cfg(windows)]
+fn bundle_version() -> Option<String> {
+    WHOLE.map(str::to_string)
+}
+
+/// The whole version, kept whole in the executable: an update proof reads it
+/// from outside, as a Mac's reads the Info.plist. Without `#[used]` the
+/// optimizer writes so short a string with a few stores, and its text is in
+/// the binary nowhere (measured on a beta's build, 2026-10-14).
+#[cfg(windows)]
+#[used]
+static WHOLE: Option<&str> = option_env!("PROSCENIUM_VERSION");
+
+#[cfg(not(any(target_os = "macos", windows)))]
 fn bundle_version() -> Option<String> {
     None
 }

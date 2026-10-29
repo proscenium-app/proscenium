@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
 
-import { touchedScenes } from "./locate";
+import { touchedSceneNames, touchedScenes } from "./locate";
 
 const SCRIPT = [
   "Title: A Play",
@@ -80,5 +80,19 @@ describe("touchedScenes", () => {
   it("treats a script with no structure at all as one scene", () => {
     const flat = "MARA\nOne.\n\nJONAH\nTwo.";
     expect([...touchedScenes(flat, flat.replace("Two.", "Three."))]).toEqual([0]);
+  });
+});
+
+describe("touchedSceneNames", () => {
+  test("names each touched scene once, in script order, by its heading", () => {
+    const before = "Title: T\n\n## One\n\nA line.\n\n## Two\n\nB line.\n";
+    const after = "Title: T\n\n## One\n\nA line changed.\n\n## Two\n\nB line.\nMore.\n";
+    expect(touchedSceneNames(before, after)).toEqual(["One", "Two"]);
+  });
+
+  test("a change above the first scene says so", () => {
+    expect(
+      touchedSceneNames("Title: A\n\n.KITCHEN\n\nX.\n", "Title: B\n\n.KITCHEN\n\nX.\n"),
+    ).toEqual(["before the first scene"]);
   });
 });

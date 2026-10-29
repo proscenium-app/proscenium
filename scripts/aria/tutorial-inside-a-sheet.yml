@@ -45,39 +45,39 @@
         - img
     - heading "Characters" [level=1]
     - paragraph:
-      - strong: MARA
+      - strong: SOREL
     - paragraph:
-      - strong: IVO Old friends.
+      - strong: SIMON Brother and sister.
   - group: Page Options
   - heading "Cast Tools" [level=2]
   - paragraph: Names, private notes, appearances and sides.
-  - group "MARA":
-    - text: MARA
-    - textbox "Name — MARA"
-    - textbox "Description — MARA"
-    - button "Remove MARA"
-    - button "Move MARA up" [disabled]
-    - button "Move MARA down"
+  - group "SOREL":
+    - text: SOREL
+    - textbox "Name — SOREL"
+    - textbox "Description — SOREL"
+    - button "Remove SOREL"
+    - button "Move SOREL up" [disabled]
+    - button "Move SOREL down"
+    - text: 2 lines · 1 scene Appears in SCENE 1
+    - button "Sides (PDF) ↗"
+    - button "Add Notes"
+  - group "SIMON":
+    - text: SIMON
+    - textbox "Name — SIMON"
+    - textbox "Description — SIMON"
+    - button "Remove SIMON"
+    - button "Move SIMON up"
+    - button "Move SIMON down"
     - text: 1 line · 1 scene Appears in SCENE 1
     - button "Sides (PDF) ↗"
     - button "Add Notes"
-  - group "IVO":
-    - text: IVO
-    - textbox "Name — IVO"
-    - textbox "Description — IVO"
-    - button "Remove IVO"
-    - button "Move IVO up"
-    - button "Move IVO down"
-    - text: 1 line · 1 scene Appears in SCENE 1
-    - button "Sides (PDF) ↗"
-    - button "Add Notes"
-  - group "ROWAN":
-    - text: ROWAN
-    - textbox "Name — ROWAN"
-    - textbox "Description — ROWAN"
-    - button "Remove ROWAN"
-    - button "Move ROWAN up"
-    - button "Move ROWAN down" [disabled]
+  - group "JUDITH":
+    - text: JUDITH
+    - textbox "Name — JUDITH"
+    - textbox "Description — JUDITH"
+    - button "Remove JUDITH"
+    - button "Move JUDITH up"
+    - button "Move JUDITH down" [disabled]
     - text: Not in the script yet
     - button "Add Notes"
   - button "Add Character"
@@ -93,21 +93,21 @@
           - button "SCENE 1"
         - columnheader "Scenes"
     - rowgroup:
-      - row "IVO silent speaks 1":
-        - rowheader "IVO"
-        - cell "silent"
-        - cell "speaks"
-        - cell "1"
-      - row "MARA silent speaks 1":
-        - rowheader "MARA"
-        - cell "silent"
-        - cell "speaks"
-        - cell "1"
-      - row "ROWAN silent silent never speaks":
-        - rowheader "ROWAN"
+      - row "JUDITH silent silent never speaks":
+        - rowheader "JUDITH"
         - cell "silent"
         - cell "silent"
         - cell "never speaks"
+      - row "SIMON silent speaks 1":
+        - rowheader "SIMON"
+        - cell "silent"
+        - cell "speaks"
+        - cell "1"
+      - row "SOREL silent speaks 1":
+        - rowheader "SOREL"
+        - cell "silent"
+        - cell "speaks"
+        - cell "1"
     - rowgroup:
       - row "On stage 0 2":
         - rowheader "On stage"
@@ -116,16 +116,28 @@
         - cell
 - complementary "Inspector":
   - tablist "Inspector":
-    - tab "Scene"
-    - tab "Comments" [selected]
+    - tab "Scene" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - heading "0 comments" [level=2]
-  - 'button "Filter comments: All Comments"': All Comments
-  - paragraph:
-    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
-    - code: "[["
-    - text: where you want one.
-  - list
+  - text: Scene 2
+  - heading "SCENE 1" [level=2]
+  - text: Pages 1–2 · 2 pages · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage SOREL 2 SIMON 1 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
   - text: <save status>

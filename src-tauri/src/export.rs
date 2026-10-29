@@ -90,7 +90,11 @@ pub async fn save_export(
     #[cfg(feature = "selftest")]
     if let Some(target) = crate::selftest::export_destination(&name) {
         let _ = (&title, &filter, &extension, &app);
-        return deliver(&bytes, Some(target));
+        let delivered = deliver(&bytes, Some(target));
+        if delivered.as_ref().is_ok_and(Option::is_some) {
+            crate::selftest_fixture::keep_export(&name, &bytes);
+        }
+        return delivered;
     }
     let picked = tauri::async_runtime::spawn_blocking(move || {
         app.dialog()
@@ -127,6 +131,13 @@ pub async fn print_export(
     base64: String,
 ) -> Result<(), String> {
     let bytes = decode_export(&base64)?;
+    // A test keeps what it was asked to print instead of putting the print
+    // panel over the test machine, as it answers the save panel.
+    #[cfg(feature = "selftest")]
+    if crate::selftest_fixture::keep_print(&job_title, &bytes) {
+        let _ = window;
+        return Ok(());
+    }
     let (tx, rx) = std::sync::mpsc::channel();
     // AppKit, so on the main thread, with the NSWindow the panel attaches to.
     window
@@ -142,8 +153,59 @@ pub async fn print_export(
     .map_err(estr)?
 }
 
+/// Print on Windows (docs/engineering/cross-platform.md#PLAT-35, `print:
+/// "pdf-app"`): the PDF the page rendered opens in the writer's PDF app,
+/// whose Print prints it at its own size. It is written to the app's cache
+/// under the play's name, and the last one written is the only one kept.
 #[tauri::command]
-#[cfg(not(target_os = "macos"))]
+#[cfg(windows)]
+pub async fn print_export(app: AppHandle, job_title: String, base64: String) -> Result<(), String> {
+    use tauri::Manager;
+    let bytes = decode_export(&base64)?;
+    let dir = app.path().app_cache_dir().map_err(estr)?.join("print");
+    std::fs::create_dir_all(&dir).map_err(estr)?;
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+    let path = dir.join(format!("{}.pdf", print_name(&job_title)));
+    std::fs::write(&path, &bytes).map_err(estr)?;
+    // A test keeps what it was asked to open instead of opening a PDF app on
+    // the test machine, as it keeps a reveal.
+    #[cfg(feature = "selftest")]
+    if crate::selftest::record_reveal(("print", &path)) {
+        crate::selftest_fixture::keep_print(&job_title, &bytes);
+        return Ok(());
+    }
+    crate::shell::open(&path)
+}
+
+/// A job title as a Windows file name: no character Windows refuses, no
+/// trailing dot or space, a hundred characters at most.
+#[cfg(any(windows, test))]
+fn print_name(title: &str) -> String {
+    let cleaned: String = title
+        .chars()
+        .map(|c| {
+            if c.is_control() || r#"<>:"/\|?*"#.contains(c) {
+                ' '
+            } else {
+                c
+            }
+        })
+        .take(100)
+        .collect();
+    let trimmed = cleaned.trim().trim_end_matches(['.', ' ']);
+    if trimmed.is_empty() {
+        "Proscenium".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+#[tauri::command]
+#[cfg(not(any(target_os = "macos", windows)))]
 pub async fn print_export(_job_title: String, _base64: String) -> Result<(), String> {
     Err("this platform cannot print yet".into())
 }
@@ -229,17 +291,27 @@ fn deliver(bytes: &[u8], selected: Option<PathBuf>) -> Result<Option<String>, St
     if target.parent().is_none() || target.file_name().is_none() {
         return Err("export path has no parent directory or file name".to_string());
     }
-    // The vault's own writer: its temp name carries a token and
-    // is created exclusively, where the fixed `.<name>.proscenium-tmp` this
-    // used to write could be planted ahead of time as a link to any file the
-    // writer may change, and truncated by the next export.
-    crate::vault::write_atomic(&target, bytes).map_err(estr)?;
+    // The vault's writer for a file the panel granted: its temp file is created
+    // exclusively, where the fixed `.<name>.proscenium-tmp` this used to write
+    // could be planted ahead of time as a link to any file the writer may
+    // change, and truncated by the next export; and it is staged where the
+    // sandbox lets it be, not beside the export (docs/app/keeping-work/storage-and-file-format.md#STOR-187).
+    crate::vault::write_granted(&target, bytes).map_err(estr)?;
     Ok(Some(target.to_string_lossy().into_owned()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_print_is_named_as_windows_allows() {
+        assert_eq!(print_name("The Tide"), "The Tide");
+        assert_eq!(print_name("Act 1: \"Home\"?"), "Act 1   Home");
+        assert_eq!(print_name("  ..  "), "Proscenium");
+        assert_eq!(print_name("Draft..."), "Draft");
+        assert_eq!(print_name(&"x".repeat(300)).len(), 100);
+    }
 
     #[test]
     fn names_the_panel_for_each_kind_and_refuses_others() {

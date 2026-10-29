@@ -210,7 +210,7 @@ describe("editor shapes the parser never produces", () => {
     expect(toMarkdown(doc)).toBe("**half and half**\n");
   });
 
-  test("a second paragraph pasted into a list item folds in rather than breaking the list", () => {
+  test("a second paragraph pasted into a list item stays a line of that item", () => {
     const doc: Node = {
       type: "doc",
       content: [
@@ -229,10 +229,94 @@ describe("editor shapes the parser never produces", () => {
       ],
     };
     const md = toMarkdown(doc);
-    expect(md).toBe("- item\n  more about it\n");
-    // Still one list, one item, and no text lost.
+    expect(md).toBe("- item\\\n  more about it\n");
+    // Still one list, one item, and the second paragraph a line of its own.
     expect(parseBlocks(md)).toHaveLength(1);
-    expect(md).toContain("more about it");
+    expect(toDoc(md).content![0]!.content).toHaveLength(1);
+    expect(round(md)).toBe(md);
+  });
+});
+
+describe("a line break inside a list item", () => {
+  const P = (...c: (string | 0)[]): Node => ({
+    type: "paragraph",
+    content: c.map((t) => (t === 0 ? { type: "hardBreak" } : { type: "text", text: t })),
+  });
+  const list = (type: string, ...items: Node[][]): Node => ({
+    type: "doc",
+    content: [{ type, content: items.map((content) => ({ type: "listItem", content })) }],
+  });
+
+  test("is written as a line that hangs under the item, and comes back as one", () => {
+    const doc = list("bulletList", [P("one", 0, "still one")], [P("two")]);
+    const md = toMarkdown(doc);
+    expect(md).toBe("- one\\\n  still one\n- two\n");
+    expect(toDoc(md)).toEqual(doc);
+  });
+
+  test("hangs under a numbered item's text, and under a nested one's", () => {
+    const md = "1. one\\\n   still one\n   - under\\\n     still under\n2. two\n";
+    expect(round(md)).toBe(md);
+    assertStable(md);
+  });
+
+  test("a second line that looks like an item is still a line", () => {
+    const doc = list("bulletList", [
+      P("one", 0, "- not an item", 0, "2. nor this", 0, "# nor this"),
+    ]);
+    const md = toMarkdown(doc);
+    expect(md).toBe("- one\\\n  \\- not an item\\\n  2\\. nor this\\\n  \\# nor this\n");
+    expect(toDoc(md)).toEqual(doc);
+  });
+
+  test("an empty line between two lines stays", () => {
+    const doc = list("bulletList", [P("one", 0, 0, "three")]);
+    expect(toDoc(toMarkdown(doc))).toEqual(doc);
+  });
+
+  test("a break with nothing after it leaves no stray backslash", () => {
+    expect(toMarkdown(list("bulletList", [P("one", 0)], [P("two")]))).toBe("- one\n- two\n");
+  });
+
+  test("words that end in a backslash are words", () => {
+    const doc = list("bulletList", [P("C:\\", 0, "next")]);
+    expect(toDoc(toMarkdown(doc))).toEqual(doc);
+  });
+
+  test("a wrapped line from another editor still reflows", () => {
+    expect(round("- a line\n  continued\n")).toBe("- a line continued\n");
+  });
+
+  test("two trailing spaces break a line here as they do everywhere else", () => {
+    expect(round("- one  \n  still one\n")).toBe("- one\\\n  still one\n");
+  });
+});
+
+describe("a numbered list that goes on from the one above", () => {
+  const starts = (md: string) =>
+    toDoc(md)
+      .content!.filter((n) => n.type === "orderedList")
+      .map((n) => [n.attrs?.start, !!n.attrs?.continues]);
+
+  test("is the one whose number is the next number", () => {
+    expect(starts("1. a\n2. b\n\naside\n\n3. c\n")).toEqual([
+      [1, false],
+      [3, true],
+    ]);
+  });
+
+  test("and not one that starts again, or anywhere else", () => {
+    expect(starts("1. a\n2. b\n\naside\n\n1. c\n\naside\n\n7. d\n")).toEqual([
+      [1, false],
+      [1, false],
+      [7, false],
+    ]);
+  });
+
+  test("the number is all the file holds", () => {
+    const md = "1. a\n2. b\n\naside\n\n3. c\n";
+    expect(round(md)).toBe(md);
+    assertStable(md);
   });
 });
 

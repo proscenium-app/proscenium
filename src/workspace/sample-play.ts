@@ -9,98 +9,195 @@
  * a script in front of it. An empty starter play teaches none of it.
  *
  * Bundled as a string rather than read from `sample-vault/`, which is a repo
- * fixture and is not inside the shipped app. Short on purpose: two scenes, four
- * characters, every element the editor knows, so the leader menu and the
- * element bar have something to point at.
+ * fixture and is not inside the shipped app.
+ *
+ * The play is Noël Coward's Hay Fever (first edition, Ernest Benn, 1925),
+ * public domain in the United States; the tutorials write its opening lines
+ * too (src/tutorial/lessons.ts). Three passages, each in his words and his
+ * order: the opening of Act One, the silent tea that ends it, and the start of
+ * Act Two's game. Coward's acts have no scenes, so the passages are numbered
+ * beats, SCENE 1 and SCENE 2, and never titled: a title he did not write puts
+ * words into the play. The summaries and the comment are ours. Layout only besides:
+ * straight quotes, bracketed directions as parentheticals, his underlined
+ * words in italics, and the two speeches spoken together as dual dialogue.
+ * Short on purpose, with most of what the editor knows (acts, scenes,
+ * summaries, directions, cues, parentheticals, emphasis, dual dialogue, a
+ * comment, a transition, centred text), so the leader menu and the element bar
+ * have something to point at.
  */
-export const SAMPLE_PLAY_TITLE = "The Weight of Water";
+export const SAMPLE_PLAY_TITLE = "Hay Fever";
 
-export const SAMPLE_PLAY = `Title: The Weight of Water
-Credit: a play by
-Author: A Sample
-Draft date: September 2026
+export const SAMPLE_PLAY = `Title: Hay Fever
+Credit: a light comedy in three acts by
+Author: Noël Coward
+Source: An excerpt, from the first edition (1925)
 
 # ACT ONE
 
-## The jetty, before dawn
+## SCENE 1
 
-= She will not sell. He has not yet said what he came to say.
+= Sorel and Simon suspect their mother has asked someone down for the weekend.
 
-The last working jetty of a harbour town. Black water. A single light on a pole, and the sound of rope against wood.
+The hall of DAVID BLISS's house is very comfortable and extremely untidy. There are several of SIMON's cartoons scattered about the walls, masses of highly coloured American and classical music strewn about the piano, and lots of flowers and comfortable furniture.
 
-MARGUERITE stands at the end of it with her coat still on. She has been there some time.
+When the curtain rises it is about three o'clock on a Saturday afternoon in June.
 
-IVO
-(from the dark, behind her)
-You'll catch something out here.
+SIMON, in an extremely dirty tennis shirt and baggy grey flannel trousers, is crouched in the middle of the floor, cutting out squares from cartridge paper.
 
-MARGUERITE
-I have caught everything there is.
+SOREL, more neatly dressed, is stretched on the sofa, reading a very violently bound volume of poems which have been sent to her by an aspiring friend.
 
-IVO steps into the light. He is holding a folder he would rather not be holding.
+SOREL
+I wish she hadn't sent me the beastly book. I must say something nice about it.
 
-IVO
-The council meets Thursday.
+SIMON
+The binding's very dashing.
 
-MARGUERITE
-The council meets every Thursday. It's what a council is.
+SOREL
+She used to be such fun before she married that gloomy little man.
 
-IVO
-Marguerite.
+SIMON
+She was always a fierce *poseuse*. It's so silly of people to try and cultivate the artistic temperament. *Au fond* she's just a normal, bouncing Englishwoman.
 
-MARGUERITE
-Don't.
+SOREL
+You didn't shave this morning.
 
-A long moment. The rope goes on knocking.
+SIMON
+I know I didn't, but I'm going to in a minute, when I've finished this.
 
-> BLACKOUT.
+SOREL
+I sometimes wish we were more normal and bouncing, Simon.
 
-## Kitchen, the same morning
+SIMON
+Why?
 
-= She asks him for a date. He gives her a metaphor. Neither of them moves.
+SOREL
+I should like to be a fresh, open-air girl with a passion for games.
 
-Weak light. A kettle that has already boiled twice.
+SIMON
+Thank God you're not.
 
-MARGUERITE
-You keep saying the word later as if it were a room we could walk into.
+SOREL
+It would be so soothing.
 
-IVO
-(not looking up)
-It is a room. You have just never been in it at this hour.
+SIMON
+Not in this house.
 
-She takes the kettle off the ring. The room gets quieter than it was.
+SOREL
+Where's Mother?
 
-MARGUERITE
-Then unlock it.
+SIMON
+In the garden, practising.
 
-Nothing. The tide turns somewhere behind the wall.
+SOREL
+Practising?
 
-IVO
-I don't have the key. I have a form.
+SIMON
+She's learning the names of the flowers by heart.
 
-[[Does he ever say the thing he came to say? — a comment, and it never prints]]
+SOREL
+What's she up to?
+
+SIMON
+I don't know.—Damn! that's crooked.
+
+SOREL
+I always distrust her when she becomes the Squire's lady.
+
+SIMON
+So do I.
+
+SOREL
+She's been at it hard all day—she tapped the barometer this morning.
+
+SIMON
+She's probably got a plan about impressing somebody.
+
+SOREL
+(taking a cigarette)
+I wonder who.
+
+[[Who else has asked someone down? — a comment, and it never prints]]
+
+## SCENE 2
+
+= Four guests at tea, and nothing anyone can think of to say.
+
+Everybody sits down.
+
+SIMON
+(ungraciously)
+Here you are.
+
+SANDY
+Thanks.
+
+There is a long pause; then MYRA and RICHARD speak together.
+
+RICHARD
+How far are you from Maidenhead exactly?
+
+MYRA ^
+What a pity it's raining—we might have had some tennis——
+
+They both stop, to let the other go on. There is another terrible silence.
+
+MYRA
+I adore the shape of this hall—it's so——
+
+RICHARD ^
+The train was awfully crowded coming down——
+
+They both stop again, and there is another dead silence, during which
+
+> THE CURTAIN SLOWLY FALLS.
 
 # ACT TWO
 
-## The council chamber
+## SCENE 1
 
-= The vote. It goes the way votes go.
+= After dinner, the family explains a game, all at once.
 
-A room that was grand in 1911 and has been repainted twice since.
+It is after dinner on the Saturday evening. Everyone is talking and arguing. The following scene should be played with great speed.
 
-THE CLERK
-Those in favour.
+SIMON
+Who'll go out?
 
-Hands. Not enough of them, or too many, depending on where you are sitting.
+SOREL
+I don't mind.
 
-MARGUERITE
-(standing)
-May I say something.
+SIMON
+No; you always guess it too quickly.
 
-THE CLERK
-You may not.
+JACKIE
+What do we have to do?
 
-~ And the water came up over the stones
+JUDITH
+Choose an adverb, and then——
 
-> END OF PLAY.
+SIMON
+Someone goes out, you see, and comes in, and you've chosen a word among yourselves, and she or he or whoever it is asks you some sort of question and you have to——
+
+SOREL
+Not an ordinary question, Simon; they have to ask them to do something in the manner of the word, and then——
+
+SIMON
+Then, you see, you act whatever it is——
+
+SOREL
+The answer to the question, you see?
+
+RICHARD
+(apprehensively)
+What sort of thing is one expected to do?
+
+JUDITH
+Quite usual things, like reciting "If," or playing the piano——
+
+RICHARD
+I can't play the piano.
+
+SIMON
+Never mind; you can fake it, as long as it conveys an idea of the word.
+
+> END OF THE EXCERPT <
 `;

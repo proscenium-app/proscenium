@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  SPDX-FileCopyrightText: 2026 Habiby LLC
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  The sandboxed self-test's entitlements (the self-test build of scripts/build-app.mjs
+  under the sandbox, docs/engineering/release-engineering.md#REL-56): Entitlements.plist,
+  the Mac App Store build's, without its three iCloud keys. Those need a team
+  identifier and a provisioning profile, and an ad-hoc app that claims them is
+  killed at launch, so the self-test proves the store build as a Mac with no
+  iCloud runs it: no iCloud container to offer, and everything else the same.
+
+  Every other key is the store build's own, so a fault the sandbox causes in
+  the store build is a fault here first. A key added to Entitlements.plist is
+  added here, and scripts/build-app.mjs refuses this file when the two differ
+  by anything but the iCloud keys.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <true/>
+
+  <key>com.apple.security.files.user-selected.read-write</key>
+  <true/>
+
+  <key>com.apple.security.files.bookmarks.app-scope</key>
+  <true/>
+
+  <key>com.apple.security.network.client</key>
+  <true/>
+
+  <key>com.apple.security.print</key>
+  <true/>
+</dict>
+</plist>

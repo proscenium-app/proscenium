@@ -1,0 +1,5 @@
+- dialog "Saving and installing the update…"
+  - heading "Saving and installing the update…" [level=2]
+  - paragraph
+  - status [live=polite]
+  - alert [live=assertive]

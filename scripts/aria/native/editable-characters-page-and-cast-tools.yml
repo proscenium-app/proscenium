@@ -39,8 +39,6 @@
     - listitem "Cast"
       - button "Cast" [current=true]
       - button "Close Cast"
-    - listitem "Outline"
-      - button "Outline"
   - button "Add a surface to this pane" [haspopup]
   - sectionheader
     - heading "Characters Page" [level=1]
@@ -116,16 +114,29 @@
       - cell
 - complementary "Inspector"
   - tablist "Inspector"
-    - tab "Scene"
-    - tab "Comments" [selected]
+    - tab "Scene" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - sectionheader
-    - heading "0 comments" [level=2]
-    - button "Filter comments: All Comments" [haspopup]
+  - generic
+  - heading "SCENE 1" [level=2]
+  - generic
+  - generic
+  - textbox "Summary"
+  - generic
+  - radiogroup "Scene color"
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+  - generic
+  - textbox "Notes"
+  - generic
+  - generic
+  - button "Show"
   - paragraph
-    - none
-    - code
-  - group
 - contentinfo
   - button "<plays folder>/The Weight of Water"
   - button "Zoom out"

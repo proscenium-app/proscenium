@@ -35,7 +35,7 @@ import { split as splitFrontMatter } from "./front-matter";
 import { flatten } from "./binder";
 import { isPlayFileName, type BinderItem, type BinderItemType } from "./play-file";
 import { isProviderConflictCopy } from "./sync-names";
-import { isUlid, ulid } from "./ulid";
+import { isUlid, ulid } from "../storage/ulid";
 
 /**
  * The atomic-write temp sibling (docs/app/keeping-work/storage-and-file-format.md#STOR-D9): `.<name>.<random>.tmp`, hidden,
@@ -328,11 +328,40 @@ export async function walkPlay(): Promise<DiskWalk> {
 }
 
 /**
- * The whole reconciliation, with the I/O around it: walk the folder, read each
- * new Markdown file's front matter so its own `type:` can win, then file.
+ * How long a file the walk did not find is given to come back before it is
+ * called gone. A save that replaces a file can leave its name free for an
+ * instant: on Windows the exchange is two renames
+ * (docs/app/keeping-work/storage-and-file-format.md#STOR-178), and a sync client
+ * often writes a file under another name and renames it into place.
  */
-export async function reconcileBinder(binder: BinderItem[]): Promise<Reconciliation> {
-  const { nodes: disk, complete } = await walkPlay();
+export const GONE_GRACE_MS = 250;
+
+/**
+ * The whole reconciliation, with the I/O around it: walk the folder, read each
+ * new Markdown file's front matter so its own `type:` can win, then file. A
+ * walk that finds a row's file gone walks again a moment later, and only what
+ * is gone then is missing, or removed: the window's return walked the folder
+ * while a save of the app's own replaced the script, caught the instant its
+ * name was free, and drew the script missing until the next walk, which no
+ * save of the app's own starts (a document so caught would lose its row).
+ */
+export async function reconcileBinder(
+  binder: BinderItem[],
+  {
+    walk = walkPlay,
+    wait = (ms: number) => new Promise<void>((done) => setTimeout(done, ms)),
+  }: { walk?: () => Promise<DiskWalk>; wait?: (ms: number) => Promise<void> } = {},
+): Promise<Reconciliation> {
+  const first = await reconcileWalk(binder, await walk());
+  if (!first.missing.length && !first.removed.length) return first;
+  await wait(GONE_GRACE_MS);
+  return reconcileWalk(binder, await walk());
+}
+
+async function reconcileWalk(
+  binder: BinderItem[],
+  { nodes: disk, complete }: DiskWalk,
+): Promise<Reconciliation> {
   const known = new Set([...binderPaths(binder)].map(pathKey));
   const knownIds = new Set(flatten(binder).map((item) => item.id));
 

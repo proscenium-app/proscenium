@@ -90,7 +90,10 @@ const MONTH = "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\.?";
  * written, which temporary folder the self-test's vault sits in, the version
  * this build calls itself, the ids a run mints, where a pane was scrolled, and
  * the order of a table's rows. Each engine writes a date its own way
- * ("Jun 18, 2026, 5:10 PM" in Chromium, "… at 5:10 PM" in WebKit).
+ * ("Jun 18, 2026, 5:10 PM" in Chromium, "… at 5:10 PM" in WebKit), and so
+ * does each PC's language: a variant pass in German or Japanese
+ * (smoke-variants.mjs) reads "18. Juni 2026, 17:10" and "2026年6月18日 17:10",
+ * and those are the same surface.
  */
 export function normalize(text) {
   return savedCopies(
@@ -102,15 +105,41 @@ export function normalize(text) {
         ),
         "<date and time>",
       )
+      .replace(/\b\d{1,2}\. \p{L}{3,5}\.? \d{4}, \d{1,2}:\d{2}(?::\d{2})?\b/gu, "<date and time>")
+      .replace(/\b\d{4}年\d{1,2}月\d{1,2}日 \d{1,2}:\d{2}(?::\d{2})?/gu, "<date and time>")
       .replace(new RegExp(`\\b${MONTH} \\d{1,2}, \\d{4}\\b`, "g"), "<date>")
-      // A saved copy's short date (9/25/2026) is the day the checks ran.
+      // A saved copy's short date (9/25/2026) is the day the checks ran, and
+      // so are 25.9.2026 and 2026/9/25, before a version number takes them.
       .replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, "<date>")
+      .replace(/\b\d{1,2}\.\d{1,2}\.\d{4}\b/g, "<date>")
+      .replace(/\b\d{4}\/\d{1,2}\/\d{1,2}\b/g, "<date>")
       .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\s?[AP]M\b/g, "<time>")
+      // A 24-hour clock, as most PCs keep it; Japan writes a date and its
+      // time with no comma between.
+      .replace(/\b\d{1,2}:\d{2}(?::\d{2})?\b/g, "<time>")
+      .replace(/<date> <time>/g, "<date>, <time>")
+      // The vault's copy for this launch: one a pass once, one an act now
+      // (plays-<n>, numbered by launch), so the number is where the act ran.
+      // Since the faults moved into the app it sits in `<n>/dev/`, beside the
+      // files a check opens from outside it, as the in-memory vault's sits in
+      // "/dev"; that folder reads as the in-memory vault's.
       .replace(
-        /(?:\/private)?\/var\/folders\/[^\s"':]*?\/proscenium-selftest-\d+\/plays-(?:light|dark)/g,
+        /(?:\/private)?\/var\/folders\/[^\s"':]*?\/proscenium-selftest-\d+\/(?:\d+\/dev\/)?plays-(?:light|dark|\d+)/g,
         "<plays folder>",
       )
-      .replace(/plays-(?:light|dark)\b/g, "<plays folder name>")
+      .replace(/plays-(?:light|dark|\d+)\b/g, "<plays folder name>")
+      .replace(
+        /(?:\/private)?\/var\/folders\/[^\s"':]*?\/proscenium-selftest-\d+\/\d+\/dev(?=[/\s"':]|$)/gm,
+        "/dev",
+      )
+      // The sandboxed self-test's temporary home is in its container, under
+      // its own bundle id (docs/engineering/release-engineering.md#REL-56): it
+      // reads as the unsandboxed one's.
+      .replace(
+        /\/Users\/[^/\s"']+\/Library\/Containers\/[^/\s"']+\/Data\/tmp\/(proscenium-selftest-\d+\/)/g,
+        "/private/var/folders/x/$1",
+      )
+      .replace(/org\.habiby\.proscenium\.sandbox\.selftest/g, "org.habiby.proscenium.selftest")
       // Anything else under the self-test's temporary home: the build host's
       // temp folder and the run's pid are not the app's.
       .replace(
@@ -118,6 +147,9 @@ export function normalize(text) {
         "<self-test home>/",
       )
       .replace(/\b\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?\b/g, "<version>")
+      // About's version line names the chip the copy runs on, which is the
+      // test machine's: one tree serves both of a system's chips.
+      .replace(/(Version <version>) · (?:Apple silicon|Intel|x64|Arm64)$/gm, "$1 · <chip>")
       .replace(/\b[0-9A-HJKMNP-TV-Z]{26}\b/g, "<id>")
       .replace(
         /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})\b/g,
@@ -128,6 +160,13 @@ export function normalize(text) {
       .replace(/On screen: [^"'\n]*/g, "On screen: <scene>")
       // How many changes wait in Changes, which is what the checks before left.
       .replace(/\b\d+ pending\b/g, "<n> pending")
+      // A burst of changes from outside: how many saves it gathered, and the
+      // words they come to, are how the system told the writes apart. A Mac
+      // may tell two quick writes as one event, so one run's "3 saves 2 words
+      // cut" is another's "4 saves 1 word cut", and a later check's tree shows
+      // whichever the burst check before it left. The row, its place and what
+      // was changed stay; the check that makes the burst holds its words.
+      .replace(/(Changed somewhere else [^"\n]*?· )\d+ saves?\b[^"\n]*/g, "$1<a burst of saves>")
       // Where the autosave is, which is how long ago the last check typed.
       .replace(/^(\s*- text: )(?:Saved(?: · <time>)?|Saving…|Editing…)$/gm, "$1<save status>")
       .replace(/[ \t]+$/gm, ""),
@@ -281,6 +320,58 @@ export function firstDifference(expected, actual) {
 }
 
 /**
+ * A run's reading of a surface, kept as `--update-aria` would have written
+ * its folder (`smoke.mjs --aria-out`, for a run that may not write the
+ * checkout's own: the real Windows app's, on a test machine). `kept` maps a
+ * file's name to its text; `names` are the files the reading may be held
+ * against, the most particular first (`<surface>.dark.yml`, then
+ * `<surface>.yml`). The reading goes into the most particular one, unless a
+ * wider one the run already kept says the same. Returns the file that says it.
+ */
+export function keepTree(kept, names, text) {
+  const [own, ...wider] = names;
+  const inherited = wider.find((f) => kept.has(f));
+  if (inherited !== undefined && kept.get(inherited) === text) return inherited;
+  kept.set(own, text);
+  return own;
+}
+
+/**
+ * What a variant pass of the real Windows app keeps of a tree it read
+ * (scripts/smoke-variants.mjs): `names` are the files it is held against,
+ * most particular first, the variant's own before the PC copy's. It keeps the
+ * variant's own file only where the variant reads the surface otherwise than
+ * the file it would inherit: a variant file kept this pass (`kept`), or the
+ * PC copy's (`readPlain`, the plain pass's reading this run or the folder's).
+ * Returns the file the reading stands for.
+ */
+export function keepVariantTree(kept, names, text, { isVariant, readPlain }) {
+  const [own, ...wider] = names;
+  for (const f of wider) {
+    const t = isVariant(f) ? kept.get(f) : readPlain(f);
+    if (t === undefined || t === null) continue;
+    if (t === text) return f;
+    break;
+  }
+  kept.set(own, text);
+  return own;
+}
+
+/**
+ * What taking a run's kept trees into a folder changes: the files new or
+ * changed, and, only when the run read every surface, the files it read none
+ * of, which go. `present` and `wanted` map a file's name to its text.
+ * `wholeFor` says, of a file, whether the run read every surface it could be
+ * held against: the real Windows app's variant passes each read their own
+ * (scripts/smoke-variants.mjs), and a run may make some and not others.
+ */
+export function acceptPlan(present, wanted, { whole, wholeFor = () => whole }) {
+  const changed = [...wanted.keys()].filter((f) => present.get(f) !== wanted.get(f)).sort();
+  const gone = [...present.keys()].filter((f) => !wanted.has(f) && wholeFor(f)).sort();
+  return { changed, gone };
+}
+
+/**
  * WebKit's tree, as `selftest_ax` returns it (scripts/selftest/ax-walk.js),
  * written the way an ARIA snapshot reads:
  *
@@ -310,8 +401,12 @@ export function renderWebKitTree(tree) {
     const s = node.states ?? {};
     if (s.headingLevel) states.push(`level=${s.headingLevel}`);
     if (s.hierarchyLevel && role === "treeitem") states.push(`level=${s.hierarchyLevel}`);
-    if (s.checked !== undefined && s.checked !== false)
-      states.push(s.checked === "mixed" ? "checked=mixed" : "checked");
+    // WebKit's inspector says a control's checked state as a word, "true",
+    // "false" or "mixed", never a boolean: read as "anything but false", every
+    // radio in a group was written checked, the one that is and the ones that
+    // are not.
+    if (s.checked === true || s.checked === "true") states.push("checked");
+    else if (s.checked === "mixed") states.push("checked=mixed");
     if (s.pressed !== undefined && s.pressed !== false)
       states.push(s.pressed === "mixed" ? "pressed=mixed" : "pressed");
     if (s.expanded === true) states.push("expanded");

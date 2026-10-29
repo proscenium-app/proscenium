@@ -10,6 +10,7 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { SHORTCUTS } from "./keymap";
+import { binding } from "../ui/keys";
 import { LEADER_ELEMENTS } from "../editor/leader-key";
 
 const entrySource = ["../editor/element-entry.ts", "../editor/spellcheck.ts"]
@@ -21,7 +22,11 @@ describe("keymap table", () => {
     const mirrored = SHORTCUTS.filter((s) => s.binding);
     expect(mirrored.length).toBeGreaterThan(10);
     for (const s of mirrored) {
-      expect(entrySource).toContain(`"${s.binding}"`);
+      // Bound as written, or through this system's chord (ui/keys.ts), which
+      // on a Mac is the binding the table names.
+      const computed = `binding("${s.keys}")`;
+      if (entrySource.includes(computed)) expect(binding(s.keys)).toBe(s.binding as string);
+      else expect(entrySource).toContain(`"${s.binding}"`);
     }
   });
 

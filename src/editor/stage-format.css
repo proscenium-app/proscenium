@@ -315,9 +315,18 @@ span.formatting-icon {
     0 10px 30px -14px rgba(90, 74, 54, 0.42);
   color: var(--ink);
 }
+/* At night the warm shadow is LIGHTER than the desk: a pale halo down both
+   sides of the sheets that the band between them does not share. Lit paper on
+   a dark desk needs no lift. */
+@media all {
+  :where(:root[data-theme="dark"]) .play-page {
+    box-shadow: none;
+  }
+}
 /* The first block hugs the top margin — no leading gutter at the page top. */
 .play-page .tiptap > .pl:first-child,
 .play-page .pl.pm-after-intro,
+.play-page .pl.pm-page-top,
 .play-page .pgchrome + .pl {
   margin-top: 0;
 }
@@ -351,8 +360,8 @@ span.formatting-icon {
   position: relative;
   height: var(--fmt-margin-bottom);
 }
-/* Full-bleed gap between sheets: the desk shows through; the sheet above
-   casts down onto it, the sheet below lifts slightly off it.
+/* Full-bleed gap between sheets: the desk shows through, flat, the one colour
+   of the desk beside the sheets. An inset shadow here read as a second colour.
 
    The band must span the whole sheet no matter where the chrome was drawn.
    When a page break falls INSIDE a block (a long stage direction or speech
@@ -365,9 +374,6 @@ span.formatting-icon {
   margin-right: -100vw;
   height: 2.6rem;
   background: var(--desk);
-  box-shadow:
-    inset 0 10px 12px -10px var(--desk-deep),
-    inset 0 -6px 8px -8px var(--desk-deep);
 }
 .pgchrome__topmargin {
   position: relative;
@@ -422,11 +428,13 @@ span.formatting-icon {
   position: relative;
   height: var(--fmt-block-height);
 }
-.titlesheet--editable {
+.titlesheet--editable,
+.frontsheet--editable {
   pointer-events: auto;
   cursor: pointer;
 }
-.titlesheet--editable:hover {
+.titlesheet--editable:hover,
+.frontsheet--editable:hover {
   outline: 1px dashed var(--rule);
   outline-offset: -6px;
 }
@@ -554,6 +562,11 @@ span.formatting-icon {
   border-radius: var(--r-chip-sm);
   padding: 0 3px;
   box-decoration-break: clone;
+}
+/* A range marker that fences nothing (docs/app/writing/comments.md#COMM-61):
+   kept in the script as it was read, and never shown. */
+.pl-note.pl-range-marker {
+  display: none;
 }
 
 /* The empty-doc placeholder block keeps a comfortable click target. */
@@ -860,7 +873,7 @@ span.formatting-icon {
     transition: box-shadow var(--motion);
   }
 }
-.comment-card.is-doomed .comment-card__body {
+.comment-card.is-doomed .cthread__body {
   text-decoration: line-through;
   color: var(--ash);
 }
@@ -876,81 +889,116 @@ span.formatting-icon {
   width: 10px;
   border-top: 1px solid var(--accent);
 }
-.comment-card__head {
+/* --- A conversation: a comment and the replies under it (Thread.tsx,
+   docs/app/writing/comments.md#COMM-D10). One anatomy for the margin's card and the feed's row. */
+.cthread__msg.is-reply {
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 0.5px solid var(--rule);
+}
+.cthread__head {
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  margin-bottom: var(--s-2);
+  /* The row is as tall as its controls whether or not they show, so a card
+     does not grow when the pointer reaches it. */
+  min-height: 24px;
+  margin-bottom: var(--s-1);
 }
-.comment-card__author {
+.cthread__author {
   font-size: var(--t-mini);
-  color: var(--placeholder);
+  font-weight: 600;
+  color: var(--ink-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.comment-card__actions {
+.cthread__actions {
   display: flex;
   gap: var(--s-1);
   margin-left: auto;
   opacity: 0;
 }
-.comment-card:hover .comment-card__actions,
-.comment-card.is-active .comment-card__actions,
-.comment-card:focus-within .comment-card__actions {
+.comment-card:hover .cthread__actions,
+.comment-card.is-active .cthread__actions,
+.commentsfeed__row:hover .cthread__actions,
+.commentsfeed__row.is-focused .cthread__actions,
+.cthread__msg:focus-within .cthread__actions {
   opacity: 1;
 }
-.comment-card__actions button {
+.cthread__actions button {
   /* A 24px target around a small glyph (WCAG 2.5.8, docs/app/preferences-and-help/accessibility.md#A11Y-11). */
   width: 24px;
   height: 24px;
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: none;
   cursor: pointer;
-  color: var(--ash);
+  color: var(--ink-2);
   padding: 0;
   border-radius: var(--r-chip-sm);
-  font-size: var(--t-small);
 }
-.comment-card__actions button:hover {
+.cthread__actions button:hover {
   color: var(--ink);
   background: var(--hover-strong);
 }
-.comment-card__body {
+/* The words of a comment are text: they can be selected and copied, in the
+   card and in the feed (docs/app/writing/comments.md#COMM-57). */
+.cthread__body {
   margin: 0;
-  /* The card's own ink: a fixed dark grey read at 1.4:1 on the dark paper
+  /* The surface's own ink: a fixed dark grey read at 1.4:1 on the dark paper
      (docs/app/preferences-and-help/accessibility.md#A11Y-12). */
   color: inherit;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+  cursor: text;
 }
-.comment-card__field {
+.cthread__name,
+.cthread__field {
+  display: block;
   width: 100%;
   font: inherit;
   font-size: var(--t-small);
-  border: 1px solid var(--accent);
+  border: 0.5px solid var(--rule-strong);
   border-radius: var(--r-chip);
-  box-shadow: var(--focus-ring);
-  padding: var(--s-3);
   background: var(--field);
   color: var(--ink);
+}
+.cthread__name {
+  min-height: 24px;
+  margin-bottom: var(--s-2);
+  padding: 0 var(--s-3);
+  font-weight: 600;
+}
+.cthread__field {
+  padding: var(--s-3);
   resize: vertical;
 }
-.comment-card__field:focus {
-  outline: none;
+.cthread__name::placeholder,
+.cthread__field::placeholder {
+  color: var(--placeholder);
+  font-weight: 400;
 }
-.comment-card__editrow {
+.cthread__name:focus,
+.cthread__field:focus {
+  outline: none;
+  border: 1px solid var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.cthread__editrow {
   display: flex;
   gap: var(--s-3);
   margin-top: var(--s-3);
 }
-.comment-card__editrow button {
+.cthread__editrow button {
   font: inherit;
   font-size: var(--t-mini);
-  height: var(--h-mini);
+  min-height: 24px;
   padding: 0 var(--s-4);
   border: 0.5px solid var(--rule-strong);
   border-radius: var(--r-chip);
@@ -958,9 +1006,9 @@ span.formatting-icon {
   color: var(--ink);
   cursor: pointer;
 }
-.comment-card__editrow button:first-child {
-  border-color: var(--bad-border);
-  color: var(--bad);
+.cthread__editrow button.is-default {
+  border-color: var(--accent);
+  font-weight: 600;
 }
 
 /* The capsules the margin and the feed share (attribution, todo). */
@@ -1048,9 +1096,6 @@ span.formatting-icon {
   color: var(--ash);
 }
 .commentsfeed__row {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s-2);
   margin: 0 var(--s-3);
   padding: 7px var(--s-4);
   border-radius: var(--r-control);
@@ -1063,72 +1108,6 @@ span.formatting-icon {
 .commentsfeed__row.is-focused {
   background: var(--paper);
   box-shadow: 0 0.5px 1.5px rgba(31, 41, 51, 0.12);
-}
-.commentsfeed__body {
-  flex: 1;
-  border: none;
-  background: none;
-  font: inherit;
-  color: var(--ink-2);
-  text-align: left;
-  cursor: pointer;
-  padding: 0;
-  border-radius: var(--r-chip);
-}
-.commentsfeed__text {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.commentsfeed__actions {
-  display: flex;
-  gap: 0.1rem;
-  opacity: 0;
-}
-.commentsfeed__row:hover .commentsfeed__actions,
-.commentsfeed__row:focus-within .commentsfeed__actions {
-  opacity: 1;
-}
-.commentsfeed__actions button {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--ash);
-  padding: 0.1rem 0.25rem;
-  border-radius: 4px;
-}
-.commentsfeed__actions button:hover {
-  color: var(--ink);
-  background: var(--hover-strong);
-}
-.commentsfeed__edit {
-  flex: 1;
-  padding: 0.15rem 0.2rem;
-}
-.commentsfeed__field {
-  width: 100%;
-  font: inherit;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  padding: 0.3rem 0.4rem;
-  background: var(--paper);
-  color: var(--ink);
-  resize: vertical;
-}
-.commentsfeed__editrow {
-  display: flex;
-  gap: 0.4rem;
-  margin-top: 0.3rem;
-}
-.commentsfeed__editrow button {
-  font: inherit;
-  font-size: var(--t-mini);
-  height: var(--h-mini);
-  padding: 0 var(--s-4);
-  border: 0.5px solid var(--rule-strong);
-  border-radius: 4px;
-  background: var(--paper);
-  color: var(--ink);
-  cursor: pointer;
 }
 
 /* ---------------------------------------------------------------------------

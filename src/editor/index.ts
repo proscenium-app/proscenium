@@ -7,6 +7,7 @@
  */
 export { PlayEditor } from "./PlayEditor";
 export type { PlayEditorProps } from "./PlayEditor";
+export { RedlineScript } from "./RedlineScript";
 export { ElementEntry } from "./element-entry";
 export { AutoDetect } from "./input-rules";
 export { AutoCaps } from "./auto-caps";

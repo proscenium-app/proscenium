@@ -57,7 +57,7 @@
   --chrome: #f0e7d2; /* toolbar, status bar */
   --rail: #ebe1c9; /* binder, inspector */
   --desk: #dcd2c0; /* the well the sheets sit on — flat, never textured */
-  --desk-deep: #d0c5b0; /* the band between sheets */
+  --desk-deep: #d0c5b0; /* a rule drawn on the desk */
   --cream: #f4ecd8; /* default card hue, field tint, table header band */
   --field: #fffdf8; /* text-field fill */
 
@@ -183,7 +183,9 @@
   --focus-ring: 0 0 0 1.5px var(--accent-text), 0 0 0 4px var(--accent-ring);
 
   --font-script: "Courier Prime", "Courier New", Courier, monospace;
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI Variable",
+    "Segoe UI", system-ui, sans-serif;
 }
 
 /*
@@ -459,6 +461,9 @@
     --hover-strong: rgba(31, 41, 51, 0.09);
     --track: rgba(31, 41, 51, 0.07);
     --hue-cream: #e3d9c2;
+    /* Added and cut words on a lit sheet (the redline in Changes). */
+    --ok-text: #3f4e27;
+    --bad: #9c4a2f;
   }
 }
 

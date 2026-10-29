@@ -17,6 +17,7 @@
  * fixed contract; they mirror the ⌘⌥ chords in element-entry.ts and add the
  * extended elements (synopsis `=`, note `n`, centered `>`).
  */
+import { keys } from "../ui/keys";
 import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
@@ -183,7 +184,7 @@ class LeaderMenuView {
     });
     const hint = document.createElement("div");
     hint.className = "pl-elementmenu__hint";
-    hint.textContent = "press a key · esc cancels · ⌘⌥ chords work anywhere";
+    hint.textContent = `press a key · esc cancels · ${keys("⌘⌥")} chords work anywhere`;
     this.dom.replaceChildren(...rows, hint);
     placeAtCaret(this.dom, this.view);
     this.activation.link();

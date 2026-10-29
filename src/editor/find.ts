@@ -21,11 +21,13 @@
  *    does replacing inside a comment, which is a note about the script rather
  *    than the script (docs/app/writing/comments.md#COMM-D9). See `partitionForReplace`.
  */
+import { binding } from "../ui/keys";
 import { Extension } from "@tiptap/core";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { Transaction } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
+import { ownText } from "../comments/own-text";
 import { cuePrefix } from "./cast";
 import { LINE_BREAK } from "./bridge";
 import { scrollPosIntoView } from "./scroll-to";
@@ -120,7 +122,9 @@ export function searchBlocks(doc: PMNode): SearchBlock[] {
     // `offset + 1` is the first position inside the block.
     walk(node, offset + 1, false);
     if (type === "character") {
-      speaker = cuePrefix(node.textContent).toUpperCase() || null;
+      // Who speaks is the cue's own text. A comment on the cue is searched as
+      // the comment it is, above, and names nobody.
+      speaker = cuePrefix(ownText(node)).toUpperCase() || null;
     } else if (type !== "dialogue" && type !== "parenthetical" && type !== "lyric") {
       // Anything that isn't part of the speech ends it, so the next speech is
       // never misattributed to the cue above the wrong block.
@@ -136,7 +140,7 @@ export function speakersInDoc(doc: PMNode): string[] {
   const seen = new Set<string>();
   doc.forEach((node) => {
     if (node.type.name !== "character") return;
-    const name = cuePrefix(node.textContent).toUpperCase();
+    const name = cuePrefix(ownText(node)).toUpperCase();
     if (name) seen.add(name);
   });
   return [...seen].sort();
@@ -278,7 +282,7 @@ export const Find = Extension.create<Record<string, never>, FindStorage>({
   addKeyboardShortcuts() {
     return {
       "Mod-f": () => this.editor.commands.openFind(false),
-      "Mod-Alt-f": () => this.editor.commands.openFind(true),
+      [binding("⌘⌥F")]: () => this.editor.commands.openFind(true),
       // Only while the bar is open, so Escape keeps its other jobs otherwise.
       Escape: () => {
         if (!findKey.getState(this.editor.state)?.open) return false;

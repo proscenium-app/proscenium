@@ -16,6 +16,8 @@
  * those folders, and offers the sample play only once that is answered: the
  * sample play went into such a folder on 2026-09-13, from this screen.
  */
+import { systemWords } from "../ui/system-words";
+import { keys } from "../ui/keys";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayPages, PlaysFolderHint, VaultPlay } from "../workspace";
 import type { KeptFile } from "./useWorkspace";
@@ -77,7 +79,7 @@ function PagesCell({ pages }: { pages: PlayPages | undefined }) {
   const why = !pages
     ? "Counting pages"
     : pages.kind === "no-format"
-      ? `Not counted: the format “${pages.format}” is not on this Mac`
+      ? `Not counted: the format “${pages.format}” is not on this ${systemWords().machine}`
       : "Not counted";
   return (
     <>
@@ -455,7 +457,7 @@ export function VaultScreen({
                   onBlur={submitName}
                 />
                 <span className="playrow__hint" id="playrow-naming-hint">
-                  Return to create · Esc to cancel
+                  {keys("Return")} to create · Esc to cancel
                 </span>
               </span>
             </div>
@@ -470,9 +472,7 @@ export function VaultScreen({
             <Button onClick={() => onCreate(SAMPLE_PLAY_TITLE, SAMPLE_PLAY)}>
               Open the Sample Play
             </Button>
-            <span className="sheet__hint">
-              Two acts, four characters, and every element the editor knows.
-            </span>
+            <span className="sheet__hint">Scenes from Noël Coward's Hay Fever, in two acts.</span>
           </div>
         )}
       </div>

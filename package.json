@@ -1,6 +1,6 @@
 {
   "name": "proscenium",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "A local-first, cross-platform playwriting app.",
   "license": "AGPL-3.0-or-later",
   "type": "module",
@@ -19,6 +19,7 @@
     "app:install": "bun run icon && node scripts/build-app.mjs --local && node scripts/install-app.mjs",
     "check:design": "bash scripts/check-design-tokens.sh",
     "smoke": "bun run build && node scripts/smoke.mjs",
+    "store:screenshots": "node scripts/store-screenshots.mjs",
     "check:spdx": "bash scripts/check-spdx.sh",
     "check:network": "node scripts/check-network.mjs",
     "check:names": "node scripts/check-names.mjs",
@@ -69,7 +70,7 @@
     "css-tree": "^3.2.1",
     "dictionary-en": "^4.0.0",
     "dictionary-en-gb": "3.0.0",
-    "playwright": "^1.62.1",
+    "playwright": "1.62.1",
     "typescript": "^5.6.3",
     "vite": "^6.0.3"
   }

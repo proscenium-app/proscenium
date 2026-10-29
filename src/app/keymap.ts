@@ -80,7 +80,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "⌘⌥B", what: "Show or hide the binder", group: "Views and panels", owner: "app" },
   { keys: "⌘⌥I", what: "Show or hide the inspector", group: "Views and panels", owner: "app" },
   { keys: "⌘⇧C", what: "Comments", group: "Views and panels", owner: "app" },
-  // StatusList binds the same keys in a status's name (Settings › General and Writing).
+  // StatusList binds the same keys in a status's name (Settings › General).
   {
     keys: "⌃⌘↑ / ⌃⌘↓",
     what: "Move the binder item, or a status in Settings, up or down",
