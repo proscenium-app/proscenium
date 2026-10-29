@@ -3,20 +3,68 @@
 
 /* Corkboard (docs/app/organizing/workspace-model.md#WORK-D2) ------------------------------------------------------ */
 .board {
-  padding: 20px var(--s-7);
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  padding: var(--s-5) var(--s-7) 20px;
+  display: flex;
+  flex-direction: column;
   gap: var(--s-5);
-  align-content: start;
 }
 .board--empty {
   display: flex;
   padding: 0;
 }
-/* The act band: a heading and its length in pages, over a hairline. */
+/* Across or Down (docs/app/organizing/workspace-model.md#WORK-86), at the top
+   right where a view's own arrangement is set, out of the cards' way. */
+.board__bar {
+  display: flex;
+  justify-content: flex-end;
+}
+.board__lanes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+}
+.board__lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  min-width: 0;
+}
+/* Across: an act is a band, and its scenes wrap left to right under it. A card
+   is at least 260px — at 210 a summary of two sentences was most of the card. */
+.board__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--s-6);
+}
+/* Down: an act is a column, its scenes one under another, the acts side by
+   side; more acts than fit scroll sideways rather than squeezing every card.
+   A play without acts is one column, a little wider since it has the room. */
+.board--down .board__lanes {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: var(--s-7);
+  overflow-x: auto;
+  padding-bottom: var(--s-4);
+}
+.board--down .board__lane {
+  flex: 0 0 300px;
+}
+.board--down .board__lane:only-child {
+  flex: 0 1 480px;
+}
+.board--down .board__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+/* Across, the New Scene tile is as tall as its row; down, it has no row, so
+   it keeps a card's least height instead of shrinking to its label. */
+.board--down .card--new {
+  min-height: 96px;
+}
+/* The act heading and its length in pages, over a hairline. */
 .board__act {
-  grid-column: 1 / -1;
-  margin: var(--s-4) 0 0;
+  margin: 0;
   padding-bottom: var(--s-3);
   display: flex;
   align-items: baseline;
@@ -31,10 +79,10 @@
   background: var(--paper);
   border: 0.5px solid var(--rule);
   border-radius: var(--r-control);
-  padding: 10px var(--s-5) var(--s-4);
+  padding: var(--s-5) var(--s-6) var(--s-4);
   display: flex;
   flex-direction: column;
-  gap: var(--s-3);
+  gap: var(--s-4);
   box-shadow: var(--sh-card);
   overflow: hidden;
 }
@@ -51,8 +99,10 @@
   opacity: 0.4;
   box-shadow: 0 14px 34px rgba(31, 41, 51, 0.28);
 }
+/* No color draws no rule: the cream rule read as a color the writer had not
+   chosen, and in dark mode as a dark one. */
 .card--cream {
-  --card-hue: var(--hue-cream);
+  --card-hue: transparent;
 }
 .card--oxide {
   --card-hue: var(--oxide);
@@ -92,6 +142,10 @@
     background var(--motion),
     color var(--motion),
     border-color var(--motion);
+}
+/* Not a scene yet, so no color rule along its top. */
+.card--new::before {
+  content: none;
 }
 .card--new:hover {
   background: var(--accent-softer);
@@ -135,10 +189,10 @@
    reads as text on the card rather than as a field in a form. */
 .card__synopsis {
   font: inherit;
-  font-size: var(--t-small);
+  font-size: var(--t-body);
   line-height: 1.45;
   resize: vertical;
-  min-height: 46px;
+  min-height: 84px;
   border: none;
   border-radius: var(--r-chip);
   padding: var(--s-2) var(--s-3);
@@ -198,7 +252,9 @@
   color: var(--accent-text);
 }
 
+/* At the bottom of the card, so the footers of a row of cards line up. */
 .card__foot {
+  margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -231,9 +287,25 @@
   outline: 1.5px solid var(--accent-text);
   outline-offset: 5px;
 }
+/* No color is an empty ring wherever a color is shown or chosen. Filled with
+   the cream tint it drew as a dark dot in dark mode — a color nobody chose,
+   on every scene in the rail. */
 .swatch--cream {
-  background: var(--cream);
-  border: 0.5px solid rgba(31, 41, 51, 0.25);
+  background: transparent;
+  border: 1px solid var(--rule-strong);
+}
+/* A color in a menu or on its button: the swatch, then its name, because a
+   color is never the only carrier of a choice (docs/engineering/design-system.md#UI-64). */
+.colorchoice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.colorchoice__swatch {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: var(--r-pill);
 }
 .swatch--oxide {
   background: var(--oxide);
@@ -252,42 +324,6 @@
 }
 .swatch--ash {
   background: var(--ash);
-}
-.card__label,
-.outliner__synopsis,
-.outliner__label {
-  font: inherit;
-  font-size: var(--t-mini);
-  border: 0.5px solid var(--rule);
-  border-radius: var(--r-chip);
-  padding: var(--s-1) var(--s-3);
-  background: var(--paper);
-  color: var(--ink);
-  width: 6rem;
-}
-.card__label {
-  border: none;
-  border-radius: var(--r-pill);
-  background: var(--track);
-  color: var(--ink-2);
-  height: var(--h-mini);
-  text-align: center;
-}
-.card__label:focus {
-  outline: none;
-  background: var(--field);
-  box-shadow: var(--focus-ring);
-}
-.card__changed {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-2);
-  height: 16px;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-chip);
-  background: var(--warn-tint);
-  color: var(--warn-text);
-  font-size: var(--t-label);
 }
 .card__pages {
   font-family: var(--font-script);
@@ -351,11 +387,6 @@
 .card__details .card__note {
   width: 100%;
   font-size: var(--t-small);
-}
-.card__details .card__label {
-  width: 100%;
-  text-align: left;
-  margin-top: var(--s-3);
 }
 .card__head {
   flex-wrap: wrap;

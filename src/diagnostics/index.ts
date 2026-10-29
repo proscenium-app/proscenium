@@ -10,7 +10,14 @@
  * by whether this build can send at all — whether it goes anywhere.
  */
 import { formatRegistrySnapshot } from "../format";
-import { diagnostics as ipc, telemetry, type Surface } from "../storage/ipc";
+import {
+  diagnostics as ipc,
+  telemetry,
+  type LessonMoment,
+  type Surface,
+  type TutorialChoice,
+} from "../storage/ipc";
+import type { LessonId, Task } from "../tutorial/lessons";
 import type { ToastSpec } from "../ui";
 import type { ErrorCode } from "./error-codes";
 
@@ -41,6 +48,19 @@ export function pdfExported(kind: "whole" | "range" | "sides", formatId: string)
 export function formatSaved(): void {
   telemetry.record({ name: "format_saved" });
 }
+
+/**
+ * The tutorials' use (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-95): the one-time
+ * invitation, and where each lesson got to. A lesson and a step go by the
+ * course's own ids; nothing written in practice does.
+ */
+export const tutorialUse = {
+  offered: (choice: TutorialChoice): void => telemetry.record({ name: "tutorial_offered", choice }),
+  lesson: (lesson: LessonId, moment: LessonMoment): void =>
+    telemetry.record({ name: "lesson_progress", lesson, moment }),
+  stopped: (lesson: LessonId, step: Task): void =>
+    telemetry.record({ name: "lesson_stopped", lesson, step }),
+};
 
 /**
  * A format as reports and diagnostics name it: a built-in by its id, and a

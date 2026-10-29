@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { boundedBytes, response } from "./updates";
-import { REPORTS, object, keys, system, isReleased } from "./reports";
+import { boundedBytes, releasedOn, response, type Source } from "./updates";
+import { REPORTS, REPORTING, buildVersion, object, keys, system } from "./reports";
 import names from "../crash-kinds.json";
 export const CRASH_PATH = "/api/proscenium/envelope/";
 export const MAX_CRASH_BODY = 64 * 1024;
@@ -16,12 +16,14 @@ const id = /^[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}$/;
 const symbol = /^[A-Za-z0-9_:<>, &\[\](){}#;!?=-]{1,256}$/;
 const number = (v: unknown): v is number =>
   typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 10_000_000;
-/** Rebuild the envelope after validation. Never forward unparsed bytes. */
+/**
+ * Rebuild the envelope after validation. Never forward unparsed bytes. Whether
+ * its `release` was released is asked of the lists afterwards ([`crashes`]).
+ */
 export function parseEnvelope(
   bytes: Uint8Array,
-  env: Pick<CrashEnv, "RELEASED_VERSIONS_JSON">,
   now: Date,
-): Uint8Array {
+): { bytes: Uint8Array; release: string } {
   const lines = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false })
     .decode(bytes)
     .split("\n");
@@ -48,7 +50,7 @@ export function parseEnvelope(
     typeof event.event_id !== "string" ||
     !id.test(event.event_id) ||
     event.event_id !== head.event_id.replaceAll("-", "") ||
-    !isReleased(env, event.release) ||
+    !buildVersion(event.release) ||
     event.level !== "fatal" ||
     !(
       event.platform === undefined ||
@@ -110,15 +112,19 @@ export function parseEnvelope(
       throw new Error("Invalid frame");
   }
   const body = JSON.stringify(event);
-  return encoder.encode(
-    `${JSON.stringify({ event_id: head.event_id })}\n${JSON.stringify({ type: "event", length: encoder.encode(body).length })}\n${body}\n`,
-  );
+  return {
+    bytes: encoder.encode(
+      `${JSON.stringify({ event_id: head.event_id })}\n${JSON.stringify({ type: "event", length: encoder.encode(body).length })}\n${body}\n`,
+    ),
+    release: event.release,
+  };
 }
 export async function crashes(
   request: Request,
   env: CrashEnv,
   now: Date,
   forward: (bytes: Uint8Array, dsn: string) => Promise<number>,
+  source: Source,
 ): Promise<Response> {
   const url = new URL(request.url);
   if (
@@ -146,12 +152,17 @@ export async function crashes(
     } catch {
       return response(413);
     }
+    let parsed: ReturnType<typeof parseEnvelope>;
     try {
-      bytes = parseEnvelope(bytes, env, now);
+      parsed = parseEnvelope(bytes, now);
     } catch {
       return response(400);
     }
-    const status = await forward(bytes, env.SENTRY_DSN);
+    // A release's, or a published beta's: Sentry tells them apart by the whole
+    // version the report carries as its release
+    // (docs/engineering/services-and-feedback.md#SERV-272).
+    if ((await releasedOn(env, source, parsed.release, REPORTING)) === null) return response(400);
+    const status = await forward(parsed.bytes, env.SENTRY_DSN);
     if (status >= 200 && status < 300) return response(204);
     return response(
       status === 429 ? 429 : status >= 500 || (status >= 300 && status < 400) ? 503 : 400,

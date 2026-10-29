@@ -14,9 +14,11 @@
  *  - ⌘⌥ mnemonic chords: set the current element directly (the contract letters).
  *  - ⌘B/⌘I/⌘U: bold / italic / underline.
  */
+import { binding } from "../ui/keys";
 import { Extension } from "@tiptap/core";
 import type { CommandProps, Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
+import { ownText } from "../comments/own-text";
 import { insertLineBreak, insertPageBreak, noteEnter, toggleEmphasis } from "./breaks";
 import { LINE_BREAK } from "./bridge";
 import { armLeaderMenu } from "./leader-key";
@@ -95,11 +97,15 @@ function hasLineBreak(node: PMNode): boolean {
  *
  * A block with breaks in it is prose the writer has been shaping across lines,
  * never a name they have just typed, so it confirms as nothing.
+ *
+ * The line is read without its comments (docs/app/writing/comments.md#COMM-67):
+ * a name with a comment on it is the name it was, where `textContent` made it
+ * a line with lower case in it that confirmed as nothing.
  */
 export function confirmActionAs(node: PMNode): "character" | "transition" | null {
   if (node.type.name !== "action" || node.content.size === 0) return null;
   if (hasLineBreak(node)) return null;
-  const text = node.textContent;
+  const text = ownText(node);
   if (NATURAL_TRANSITION.test(text)) return "transition";
   if (isAllCaps(text) && !NATURAL_SLUG.test(text)) return "character";
   return null;
@@ -246,15 +252,15 @@ export const ElementEntry = Extension.create({
       "Shift-Tab": () => cycle(this.editor, -1),
 
       // ⌘⌥ mnemonic chords — the fixed contract letters (docs/app/writing/editor-ux.md#EDIT-D100).
-      "Mod-Alt-a": set("action"),
-      "Mod-Alt-c": set("character"),
-      "Mod-Alt-d": set("dialogue"),
-      "Mod-Alt-p": set("parenthetical"),
-      "Mod-Alt-t": set("transition"),
-      "Mod-Alt-s": set("sceneHeading"), // ⌘S is save → scene heading is ⌘⌥S
-      "Mod-Alt-1": set("act"),
-      "Mod-Alt-2": set("scene"),
-      "Mod-Alt-l": set("lyric"),
+      [binding("⌘⌥A")]: set("action"),
+      [binding("⌘⌥C")]: set("character"),
+      [binding("⌘⌥D")]: set("dialogue"),
+      [binding("⌘⌥P")]: set("parenthetical"),
+      [binding("⌘⌥T")]: set("transition"),
+      [binding("⌘⌥S")]: set("sceneHeading"), // ⌘S is save → scene heading is ⌘⌥S
+      [binding("⌘⌥1")]: set("act"),
+      [binding("⌘⌥2")]: set("scene"),
+      [binding("⌘⌥L")]: set("lyric"),
 
       // Emphasis.
       "Mod-b": mark("strong"),

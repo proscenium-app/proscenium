@@ -47,9 +47,9 @@
     - paragraph:
       - strong: JUNIPER
     - paragraph:
-      - strong: IVO
+      - strong: SIMON
     - paragraph:
-      - emphasis: Two old friends, one early morning.
+      - emphasis: The Blisses, and the guests they asked for the weekend.
   - group: Page Options
   - heading "Cast Tools" [level=2]
   - paragraph: Names, private notes, appearances and sides.
@@ -63,13 +63,13 @@
     - text: 2 lines · 1 scene Appears in SCENE 1
     - button "Sides (PDF) ↗"
     - button "Add Notes"
-  - group "IVO":
-    - text: IVO
-    - textbox "Name — IVO"
-    - textbox "Description — IVO"
-    - button "Remove IVO"
-    - button "Move IVO up"
-    - button "Move IVO down" [disabled]
+  - group "SIMON":
+    - text: SIMON
+    - textbox "Name — SIMON"
+    - textbox "Description — SIMON"
+    - button "Remove SIMON"
+    - button "Move SIMON up"
+    - button "Move SIMON down" [disabled]
     - text: 1 line · 1 scene Appears in SCENE 1
     - button "Sides (PDF) ↗"
     - button "Add Notes"
@@ -86,13 +86,13 @@
           - button "SCENE 1"
         - columnheader "Scenes"
     - rowgroup:
-      - row "IVO silent speaks 1":
-        - rowheader "IVO"
+      - row "JUNIPER silent speaks 1":
+        - rowheader "JUNIPER"
         - cell "silent"
         - cell "speaks"
         - cell "1"
-      - row "JUNIPER silent speaks 1":
-        - rowheader "JUNIPER"
+      - row "SIMON silent speaks 1":
+        - rowheader "SIMON"
         - cell "silent"
         - cell "speaks"
         - cell "1"
@@ -104,16 +104,28 @@
         - cell
 - complementary "Inspector":
   - tablist "Inspector":
-    - tab "Scene"
-    - tab "Comments" [selected]
+    - tab "Scene" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - heading "0 comments" [level=2]
-  - 'button "Filter comments: All Comments"': All Comments
-  - paragraph:
-    - text: No comments yet. Select a line in the script and press ⌘⌥M, or type
-    - code: "[["
-    - text: where you want one.
-  - list
+  - text: Scene 2
+  - heading "SCENE 1" [level=2]
+  - text: Pages 1–2 · 2 pages · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage JUNIPER 2 SIMON 1 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
   - text: <save status>

@@ -27,17 +27,20 @@
  * turns Tauri's own OS-level drag handler off (`dragDropEnabled: false`) so the
  * webview sees these events at all.
  */
+import { keyStyle } from "../ui/keys";
+import { systemWords } from "../ui/system-words";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BINDER_MIME } from "../app/PaneTree";
+import { BINDER_MIME } from "./binder-drag";
 import { ancestorsOf, dropPlan, filterBinder, findItem, folderIds, type DropWhere } from "./binder";
 import { BinderIcon, DisclosureIcon, PencilIcon, type IconKind } from "./BinderIcons";
 import { Menu, PlusIcon, announce, requestPageFocus, useMenu, type MenuEntry } from "../ui";
 import { normalizeType } from "../materials/schema";
 import { titleOf } from "./binder";
-import type { BinderItem, BinderItemType } from "./play-file";
+import type { BinderItem, BinderItemType, CardColor } from "./play-file";
 import { BinderMoveSheet } from "./BinderMoveSheet";
+import { CARD_COLORS, ColorChoice } from "./card-colors";
 
-/** One scene, as the rail shows it. Display-only: a scene is not a file. */
+/** One scene, as the rail shows it. Not a file: it opens, and takes a color, and that is all. */
 export interface BinderScene {
   id: string;
   ordinal: number;
@@ -78,6 +81,8 @@ export interface BinderProps {
   /** The scene the caret is in, so the rail marks where you are writing. */
   caretScene?: number | null;
   onOpenScene?: (ordinal: number) => void;
+  /** Give a scene its color from its row (docs/app/organizing/workspace-model.md#WORK-85). Absent when read-only. */
+  onSetSceneColor?: (sceneId: string, color: CardColor) => void;
   onDuplicate?: (id: string) => void;
   /** Show this item in the OS file manager. Absent where the host has none. */
   onReveal?: (id: string) => void;
@@ -264,6 +269,9 @@ export function Binder(props: BinderProps) {
   const [dragId, setDragId] = useState<string | null>(null);
   const [drop, setDrop] = useState<DropState | null>(null);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [sceneMenu, setSceneMenu] = useState<{ scene: BinderScene; x: number; y: number } | null>(
+    null,
+  );
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [movingId, setMovingId] = useState<string | null>(null);
   const [cursorId, setCursorId] = useState<string | null>(activeId);
@@ -431,7 +439,14 @@ export function Binder(props: BinderProps) {
     };
 
     if (current?.kind === "scene") {
-      // A scene has navigation and activation, never file mutation commands.
+      // A scene has navigation, activation and its color, never file mutation commands.
+      if ((e.key === "F10" && e.shiftKey) || (e.key === "Enter" && e.ctrlKey)) {
+        e.preventDefault();
+        const r = document.getElementById(`binderrow-${current.id}`)?.getBoundingClientRect();
+        if (r && props.onSetSceneColor)
+          setSceneMenu({ scene: current.scene, x: r.left + 24, y: r.bottom });
+        return;
+      }
       if (e.key === "Enter") {
         e.preventDefault();
         props.onOpenScene?.(current.scene.ordinal);
@@ -451,8 +466,13 @@ export function Binder(props: BinderProps) {
     /* ⌃⌘ + arrow moves the item. Filing was drag-only,
        so a writer without a pointer could make a document and never put it in
        a folder (WCAG 2.5.7). The moves go through the same drop plan a drag
-       does, so the keyboard cannot file anything a drag would refuse. */
-    if (e.ctrlKey && e.metaKey && !e.altKey && row && !readOnly && !query.trim()) {
+       does, so the keyboard cannot file anything a drag would refuse. A PC's
+       is Ctrl+Shift + arrow: Ctrl+Windows + arrow switches its desktops. */
+    const moveChord =
+      keyStyle() === "pc"
+        ? e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey
+        : e.ctrlKey && e.metaKey && !e.altKey;
+    if (moveChord && row && !readOnly && !query.trim()) {
       const here = findItem(binder, row.item.id);
       if (here) {
         const siblings = here.parentId
@@ -747,6 +767,7 @@ export function Binder(props: BinderProps) {
                 clearDrag={clearDrag}
                 spring={spring}
                 openMenu={(id, x, y) => setMenu({ id, x, y })}
+                openSceneMenu={(scene, x, y) => setSceneMenu({ scene, x, y })}
               />
             ))}
           </ul>
@@ -777,6 +798,16 @@ export function Binder(props: BinderProps) {
         </footer>
       )}
 
+      {sceneMenu && props.onSetSceneColor && (
+        <Menu
+          anchor={{ kind: "point", x: sceneMenu.x, y: sceneMenu.y }}
+          entries={sceneMenuEntries(sceneMenu.scene, props.onSetSceneColor)}
+          onClose={() => setSceneMenu(null)}
+          width={180}
+          label={sceneMenu.scene.label}
+          start="checked"
+        />
+      )}
       {menu && !readOnly && (
         <RowMenu
           x={menu.x}
@@ -842,6 +873,7 @@ interface NodeProps {
   clearDrag: () => void;
   spring: (id: string) => void;
   openMenu: (id: string, x: number, y: number) => void;
+  openSceneMenu: (scene: BinderScene, x: number, y: number) => void;
 }
 
 function BinderNode(p: NodeProps) {
@@ -1086,8 +1118,9 @@ function BinderNode(p: NodeProps) {
         Scenes, under the script they are in (docs/app/organizing/workspace-model.md#WORK-5). The board is already the
         scene navigator; this makes the rail one too, without a second list to
         keep in step — the rows are DERIVED from the same `cards` and
-        `scenePages` the board reads, and they are display-only: a scene is not
-        a file, so it cannot be dragged, renamed or trashed here.
+        `scenePages` the board reads. A row opens its scene and, from its menu,
+        sets its color; a scene is not a file, so it cannot be dragged, renamed
+        or trashed here.
        */}
       {item.type === "script" && selected && (actions.scenes?.length ?? 0) > 0 && (
         <ul role="group" aria-label={`Scenes in ${titleOf(item)}`}>
@@ -1111,6 +1144,13 @@ function BinderNode(p: NodeProps) {
                 onClick={() => {
                   p.setCursorId(sceneRowId(item.id, sc.id));
                   actions.onOpenScene?.(sc.ordinal);
+                }}
+                onContextMenu={(e) => {
+                  if (!actions.onSetSceneColor) return;
+                  e.preventDefault();
+                  e.stopPropagation();
+                  p.setCursorId(sceneRowId(item.id, sc.id));
+                  p.openSceneMenu(sc, e.clientX, e.clientY);
                 }}
               >
                 <span className={`binder__huedot swatch--${sc.color}`} aria-hidden="true" />
@@ -1214,6 +1254,33 @@ function CreateMenu({
 }
 
 /**
+ * A scene row's menu: its color, by name and swatch
+ * (docs/app/organizing/workspace-model.md#WORK-85). The dot beside every scene
+ * in the rail is that color, and until this menu nothing near the dot could
+ * change it.
+ */
+export function sceneMenuEntries(
+  scene: BinderScene,
+  onSetColor: (sceneId: string, color: CardColor) => void,
+): MenuEntry[] {
+  return [
+    { kind: "section", label: "Color" },
+    ...CARD_COLORS.map(
+      (c): MenuEntry => ({
+        label: <ColorChoice id={c.id} />,
+        text: c.name,
+        radio: true,
+        checked: scene.color === c.id,
+        onSelect: () => {
+          onSetColor(scene.id, c.id);
+          announce(`${scene.label}: ${c.name}`);
+        },
+      }),
+    ),
+  ];
+}
+
+/**
  * The row menu's entries. The shortcuts it shows are the keys the binder's
  * own handler answers (`onKeyDown` above): F2 renames the row and ⏎ opens it,
  * so the menu says F2 beside Rename. It said ⏎, which opened the row instead.
@@ -1249,11 +1316,14 @@ export function rowMenuEntries(
     });
   }
   if (actions.onReveal) {
-    entries.push({ label: "Reveal in Finder", onSelect: () => actions.onReveal?.(item.id) });
+    entries.push({
+      label: `Reveal in ${systemWords().fileManager}`,
+      onSelect: () => actions.onReveal?.(item.id),
+    });
   }
   entries.push({ kind: "sep" });
   entries.push({
-    label: "Move to Trash",
+    label: `Move to ${systemWords().trash === "Trash" ? "Trash" : "the Recycle Bin"}`,
     shortcut: "⌘⌫",
     destructive: true,
     onSelect: () => actions.onDelete(item.id),

@@ -90,7 +90,8 @@
 }
 
 /* "Changes in text": a labelled mini switch inside an accent capsule, so the
-   thing being toggled and its state are one control rather than two. */
+   thing being toggled and its state are one control rather than two; while
+   it is on, the steps from one change to the next ride in the same capsule. */
 .trackedswitch {
   height: var(--h-regular);
   padding: 0 var(--s-4) 0 10px;
@@ -99,7 +100,18 @@
   gap: var(--s-3);
   border-radius: var(--r-control);
   background: var(--accent-soft);
+}
+.trackedswitch__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
   cursor: pointer;
+}
+.trackedswitch__count {
+  font-size: var(--t-mini);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
 }
 .trackedswitch__label {
   font-size: var(--t-small);

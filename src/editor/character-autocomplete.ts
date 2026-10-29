@@ -31,6 +31,7 @@ import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as PMNode } from "@tiptap/pm/model";
+import { ownOffset, ownStretch, ownText } from "../comments/own-text";
 import { cueNameEnd } from "../fountain/cue";
 import { cuePrefix, matchCast, normalizeCast, rankSuggestions } from "./cast";
 import { placeAtCaret } from "./popup-position";
@@ -82,7 +83,7 @@ function scanCues(doc: PMNode): string[] {
   const out: string[] = [];
   doc.descendants((node) => {
     if (node.type.name !== "character") return true;
-    const name = cuePrefix(node.textContent).toUpperCase();
+    const name = cuePrefix(ownText(node)).toUpperCase();
     if (name) out.push(name);
     return false; // a cue holds no nested character nodes
   });
@@ -94,13 +95,14 @@ function cuesBefore(doc: PMNode, blockPos: number): string[] {
   const out: string[] = [];
   doc.forEach((node, offset) => {
     if (offset >= blockPos || node.type.name !== "character") return;
-    const name = cuePrefix(node.textContent).toUpperCase();
+    const name = cuePrefix(ownText(node)).toUpperCase();
     if (name) out.push(name);
   });
   return out;
 }
 
-function nextState(tr: Transaction, prev: ACState, state: EditorState): ACState {
+/** The popup after a transaction. Exported so it is testable without a view. */
+export function nextState(tr: Transaction, prev: ACState, state: EditorState): ACState {
   const meta = tr.getMeta(characterAutocompleteKey) as ACMeta | undefined;
   const cast = meta?.type === "setCast" ? normalizeCast(meta.cast) : prev.cast;
   // Typing re-shows a dismissed popup; Escape dismisses it.
@@ -114,8 +116,11 @@ function nextState(tr: Transaction, prev: ACState, state: EditorState): ACState 
   const parent = $from.parent;
   if (!selection.empty || parent.type.name !== "character") return base;
 
-  const text = parent.textContent;
-  const caret = $from.parentOffset;
+  // The name is the cue's own text: a comment on the cue is no part of it, and
+  // the caret is counted in the name's characters, not the comment's
+  // (docs/app/writing/comments.md#COMM-67).
+  const text = ownText(parent);
+  const caret = ownOffset(parent, $from.parentOffset);
   const cut = cueNameEnd(text);
   // Cursor inside the extension part — the name is done; don't autocomplete.
   if (cut !== -1 && caret > cut) return base;
@@ -144,19 +149,26 @@ function nextState(tr: Transaction, prev: ACState, state: EditorState): ACState 
       index = Math.min(prev.index, items.length - 1);
       navigated = true;
     }
+    // A cue with no text of its own may still hold a comment: the name goes
+    // where the caret is, as a typed one would.
+    const at = text ? start : $from.pos;
     return {
       cast,
       active: true,
       items,
       index,
-      from: start,
-      to: start,
+      from: at,
+      to: at,
       query: "",
       dismissed: false,
       navigated,
     };
   }
 
+  // A comment standing inside the name would go with the letters a suggestion
+  // replaces, so there is none to take.
+  const typed = ownStretch(parent, prefix.length);
+  if (!typed) return { ...base, query, dismissed };
   const items = matchCast(query, pool);
   if (items.length === 0 || dismissed) return { ...base, query, dismissed };
 
@@ -170,8 +182,8 @@ function nextState(tr: Transaction, prev: ACState, state: EditorState): ACState 
     active: true,
     items,
     index,
-    from: start,
-    to: start + prefix.length,
+    from: start + typed.from,
+    to: start + typed.to,
     query,
     dismissed: false,
     navigated: true,

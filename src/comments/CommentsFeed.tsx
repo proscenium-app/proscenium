@@ -11,52 +11,62 @@
  * scrolls to that comment and focuses it — the same jump the board's cards and
  * find already use.
  *
- * Reading, editing and resolving work here as they do in the margin, over the
- * same Fountain notes. There is no comment store to keep in sync.
+ * Reading, editing, answering and resolving work here as they do in the
+ * margin, over the same Fountain notes and drawn by the same Thread.tsx. There
+ * is no comment store to keep in sync. It is also where a comment is typed
+ * when the margin has no room for a card (docs/app/writing/comments.md#COMM-56).
  */
+import { keys } from "../ui/keys";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
-import { commentsState, type PmCommentEntry } from "./plugin";
+import { commentsState, type CommentThread, type CommentsStorage } from "./plugin";
 import { useCommentFocus } from "./focus";
+import { groupByHeading } from "./groups";
+import { ThreadView } from "./Thread";
+import { useThreadEditing } from "./use-thread-editing";
 import { PopupButton } from "../ui";
 
 type Filter = "all" | "todo" | `author:${string}`;
 
-function sceneLabel(entry: PmCommentEntry): string {
-  const parts = [entry.act, entry.scene].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "Front of script";
-}
-
-/** The comment node at `pos`, verified — positions go stale across edits. */
-function noteAt(editor: Editor, pos: number) {
-  const node = editor.state.doc.nodeAt(pos);
-  return node && node.type.name === "note" ? node : null;
-}
+/** What the feed reads of the editor's comment state. */
+type FeedUi = Pick<CommentsStorage, "focusPos" | "composing" | "replying" | "marginRoom">;
+const IDLE: FeedUi = { focusPos: null, composing: false, replying: false, marginRoom: false };
 
 export function CommentsFeed({
   editor,
   onJump,
 }: {
   editor: Editor | null;
-  /** Show this comment in the script (App owns which pane the script is in). */
-  onJump: (pos: number) => void;
+  /**
+   * Show this comment in the script (App owns which pane the script is in).
+   * `fromWords`: the click was on the comment's words, and may be the first
+   * press of a double-click; a word it goes on to select is left selected.
+   */
+  onJump: (pos: number, fromWords?: boolean) => void;
 }) {
-  const [entries, setEntries] = useState<PmCommentEntry[]>([]);
-  const [focusPos, setFocusPos] = useState<number | null>(null);
+  const [threads, setThreads] = useState<CommentThread[]>([]);
+  const [ui, setUi] = useState<FeedUi>(IDLE);
   const [filter, setFilter] = useState<Filter>("all");
-  const [editingId, setEditingId] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const complete = useCommentFocus(editor, root);
-  const [draft, setDraft] = useState("");
   const rowRefs = useRef(new Map<number, HTMLLIElement>());
 
   // The feed follows the document: comments are text, so every edit anywhere
-  // can add, move or remove one. Meta-only transactions carry the focus.
+  // can add, move or remove one. Meta-only transactions carry the focus, and
+  // the script's request to type a comment here.
   useEffect(() => {
     if (!editor) return;
     const sync = () => {
-      setEntries(commentsState(editor.state)?.entries ?? []);
-      setFocusPos(editor.storage.comments.focusPos);
+      setThreads(commentsState(editor.state)?.threads ?? []);
+      const { focusPos, composing, replying, marginRoom } = editor.storage.comments;
+      setUi((prev) =>
+        prev.focusPos === focusPos &&
+        prev.composing === composing &&
+        prev.replying === replying &&
+        prev.marginRoom === marginRoom
+          ? prev
+          : { focusPos, composing, replying, marginRoom },
+      );
     };
     editor.on("transaction", sync);
     sync();
@@ -64,106 +74,61 @@ export function CommentsFeed({
       editor.off("transaction", sync);
     };
   }, [editor]);
+  const focusPos = ui.focusPos;
 
   // Following a marker or a card into the feed: bring that row into view.
   useEffect(() => {
     if (focusPos === null) return;
     rowRefs.current.get(focusPos)?.scrollIntoView({ block: "nearest" });
-  }, [focusPos, entries]);
+  }, [focusPos, threads]);
 
   const authors = useMemo(() => {
     const set = new Set<string>();
-    for (const e of entries) if (e.parsed.author) set.add(e.parsed.author);
-    return [...set].sort();
-  }, [entries]);
-
-  const visible = useMemo(() => {
-    if (filter === "all") return entries;
-    if (filter === "todo") return entries.filter((e) => e.parsed.todo);
-    const author = filter.slice("author:".length);
-    return entries.filter((e) => e.parsed.author === author);
-  }, [entries, filter]);
-
-  const groups = useMemo(() => {
-    const out: { label: string; items: PmCommentEntry[] }[] = [];
-    for (const entry of visible) {
-      const label = sceneLabel(entry);
-      const last = out[out.length - 1];
-      if (last && last.label === label) last.items.push(entry);
-      else out.push({ label, items: [entry] });
+    for (const thread of threads) {
+      for (const entry of [thread.root, ...thread.replies]) {
+        if (entry.parsed.author) set.add(entry.parsed.author);
+      }
     }
-    return out;
-  }, [visible]);
+    return [...set].sort();
+  }, [threads]);
+
+  // A conversation is shown when any part of it matches: a reply by Sam is
+  // found under Sam, with the comment it answers.
+  const visible = useMemo(() => {
+    if (filter === "all") return threads;
+    const author = filter.startsWith("author:") ? filter.slice("author:".length) : null;
+    return threads.filter((thread) =>
+      [thread.root, ...thread.replies].some((entry) =>
+        author === null ? entry.parsed.todo : entry.parsed.author === author,
+      ),
+    );
+  }, [threads, filter]);
+
+  const groups = useMemo(() => groupByHeading(visible), [visible]);
+
+  const editing = useThreadEditing({
+    editor,
+    threads: visible,
+    // The margin types a new comment when it has room for the card.
+    takesNew: !ui.marginRoom,
+    request: ui,
+    complete,
+  });
+
+  // A comment being made here is shown whatever the filter says: the writer
+  // has to see the field they were sent to.
+  const asked = ui.composing || ui.replying;
+  useEffect(() => {
+    if (asked && !ui.marginRoom) setFilter("all");
+  }, [asked, ui.marginRoom]);
 
   if (!editor) return <div className="commentsfeed commentsfeed--empty">No script open.</div>;
-
-  const beginEdit = (entry: PmCommentEntry) => {
-    setEditingId(entry.id);
-    setDraft(entry.text);
-  };
-
-  const cancelEdit = (id: string) => {
-    setEditingId(null);
-    setDraft("");
-    complete("Comment edit cancelled", id);
-  };
-
-  const saveEdit = (id: string) => {
-    const entry = commentsState(editor.state)?.entries.find((entry) => entry.id === id);
-    if (!entry) {
-      setEditingId(null);
-      complete("Comment is no longer here", null);
-      return;
-    }
-    const pos = entry.pos;
-    const node = noteAt(editor, pos);
-    const text = draft.replace(/\n{2,}/g, "\n").trim(); // a note holds no blank lines
-    setEditingId(null);
-    setDraft("");
-    if (!node) return;
-    if (!text) {
-      resolve(pos);
-      return;
-    }
-    editor
-      .chain()
-      .command(({ tr, state, dispatch }) => {
-        if (dispatch) tr.replaceWith(pos + 1, pos + node.nodeSize - 1, state.schema.text(text));
-        return true;
-      })
-      .run();
-    complete("Comment saved", id);
-  };
-
-  /** Delete IS resolve — the trail is the history ring and the ledger (docs/app/writing/comments.md#COMM-D5). */
-  const resolve = (pos: number) => {
-    const index = visible.findIndex((entry) => entry.pos === pos);
-    const next = visible[index + 1] ?? visible[index - 1];
-    const node = noteAt(editor, pos);
-    if (!node) return;
-    editor
-      .chain()
-      .command(({ tr, dispatch }) => {
-        if (!dispatch) return true;
-        const $pos = tr.doc.resolve(pos);
-        // A standalone comment takes its (unprinted) line with it.
-        if ($pos.parent.childCount === 1) tr.delete($pos.before(), $pos.after());
-        else tr.delete(pos, pos + node.nodeSize);
-        return true;
-      })
-      .run();
-    if (editingId === entries.find((entry) => entry.pos === pos)?.id) setEditingId(null);
-    editor.commands.doomComment(null);
-    editor.commands.hoverComment(null);
-    editor.commands.focusComment(null);
-    complete("Comment resolved", next?.id ?? null);
-  };
 
   return (
     <div className="commentsfeed" ref={root}>
       <header className="commentsfeed__head">
         <h2 className="commentsfeed__count" tabIndex={-1} data-comment-fallback>
-          {entries.length} comment{entries.length === 1 ? "" : "s"}
+          {threads.length} comment{threads.length === 1 ? "" : "s"}
         </h2>
         <PopupButton
           flat
@@ -184,98 +149,49 @@ export function CommentsFeed({
         />
       </header>
 
-      {entries.length === 0 && (
+      {threads.length === 0 && (
         <p className="commentsfeed__empty">
-          No comments yet. Select a line in the script and press <kbd>⌘⌥M</kbd>, or type{" "}
+          No comments yet. Select a line in the script and press <kbd>{keys("⌘⌥M")}</kbd>, or type{" "}
           <code>[[</code> where you want one.
         </p>
       )}
-      {entries.length > 0 && visible.length === 0 && (
+      {threads.length > 0 && visible.length === 0 && (
         <p className="commentsfeed__empty">Nothing matches this filter.</p>
       )}
 
       <ul className="commentsfeed__list">
         {groups.map((group) => (
-          <li key={`${group.label}-${group.items[0].id}`}>
+          <li key={`${group.label}-${group.items[0].root.id}`}>
             <div className="commentsfeed__scene">{group.label}</div>
             <ul>
-              {group.items.map((entry) => (
-                <li
-                  key={entry.id}
-                  ref={(el) => {
-                    if (el) rowRefs.current.set(entry.pos, el);
-                    else rowRefs.current.delete(entry.pos);
-                  }}
-                  data-comment-id={entry.id}
-                  className={`commentsfeed__row${focusPos === entry.pos ? " is-focused" : ""}`}
-                  onMouseEnter={() => editor.commands.hoverComment(entry.pos)}
-                  onMouseLeave={() => editor.commands.hoverComment(null)}
-                >
-                  {editingId === entry.id ? (
-                    <div className="commentsfeed__edit">
-                      <textarea
-                        className="commentsfeed__field"
-                        value={draft}
-                        autoFocus
-                        rows={3}
-                        aria-label="Edit comment"
-                        onChange={(e) => setDraft(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                            e.preventDefault();
-                            saveEdit(entry.id);
-                          } else if (e.key === "Escape") {
-                            e.preventDefault();
-                            cancelEdit(entry.id);
-                          }
-                        }}
-                      />
-                      <div className="commentsfeed__editrow">
-                        <button onClick={() => saveEdit(entry.id)} title="Save (⌘⏎)">
-                          Save
-                        </button>
-                        <button onClick={() => cancelEdit(entry.id)}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <button
-                        className="commentsfeed__body"
-                        onClick={() => onJump(entry.pos)}
-                        title="Go to this comment in the script"
-                      >
-                        {entry.parsed.todo && <span className="comments-chip is-todo">todo</span>}
-                        {entry.parsed.author && (
-                          <span className="comments-chip">{entry.parsed.author}</span>
-                        )}
-                        <span className="commentsfeed__text">
-                          {entry.parsed.body || <em>(empty)</em>}
-                        </span>
-                      </button>
-                      <span className="commentsfeed__actions">
-                        <button
-                          onClick={() => beginEdit(entry)}
-                          title="Edit"
-                          aria-label="Edit comment"
-                        >
-                          ✎
-                        </button>
-                        <button
-                          onClick={() => resolve(entry.pos)}
-                          onMouseEnter={() => editor.commands.doomComment(entry.pos)}
-                          onMouseLeave={() => editor.commands.doomComment(null)}
-                          onFocus={() => editor.commands.doomComment(entry.pos)}
-                          onBlur={() => editor.commands.doomComment(null)}
-                          title="Resolve — history keeps it"
-                          aria-label="Resolve comment"
-                        >
-                          ✓
-                        </button>
-                      </span>
-                    </>
-                  )}
-                </li>
-              ))}
+              {group.items.map((thread) => {
+                const pos = thread.root.pos;
+                return (
+                  <li
+                    key={thread.root.id}
+                    ref={(el) => {
+                      if (el) rowRefs.current.set(pos, el);
+                      else rowRefs.current.delete(pos);
+                    }}
+                    data-comment-id={thread.root.id}
+                    className={`commentsfeed__row${focusPos === pos ? " is-focused" : ""}`}
+                    onMouseEnter={() => editor.commands.hoverComment(pos)}
+                    onMouseLeave={() => editor.commands.hoverComment(null)}
+                  >
+                    <ThreadView
+                      editor={editor}
+                      thread={thread}
+                      editing={editing}
+                      onShow={() => onJump(pos)}
+                      // A click on the words goes to the comment, as it always
+                      // has, unless it was the end of selecting some of them.
+                      onWordsClick={() => {
+                        if (window.getSelection()?.isCollapsed !== false) onJump(pos, true);
+                      }}
+                    />
+                  </li>
+                );
+              })}
             </ul>
           </li>
         ))}

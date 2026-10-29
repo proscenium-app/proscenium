@@ -29,9 +29,19 @@
                                  shows no such folder. Public document scope,
                                  folders at any depth. Apple notes a change
                                  here needs a higher CFBundleVersion to take.
+    LSApplicationCategoryType    The App Store's category, Productivity. App
+                                 Store Connect refuses an upload without one;
+                                 Finder's Applications view groups by it too.
+    ITSAppUsesNonExemptEncryption  false: the only encryption the app uses is
+                                 HTTPS, which is exempt, so App Store Connect
+                                 asks no export-compliance question per build.
 -->
 <plist version="1.0">
 <dict>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.productivity</string>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
   <key>LSRequiresNativeExecution</key>
   <true/>
   <key>NSUbiquitousContainers</key>

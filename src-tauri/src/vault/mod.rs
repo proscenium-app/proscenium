@@ -32,7 +32,7 @@ use path_key::{comparison_path, path_key};
 pub(crate) mod atomic_file;
 mod move_journal;
 mod write_journal;
-use identity::FileIdentity;
+pub(crate) use identity::FileIdentity;
 pub use move_journal::PendingMove;
 pub use write_journal::SavedCopy;
 pub mod sync_names;
@@ -326,14 +326,80 @@ pub fn write_atomic(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// One attempt at [`write_atomic`] through a chosen temp name. `AlreadyExists`
 /// when something is at that name — and then that something is untouched.
 pub(crate) fn write_atomic_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    install_via(tmp, target, bytes)?;
+    // A recovery caller must not call its only copy safe when the directory
+    // entry could not be synced.
+    if let Some(parent) = target.parent() {
+        atomic_file::sync_dir(parent)?;
+    }
+    Ok(())
+}
+
+/// Atomic write of one file the writer granted in the Save panel, and nothing
+/// around it (docs/app/keeping-work/storage-and-file-format.md#STOR-187).
+///
+/// The panel grants a sandboxed app the file it names, not the folder it is
+/// in, so [`write_atomic`]'s temp sibling cannot be made there. The temp file
+/// goes instead in the folder macOS makes for replacing that one item
+/// (`NSItemReplacementDirectory`): private to this app, on the target's own
+/// volume, so the rename that installs it is still one rename(2), and removed
+/// once the write is over. The target's folder is not synced, because the
+/// sandbox may refuse to open it; the file's own bytes are, before the rename.
+///
+/// Every macOS build writes exports this way, so the build that is not
+/// sandboxed proves the path the sandboxed one depends on. Where macOS offers
+/// no replacement folder, and on other systems, it is [`write_atomic`].
+pub fn write_granted(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    #[cfg(target_os = "macos")]
+    if let Some(dir) = replacement_dir(target) {
+        let name = target
+            .file_name()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "no file name"))?;
+        let written = install_via(&dir.join(name), target, bytes);
+        let _ = std::fs::remove_dir_all(&dir);
+        return written;
+    }
+    write_atomic(target, bytes)
+}
+
+/// A new, empty folder on `target`'s volume for staging its replacement, or
+/// None when macOS will not make one. It asks by the file when the file is
+/// there, and by its folder when it is not yet.
+#[cfg(target_os = "macos")]
+fn replacement_dir(target: &Path) -> Option<PathBuf> {
+    use objc2_foundation::{NSFileManager, NSSearchPathDirectory, NSSearchPathDomainMask, NSURL};
+    let fm = NSFileManager::defaultManager();
+    let by = |url: Option<objc2::rc::Retained<NSURL>>| {
+        let url = url?;
+        fm.URLForDirectory_inDomain_appropriateForURL_create_error(
+            NSSearchPathDirectory::ItemReplacementDirectory,
+            NSSearchPathDomainMask::UserDomainMask,
+            Some(&url),
+            true,
+        )
+        .ok()?
+        .to_file_path()
+    };
+    let dir = if target.is_file() {
+        by(NSURL::from_file_path(target))
+    } else {
+        None
+    };
+    let dir = dir.or_else(|| by(NSURL::from_directory_path(target.parent()?)))?;
+    // A folder made for this write is empty; anything else is not ours to fill.
+    let empty = std::fs::read_dir(&dir).ok()?.next().is_none();
+    empty.then_some(dir)
+}
+
+/// The temp file at `tmp`, written whole and synced, installed over `target`
+/// in one rename. `AlreadyExists` when something is at `tmp` — and then that
+/// something is untouched.
+fn install_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
 
     // `create_new`: O_EXCL, so an existing file or link at the temp name fails
     // here rather than being opened for writing.
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(tmp)?;
+    let mut f = atomic_file::create_temp(tmp)?;
     let written = (|| {
         f.write_all(bytes)?;
         f.flush()?;
@@ -345,21 +411,17 @@ pub(crate) fn write_atomic_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::
                 f.set_permissions(meta.permissions())?;
             }
         }
+        atomic_file::unhide(&f)?;
         f.sync_all()?;
-        // Atomic replace. On the same filesystem this is a single rename(2).
-        std::fs::rename(tmp, target)
+        // Atomic replace. On the same filesystem this is a single rename(2);
+        // on Windows, one write-through MoveFileExW.
+        atomic_file::replace(tmp, target)
     })();
     drop(f);
     if let Err(e) = written {
         // Only the temp file this call created: an `AlreadyExists` never gets here.
         let _ = std::fs::remove_file(tmp);
         return Err(e);
-    }
-
-    // A recovery caller must not call its only copy safe when the directory
-    // entry could not be synced.
-    if let Some(parent) = target.parent() {
-        atomic_file::sync_dir(parent)?;
     }
     Ok(())
 }
@@ -401,12 +463,63 @@ pub mod refused {
     pub const FOLDER_LOCKED: &str = "folder-locked";
     /// The folder the vault is — the play's, or the Plays folder — is not there.
     pub const FOLDER_GONE: &str = "folder-gone";
+    /// Another program holds the file open and will not share it: Windows'
+    /// sharing and lock violations, still there after the save's patience.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub const IN_USE: &str = "in-use";
 }
 
+/// What a refused write's error is when the file or folder may be locked:
+/// EPERM on a Mac, Access Denied on Windows.
+#[cfg(not(windows))]
 const EPERM: i32 = 1;
+#[cfg(windows)]
+const EPERM: i32 = 5;
 
 fn refusal(reason: &str, e: std::io::Error) -> std::io::Error {
-    std::io::Error::new(e.kind(), format!("{reason}: {e}"))
+    let kind = e.kind();
+    #[cfg(windows)]
+    let e = in_app_words(&e);
+    std::io::Error::new(kind, format!("{reason}: {e}"))
+}
+
+/// An operating system's error in the app's own words, for Windows
+/// (docs/engineering/cross-platform.md#PLAT-67). Windows says an error in the
+/// writer's language and numbers it its own way, so the page, which reads a
+/// Mac's words and Darwin's numbers, is given neither: the words the C
+/// library would use, which `src/storage/save-failure.ts` and the readers of a
+/// missing file know, and no number. An error the app made itself, or one a
+/// refusal already names, is as it was.
+#[cfg(windows)]
+pub fn in_app_words(e: &std::io::Error) -> String {
+    let Some(code) = e.raw_os_error() else {
+        return e.to_string();
+    };
+    match code {
+        // FILE_NOT_FOUND, PATH_NOT_FOUND, INVALID_DRIVE, BAD_PATHNAME
+        2 | 3 | 15 | 161 => "No such file or directory".into(),
+        // ACCESS_DENIED: the file's Read-only, its folder's permissions, or
+        // Windows Security's Controlled folder access.
+        5 => "Permission denied".into(),
+        // WRITE_PROTECT
+        19 => "Read-only file system".into(),
+        // SHARING_VIOLATION, LOCK_VIOLATION
+        32 | 33 => format!("{}: The file is open in another program", refused::IN_USE),
+        // HANDLE_DISK_FULL, DISK_FULL
+        39 | 112 => "No space left on device".into(),
+        // DISK_QUOTA_EXCEEDED
+        1295 => "Disk quota exceeded".into(),
+        // NOT_READY, CRC, BAD_NETPATH, UNEXP_NET_ERR, NETNAME_DELETED,
+        // BAD_NET_NAME, SEM_TIMEOUT, IO_DEVICE, DEVICE_NOT_CONNECTED,
+        // NETWORK_UNREACHABLE, HOST_UNREACHABLE
+        21 | 23 | 53 | 59 | 64 | 67 | 121 | 1117 | 1167 | 1231 | 1232 => {
+            "Input/output error".into()
+        }
+        // FILE_EXISTS, ALREADY_EXISTS
+        80 | 183 => "File exists".into(),
+        // Anything else by its kind, in Rust's own English.
+        _ => e.kind().to_string(),
+    }
 }
 
 /// Finder's Locked: the user immutable flag (`UF_IMMUTABLE`, `chflags uchg`).
@@ -419,7 +532,14 @@ fn locked_in_finder(path: &Path) -> bool {
     std::fs::metadata(path).is_ok_and(|m| m.st_flags() & UF_IMMUTABLE != 0)
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "ios")))]
+/// Windows' Read-only, on a file: Windows will not replace a file that has it.
+/// A folder's Read-only stops nothing, so a folder is never locked here.
+#[cfg(windows)]
+fn locked_in_finder(path: &Path) -> bool {
+    std::fs::metadata(path).is_ok_and(|m| m.is_file() && m.permissions().readonly())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "ios", windows)))]
 fn locked_in_finder(_path: &Path) -> bool {
     false
 }
@@ -471,7 +591,7 @@ impl LocalFsVault {
         self_writes: Arc<SelfWrites>,
         trash_dir: Option<PathBuf>,
     ) -> std::io::Result<Self> {
-        let root = root.canonicalize().unwrap_or(root);
+        let root = dunce::canonicalize(&root).unwrap_or(root);
         // Never resurrect a vault on a path that no longer exists — otherwise a
         // deleted last-opened folder would be silently recreated as an empty
         // skeleton on auto-reopen instead of failing back to the empty state.
@@ -571,6 +691,13 @@ impl LocalFsVault {
 
     pub fn read_saved_copy(&self, id: &str) -> std::io::Result<Vec<u8>> {
         self.writes()?.read_copy(id)
+    }
+
+    /// Keep `bytes` as a copy of `rel`, as a save that displaced them would:
+    /// a check's, in a test build alone (selftest_fixture.rs).
+    #[cfg(feature = "selftest")]
+    pub fn keep_copy_for_check(&self, rel: &str, bytes: &[u8]) -> std::io::Result<()> {
+        self.writes()?.keep_for_check(rel, bytes)
     }
 
     pub fn begin_move(
@@ -869,8 +996,12 @@ impl LocalFsVault {
         // sides of a collision are kept") is honoured now that no conflict
         // sibling is ever written into a play folder (docs/app/keeping-work/storage-and-file-format.md#STOR-111).
         let baseline = if target.exists() {
-            let current =
-                sha256_hex(&std::fs::read(&target).map_err(|e| self.explain(&target, e))?);
+            // Read as a save is made: a program that has the file open for a
+            // moment is waited out here too (docs/app/keeping-work/storage-and-file-format.md#STOR-178).
+            let current = sha256_hex(
+                &atomic_file::read_patiently(|| std::fs::read(&target))
+                    .map_err(|e| self.explain(&target, e))?,
+            );
             if let Some(expected) = expected {
                 if current != expected {
                     return Ok(if rebase {
@@ -895,6 +1026,19 @@ impl LocalFsVault {
                     hash: String::new(),
                 }
             });
+        }
+
+        // Windows' Read-only does not pass with waiting. A replace of such a
+        // file renames it aside and back before Windows refuses it, at every
+        // try of the save's patience, and a listing in that moment found the
+        // script gone: the binder drew it missing. Refused before the file is
+        // touched.
+        #[cfg(windows)]
+        if baseline.is_some() && locked_in_finder(&target) {
+            return Err(refusal(
+                refused::LOCKED,
+                std::io::Error::from_raw_os_error(EPERM),
+            ));
         }
 
         // Register the suppression token BEFORE the rename makes the bytes
@@ -942,6 +1086,10 @@ impl LocalFsVault {
         } else if permission && locked_in_finder(target) {
             refusal(refused::LOCKED, e)
         } else {
+            #[cfg(windows)]
+            if matches!(e.raw_os_error(), Some(32 | 33)) {
+                return std::io::Error::new(e.kind(), in_app_words(&e));
+            }
             e
         }
     }

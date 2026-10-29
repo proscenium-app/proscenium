@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder"
   - sectionheader
     - button "Collapse all folders"
@@ -34,12 +34,6 @@
     - button "New" [haspopup]
 - main "Play"
   - group "Open in this pane"
-    - listitem "Cast"
-      - button "Cast"
-    - listitem "The Weight of Water"
-      - button "The Weight of Water"
-    - listitem "1953 North Sea Flood"
-      - button "1953 North Sea Flood"
     - listitem "Untitled"
       - button "Untitled" [current=true]
       - button "Close Untitled"
@@ -62,6 +56,15 @@
     - button "Insert table"
     - button "Insert divider"
   - textbox
+- complementary "Inspector"
+  - tablist "Inspector"
+    - tab "Sheet" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - generic
+  - heading "Untitled" [level=2]
+  - generic
+  - paragraph
 - contentinfo
   - button "<plays folder>/The Weight of Water"
   - button "Zoom out"

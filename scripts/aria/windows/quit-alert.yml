@@ -1,0 +1,102 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Mara"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes, <n> pending": Changes
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - text: Changes in text
+  - switch "Changes in text — show what arrived from outside, marked in the script"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water" [level=1]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara Rename “Mara” Actions for “Mara”" [level=2] [selected]:
+        - text: Mara
+        - button "Rename “Mara”"
+        - button "Actions for “Mara”"
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: in Characters
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - textbox "File name"
+  - text: character
+  - button "Edit Tags"
+  - status
+  - group "View":
+    - button "Page" [pressed]
+    - button "Source"
+  - toolbar "Formatting":
+    - 'button "Paragraph style: Body Text"': Body Text
+    - button "Bold"
+    - button "Italic"
+    - button "Inline code":
+      - img
+    - button "Link":
+      - img
+    - button "Bulleted list":
+      - img
+    - button "Numbered list":
+      - img
+    - button "Insert table":
+      - img
+    - button "Insert divider":
+      - img
+  - heading "Changed elsewhere" [level=1]
+  - paragraph: WORDS A QUIT KEPT WORDS KEPT NOWHERE
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Sheet" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: Character sheet
+  - heading "Mara" [level=2]
+  - text: Characters/Mara.md aka
+  - textbox "aka"
+  - text: age
+  - textbox "age"
+  - text: pronouns
+  - textbox "pronouns"
+  - text: tags
+  - button "Add a tag"
+  - text: In the script
+  - paragraph: 3 lines · 2 scenes Appears in ACT ONE · SCENE 1 · ACT TWO · SCENE 1
+  - button "Sides (PDF) ↗"
+  - button "Show in Cast ↗"
+- contentinfo:
+  - button "<plays>\\The Weight of Water"
+  - text: Not saved
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- alertdialog "What was typed in “Mara” couldn't be saved or kept.":
+  - heading "What was typed in “Mara” couldn't be saved or kept." [level=2]
+  - paragraph: The disk is full. If Proscenium quits now, what was typed is lost. “Mara” will save once there is room on the disk.
+  - button "Don't Quit"
+  - button "Quit Anyway"
+  - status
+  - alert

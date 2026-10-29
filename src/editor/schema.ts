@@ -14,6 +14,7 @@
 import { Mark, Node, mergeAttributes } from "@tiptap/core";
 import Document from "@tiptap/extension-document";
 import Text from "@tiptap/extension-text";
+import { COMMENT_RANGE, COMMENT_RANGE_END } from "../comments/ranges";
 import { PlayHistory } from "./history";
 
 /**
@@ -72,6 +73,21 @@ function dataAttr(dataName: string, def: unknown = null) {
   };
 }
 
+/**
+ * A yes-or-no attribute: on the DOM as a bare `data-*`, there or not, and read
+ * back by whether it is there. `getAttribute` answers a bare attribute with the
+ * empty string, which is no to everything that asks: a cue cut and pasted came
+ * back with `forced: ""` and was upper-cased where it landed, and a right-hand
+ * cue came back with `dual: ""`, still showing its quiet `^` and saved without
+ * it (docs/app/writing/editor-ux.md#EDIT-177).
+ */
+function flagAttr(dataName: string) {
+  return {
+    ...dataAttr(dataName, false),
+    parseHTML: (el: HTMLElement) => el.hasAttribute(dataName),
+  };
+}
+
 function camel(dataName: string): string {
   return dataName.replace(/^data-/, "").replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
@@ -90,10 +106,12 @@ export const Action = blockNode("action");
 export const Character = blockNode("character", {
   attrs: {
     extension: dataAttr("data-extension"),
-    dual: dataAttr("data-dual", false),
-    // `@`-forced (mixed-case) cue — auto-caps skips it. Cosmetic: serialize
-    // re-derives forcing, so this never affects round-trip.
-    forced: dataAttr("data-forced", false),
+    dual: flagAttr("data-dual"),
+    // A cue that keeps its case: auto-caps skips it. Set by typing `@`, and by
+    // the bridge for a cue read with lower case in it
+    // (docs/app/writing/editor-ux.md#EDIT-176). The script never holds it:
+    // serialize writes the `@` from the cue's letters.
+    forced: flagAttr("data-forced"),
   },
 });
 export const Parenthetical = blockNode("parenthetical");
@@ -205,6 +223,61 @@ export const Underline = Mark.create({
   },
 });
 
+/**
+ * The words a comment is about (comments/ranges.ts,
+ * docs/app/writing/comments.md#COMM-D13). It paints nothing; the Comments
+ * plugin draws the highlight from it. The script never holds it: the bridge
+ * writes it as two marker notes and reads it back.
+ *
+ * `excludes: ""`: a word may be in two stretches at once. It is inclusive, as
+ * marks are: words typed over a marked stretch are the stretch.
+ */
+export const CommentRange = Mark.create({
+  name: COMMENT_RANGE,
+  excludes: "",
+  addAttributes() {
+    return {
+      id: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-comment-range"),
+        renderHTML: (attrs) => ({ "data-comment-range": attrs.id as string }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-comment-range]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["span", HTMLAttributes, 0];
+  },
+});
+
+/**
+ * The comment a marked stretch belongs to, by the same `id`. A mark of its
+ * own, so the comment is never drawn inside the words' element: a browser
+ * that deletes the words would take the hidden comment with them.
+ * `inclusive: false`: text typed after the comment carries nothing of it.
+ */
+export const CommentRangeEnd = Mark.create({
+  name: COMMENT_RANGE_END,
+  inclusive: false,
+  addAttributes() {
+    return {
+      id: {
+        default: null,
+        parseHTML: (el) => el.getAttribute("data-comment-range-end"),
+        renderHTML: (attrs) => ({ "data-comment-range-end": attrs.id as string }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-comment-range-end]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["span", HTMLAttributes, 0];
+  },
+});
+
 /** The element type names that carry inline content, in keymap-ring order. */
 export const BODY_ELEMENTS = [
   "action",
@@ -249,6 +322,8 @@ export const playExtensions = [
   Strong,
   Em,
   Underline,
+  CommentRange,
+  CommentRangeEnd,
 ];
 
 /** The same set plus editor behavior (undo/redo). Used by the live editor. */

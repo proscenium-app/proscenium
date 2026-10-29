@@ -12,8 +12,10 @@
  *                                                            off, so its objects answer only through the Worker
  *   node scripts/edge-wrangler.mjs migrate                   apply services/edge/migrations to it
  *   node scripts/edge-wrangler.mjs deploy                    deploy services/edge/wrangler.jsonc
- *   node scripts/edge-wrangler.mjs query <name> <from> <to>  one aggregate query from services/edge/queries,
- *                                                            UTC days, from inclusive, to exclusive
+ *   node scripts/edge-wrangler.mjs query <name> <from> <to> [<version>]
+ *                                                            one aggregate query from services/edge/queries,
+ *                                                            UTC days, from inclusive, to exclusive, and a
+ *                                                            build's version for the queries that ask one
  *   <value on stdin> | node scripts/edge-wrangler.mjs secret SENTRY_DSN | PATRONS_WEBHOOK_SECRET | ALPHA_KEY_SHA256
  *                                                            a Worker secret, checked for shape, never printed; alpha's
  *                                                            key hash is filed by scripts/track-key.mjs, never by hand
@@ -46,12 +48,24 @@ const HOSTS = [
 const QUERIES = [
   "update-use",
   "downloads",
+  // Every release file by what it was (docs/engineering/services-and-feedback.md#SERV-286).
+  "file-requests",
   "daily-volume",
   "feature-share",
   "feedback-counts",
   "feedback-receipts",
+  // A build's copies and its feedback ids, for a release's clock (docs/engineering/services-and-feedback.md#SERV-280).
+  "copies-by-version",
+  "feedback-by-version",
+  // Each day's counts for the maintainer's usage page (docs/engineering/services-and-feedback.md#CHECKS-D105).
+  "usage-by-day",
+  "launches-by-day",
+  "active-by-day",
 ];
 const DAY = /^\d{4}-\d\d-\d\d$/;
+/** A build's whole version, the one binding besides the days (?3). */
+const BUILD =
+  /^(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})\.(0|[1-9]\d{0,3})(?:-(?:alpha|beta)\.(0|[1-9]\d{0,8}))?$/;
 /** The Worker's secrets, each held to the shape the Worker itself accepts (sentry-forward.ts). */
 const SECRETS = {
   SENTRY_DSN: (v) =>
@@ -63,7 +77,7 @@ const SECRETS = {
 };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const USAGE =
-  "usage: node scripts/edge-wrangler.mjs whoami | d1-create | r2-create | r2-exposure | migrate | deploy | query <name> <from> <to> | secret <name>";
+  "usage: node scripts/edge-wrangler.mjs whoami | d1-create | r2-create | r2-exposure | migrate | deploy | query <name> <from> <to> [<version>] | secret <name>";
 
 function config() {
   const c = JSON.parse(readFileSync(`${edge}wrangler.jsonc`, "utf8"));
@@ -131,25 +145,32 @@ function wrangler(args, input) {
         },
       },
     );
+    if (result.error)
+      throw new Error(
+        `Wrangler could not start (${result.error.code ?? result.error.message}): services/edge's tools are not installed here (bun install --frozen-lockfile in services/edge). Nothing was run.`,
+      );
     return result.status ?? 1;
   } finally {
     rmSync(logs, { recursive: true, force: true });
   }
 }
 
-function query(name, from, to) {
+function query(name, from, to, version) {
   if (!QUERIES.includes(name))
     throw new Error(`Only the count and receipt queries may be run here: ${QUERIES.join(", ")}.`);
   if (!DAY.test(from ?? "") || !DAY.test(to ?? "") || !(from < to))
     throw new Error("Give two UTC days, YYYY-MM-DD, the first before the second.");
-  // The reviewed file, with its two day bindings as literals: both are checked above. Its
+  if (version !== undefined && !BUILD.test(version))
+    throw new Error("A version is a build's: X.Y.Z, X.Y.Z-beta.N or X.Y.Z-alpha.N.");
+  // The reviewed file, with its bindings as literals: every one is checked above. Its
   // whole-line comments go, or Wrangler's argument parser reads a leading "--" as a flag.
+  const values = { 1: from, 2: to, ...(version === undefined ? {} : { 3: version }) };
   const sql = readFileSync(`${edge}queries/${name}.sql`, "utf8")
     .split("\n")
     .filter((line) => !/^\s*--/.test(line))
     .join("\n")
     .trim()
-    .replace(/\?([12])\b/g, (_, n) => `'${n === "1" ? from : to}'`);
+    .replace(/\?([1-9])\b/g, (whole, n) => (n in values ? `'${values[n]}'` : whole));
   if (/\?\d/.test(sql)) throw new Error(`${name} needs a binding this command does not give.`);
   return wrangler(["d1", "execute", DATABASE, "--remote", "--json", `--command=${sql}`]);
 }
@@ -187,7 +208,8 @@ try {
     if (command === "migrate" && rest.length === 0)
       process.exitCode = wrangler(["d1", "migrations", "apply", DATABASE, "--remote"]);
     else if (command === "deploy" && rest.length === 0) process.exitCode = wrangler(["deploy"]);
-    else if (command === "query" && rest.length === 3) process.exitCode = query(...rest);
+    else if (command === "query" && (rest.length === 3 || rest.length === 4))
+      process.exitCode = query(...rest);
     else if (command === "secret" && rest.length === 1) process.exitCode = secret(rest[0]);
     else throw new Error(USAGE);
   } else throw new Error(USAGE);

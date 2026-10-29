@@ -9,6 +9,9 @@
  * Cards in the margin, because you read the script and the margin at the
  * same time.
  *
+ * A card is a conversation: a comment and the replies under it
+ * (docs/app/writing/comments.md#COMM-D10), drawn by Thread.tsx as the feed draws it.
+ *
  * Every number here is MEASURED and none of it is stored. Card positions come
  * from `coordsAtPos` on the rendered document, so zoom, a format change and
  * the page chrome are already accounted for; the cards live outside the page
@@ -20,9 +23,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { EditorView } from "@tiptap/pm/view";
-import { commentsState, type CommentsStorage, type PmCommentEntry } from "./plugin";
+import {
+  commentsState,
+  type CommentsStorage,
+  type CommentThread,
+  type PmCommentEntry,
+} from "./plugin";
 import { useCommentFocus } from "./focus";
 import { sameSpots, stackCards } from "./stack";
+import { ThreadView, threadIsBusy } from "./Thread";
+import { useThreadEditing } from "./use-thread-editing";
 
 /** A comfortable card, and the least one can shrink to before it's useless. */
 const COLUMN_PX = 236;
@@ -83,23 +93,31 @@ export interface MarginState {
 export function CommentsMargin({
   editor,
   onMargin,
+  onNoRoom,
 }: {
   editor: Editor;
   /** Reported to PlayEditor, which shifts the sheet and hides the inline chips. */
   onMargin?: (state: MarginState) => void;
+  /**
+   * A comment is being made or answered and there is no room here to type it:
+   * the feed is the surface that always fits (docs/app/writing/comments.md#COMM-56).
+   */
+  onNoRoom?: () => void;
 }) {
-  const [entries, setEntries] = useState<PmCommentEntry[]>(
-    () => commentsState(editor.state)?.entries ?? [],
+  const [threads, setThreads] = useState<CommentThread[]>(
+    () => commentsState(editor.state)?.threads ?? [],
   );
   const [ui, setUi] = useState<CommentsStorage>(() => ({ ...editor.storage.comments }));
   const [geom, setGeom] = useState<Geometry>(NO_ROOM);
+  /** Room for a column, whether or not there is yet a comment to put in it. */
+  const [room, setRoom] = useState(false);
   const [wants, setWants] = useState<Map<number, number>>(() => new Map());
   const [tops, setTops] = useState<Map<number, number>>(() => new Map());
-  const [draft, setDraft] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
   const columnRef = useRef<HTMLDivElement | null>(null);
   const complete = useCommentFocus(editor, columnRef);
   const cardRefs = useRef(new Map<number, HTMLElement>());
+  /** The caret was in the script when a card was pressed: a plain click gives it back. */
+  const scriptHadFocus = useRef(false);
 
   /** Read the desk and the anchors. Cheap enough to run on every change. */
   const measure = useCallback(() => {
@@ -107,7 +125,7 @@ export function CommentsMargin({
     const surface = column?.closest(".editor-surface") as HTMLElement | null;
     const mount = surface?.parentElement;
     const page = editor.view.dom.closest(".play-page") as HTMLElement | null;
-    const list = commentsState(editor.state)?.entries ?? [];
+    const list = commentsState(editor.state)?.threads ?? [];
     if (!column || !surface || !mount || !page) return;
 
     const surfaceRect = surface.getBoundingClientRect();
@@ -131,7 +149,19 @@ export function CommentsMargin({
     const paper =
       page.getBoundingClientRect().right - editor.view.dom.getBoundingClientRect().right;
     const width = Math.min(COLUMN_PX, rightDesk + Math.max(0, paper - GAP_PX));
-    const show = width >= MIN_COLUMN_PX && list.length > 0;
+    // Room is a fact about the desk, not about the script: it is known before
+    // the first comment exists, which is when a new comment asks where it will
+    // be typed.
+    const hasRoom = width >= MIN_COLUMN_PX;
+    setRoom(hasRoom);
+    // Only when it changed. A command is a transaction whether or not it has
+    // anything to say, and this runs after every transaction: said each time,
+    // it measured itself again every frame, and the page layout, which waits
+    // for the editor to go quiet, never ran.
+    if (editor.storage.comments.marginRoom !== hasRoom) {
+      editor.commands.setCommentMarginRoom(hasRoom);
+    }
+    const show = hasRoom && list.length > 0;
     const next: Geometry = show
       ? { show, width, reserve, left: surfaceRect.width + rightDesk - width }
       : NO_ROOM;
@@ -151,13 +181,13 @@ export function CommentsMargin({
     const view = editor.view;
     const found = new Map<number, number>();
     let last: number | null = null;
-    for (const entry of list) {
-      const top = anchorTop(view, entry);
+    for (const { root } of list) {
+      const top = anchorTop(view, root);
       // A comment that cannot be measured still gets a card — under the one
       // before it. Dropping it would make it invisible, which is the one
       // thing this surface exists to prevent.
       const spot: number = top !== null ? top - surfaceRect.top : (last ?? 0) + CARD_GAP_PX;
-      found.set(entry.pos, spot);
+      found.set(root.pos, spot);
       last = spot;
     }
     setWants((prev) => (sameSpots(prev, found) ? prev : found));
@@ -172,7 +202,7 @@ export function CommentsMargin({
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        setEntries(commentsState(editor.state)?.entries ?? []);
+        setThreads(commentsState(editor.state)?.threads ?? []);
         setUi({ ...editor.storage.comments });
         measure();
       });
@@ -198,40 +228,46 @@ export function CommentsMargin({
     onMargin?.({ show: geom.show, reserve: geom.show ? geom.reserve : 0 });
   }, [geom.show, geom.reserve, onMargin]);
 
-  // A new comment (⌘⌥M) opens its card straight into typing.
-  useEffect(() => {
-    const entry = entries.find((entry) => entry.pos === ui.focusPos);
-    if (ui.composing && entry && editingId !== entry.id) {
-      setEditingId(entry.id);
-      setDraft("");
-    }
-    // Only when the editor hands us a fresh comment to compose.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ui.composing, ui.focusPos]);
-
   // Placement needs the rendered heights, so it happens after paint: the
   // cards go up at their anchors and the stack settles them.
-  const placed = entries.filter((e) => wants.has(e.pos)); // measured this pass
+  const placed = threads.filter((thread) => wants.has(thread.root.pos)); // measured this pass
+
+  // A new comment (⌘⌥M) opens its card straight into typing, and one asked for
+  // where a comment already is opens that card's reply.
+  const editing = useThreadEditing({
+    editor,
+    threads: placed,
+    takesNew: room,
+    request: ui,
+    complete,
+  });
+
+  // With no room for a card, the feed is where it is typed: ask for it.
+  const wanted = ui.composing || ui.replying;
+  useEffect(() => {
+    if (wanted && !room) onNoRoom?.();
+  }, [wanted, room, onNoRoom]);
+
   useLayoutEffect(() => {
     if (!geom.show) {
       setTops((prev) => (prev.size ? new Map() : prev));
       return;
     }
-    const active = placed.findIndex((e) => e.pos === ui.focusPos);
-    const boxes = placed.map((e) => ({
-      want: wants.get(e.pos) ?? 0,
-      height: cardRefs.current.get(e.pos)?.offsetHeight ?? 0,
+    const active = placed.findIndex((thread) => thread.root.pos === ui.focusPos);
+    const boxes = placed.map((thread) => ({
+      want: wants.get(thread.root.pos) ?? 0,
+      height: cardRefs.current.get(thread.root.pos)?.offsetHeight ?? 0,
     }));
     const next = new Map<number, number>();
     stackCards(boxes, { gap: CARD_GAP_PX, minTop: 0, active: active >= 0 ? active : null }).forEach(
-      (top, i) => next.set(placed[i].pos, top),
+      (top, i) => next.set(placed[i].root.pos, top),
     );
     setTops((prev) => (sameSpots(prev, next) ? prev : next));
   });
 
-  // A card grows when it is edited (or when a long comment rewraps); the ones
-  // under it move out of the way. Re-running the placement is enough — it
-  // reads the heights back off the DOM.
+  // A card grows when it is edited or answered (or when a long comment
+  // rewraps); the ones under it move out of the way. Re-running the placement
+  // is enough — it reads the heights back off the DOM.
   const cardResize = useRef<ResizeObserver | null>(null);
   useEffect(() => {
     const observer = new ResizeObserver(() => setTops((prev) => new Map(prev)));
@@ -244,74 +280,13 @@ export function CommentsMargin({
 
   if (!geom.show) return <div className="comments-margin" ref={columnRef} hidden />;
 
-  const noteAt = (pos: number) => {
-    const node = editor.state.doc.nodeAt(pos);
-    return node && node.type.name === "note" ? node : null;
-  };
-
-  const beginEdit = (entry: PmCommentEntry) => {
-    editor.commands.focusComment(entry.pos);
-    setEditingId(entry.id);
-    setDraft(entry.text);
-  };
-
-  /** Save the card back into the note. An emptied comment is a resolved one. */
-  const cancelEdit = (entry: PmCommentEntry) => {
-    setEditingId(null);
-    if (ui.composing) remove(entry.pos);
-    else complete("Comment edit cancelled", entry.id);
-  };
-
-  const saveEdit = (id: string) => {
-    const entry = commentsState(editor.state)?.entries.find((entry) => entry.id === id);
-    if (!entry) {
-      setEditingId(null);
-      complete("Comment is no longer here", null);
-      return;
-    }
-    const pos = entry.pos;
-    const node = noteAt(pos);
-    const text = draft.replace(/\n{2,}/g, "\n").trim(); // a note holds no blank lines
-    setEditingId(null);
-    setDraft("");
-    if (!node) return;
-    if (!text) {
-      remove(pos);
-      return;
-    }
-    editor
-      .chain()
-      .command(({ tr, state, dispatch }) => {
-        if (dispatch) tr.replaceWith(pos + 1, pos + node.nodeSize - 1, state.schema.text(text));
-        return true;
-      })
-      .run();
-    complete("Comment saved", id);
-  };
-
-  /** Resolve: the trail lives in the history ring and the ledger (docs/app/writing/comments.md#COMM-D5). */
-  const remove = (pos: number) => {
-    const index = placed.findIndex((entry) => entry.pos === pos);
-    const next = placed[index + 1] ?? placed[index - 1];
-    const node = noteAt(pos);
-    if (!node) return;
-    editor
-      .chain()
-      .command(({ tr, dispatch }) => {
-        if (!dispatch) return true;
-        const $pos = tr.doc.resolve(pos);
-        const block = $pos.parent;
-        // A standalone comment takes its (unprinted) line with it.
-        if (block.childCount === 1) tr.delete($pos.before(), $pos.after());
-        else tr.delete(pos, pos + node.nodeSize);
-        return true;
-      })
-      .run();
-    if (editingId === entries.find((entry) => entry.pos === pos)?.id) setEditingId(null);
-    editor.commands.doomComment(null);
-    editor.commands.hoverComment(null);
-    editor.commands.focusComment(null);
-    complete("Comment resolved", next?.id ?? null);
+  /**
+   * A press on a comment's words may be the start of selecting them, so it is
+   * let through; a plain click still leaves the caret where it was in the
+   * script, as a press anywhere else on the card always has.
+   */
+  const returnCaret = () => {
+    if (scriptHadFocus.current && window.getSelection()?.isCollapsed !== false) editor.view.focus();
   };
 
   return (
@@ -321,98 +296,41 @@ export function CommentsMargin({
       style={{ left: geom.left, width: geom.width }}
       aria-label="Comments"
     >
-      {placed.map((entry) => {
-        const active = ui.focusPos === entry.pos;
-        const doomed = ui.doomedPos === entry.pos;
-        const editing = editingId === entry.id;
+      {placed.map((thread) => {
+        const { root } = thread;
+        const active = ui.focusPos === root.pos;
+        const doomed = ui.doomedPos === root.pos;
+        const busy = threadIsBusy(thread, editing);
         return (
           <article
-            key={entry.id}
+            key={root.id}
             ref={(el) => {
               if (el) {
-                cardRefs.current.set(entry.pos, el);
+                cardRefs.current.set(root.pos, el);
                 cardResize.current?.observe(el);
               } else {
-                cardRefs.current.delete(entry.pos);
+                cardRefs.current.delete(root.pos);
               }
             }}
-            data-comment-id={entry.id}
+            data-comment-id={root.id}
             className={`comment-card${active ? " is-active" : ""}${doomed ? " is-doomed" : ""}`}
-            style={{ top: tops.get(entry.pos) ?? wants.get(entry.pos) ?? 0 }}
+            style={{ top: tops.get(root.pos) ?? wants.get(root.pos) ?? 0 }}
             onMouseDown={(e) => {
-              if (editing) return;
-              e.preventDefault(); // the card takes the focus, not the caret
-              editor.commands.focusComment(entry.pos);
+              if (busy) return;
+              scriptHadFocus.current = editor.view.hasFocus();
+              const words = (e.target as HTMLElement).closest(".cthread__body");
+              if (!words) e.preventDefault(); // the card takes the focus, not the caret
+              editor.commands.focusComment(root.pos);
             }}
-            onMouseEnter={() => editor.commands.hoverComment(entry.pos)}
+            onMouseEnter={() => editor.commands.hoverComment(root.pos)}
             onMouseLeave={() => editor.commands.hoverComment(null)}
           >
-            <header className="comment-card__head">
-              <span className="comment-card__author">
-                {entry.parsed.author ?? (entry.parsed.todo ? "" : "Comment")}
-              </span>
-              {entry.parsed.todo && <span className="comments-chip is-todo">todo</span>}
-              {!editing && (
-                <span className="comment-card__actions">
-                  <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => beginEdit(entry)}
-                    title="Edit"
-                    aria-label="Edit comment"
-                  >
-                    ✎
-                  </button>
-                  <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={() => remove(entry.pos)}
-                    onMouseEnter={() => editor.commands.doomComment(entry.pos)}
-                    onMouseLeave={() => editor.commands.doomComment(null)}
-                    onFocus={() => editor.commands.doomComment(entry.pos)}
-                    onBlur={() => editor.commands.doomComment(null)}
-                    title="Resolve — history keeps it"
-                    aria-label="Resolve comment"
-                  >
-                    ✓
-                  </button>
-                </span>
-              )}
-            </header>
-            {editing ? (
-              <div className="comment-card__edit">
-                <textarea
-                  className="comment-card__field"
-                  value={draft}
-                  autoFocus
-                  rows={3}
-                  placeholder="Comment…"
-                  aria-label="Edit comment"
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                      e.preventDefault();
-                      saveEdit(entry.id);
-                    } else if (e.key === "Escape") {
-                      e.preventDefault();
-                      cancelEdit(entry);
-                    }
-                  }}
-                />
-                <div className="comment-card__editrow">
-                  <button onClick={() => saveEdit(entry.id)} title="Save (⌘⏎)">
-                    Save
-                  </button>
-                  <button
-                    onClick={() => {
-                      cancelEdit(entry);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <p className="comment-card__body">{entry.parsed.body || <em>(empty)</em>}</p>
-            )}
+            <ThreadView
+              editor={editor}
+              thread={thread}
+              editing={editing}
+              onWordsClick={returnCaret}
+            />
           </article>
         );
       })}

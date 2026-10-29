@@ -17,7 +17,7 @@
  */
 import { SCHEMAS } from "../materials/schema";
 import type { BinderItem } from "./play-file";
-import { ulid } from "./ulid";
+import { ulid } from "../storage/ulid";
 
 /**
  * The folders a new play's binder shows, in order — one per DISTINCT schema

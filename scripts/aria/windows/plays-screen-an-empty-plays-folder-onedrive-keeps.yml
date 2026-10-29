@@ -1,0 +1,23 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main:
+  - heading "Plays" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - button "Import a Draft…"
+  - heading "Plays" [level=2]
+  - paragraph: No plays here yet — start one, or drop a draft you already have.
+  - paragraph: Your plays live in OneDrive and appear on your other devices.
+  - table "Plays":
+    - row "Play Progress Status Modified":
+      - columnheader "Play"
+      - columnheader "Progress"
+      - columnheader "Status"
+      - columnheader "Modified"
+  - button "Open the Sample Play"
+  - text: Scenes from Noël Coward's Hay Fever, in two acts.
+- contentinfo:
+  - button "<plays>"
+- status
+- alert

@@ -16,6 +16,7 @@
  * the app already trashes to the OS, so a `confirm()` there was friction with
  * no safety.
  */
+import { commandKey } from "./keys";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AppMarkIcon } from "./Icons";
@@ -87,7 +88,7 @@ function useModalKeys(onClose: () => void, onDefault?: () => void, onCommandEnte
         e.preventDefault();
         e.stopPropagation();
         onClose();
-      } else if (e.key === "Enter" && e.metaKey && !e.isComposing && onCommandEnter) {
+      } else if (e.key === "Enter" && commandKey(e) && !e.isComposing && onCommandEnter) {
         e.preventDefault();
         e.stopPropagation();
         onCommandEnter();

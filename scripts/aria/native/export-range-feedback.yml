@@ -1,4 +1,3 @@
-- button "Undo"
 - dialog "Export PDF"
   - heading "Export PDF" [level=2]
   - none
@@ -28,7 +27,7 @@
     - listitem
       - button "Page 2"
       - none
-        - checkbox "Include page 2" [checked]
+        - checkbox "Include page 2"
   - region "Preview of what will export"
   - button "Previous page" [disabled]
   - group [live=polite]: Title page · sheet 1 of 4
@@ -41,7 +40,7 @@
     - none
       - checkbox "Opening notes" [checked]
   - none
-    - checkbox "Anonymous copy" [checked]
+    - checkbox "Anonymous copy"
   - none
     - textbox "Play language"
   - button "Cancel"

@@ -27,6 +27,7 @@
  * should almost never need. Nothing is lost — the popup still names every
  * element and still shows each one's chord.
  */
+import { ariaKeys, keyStyle, keys } from "../ui/keys";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { FormattingIcon } from "../ui/FormattingIcon";
@@ -203,7 +204,9 @@ export function ElementBar({
 
   // Hold ⌘ to reveal shortcuts — brighten the badges on Meta/Ctrl.
   useEffect(() => {
-    const isMod = (e: KeyboardEvent) => e.key === "Meta" || e.key === "Control";
+    // A PC's ⌘ is Ctrl; its Windows key is Windows' own (ui/keys.ts).
+    const isMod = (e: KeyboardEvent) =>
+      e.key === "Control" || (keyStyle() === "mac" && e.key === "Meta");
     const down = (e: KeyboardEvent) => isMod(e) && setRevealing(true);
     const up = (e: KeyboardEvent) => isMod(e) && setRevealing(false);
     const clear = () => setRevealing(false);
@@ -270,18 +273,18 @@ export function ElementBar({
           onClick={() => toggleEmphasis(editor, m.name)}
           title={
             can.emphasis
-              ? `${m.title} · ${m.hint}`
+              ? `${m.title} · ${keys(m.hint)}`
               : `${m.title} — not in ${LABEL_OF.get(type) ?? "this element"}; its weight comes from the format`
           }
           aria-pressed={!!marks[m.name]}
           aria-label={m.title}
           data-tutorial={m.name === "strong" ? "bold" : undefined}
-          aria-keyshortcuts={`Meta+${m.label.toLowerCase()}`}
+          aria-keyshortcuts={ariaKeys(m.hint)}
         >
           <FormattingIcon
             name={m.name === "strong" ? "bold" : m.name === "em" ? "italic" : "underline"}
           />
-          <kbd className="elementbar__badge">{m.hint}</kbd>
+          <kbd className="elementbar__badge">{keys(m.hint)}</kbd>
         </button>
       ))}
     </div>
@@ -298,13 +301,13 @@ export function ElementBar({
         data-tutorial="line-break"
         title={
           can.lineBreak
-            ? "Line Break — the next line, same element · ⇧⏎"
+            ? `Line Break — the next line, same element · ${keys("⇧⏎")}`
             : `Line Break — ${LABEL_OF.get(type) ?? "this element"} is one line by construction`
         }
       >
         <LineBreakIcon size={12} />
         <span className="elementbar__btnlabel">Line Break</span>
-        <kbd className="elementbar__badge">⇧⏎</kbd>
+        <kbd className="elementbar__badge">{keys("⇧⏎")}</kbd>
       </button>
       <button
         type="button"
@@ -312,11 +315,11 @@ export function ElementBar({
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => insertPageBreak(editor)}
         data-tutorial="page-break"
-        title="Page Break — force the next page here · ⌘⏎"
+        title={`Page Break — force the next page here · ${keys("⌘⏎")}`}
       >
         <PageBreakIcon size={12} />
         <span className="elementbar__btnlabel">Page Break</span>
-        <kbd className="elementbar__badge">⌘⏎</kbd>
+        <kbd className="elementbar__badge">{keys("⌘⏎")}</kbd>
       </button>
     </div>
   );
@@ -326,7 +329,7 @@ export function ElementBar({
   const elementOptions: PopupOption<string>[] = ALL.map((el) => ({
     value: el.type,
     label: el.label,
-    hint: el.hint,
+    hint: keys(el.hint),
   }));
   if (!HAS_LABEL.has(type)) {
     // The caret is in a block with no button (a note, a page break). Name it
@@ -412,20 +415,20 @@ export function ElementBar({
         className="elementbar__btn elementbar__fold--comments"
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => editor.commands.addComment()}
-        title="Comment on the selection — a [[ ]] note after it · ⌘⌥M"
+        title={`Comment on the selection — a [[ ]] note after it · ${keys("⌘⌥M")}`}
       >
         <span className="elementbar__onlyicon">
           <CommentAddIcon size={12} />
         </span>
         <span className="elementbar__btnlabel">+ Comment</span>
-        <kbd className="elementbar__badge">⌘⌥M</kbd>
+        <kbd className="elementbar__badge">{keys("⌘⌥M")}</kbd>
       </button>
       <button
         type="button"
         className={`elementbar__btn elementbar__comments elementbar__fold--comments${commentsOpen ? " is-active" : ""}`}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => onToggleComments?.()}
-        title="The comment feed — every comment in the script, click one to go to it · ⌘⇧C"
+        title={`The comment feed — every comment in the script, click one to go to it · ${keys("⌘⇧C")}`}
         aria-pressed={commentsOpen}
         disabled={!onToggleComments}
       >
@@ -438,7 +441,7 @@ export function ElementBar({
             {commentCount}
           </span>
         )}
-        <kbd className="elementbar__badge">⌘⇧C</kbd>
+        <kbd className="elementbar__badge">{keys("⌘⇧C")}</kbd>
       </button>
       {/* Whatever the pane has no room for. The guide looks for a folded
           control here (`data-tutorial-folded`), so a lesson that names one
@@ -479,7 +482,7 @@ export function ElementBar({
       {pages.total > 0 && (
         <span
           className="elementbar__pages"
-          title="Tab cycles · ; opens the element menu · hold ⌘ for keys"
+          title={`Tab cycles · ; opens the element menu · hold ${keys("⌘")} for keys`}
         >
           {/* A page count, and only that. A minute estimate sat
               beside it, one page to a minute; a page is not a minute, and a

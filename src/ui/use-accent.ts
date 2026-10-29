@@ -18,7 +18,7 @@
  * on paper, 5.1:1). The other four set `--accent-text = --accent`.
  *
  * The preference itself is a setting like any other (settings.json, through
- * `src/app/settings/store.ts`, which keeps `data-accent` in step). This file
+ * `src/ui/settings-store.ts`, which keeps `data-accent` in step). This file
  * only has to get the FIRST frame right, before any of that has run.
  */
 import {

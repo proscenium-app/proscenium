@@ -14,6 +14,7 @@
  * The OS's words stay out of sight. The diagnostics keep a code for each
  * refusal (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D5), never the text, which can name a path.
  */
+import { pcWords } from "./pc-words";
 import type { ErrorCode } from "../diagnostics/error-codes";
 
 /** Why a write did not land, as far as a writer can do anything about it. */
@@ -27,6 +28,7 @@ export type SaveRefusal =
   | "folder-gone"
   | "unreachable"
   | "unfinished-save"
+  | "in-use"
   | "unknown";
 
 /**
@@ -47,9 +49,12 @@ export class VaultWriteError extends Error {
 }
 
 /** What the vault puts in front of the OS's words when it saw more (vault/mod.rs `refused`). */
-const SEEN_BY_THE_VAULT = /^(locked|folder-locked|folder-gone|unfinished-save): /;
+const SEEN_BY_THE_VAULT = /^(locked|folder-locked|folder-gone|unfinished-save|in-use): /;
 
-/** Darwin's errno values: the vault runs on macOS and iOS. */
+/**
+ * Darwin's errno values: the vault runs on macOS and iOS. On Windows the vault
+ * gives no number, only the words below (vault/mod.rs `in_app_words`).
+ */
 const BY_ERRNO: Readonly<Record<number, SaveRefusal>> = {
   1: "not-allowed", // EPERM, no lock: a privacy setting, the sandbox, a view-only share
   2: "folder-gone", // ENOENT
@@ -186,7 +191,48 @@ const WORDING: Readonly<Record<SaveRefusal, Wording>> = {
     saving: () => "Reopen the play to finish that save before writing more.",
     change: () => "Reopen the play to finish that save, then try again.",
   },
+  "in-use": {
+    code: "E-SAVE",
+    title: (name) => `${name} is open in another program.`,
+    saving: () => "It will save once that program lets go of it.",
+    change: () => "Close it in the other program, then try again.",
+  },
 };
+
+/**
+ * Where a PC's words differ: Windows' Read-only is the lock, a folder's
+ * Properties › Security its permissions, and Windows Security's Controlled
+ * folder access the refusal a Mac's privacy settings are.
+ */
+const PC_WORDING: Readonly<Partial<Record<SaveRefusal, Wording>>> = {
+  locked: {
+    code: "E-SAVE-LOCKED",
+    title: (name) => `${name} is marked Read-only.`,
+    saving: () => "It will save once you clear Read-only in its Properties in File Explorer.",
+    change: () => "Clear Read-only in its Properties in File Explorer, then try again.",
+  },
+  "no-permission": {
+    code: "E-SAVE-PERMISSION",
+    title: (_, folder) => `Windows isn't letting Proscenium change the folder ${folder}.`,
+    saving: (name) =>
+      `${name} will save once Proscenium may make changes there (the folder's Properties › Security, or Windows Security › Controlled folder access).`,
+    change: () =>
+      "Once Proscenium may make changes there (the folder's Properties › Security, or Windows Security › Controlled folder access), try again.",
+  },
+  "not-allowed": {
+    code: "E-SAVE-NOT-ALLOWED",
+    title: (name) => `Windows isn't letting Proscenium save ${name}.`,
+    saving: () =>
+      "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
+    change: () =>
+      "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
+  },
+};
+
+/** A refusal's words on this system. */
+function wordingOf(refusal: SaveRefusal): Wording {
+  return (pcWords() ? PC_WORDING[refusal] : undefined) ?? WORDING[refusal];
+}
 
 /** A refusal this app has words for — for reading one back from a file (quit-note.ts). */
 export function isSaveRefusal(value: unknown): value is SaveRefusal {
@@ -205,7 +251,7 @@ export function saveProblem(
   subject: SaveSubject,
   what: "saving" | "change" | "quitting" = "saving",
 ): SaveProblem {
-  const wording = WORDING[refusal];
+  const wording = wordingOf(refusal);
   const name = `“${subject.name}”`;
   const folder = `“${subject.folder}”`;
   // A full disk is usually the one app data is on as well, so the recovery

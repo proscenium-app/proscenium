@@ -86,7 +86,7 @@ describe("one practice play, written by the whole course", () => {
     expect(caretType(s)).toBe("action");
     expect(coach("speaker", facts(s), measure(facts(s))).ghost).toEqual({
       index: 1,
-      text: "MARA",
+      text: "SOREL",
       key: "Return",
     });
     s = show(s, "speaker", (st) => edits.nameTr(st, EXAMPLE.first)).s;
@@ -100,33 +100,38 @@ describe("one practice play, written by the whole course", () => {
     });
     s = show(s, "speaker-two", (st) => edits.nameTr(st, EXAMPLE.second)).s;
     s = show(s, "reply", (st) => edits.speakTr(st, EXAMPLE.reply, false)).s;
-    expect(text(s)).toContain("MARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.");
+    expect(text(s)).toContain(
+      "SOREL\nI wish she hadn't sent me the beastly book.\n\nSIMON\nThe binding's very dashing.",
+    );
   });
 
   test("the second lesson formats that same exchange, and a page break goes after it", () => {
     let s = stateOf(
-      COURSE_SEED + "MARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.\n",
+      COURSE_SEED +
+        "SOREL\nI wish she hadn't sent me the beastly book.\n\nSIMON\nThe binding's very dashing.\n",
     );
     s = show(s, "emphasis", edits.emphasisTr).s;
-    expect(text(s)).toContain("**You're** early.");
+    expect(text(s)).toContain("**I** wish she hadn't sent me the beastly book.");
     s = show(s, "line-break", edits.lineBreakTr).s;
-    expect(text(s)).toContain("You're** early.\nCome in.");
+    expect(text(s)).toContain(
+      "I** wish she hadn't sent me the beastly book.\nI must say something nice about it.",
+    );
     const { s: paged } = show(s, "page-break", edits.pageBreakAtEndTr);
     expect(paged.doc.child(paged.doc.childCount - 2).type.name).toBe("pageBreak");
     expect(caretType(paged)).toBe("action");
-    expect(text(paged)).toContain("I was hoping you wouldn't notice.\n\n===");
+    expect(text(paged)).toContain("The binding's very dashing.\n\n===");
   });
 
   test("a lesson opened first gets the exchange it needs, after what is there", () => {
     const fresh = apply(stateOf(COURSE_SEED), edits.endLineTr(stateOf(COURSE_SEED)));
     const s = apply(fresh, edits.exchangeTr(fresh));
     expect(text(s)).toContain(
-      "## SCENE 1\n\nMARA\nYou're early.\n\nIVO\nI was hoping you wouldn't notice.",
+      "## SCENE 1\n\nSOREL\nI wish she hadn't sent me the beastly book.\n\nSIMON\nThe binding's very dashing.",
     );
     const written = stateOf(COURSE_SEED + "The door opens.\n");
     const more = apply(written, edits.exchangeTr(written));
     keeps(written, more);
-    expect(text(more).indexOf("The door opens.")).toBeLessThan(text(more).indexOf("MARA"));
+    expect(text(more).indexOf("The door opens.")).toBeLessThan(text(more).indexOf("SOREL"));
   });
 });
 
@@ -142,26 +147,26 @@ describe("preparing a step", () => {
   });
   test("the newest cue's speech: found, made, or converted from an empty line — never another line", () => {
     const bare = stateOf(COURSE_SEED);
-    const withCue = apply(bare, edits.nameTr(bare, "ROWAN"));
+    const withCue = apply(bare, edits.nameTr(bare, "JUDITH"));
     const back = apply(withCue, edits.speechTr(withCue));
     expect(caretType(back)).toBe("dialogue");
     expect(back.doc.childCount).toBe(withCue.doc.childCount);
     expect(edits.speechTr(stateOf("The door opens.\n"))).toBeNull();
   });
   test("a name already typed on the end line is the one used, in capitals", () => {
-    const s = stateOf(COURSE_SEED + "rowan\n");
+    const s = stateOf(COURSE_SEED + "judith\n");
     const next = apply(s, edits.nameTr(s, EXAMPLE.first));
-    expect(text(next)).toContain("ROWAN\n");
+    expect(text(next)).toContain("JUDITH\n");
     expect(text(next)).not.toContain(EXAMPLE.first);
   });
   test("a sentence on the end line is kept, and the speaker goes after it", () => {
     const s = stateOf(COURSE_SEED + "The door opens.\n");
     const next = apply(s, edits.nameTr(s, EXAMPLE.first));
     keeps(s, next);
-    expect(text(next)).toContain("The door opens.\n\nMARA");
+    expect(text(next)).toContain("The door opens.\n\nSOREL");
   });
   test("a speech that already has words gets no suggestion typed over it", () => {
-    const s = stateOf(COURSE_SEED + "MARA\nMy own words.\n");
+    const s = stateOf(COURSE_SEED + "SOREL\nMy own words.\n");
     const next = apply(s, edits.speakTr(s, EXAMPLE.line, false));
     expect(text(next)).toContain("My own words.");
     expect(text(next)).not.toContain(EXAMPLE.line);
@@ -170,33 +175,33 @@ describe("preparing a step", () => {
 
 describe("fixes the guide offers", () => {
   test("Make It a Name: the lowercase line becomes the cue, the empty line under it the speech", () => {
-    // The step began on an empty line; the writer typed "mara" there and pressed Return.
+    // The step began on an empty line; the writer typed "sorel" there and pressed Return.
     const seed = stateOf(COURSE_SEED);
     const start = measure(facts(apply(seed, edits.endLineTr(seed))));
-    const s = stateOf(COURSE_SEED + "mara\n");
+    const s = stateOf(COURSE_SEED + "sorel\n");
     const split = apply(s, edits.endLineTr(s));
     const mistake = coach("speaker", facts(split), start);
     expect(mistake.fix).toEqual({ id: "cue", label: "Make It a Name", index: 1 });
     const fixed = apply(split, edits.cueFixTr(split, 1));
     keeps(split, fixed);
-    expect(text(fixed)).toContain("MARA\n");
+    expect(text(fixed)).toContain("SOREL\n");
     expect(caretType(fixed)).toBe("dialogue");
     expect(coach("speaker", facts(fixed), start).tone).toBe("done");
   });
   test("Make It Dialogue and Use Capitals: the line's type, and nothing else", () => {
-    const s = stateOf(COURSE_SEED + "MARA\n\nYou're early.\n");
+    const s = stateOf(COURSE_SEED + "SOREL\n\nI wish she hadn't sent me the beastly book.\n");
     const at = s.doc.childCount - 1;
     const fixed = apply(s, edits.retypeTr(s, at, "dialogue"));
     expect(fixed.doc.child(at).type.name).toBe("dialogue");
-    expect(fixed.doc.child(at).textContent).toBe("You're early.");
+    expect(fixed.doc.child(at).textContent).toBe("I wish she hadn't sent me the beastly book.");
     expect(edits.retypeTr(s, 99, "dialogue")).toBeNull();
   });
 });
 
 describe("the lit line and its suggestion", () => {
   test("a line decoration on the block, and the suggestion at its end", () => {
-    const s = stateOf(COURSE_SEED + "MA\n");
-    const set = decorationsFor(s, { line: 1, ghost: { index: 1, text: "RA", key: "Return" } });
+    const s = stateOf(COURSE_SEED + "SO\n");
+    const set = decorationsFor(s, { line: 1, ghost: { index: 1, text: "REL", key: "Return" } });
     const found = set.find();
     expect(found.length).toBe(2);
     const at = blockPos(s, 1)!;
@@ -204,7 +209,7 @@ describe("the lit line and its suggestion", () => {
     expect(line.to).toBe(at + s.doc.child(1).nodeSize);
     const widget = found.find((d) => d.from === d.to)!;
     expect(widget.from).toBe(at + 1 + s.doc.child(1).content.size);
-    expect((widget.spec as { key: string }).key).toBe("tutorial-ghost:RA:Return");
+    expect((widget.spec as { key: string }).key).toBe("tutorial-ghost:REL:Return");
   });
   test("nothing drawn for a line that does not exist, or with nothing to show", () => {
     const s = stateOf(COURSE_SEED);
@@ -213,9 +218,9 @@ describe("the lit line and its suggestion", () => {
     expect(blockPos(s, -1)).toBeNull();
   });
   test("decorations never change the document or its words", () => {
-    const s = stateOf(COURSE_SEED + "MA\n");
-    decorationsFor(s, { line: 1, ghost: { index: 1, text: "RA", key: "Return" } });
-    expect(text(s)).toContain("MA\n");
-    expect(text(s)).not.toContain("MARA");
+    const s = stateOf(COURSE_SEED + "SO\n");
+    decorationsFor(s, { line: 1, ghost: { index: 1, text: "REL", key: "Return" } });
+    expect(text(s)).toContain("SO\n");
+    expect(text(s)).not.toContain("SOREL");
   });
 });

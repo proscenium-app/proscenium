@@ -105,5 +105,91 @@
       ]
     },
     "why": "Fix the errors writers actually meet without collecting error messages."
+  },
+  "copy_active": {
+    "props": {
+      "period": [
+        "day",
+        "week",
+        "month"
+      ],
+      "installed": [
+        "new",
+        "recent",
+        "earlier"
+      ]
+    },
+    "why": "Count how many copies are in use each day, week and month, and how many are new, without anything that tells one copy from another."
+  },
+  "tutorial_offered": {
+    "props": {
+      "choice": [
+        "shown",
+        "try",
+        "see-all",
+        "skip"
+      ]
+    },
+    "why": "See whether writers take the guided start when it is offered."
+  },
+  "lesson_progress": {
+    "props": {
+      "lesson": [
+        "first-exchange",
+        "format",
+        "scene-cards",
+        "characters",
+        "files",
+        "export"
+      ],
+      "moment": [
+        "started",
+        "continued",
+        "finished",
+        "finished-with-skips"
+      ]
+    },
+    "why": "See which lessons writers start, come back to and finish."
+  },
+  "lesson_stopped": {
+    "props": {
+      "lesson": [
+        "first-exchange",
+        "format",
+        "scene-cards",
+        "characters",
+        "files",
+        "export"
+      ],
+      "step": [
+        "speaker",
+        "line",
+        "speaker-two",
+        "reply",
+        "saved",
+        "emphasis",
+        "line-break",
+        "page-break",
+        "format",
+        "board",
+        "scene",
+        "summary",
+        "move-scene",
+        "outline",
+        "cast",
+        "characters-page",
+        "add-character",
+        "opening-notes",
+        "document",
+        "note",
+        "tags",
+        "rename",
+        "export",
+        "export-range",
+        "export-opening",
+        "export-preview"
+      ]
+    },
+    "why": "See which step of a lesson writers leave at, so that step can be made clearer."
   }
 }

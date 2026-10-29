@@ -52,12 +52,12 @@
     - button "Move JUNIPER down"
     - button "Sides (PDF) ↗"
     - button "Add Notes"
-  - group "IVO"
-    - textbox "Name — IVO"
-    - textbox "Description — IVO"
-    - button "Remove IVO"
-    - button "Move IVO up"
-    - button "Move IVO down" [disabled]
+  - group "SIMON"
+    - textbox "Name — SIMON"
+    - textbox "Description — SIMON"
+    - button "Remove SIMON"
+    - button "Move SIMON up"
+    - button "Move SIMON down" [disabled]
     - button "Sides (PDF) ↗"
     - button "Add Notes"
   - button "Add Character"
@@ -78,26 +78,39 @@
       - cell
     - row
       - rowheader
-      - cell "IVO · SCENE 2 — silent"
-      - cell "IVO · SCENE 1 — speaks"
-      - cell
-    - row
-      - rowheader
       - cell "JUNIPER · SCENE 2 — silent"
       - cell "JUNIPER · SCENE 1 — speaks"
       - cell
+    - row
+      - rowheader
+      - cell "SIMON · SCENE 2 — silent"
+      - cell "SIMON · SCENE 1 — speaks"
+      - cell
 - complementary "Inspector"
   - tablist "Inspector"
-    - tab "Scene"
-    - tab "Comments" [selected]
+    - tab "Scene" [selected]
+    - tab "Comments"
   - button "Open as a pane"
-  - sectionheader
-    - heading "0 comments" [level=2]
-    - button "Filter comments: All Comments" [haspopup]
+  - generic
+  - heading "SCENE 1" [level=2]
+  - generic
+  - generic
+  - textbox "Summary"
+  - generic
+  - radiogroup "Scene color"
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+  - generic
+  - textbox "Notes"
+  - generic
+  - generic
+  - button "Show"
   - paragraph
-    - none
-    - code
-  - group
 - contentinfo
   - button "<self-test home>/home/Library/Application Support/org.habiby.proscenium.selftest/tutorials/sessions/<id>/Practice Play"
   - button "Zoom out"

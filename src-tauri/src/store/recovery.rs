@@ -123,6 +123,14 @@ impl PlayStore {
         Ok(())
     }
 
+    /// A page load in a test build stands in for a relaunch: every owner the
+    /// last page held is let go, as its process ending would let go of them,
+    /// and its words are there to claim (selftest_fixture.rs).
+    #[cfg(feature = "selftest")]
+    pub fn forget_owners_for_check() {
+        owners().lock().unwrap_or_else(|p| p.into_inner()).clear();
+    }
+
     /// Releasing ownership never deletes words. A later open can claim them.
     pub fn recovery_release(&self, script: &str, owner: &str) -> io::Result<()> {
         let path = self.resolve(&snapshot_rel(script, owner)?)?;

@@ -20,5 +20,7 @@ export { hasManagedSection, renderAppearances, writeManagedSection } from "./man
 
 export { inferType } from "./infer";
 
+export { castSheetFor, castSheets, isCastSheet } from "./cast-sheets";
+
 export { syncAppearances } from "./appearances-sync";
 export type { AppearanceSyncResult } from "./appearances-sync";

@@ -114,10 +114,10 @@ describe("the forced page break", () => {
     );
     const tr = pageBreakTr(state)!;
     const next = state.apply(tr);
-    expect(types(next)).toEqual(["action", "pageBreak", "action", "action"]);
-    // The blank line became the break; the Action after it is where the caret is.
-    expect(next.doc.child(2).textContent).toBe("");
-    expect(next.selection.$from.parent.type.name).toBe("action");
+    expect(types(next)).toEqual(["action", "pageBreak", "action"]);
+    // The blank line became the break; the line after it is where the caret is.
+    expect(next.selection.$from.parent.textContent).toBe("He does not.");
+    expect(next.selection.$from.parentOffset).toBe(0);
   });
 
   it("lands after a block with words in it, never inside one", () => {
@@ -126,6 +126,26 @@ describe("the forced page break", () => {
     expect(types(next)).toEqual(["action", "pageBreak", "action"]);
     // The sentence is intact — no mid-sentence split.
     expect(next.doc.child(0).textContent).toBe("She crosses to the window.");
+  });
+
+  /**
+   * The writer's gesture: the caret at the end of a scene, a break, and the
+   * next scene opens the new page. An empty Action every time put a blank
+   * line at the top of that page, above the scene title.
+   */
+  it("adds no empty line above the line that follows", () => {
+    const state = stateAt([para("dialogue", "It held."), para("scene", "SCENE 2")], 0, 8);
+    const next = state.apply(pageBreakTr(state)!);
+    expect(types(next)).toEqual(["dialogue", "pageBreak", "scene"]);
+    expect(next.selection.$from.parent.textContent).toBe("SCENE 2");
+    expect(next.selection.$from.parentOffset).toBe(0);
+  });
+
+  it("brings a line of its own when another break follows", () => {
+    const state = stateAt([para("action", "She waits."), { type: "pageBreak" }], 0, 3);
+    const next = state.apply(pageBreakTr(state)!);
+    expect(types(next)).toEqual(["action", "pageBreak", "action", "pageBreak"]);
+    expect(next.selection.$from.parent.type.name).toBe("action");
   });
 
   it("always leaves a block after it, so the doc never ends on an atom", () => {

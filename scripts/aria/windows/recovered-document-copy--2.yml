@@ -1,0 +1,129 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes" [selected]
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "SCENE 1 1" [level=2]
+      - treeitem "SCENE 2 1–2" [level=2]
+      - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - heading "Recovered document copies" [level=3]
+  - button "Saved copy of Characters/Mara.md <date>, <time>"
+  - button "Saved copy of Notes/Outline.md <date>, <time>"
+  - tablist "Whose changes":
+    - tab "All" [selected]
+    - tab "Mine"
+    - tab "From Outside"
+  - text: 1 new since you last looked
+  - tablist "How changes are shown":
+    - tab "On the Page" [selected]
+    - tab "Line by Line"
+  - navigation "Changes, newest first":
+    - heading "Today" [level=3]
+    - list:
+      - listitem:
+        - button "Changed somewhere else New <time> Mara 2 words added and 75 cut"
+        - text: Changed somewhere else New Today, <time>
+        - button "Newer" [disabled]
+        - button "Older" [disabled]
+        - text: Mara 2 words added and 75 cut
+        - group "Changes on this page":
+          - button "Previous change" [disabled]
+          - text: 4 changes
+          - button "Next change"
+        - button "Revert…"
+        - region "What changed in Characters/Mara.md":
+          - paragraph: The details at the top changed as well. Line by Line shows them.
+          - group "Mara.md, with its changes marked":
+            - heading "MARA" [level=1]:
+              - deletion: MARA
+            - paragraph:
+              - deletion: A hydrologist, early 40s. Measures everything and trusts nothing she can't measure. Came home to bury her mother and stayed to fight the house.
+            - paragraph:
+              - strong:
+                - deletion: "Wants:"
+              - deletion: to stop the dripping — the literal pipe, and everything it stands in for.
+              - strong:
+                - deletion: "Fears:"
+              - deletion: that quiet is just absence, not peace.
+              - strong:
+                - deletion: "Voice:"
+              - deletion: short sentences. Precise nouns. Doesn't finish the sentimental ones.
+            - heading "Changed elsewhere" [level=1]:
+              - insertion: Changed elsewhere
+            - paragraph
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage MARA 3 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
+- contentinfo:
+  - button "<plays>\\The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Saved copy of Notes/Outline.md":
+  - heading "Saved copy of Notes/Outline.md" [level=2]
+  - paragraph: Proscenium kept these words before a previous session ended. You can select and copy them here. Reading a copy does not change your play.
+  - textbox "Saved words from Notes/Outline.md"
+  - button "Close"
+  - status
+  - alert

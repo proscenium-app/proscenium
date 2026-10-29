@@ -10,7 +10,7 @@
  * Activated by ipc.ts ONLY when `import.meta.env.DEV` and there is no Tauri
  * runtime. The production build never imports this module.
  */
-import { emptyDraft, type FeedbackDraft } from "../feedback/model";
+import { emptyDraft, type FeedbackDraft } from "./feedback-draft";
 import { assertDocumentText } from "./read-limit";
 import { matchingPath } from "./path-key";
 import wowPlay from "../../sample-vault/The Weight of Water/The Weight of Water.proscenium?raw";
@@ -23,6 +23,10 @@ import loglineMd from "../../sample-vault/The Weight of Water/Loglines/Logline.m
 import lhPlay from "../../sample-vault/The Lighthouse/The Lighthouse.proscenium?raw";
 import lhFountain from "../../sample-vault/The Lighthouse/The Lighthouse.fountain?raw";
 import lhIdeasMd from "../../sample-vault/The Lighthouse/Notes/Ideas.md?raw";
+import draftFountain from "../../sample-outside/outside/Draft.fountain?raw";
+import hamletFdx from "../../sample-outside/outside/Hamlet.fdx?raw";
+import learPlay from "../../sample-outside/elsewhere/Lear/Lear.proscenium?raw";
+import learFountain from "../../sample-outside/elsewhere/Lear/Lear.fountain?raw";
 
 import { version as APP_VERSION } from "../../package.json";
 import type {
@@ -77,6 +81,15 @@ const errorLog: string[] = [];
 const pageErrors: string[] = [];
 const surfacesShown = new Set<string>();
 const feedbackSent: { id: string; message: string; email?: string; details?: string }[] = [];
+/** What the browser was handed to download, and to print: the files an export and a print made. */
+const exportedFiles: { name: string; base64: string }[] = [];
+const printedFiles: { name: string; base64: string }[] = [];
+const toBase64 = (bytes: Uint8Array): string => {
+  let text = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+};
 let feedbackCopied = "";
 const feedbackKey = "proscenium:dev:feedback-draft";
 
@@ -291,26 +304,15 @@ function delay<T>(v: T): Promise<T> {
 /*
  * Files OUTSIDE the Plays folder, for exercising "open from Finder" in browser
  * dev and smoke (docs/app/keeping-work/storage-and-file-format.md#STOR-144): a loose script, an `.fdx`, and
- * a play that lives in some other folder. Absolute paths, like Finder's.
+ * a play that lives in some other folder. Absolute paths, like Finder's. The
+ * files are sample-outside/'s, which the test builds lay beside their Plays
+ * folder the same way.
  */
 const OUTSIDE = new Map<string, string>([
-  [
-    "/dev/outside/Draft.fountain",
-    "Title: The Undertow\n\nINT. PIER - DAWN\n\nThe water is very still.\n\nNELL\nIt was never this quiet.\n",
-  ],
-  [
-    "/dev/outside/Hamlet.fdx",
-    '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n' +
-      '<FinalDraft DocumentType="Script" Template="No" Version="5">\n<Content>\n' +
-      '<Paragraph Type="Scene Heading"><Text>INT. ELSINORE - NIGHT</Text></Paragraph>\n' +
-      '<Paragraph Type="Action"><Text>A platform before the castle. Cold.</Text></Paragraph>\n' +
-      '<Paragraph Type="Character"><Text>BARNARDO</Text></Paragraph>\n' +
-      '<Paragraph Type="Dialogue"><Text>Who\'s there?</Text></Paragraph>\n' +
-      "</Content>\n<TitlePage><Content><Paragraph><Text>Hamlet</Text></Paragraph></Content></TitlePage>\n" +
-      "</FinalDraft>\n",
-  ],
-  ["/dev/elsewhere/Lear/Lear.proscenium", '{"kind":"proscenium/play","schemaVersion":1}\n'],
-  ["/dev/elsewhere/Lear/Lear.fountain", "Title: Lear\n"],
+  ["/dev/outside/Draft.fountain", draftFountain],
+  ["/dev/outside/Hamlet.fdx", hamletFdx],
+  ["/dev/elsewhere/Lear/Lear.proscenium", learPlay],
+  ["/dev/elsewhere/Lear/Lear.fountain", learFountain],
 ]);
 /**
  * Binary files outside the Plays folder, as Finder hands them over: a `.pages`
@@ -340,13 +342,25 @@ function persistPractice() {
  * Gates: vault calls held back or failed on purpose, until opened. A held read
  * is a script still downloading from iCloud; a held write is a slow disk; a
  * failed read is a file Rust cannot read as text; a held listing is a folder
- * iCloud has not brought down yet. For the checks that race the writer against
- * the disk. Opt-in, as `delay` asks — nothing is slow unless a test says so.
+ * iCloud has not brought down yet. A held answer is a write whose bytes are on
+ * disk while the disk makes them durable: another writer can come in then. For
+ * the checks that race the writer against the disk. Opt-in, as `delay` asks —
+ * nothing is slow unless a test says so.
  */
-type GateOp = "read" | "write" | "list" | "versionSnapshot" | "versionRead";
+type GateOp =
+  | "read"
+  | "write"
+  | "answer"
+  | "list"
+  | "versionSnapshot"
+  | "versionRead"
+  | "storeRead";
 interface Gate {
   op: GateOp;
-  /** Store key the call must name, or null for every call of that kind. */
+  /**
+   * Store key the call must name, or null for every call of that kind. A key
+   * ending in `*` names every key that starts with what comes before it.
+   */
   key: string | null;
   fail: string | null;
   waiting: (() => void)[];
@@ -357,7 +371,13 @@ const failedAtGates = new Map<GateOp, number>();
 
 /** Null when no gate stands in the way; otherwise the wait (or the failure). */
 function gate(op: GateOp, key: string | null): Promise<void> | null {
-  const g = gates.find((x) => x.op === op && (x.key === null || x.key === key));
+  const g = gates.find(
+    (x) =>
+      x.op === op &&
+      (x.key === null ||
+        x.key === key ||
+        (x.key.endsWith("*") && key !== null && key.startsWith(x.key.slice(0, -1)))),
+  );
   if (!g) return null;
   if (g.fail !== null) {
     failedAtGates.set(op, (failedAtGates.get(op) ?? 0) + 1);
@@ -439,6 +459,7 @@ const updateListeners = new Set<Box<UpdateState>>();
 const accessListeners = new Set<Box<FolderAccessIssue | null>>();
 let updateState: UpdateState = { kind: "unconfigured" };
 let mockAccent: string | null = null;
+let mockSteadyCaret = false;
 let accessIssue: FolderAccessIssue | null = null;
 let finishUpdate: (() => void) | null = null;
 let dirtyBuffer = false;
@@ -717,7 +738,9 @@ export const devVault = {
       files.set(key, content);
       if (key.startsWith(TUTORIAL_BASE + "/")) persistPractice();
       mtimes.set(key, Date.now());
-      return delay({ status: "ok" as const, hash: hashOf(content) });
+      const landed = { status: "ok" as const, hash: hashOf(content) };
+      const answer = gate("answer", key);
+      return answer ? answer.then(() => landed) : delay(landed);
     });
   },
 
@@ -849,12 +872,14 @@ export const devVault = {
       return entry ? delay(entry.content) : Promise.reject(new Error("ENOENT " + name));
     }),
 
-  // The rest of a play's app data: Changes baselines and before-texts.
+  // The rest of a play's app data: Changes baselines, before- and after-texts.
   storeRead: (playId: string, rel: string): Promise<string | null> =>
-    delay(
-      rel === KEPT_AT_QUIT
-        ? sessionStorage.getItem(QUIT_NOTE_KEY + playId)
-        : (appData.get(`${playId}/${rel}`) ?? null),
+    through("storeRead", rel, () =>
+      delay(
+        rel === KEPT_AT_QUIT
+          ? sessionStorage.getItem(QUIT_NOTE_KEY + playId)
+          : (appData.get(`${playId}/${rel}`) ?? null),
+      ),
     ),
   storeWrite: (playId: string, rel: string, content: string): Promise<void> => {
     if (rel === KEPT_AT_QUIT) sessionStorage.setItem(QUIT_NOTE_KEY + playId, content);
@@ -903,6 +928,33 @@ export const devVault = {
     }),
   /** Dev-only: the app would be gone — the page said go, or the writer chose Quit Anyway. */
   mockQuitGone: (): boolean => quitGone,
+  /**
+   * Dev-only: tutorial progress as stored, or null; with `content`, first
+   * stored so, as another window would. Also on `window.__prosceniumTutorialProgress`.
+   */
+  mockTutorialProgress: (content?: string | null): string | null => {
+    if (content != null) localStorage.setItem(TUTORIAL_PROGRESS, content);
+    return localStorage.getItem(TUTORIAL_PROGRESS);
+  },
+  /** Dev-only: every practice file, by its path in app data; with `files`, those first written. */
+  mockTutorialFiles: (files?: Record<string, string> | null): Record<string, string> => {
+    for (const [path, text] of Object.entries(files ?? {}))
+      if (path.startsWith(TUTORIAL_BASE + "/")) OUTSIDE.set(path, text);
+    if (files) persistPractice();
+    return Object.fromEntries([...OUTSIDE].filter(([p]) => p.startsWith(TUTORIAL_BASE + "/")));
+  },
+  /** Dev-only: what every Reset Progress kept of the progress it replaced. */
+  mockPreservedProgress: (): string[] =>
+    Object.keys(localStorage)
+      .filter((key) => key.startsWith(TUTORIAL_PROGRESS + ":preserved:"))
+      .map((key) => localStorage.getItem(key) ?? ""),
+  /** Dev-only: every file an export handed the browser, oldest first, as `{ name, base64 }`. */
+  mockExported: () => [...exportedFiles],
+  /** Dev-only: every PDF a print handed on, oldest first, as `{ name, base64 }`. */
+  mockPrinted: () => [...printedFiles],
+  /** Dev-only: how many plays hold the note a quit leaves for their next open. */
+  mockKeptAtQuit: (): number =>
+    Object.keys(sessionStorage).filter((key) => key.startsWith(QUIT_NOTE_KEY)).length,
 
   recoveryWrite: (
     playId: string,
@@ -1064,6 +1116,37 @@ export const devVault = {
   feedbackCopy: async (message: string): Promise<void> => {
     feedbackCopied = message;
   },
+  /** Dev-only: sending feedback fails as it does offline, or works again. */
+  mockFeedbackOffline: (on: boolean): void => {
+    if (on) localStorage.setItem("proscenium:dev:feedback-fail", "true");
+    else localStorage.removeItem("proscenium:dev:feedback-fail");
+  },
+  /** Dev-only: technical details are unavailable, or available again. */
+  mockDetailsUnavailable: (on: boolean): void => {
+    if (on) localStorage.setItem("proscenium:dev:feedback-details-fail", "true");
+    else localStorage.removeItem("proscenium:dev:feedback-details-fail");
+  },
+  /** Dev-only: this build has a reports key, or has none; null, the mock's own (one). */
+  mockAnalyticsKey: (on: boolean | null): void => {
+    if (on === false) localStorage.setItem("proscenium:dev:analytics-key", "false");
+    else localStorage.removeItem("proscenium:dev:analytics-key");
+  },
+  /**
+   * Dev-only: whether the reports notice was seen, as stored; with `seen`, first
+   * stored so, in settings.json and in the page's mirror of it.
+   */
+  mockNoticeSeen: (seen?: boolean | null): boolean => {
+    if (seen != null)
+      for (const key of [SETTINGS_KEY, "proscenium:settings"]) {
+        const stored = JSON.parse(localStorage.getItem(key) ?? "{}");
+        localStorage.setItem(key, JSON.stringify({ ...stored, privacyNoticeSeen: seen }));
+      }
+    return readSettings(readSettingsObject()).privacyNoticeSeen;
+  },
+  /** Dev-only: a menu item chosen, by its id, as the menu bar sends it (menu-actions.ts). */
+  mockMenu: (id: string): void => {
+    window.dispatchEvent(new CustomEvent("proscenium:fixture-menu", { detail: id }));
+  },
   mockFeedback: () => ({
     sent: [...feedbackSent],
     copied: feedbackCopied,
@@ -1079,7 +1162,12 @@ export const devVault = {
     pageErrors: [...pageErrors],
   }),
   appInfo: (): Promise<AppInfo> =>
-    delay({ version: APP_VERSION, arch: "browser", channel: "browser" }),
+    delay({
+      version: APP_VERSION,
+      arch: "browser",
+      channel: "browser",
+      tracks: ["stable", "beta", "alpha"],
+    }),
   /** No Mac here: the stand-in blue, unless a check chooses a colour. */
   systemAccent: (): Promise<string | null> => delay(mockAccent),
   /**
@@ -1090,6 +1178,18 @@ export const devVault = {
   mockSystemAccent: (hex: string | null): void => {
     mockAccent = hex;
     window.dispatchEvent(new Event("proscenium:system-accent"));
+  },
+
+  /** No Mac here: a caret that blinks, unless a check asks for a steady one. */
+  steadyCaret: (): Promise<boolean> => delay(mockSteadyCaret),
+  /**
+   * Stand in for the writer turning the Mac's non-blinking cursor setting on
+   * or off and coming back: the page asks again on `proscenium:system-caret`,
+   * as the app does when its window comes forward.
+   */
+  mockSteadyCaret: (on: boolean): void => {
+    mockSteadyCaret = on;
+    window.dispatchEvent(new Event("proscenium:system-caret"));
   },
 
   // A folder about to become the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-D2, docs/app/keeping-work/storage-and-file-format.md#STOR-D11). The mock has
@@ -1152,6 +1252,12 @@ export const devVault = {
   mockNextPick: (path: string): void => {
     nextPick = path;
   },
+  /**
+   * Dev-only: what one of this mock's paths is where the checks run. Here, the
+   * path itself; a test build answers its own (scripts/selftest/fixture.mjs).
+   * Also on `window.__prosceniumWhere`.
+   */
+  mockWhere: (path: string): string => path,
 
   /*
    * User formats, kept in localStorage as `{ fileName: content }`, so browser
@@ -1217,6 +1323,7 @@ export const devVault = {
     bytes: Uint8Array,
     type: "pdf" | "docx" | "odt" = "pdf",
   ): Promise<string | null> => {
+    exportedFiles.push({ name: suggestedName, base64: toBase64(bytes) });
     const blob = new Blob([bytes.slice().buffer], { type: EXPORT_MEDIA_TYPE[type] });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1232,7 +1339,8 @@ export const devVault = {
    * viewer prints it. Not a hidden frame calling print() — the app's policy
    * refuses frames (`frame-src 'none'`), and smoke serves dist/ under it.
    */
-  printFile: (_jobTitle: string, bytes: Uint8Array): Promise<void> => {
+  printFile: (jobTitle: string, bytes: Uint8Array): Promise<void> => {
+    printedFiles.push({ name: `${jobTitle}.pdf`, base64: toBase64(bytes) });
     const blob = new Blob([bytes.slice().buffer], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener");
@@ -1269,7 +1377,9 @@ export const devVault = {
    * for every call of that kind) until the gates open — or fail it with `fail`.
    */
   mockGate: (op: GateOp, rel: string | null, opts: { fail?: string } = {}): void => {
-    gates.push({ op, key: rel === null ? null : toKey(rel), fail: opts.fail ?? null, waiting: [] });
+    // App data is keyed by its own path in the play's store, not the vault's.
+    const key = rel === null ? null : op === "storeRead" ? rel : toKey(rel);
+    gates.push({ op, key, fail: opts.fail ?? null, waiting: [] });
   },
   /** Dev-only: how many `op` calls are waiting at a gate right now. */
   mockHeld: (op: GateOp): number =>
@@ -1291,6 +1401,11 @@ export const devVault = {
       .flat()
       .filter((e) => e.content.includes(text))
       .map((e) => ({ reason: e.reason, pinned: PINNED.has(e.reason) })),
+  /** Dev-only: how many recovery copies, in any play, hold `text`. */
+  mockRecoveryWith: (text: string): number =>
+    Object.keys(sessionStorage).filter(
+      (key) => key.startsWith(RECOVERY_KEY) && (sessionStorage.getItem(key) ?? "").includes(text),
+    ).length,
   /** Dev-only: what the in-memory disk holds at `rel` right now, or null. */
   mockPeek: (rel: string): string | null => {
     const key = toKey(rel);
@@ -1349,11 +1464,13 @@ if (typeof window !== "undefined") {
   w.__prosceniumOpenFiles = devVault.mockOpenFiles;
   w.__prosceniumOutsideFile = devVault.mockOutsideFile;
   w.__prosceniumNextPick = devVault.mockNextPick;
+  w.__prosceniumWhere = devVault.mockWhere;
   w.__prosceniumGate = devVault.mockGate;
   w.__prosceniumHeld = devVault.mockHeld;
   w.__prosceniumFailed = devVault.mockFailed;
   w.__prosceniumOpenGates = devVault.mockOpenGates;
   w.__prosceniumVersionsWith = devVault.mockVersionsWith;
+  w.__prosceniumRecoveryWith = devVault.mockRecoveryWith;
   w.__prosceniumPeek = devVault.mockPeek;
   w.__prosceniumPeekKey = devVault.mockPeekKey;
   w.__prosceniumStoreKeys = devVault.mockStoreKeys;
@@ -1362,12 +1479,24 @@ if (typeof window !== "undefined") {
   w.__prosceniumWatcherHealth = devVault.mockWatcherHealth;
   w.__prosceniumSavedCopy = devVault.mockSavedCopy;
   w.__prosceniumFeedback = devVault.mockFeedback;
+  w.__prosceniumFeedbackOffline = devVault.mockFeedbackOffline;
+  w.__prosceniumDetailsUnavailable = devVault.mockDetailsUnavailable;
+  w.__prosceniumMenu = devVault.mockMenu;
+  w.__prosceniumAnalyticsKey = devVault.mockAnalyticsKey;
+  w.__prosceniumNoticeSeen = devVault.mockNoticeSeen;
   w.__prosceniumTelemetry = devVault.mockTelemetry;
   w.__prosceniumQuit = devVault.mockQuit;
   w.__prosceniumQuitGone = devVault.mockQuitGone;
+  w.__prosceniumKeptAtQuit = devVault.mockKeptAtQuit;
+  w.__prosceniumExported = devVault.mockExported;
+  w.__prosceniumTutorialProgress = devVault.mockTutorialProgress;
+  w.__prosceniumTutorialFiles = devVault.mockTutorialFiles;
+  w.__prosceniumPreservedProgress = devVault.mockPreservedProgress;
+  w.__prosceniumPrinted = devVault.mockPrinted;
   w.__prosceniumUpdate = devVault.mockUpdate;
   w.__prosceniumUpdateState = devVault.mockUpdateState;
   w.__prosceniumSystemAccent = devVault.mockSystemAccent;
+  w.__prosceniumSteadyCaret = devVault.mockSteadyCaret;
   w.__prosceniumUpdateHeld = () => finishUpdate !== null;
   w.__prosceniumFolderAccess = devVault.mockFolderAccess;
 }

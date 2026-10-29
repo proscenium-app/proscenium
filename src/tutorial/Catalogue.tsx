@@ -6,10 +6,11 @@
  * sheet you open, choose from and leave. Nothing here teaches; the lessons
  * happen at the work, with the card (CueCard.tsx). Opening it changes no play.
  */
+import { moveToTrash, systemWords } from "../ui/system-words";
 import { useEffect, useRef, useState } from "react";
 import { Button, Sheet, anyLayerOpen } from "../ui";
-import { openFeedback } from "../feedback";
-import { openSettings } from "../app/settings";
+import { openFeedback } from "../ui/open-feedback";
+import { openSettings } from "../ui/settings-open";
 import { LESSONS } from "./lessons";
 import { latest } from "./model";
 import type { Tutorial } from "./useTutorial";
@@ -101,7 +102,7 @@ export function Catalogue({ guide: g, practicing }: { guide: Tutorial; practicin
     return (
       <Sheet
         title="Saved Practice"
-        subtitle="Every practice play is kept on this Mac, apart from your Plays folder."
+        subtitle={`Every practice play is kept on this ${systemWords().machine}, apart from your Plays folder.`}
         width={520}
         onClose={close}
         footer={
@@ -130,7 +131,7 @@ export function Catalogue({ guide: g, practicing }: { guide: Tutorial; practicin
                     disabled={g.busy || !!g.isOpenPractice(a.session)}
                     onClick={() => void g.trashPractice(a.session!)}
                   >
-                    Move to Trash
+                    {moveToTrash()}
                   </Button>
                 )}
               </div>
@@ -357,7 +358,7 @@ export function TutorialInvitation({ guide: g }: { guide: Tutorial }) {
       <div className="tutorials__actions">
         <Button onClick={() => g.acceptInvitation()}>Try the Tutorial</Button>
         <Button onClick={() => g.acceptInvitation(true)}>See All Tutorials</Button>
-        <Button onClick={g.dismissInvitation}>Skip for Now</Button>
+        <Button onClick={g.skipInvitation}>Skip for Now</Button>
       </div>
       <p>You can return anytime from Help & Tutorials.</p>
     </section>
