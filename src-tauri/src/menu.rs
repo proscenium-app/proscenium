@@ -18,7 +18,9 @@
 //! predefined so the OS wires them itself — a hand-rolled Copy is a Copy that
 //! does not work in a native text field.
 
-use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu, SubmenuBuilder};
+#[cfg(not(windows))]
+use tauri::menu::{AboutMetadata, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem, Submenu, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Runtime};
 
 /// The event a menu item raises. One channel, one payload: the item's id.
@@ -83,6 +85,10 @@ const VIEW: &[Item] = &[
     ("", "", None),
     ("split-row", "Split Side by Side", None),
     ("split-col", "Split Top and Bottom", None),
+    // The focused pane, when it is one of several. A pane has its own close
+    // box too; this is the one a writer finds from the menu bar and the one
+    // that needs no pointer.
+    ("close-pane", "Close Pane", None),
     ("", "", None),
     ("zoom-in", "Zoom In", Some("CmdOrCtrl+Plus")),
     ("zoom-out", "Zoom Out", Some("CmdOrCtrl+-")),
@@ -116,6 +122,55 @@ const HELP: &[Item] = &[
     ("report-problem", "Send Feedback…", None),
 ];
 
+/// The chord a PC's menu shows beside an item, as `src/ui/keys.ts` writes the
+/// Mac's on a PC (`src/ui/keys.test.ts` holds the two together). Ctrl where a
+/// Mac has ⌘, and no Ctrl+Alt, which is AltGr on many keyboards. Import a
+/// Draft has none: Ctrl+Shift+I is the Inspector's there.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const PC_KEYS: &[(&str, &str)] = &[
+    ("new-play", "Ctrl+N"),
+    ("open-vault", "Ctrl+O"),
+    ("all-plays", "Ctrl+Shift+O"),
+    ("save", "Ctrl+S"),
+    ("export-pdf", "Ctrl+Shift+E"),
+    ("print", "Ctrl+P"),
+    ("settings", "Ctrl+,"),
+    ("el-act", "Ctrl+Shift+1"),
+    ("el-scene", "Ctrl+Shift+2"),
+    ("el-sceneHeading", "Ctrl+Shift+S"),
+    ("el-action", "Ctrl+Shift+A"),
+    ("el-character", "Ctrl+Shift+C"),
+    ("el-parenthetical", "Ctrl+Shift+P"),
+    ("el-dialogue", "Ctrl+Shift+D"),
+    ("el-transition", "Ctrl+Shift+T"),
+    ("el-lyric", "Ctrl+Shift+L"),
+    ("mark-strong", "Ctrl+B"),
+    ("mark-em", "Ctrl+I"),
+    ("mark-underline", "Ctrl+U"),
+    ("line-break", "Shift+Enter"),
+    ("page-break", "Ctrl+Enter"),
+    ("spelling-next", "Ctrl+;"),
+    ("view-script", "Ctrl+1"),
+    ("view-corkboard", "Ctrl+2"),
+    ("view-outliner", "Ctrl+3"),
+    ("view-cast", "Ctrl+4"),
+    ("view-changes", "Ctrl+5"),
+    ("toggle-binder", "Ctrl+Shift+B"),
+    ("toggle-inspector", "Ctrl+Shift+I"),
+    ("toggle-comments", "Ctrl+Shift+M"),
+    ("zoom-in", "Ctrl++"),
+    ("zoom-out", "Ctrl+-"),
+    ("zoom-actual", "Ctrl+0"),
+    ("focus", "Ctrl+Shift+F"),
+    ("find", "Ctrl+F"),
+    ("find-replace", "Ctrl+H"),
+    ("goto-scene", "Ctrl+Shift+J"),
+    ("scene-prev", "Ctrl+PageUp"),
+    ("scene-next", "Ctrl+PageDown"),
+    ("comment", "Ctrl+M"),
+    ("shortcuts", "Ctrl+/"),
+];
+
 /// Build one submenu from a table, turning `("", "", None)` into a separator.
 fn build<R: Runtime>(app: &AppHandle<R>, title: &str, items: &[Item]) -> tauri::Result<Submenu<R>> {
     let mut b = SubmenuBuilder::new(app, title);
@@ -123,12 +178,121 @@ fn build<R: Runtime>(app: &AppHandle<R>, title: &str, items: &[Item]) -> tauri::
         if id.is_empty() {
             b = b.separator();
         } else {
-            b = b.item(&MenuItem::with_id(app, *id, *label, true, *accel)?);
+            b = b.item(&item(app, id, label, *accel)?);
         }
     }
     b.build()
 }
 
+/// One item. On a Mac its chord is the menu's accelerator. On Windows the
+/// chord is only drawn beside it: WebView2 holds the keyboard, so the page
+/// binds every chord at the window (use-shell-commands.ts), and an
+/// accelerator the window did see would be a second press of the same key.
+fn item<R: Runtime>(
+    app: &AppHandle<R>,
+    id: &str,
+    label: &str,
+    accel: Option<&str>,
+) -> tauri::Result<MenuItem<R>> {
+    #[cfg(windows)]
+    {
+        let _ = accel;
+        let label = match PC_KEYS.iter().find(|(i, _)| *i == id) {
+            Some((_, keys)) => format!("{}\t{keys}", pc_label(label)),
+            None => pc_label(label),
+        };
+        MenuItem::with_id(app, id, label, true, None::<&str>)
+    }
+    #[cfg(not(windows))]
+    MenuItem::with_id(app, id, label, true, accel)
+}
+
+/// A label in a PC's words, where the Mac's names its own things.
+#[cfg(windows)]
+fn pc_label(label: &str) -> String {
+    label.replace("Finder", "File Explorer")
+}
+
+/// Windows' menu bar: the same items under the same names, with File ending
+/// in Settings and Exit, About and updates under Help, and no Window menu,
+/// whose items are the title bar's. Exit, like the close box, is a quit the
+/// page is asked about first (quit.rs); the predefined Quit would end the
+/// app without asking.
+#[cfg(windows)]
+pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let file = {
+        let mut b = SubmenuBuilder::new(app, "&File");
+        for (id, label, accel) in FILE {
+            b = if id.is_empty() {
+                b.separator()
+            } else {
+                b.item(&item(app, id, label, *accel)?)
+            };
+        }
+        b.separator()
+            .item(&item(app, "settings", "Settings…", None)?)
+            .separator()
+            .item(&MenuItem::with_id(app, QUIT, "E&xit", true, None::<&str>)?)
+            .build()?
+    };
+    let edit = SubmenuBuilder::new(app, "&Edit")
+        .undo()
+        .redo()
+        .separator()
+        .cut()
+        .copy()
+        .paste()
+        .select_all()
+        .build()?;
+    let help = {
+        let mut b = SubmenuBuilder::new(app, "&Help");
+        for (id, label, accel) in HELP {
+            b = if id.is_empty() {
+                b.separator()
+            } else {
+                b.item(&item(app, id, label, *accel)?)
+            };
+        }
+        b = b.separator();
+        // Only a copy that updates itself offers to: not the Microsoft
+        // Store's, which runs from its package and which the Store updates.
+        #[cfg(feature = "updater")]
+        if crate::packaged::family().is_none() {
+            b = b.item(&MenuItem::with_id(
+                app,
+                "check-updates",
+                "Check for Updates…",
+                true,
+                None::<&str>,
+            )?);
+        }
+        b.item(&MenuItem::with_id(
+            app,
+            "about",
+            "About Proscenium",
+            true,
+            None::<&str>,
+        )?)
+        .build()?
+    };
+    Menu::with_items(
+        app,
+        &[
+            &file,
+            &edit,
+            &build(app, "&Script", SCRIPT)?,
+            &build(app, "&View", VIEW)?,
+            &build(app, "&Play", PLAY)?,
+            &help,
+        ],
+    )
+}
+
+/// Exit's id: the one item Rust answers itself, since a quit is the gate's.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const QUIT: &str = "quit";
+
+#[cfg(not(windows))]
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
     let app_menu = SubmenuBuilder::new(app, "Proscenium").about(Some(AboutMetadata::default()));
@@ -189,8 +353,14 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     )
 }
 
-/// Forward the item's id to the webview. Nothing is decided here.
-pub fn on_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
+/// Forward the item's id to the webview. Nothing is decided here, but for
+/// Windows' Exit, which asks the quit gate as the close box does.
+pub fn on_menu_event(app: &AppHandle, id: &str) {
+    #[cfg(windows)]
+    if id == QUIT {
+        crate::quit::close_requested(app);
+        return;
+    }
     let _ = app.emit(EVENT_MENU_ACTION, id.to_string());
 }
 

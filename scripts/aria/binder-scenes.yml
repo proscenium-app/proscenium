@@ -42,13 +42,6 @@
   - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-      - button "Close The Weight of Water"
-    - listitem "Outline":
-      - button "Outline"
-    - listitem "1953 North Sea Flood":
-      - button "1953 North Sea Flood"
   - button "Add a surface to this pane"
   - 'button "What this line is: Scene"': Scene
   - button "Bold" [disabled]: ⌘B
@@ -70,13 +63,9 @@
   - heading "SCENE 1" [level=2]
   - text: Page 1 · 1 page · 5 speeches Summary · not printed
   - textbox "Summary"
-  - text: Status
-  - 'button "Scene status: draft"': draft
-  - text: Label
-  - textbox "Label"
-  - text: Colour
-  - radiogroup "Card colour":
-    - radio "Unmarked"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color"
     - radio "Setup" [checked]
     - radio "Turns"
     - radio "Interior"
@@ -84,8 +73,8 @@
     - radio "Revise"
     - radio "Parked"
     - text: setup
-  - text: Board note · never prints
-  - textbox "Board note"
+  - text: Notes · never prints
+  - textbox "Notes"
   - text: On stage MARA 3 JONAH 2 Comments here 0 in this scene
   - button "Show"
   - paragraph: The synopsis is part of the script. The rest is card metadata.

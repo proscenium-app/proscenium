@@ -1,0 +1,82 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "Practice Play"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: Practice Play
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "Practice Play Rename “Practice Play” Actions for “Practice Play”" [level=1] [selected]:
+      - text: Practice Play
+      - button "Rename “Practice Play”"
+      - button "Actions for “Practice Play”"
+    - group "Scenes in Practice Play":
+      - treeitem "SCENE 1 1" [level=2] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters": Empty
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes": Empty
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - 'button "What this line is: Dialogue"': Dialogue
+  - button "Bold": Ctrl+B
+  - button "Italic": Ctrl+I
+  - button "Underline": Ctrl+U
+  - button "Line Break Shift+Enter"
+  - button "Page Break Ctrl+Enter"
+  - button "+ Comment Ctrl+M"
+  - button "Comments Ctrl+Shift+M"
+  - text: Page 1 of 1
+  - textbox "Script"
+  - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 1 · 1 page · 0 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage RETAINED 0 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
+- contentinfo:
+  - button "<app data>\\tutorials\\sessions\\<id>\\Practice Play"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 82%"': Fit width · 82%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Reset Tutorial Progress":
+  - heading "Reset Tutorial Progress" [level=2]
+  - paragraph: Clear lesson checkmarks and saved steps. Every practice play and a copy of the previous progress are kept. The welcome invitation stays dismissed.
+  - button "Cancel"
+  - button "Reset Progress"
+  - status
+  - alert

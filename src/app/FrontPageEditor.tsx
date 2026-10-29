@@ -1,30 +1,14 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { ProseEditor } from "../markdown/ProseEditor";
 import { FormatBar } from "../markdown/FormatBar";
 import { toMarkdown, type Node } from "../markdown/doc";
-import type { CharacterEntry, FrontMatter } from "../fountain";
+import type { FrontMatter } from "../fountain";
 
-export function charactersPageText(characters: readonly CharacterEntry[]): string {
-  return toMarkdown({
-    type: "doc",
-    content: [
-      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Characters" }] },
-      ...characters.map(
-        (c): Node => ({
-          type: "paragraph",
-          content: [
-            { type: "text", text: c.name, marks: [{ type: "bold" }] },
-            ...(c.description ? [{ type: "text", text: " — " + c.description }] : []),
-          ],
-        }),
-      ),
-    ],
-  });
-}
+export { charactersPageText } from "../markdown/characters-page";
 
 function proseText(text: string): Node[] {
   return text
@@ -93,12 +77,27 @@ export function FrontPageEditor({
   value,
   onChange,
   label,
+  focusAt,
 }: {
   value: string;
   onChange: (text: string) => void;
   label: string;
+  /** Put the caret at the start of this top-level paragraph; a new object asks again. */
+  focusAt?: { paragraph: number } | null;
 }) {
   const [editor, setEditor] = useState<Editor | null>(null);
+  useEffect(() => {
+    if (!editor || !focusAt) return;
+    const doc = editor.state.doc;
+    const index = Math.max(0, Math.min(focusAt.paragraph, doc.childCount - 1));
+    let pos = 0;
+    for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
+    editor
+      .chain()
+      .focus(pos + 1)
+      .scrollIntoView()
+      .run();
+  }, [editor, focusAt]);
   return (
     <div className="frontpage-editor" role="group" aria-label={label}>
       <FormatBar editor={editor} openingPage />

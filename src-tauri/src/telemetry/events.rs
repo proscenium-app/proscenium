@@ -14,6 +14,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub use super::active::{Installed, Period};
+
 /// Where this copy came from, which is also what updates it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Channel {
@@ -24,6 +26,11 @@ pub enum Channel {
     /// Built on this Mac by `bun run app:install`, updated by nothing: an
     /// updater there would replace it with the next alpha.
     Local,
+    /// Windows' direct download: the installer from the site, GitHub or
+    /// winget, updated by the app itself.
+    Download,
+    /// The Microsoft Store's build, updated by the Store.
+    MicrosoftStore,
 }
 
 impl Channel {
@@ -32,6 +39,10 @@ impl Channel {
     pub fn of_this_build() -> Self {
         if cfg!(feature = "local") {
             Channel::Local
+        } else if cfg!(all(windows, feature = "updater")) {
+            Channel::Download
+        } else if cfg!(windows) {
+            Channel::MicrosoftStore
         } else if cfg!(feature = "updater") {
             Channel::DeveloperId
         } else {
@@ -44,6 +55,8 @@ impl Channel {
             Channel::DeveloperId => "developer-id",
             Channel::AppStore => "app-store",
             Channel::Local => "local",
+            Channel::Download => "download",
+            Channel::MicrosoftStore => "microsoft-store",
         }
     }
 }
@@ -80,6 +93,7 @@ impl PlaysBucket {
 
 /// The places a writer works, as `surface_shown` names them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[cfg_attr(feature = "selftest", derive(Serialize))]
 #[serde(rename_all = "kebab-case")]
 pub enum Surface {
     Script,
@@ -105,6 +119,7 @@ impl Surface {
 
 /// What a PDF export printed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[cfg_attr(feature = "selftest", derive(Serialize))]
 #[serde(rename_all = "lowercase")]
 pub enum ExportKind {
     Whole,
@@ -119,6 +134,97 @@ impl ExportKind {
             ExportKind::Range => "range",
             ExportKind::Sides => "sides",
         }
+    }
+}
+
+/// Declares a closed list of ids once: the enum, its every value, and its
+/// spelling, which is also what serde reads.
+macro_rules! closed_ids {
+    ($(#[$doc:meta])* $name:ident { $($variant:ident => $id:literal,)* }) => {
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+        #[cfg_attr(feature = "selftest", derive(Serialize))]
+        pub enum $name {
+            $(#[serde(rename = $id)] $variant,)*
+        }
+
+        impl $name {
+            #[cfg(test)]
+            pub const ALL: &'static [$name] = &[$($name::$variant,)*];
+
+            pub fn as_str(self) -> &'static str {
+                match self {
+                    $($name::$variant => $id,)*
+                }
+            }
+        }
+    };
+}
+
+closed_ids! {
+    /// What the writer did with the one-time tutorial invitation, or that it
+    /// was shown at all (docs/app/preferences-and-help/tutorials.md#TUT-D101).
+    TutorialChoice {
+        Shown => "shown",
+        Try => "try",
+        SeeAll => "see-all",
+        Skip => "skip",
+    }
+}
+
+closed_ids! {
+    /// The course's lessons, by the stable id src/tutorial/lessons.ts gives each.
+    LessonId {
+        FirstExchange => "first-exchange",
+        Format => "format",
+        SceneCards => "scene-cards",
+        Characters => "characters",
+        Files => "files",
+        Export => "export",
+    }
+}
+
+closed_ids! {
+    /// A lesson's steps, by the stable id src/tutorial/lessons.ts gives each
+    /// (its `Task`). A step names a place in the course, never what was written there.
+    LessonStep {
+        Speaker => "speaker",
+        Line => "line",
+        SpeakerTwo => "speaker-two",
+        Reply => "reply",
+        Saved => "saved",
+        Emphasis => "emphasis",
+        LineBreak => "line-break",
+        PageBreak => "page-break",
+        Format => "format",
+        Board => "board",
+        Scene => "scene",
+        Summary => "summary",
+        MoveScene => "move-scene",
+        Outline => "outline",
+        Cast => "cast",
+        CharactersPage => "characters-page",
+        AddCharacter => "add-character",
+        OpeningNotes => "opening-notes",
+        Document => "document",
+        Note => "note",
+        Tags => "tags",
+        Rename => "rename",
+        Export => "export",
+        ExportRange => "export-range",
+        ExportOpening => "export-opening",
+        ExportPreview => "export-preview",
+    }
+}
+
+closed_ids! {
+    /// Where a lesson got to: begun, picked up again after a stop, or finished
+    /// with every step done or shown, or with at least one skipped.
+    LessonMoment {
+        Started => "started",
+        Continued => "continued",
+        Finished => "finished",
+        FinishedWithSkips => "finished-with-skips",
     }
 }
 
@@ -179,6 +285,18 @@ impl Version {
 
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+/// A build's whole version, as its reports carry it (version.rs): a release's
+/// `X.Y.Z`, or a track build's `X.Y.Z-alpha.N` or `X.Y.Z-beta.N`. The service
+/// takes a published beta's reports as a release's and counts them apart by it
+/// (docs/engineering/services-and-feedback.md#SERV-272). `update_installed`
+/// still names releases alone ([`Version`]).
+pub fn build_version(v: &str) -> bool {
+    match v.split_once('-') {
+        None => Version::parse(v).is_some(),
+        Some((base, _)) => Version::parse(base).is_some() && crate::version::belongs_to(v, base),
     }
 }
 
@@ -274,12 +392,41 @@ error_codes! {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     AppLaunched,
-    PlayOpened { plays: PlaysBucket },
-    SurfaceShown { surface: Surface },
-    PdfExported { kind: ExportKind, format: FormatRef },
+    PlayOpened {
+        plays: PlaysBucket,
+    },
+    SurfaceShown {
+        surface: Surface,
+    },
+    PdfExported {
+        kind: ExportKind,
+        format: FormatRef,
+    },
     FormatSaved,
-    UpdateInstalled { from: Version, to: Version },
-    ErrorShown { code: ErrorCode },
+    UpdateInstalled {
+        from: Version,
+        to: Version,
+    },
+    ErrorShown {
+        code: ErrorCode,
+    },
+    /// This copy is in use in a day, week or month it has not counted itself
+    /// in yet (active.rs). Rust's own, never the page's.
+    CopyActive {
+        period: Period,
+        installed: Installed,
+    },
+    TutorialOffered {
+        choice: TutorialChoice,
+    },
+    LessonProgress {
+        lesson: LessonId,
+        moment: LessonMoment,
+    },
+    LessonStopped {
+        lesson: LessonId,
+        step: LessonStep,
+    },
 }
 
 impl Event {
@@ -292,6 +439,10 @@ impl Event {
             Event::FormatSaved => "format_saved",
             Event::UpdateInstalled { .. } => "update_installed",
             Event::ErrorShown { .. } => "error_shown",
+            Event::CopyActive { .. } => "copy_active",
+            Event::TutorialOffered { .. } => "tutorial_offered",
+            Event::LessonProgress { .. } => "lesson_progress",
+            Event::LessonStopped { .. } => "lesson_stopped",
         }
     }
 
@@ -312,13 +463,28 @@ impl Event {
                 vec![("from", from.as_str().into()), ("to", to.as_str().into())]
             }
             Event::ErrorShown { code } => vec![("code", code.as_str().into())],
+            Event::CopyActive { period, installed } => vec![
+                ("period", period.as_str().into()),
+                ("installed", installed.as_str().into()),
+            ],
+            Event::TutorialOffered { choice } => vec![("choice", choice.as_str().into())],
+            Event::LessonProgress { lesson, moment } => vec![
+                ("lesson", lesson.as_str().into()),
+                ("moment", moment.as_str().into()),
+            ],
+            Event::LessonStopped { lesson, step } => vec![
+                ("lesson", lesson.as_str().into()),
+                ("step", step.as_str().into()),
+            ],
         }
     }
 }
 
 /// What the page may ask to be recorded: the events only the page sees happen.
-/// The rest — launch, update, crash — are Rust's own.
+/// The rest — launch, update, crash — are Rust's own. A test build writes one
+/// back as the page sent it, for a check to read (selftest_fixture.rs).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[cfg_attr(feature = "selftest", derive(Serialize))]
 #[serde(
     tag = "name",
     rename_all = "snake_case",
@@ -345,6 +511,20 @@ pub enum PageEvent {
     ErrorShown {
         code: ErrorCode,
     },
+    /// The tutorial invitation was shown, or answered.
+    TutorialOffered {
+        choice: TutorialChoice,
+    },
+    /// A lesson began, was picked up again, or finished.
+    LessonProgress {
+        lesson: LessonId,
+        moment: LessonMoment,
+    },
+    /// A lesson was left before its end, at this step.
+    LessonStopped {
+        lesson: LessonId,
+        step: LessonStep,
+    },
 }
 
 impl From<PageEvent> for Event {
@@ -360,6 +540,11 @@ impl From<PageEvent> for Event {
             },
             PageEvent::FormatSaved {} => Event::FormatSaved,
             PageEvent::ErrorShown { code } => Event::ErrorShown { code },
+            PageEvent::TutorialOffered { choice } => Event::TutorialOffered { choice },
+            PageEvent::LessonProgress { lesson, moment } => {
+                Event::LessonProgress { lesson, moment }
+            }
+            PageEvent::LessonStopped { lesson, step } => Event::LessonStopped { lesson, step },
         }
     }
 }
@@ -390,6 +575,21 @@ mod tests {
             Event::ErrorShown {
                 code: ErrorCode::ExportFont,
             },
+            Event::CopyActive {
+                period: Period::Week,
+                installed: Installed::Recent,
+            },
+            Event::TutorialOffered {
+                choice: TutorialChoice::SeeAll,
+            },
+            Event::LessonProgress {
+                lesson: LessonId::FirstExchange,
+                moment: LessonMoment::FinishedWithSkips,
+            },
+            Event::LessonStopped {
+                lesson: LessonId::Characters,
+                step: LessonStep::CharactersPage,
+            },
         ]
     }
 
@@ -403,6 +603,10 @@ mod tests {
             ("format_saved", &[]),
             ("update_installed", &["from", "to"]),
             ("error_shown", &["code"]),
+            ("copy_active", &["period", "installed"]),
+            ("tutorial_offered", &["choice"]),
+            ("lesson_progress", &["lesson", "moment"]),
+            ("lesson_stopped", &["lesson", "step"]),
         ];
         let events = one_of_each();
         assert_eq!(events.len(), documented.len());
@@ -422,6 +626,13 @@ mod tests {
                 ("from", "0.9.1"),
                 ("to", "1.0.0"),
                 ("code", "E-EXPORT-FONT"),
+                ("period", "week"),
+                ("installed", "recent"),
+                ("choice", "see-all"),
+                ("lesson", "first-exchange"),
+                ("moment", "finished-with-skips"),
+                ("lesson", "characters"),
+                ("step", "characters-page"),
             ]
             .map(|(k, v)| (k, v.to_string()))
         );
@@ -467,7 +678,11 @@ mod tests {
             "surface_shown": {"surface": ([Surface::Script, Surface::Board, Surface::Outline, Surface::Cast, Surface::Changes, Surface::FormatDesigner].map(Surface::as_str))},
             "pdf_exported": {"kind": ([ExportKind::Whole, ExportKind::Range, ExportKind::Sides].map(ExportKind::as_str)), "format": formats},
             "format_saved": {}, "update_installed": {"from":["$released-version"], "to":["$released-version"]},
-            "error_shown": {"code": ErrorCode::ALL.iter().map(|c| c.as_str()).collect::<Vec<_>>()}
+            "error_shown": {"code": ErrorCode::ALL.iter().map(|c| c.as_str()).collect::<Vec<_>>()},
+            "copy_active": {"period": Period::ALL.map(Period::as_str), "installed": ([Installed::New, Installed::Recent, Installed::Earlier].map(Installed::as_str))},
+            "tutorial_offered": {"choice": TutorialChoice::ALL.iter().map(|c| c.as_str()).collect::<Vec<_>>()},
+            "lesson_progress": {"lesson": LessonId::ALL.iter().map(|l| l.as_str()).collect::<Vec<_>>(), "moment": LessonMoment::ALL.iter().map(|m| m.as_str()).collect::<Vec<_>>()},
+            "lesson_stopped": {"lesson": LessonId::ALL.iter().map(|l| l.as_str()).collect::<Vec<_>>(), "step": LessonStep::ALL.iter().map(|s| s.as_str()).collect::<Vec<_>>()}
         });
         assert_eq!(worker.as_object().unwrap().len(), one_of_each().len());
         for event in one_of_each() {
@@ -543,12 +758,45 @@ mod tests {
                 format: FormatRef::User
             }
         );
+        assert_eq!(
+            Event::from(parse(r#"{"name":"tutorial_offered","choice":"skip"}"#).unwrap()),
+            Event::TutorialOffered {
+                choice: TutorialChoice::Skip
+            }
+        );
+        assert_eq!(
+            Event::from(
+                parse(r#"{"name":"lesson_progress","lesson":"scene-cards","moment":"continued"}"#)
+                    .unwrap()
+            ),
+            Event::LessonProgress {
+                lesson: LessonId::SceneCards,
+                moment: LessonMoment::Continued
+            }
+        );
+        assert_eq!(
+            Event::from(
+                parse(r#"{"name":"lesson_stopped","lesson":"export","step":"export-range"}"#)
+                    .unwrap()
+            ),
+            Event::LessonStopped {
+                lesson: LessonId::Export,
+                step: LessonStep::ExportRange
+            }
+        );
         for refused in [
+            // A lesson or a step is one of the course's own ids, never words from the play.
+            r#"{"name":"lesson_progress","lesson":"Rehearsal Notes","moment":"started"}"#,
+            r#"{"name":"lesson_stopped","lesson":"files","step":"SOREL"}"#,
+            r#"{"name":"lesson_stopped","lesson":"files","step":"note","text":"Keep the barometer"}"#,
+            r#"{"name":"tutorial_offered","choice":"shown","lesson":"format"}"#,
+            r#"{"name":"lesson_progress","lesson":"format"}"#,
             r#"{"name":"play_opened","playsInFolder":3,"title":"Hamlet"}"#,
             r#"{"name":"surface_shown","surface":"Hamlet"}"#,
             r#"{"name":"error_shown","code":"could not open /Users/writer/Plays"}"#,
             r#"{"name":"format_saved","name2":"x"}"#,
             r#"{"name":"app_launched","channel":"developer-id"}"#,
+            r#"{"name":"copy_active","period":"day","installed":"new"}"#,
             r#"{"name":"crash_reported","kind":"js_error","location":"x"}"#,
             r#"{"name":"anything"}"#,
             r#"{"playsInFolder":3}"#,
@@ -608,6 +856,37 @@ mod tests {
             "/Users/a/1.0.0",
         ] {
             assert!(Version::parse(bad).is_none(), "{bad:?}");
+        }
+        // A track build's whole version is a build's version, never a release's.
+        assert!(Version::parse("1.0.1-beta.2").is_none());
+    }
+
+    /// The forms the Worker takes (services/edge/src/updates.ts, VERSION and TRACK_VERSION).
+    #[test]
+    fn a_build_version_is_a_release_or_a_track_build() {
+        for good in [
+            "1.0.0",
+            "1.0.1-beta.2",
+            "1.0.1-alpha.57",
+            "0.9.0-beta.0",
+            "1.0.1-beta.123456789",
+        ] {
+            assert!(build_version(good), "{good:?}");
+        }
+        for bad in [
+            "",
+            "1.0",
+            "1.0.1-rc.1",
+            "1.0.1-beta",
+            "1.0.1-beta.",
+            "1.0.1-beta.02",
+            "1.0.1-beta.1234567890",
+            "1.0.1-BETA.2",
+            "01.0.1-beta.2",
+            "1.0.1-beta.2 ",
+            "/Users/a/1.0.1-beta.2",
+        ] {
+            assert!(!build_version(bad), "{bad:?}");
         }
     }
 }

@@ -26,6 +26,15 @@ export interface OwnWrite {
 
 const followers = new Set<(write: OwnWrite) => void>();
 let openPlay: string | null = null;
+/**
+ * Writes sent to each file, and those not answered yet. A file's bytes are on
+ * disk a moment before its write answers (the folder is synced in between,
+ * docs/app/keeping-work/storage-and-file-format.md#STOR-83), so a re-read in
+ * that moment sees words the app has not yet been told it wrote, and took
+ * them for somebody else's (revalidate.ts).
+ */
+const sentTo = new Map<string, number>();
+const outTo = new Map<string, number>();
 
 /** The vault now points at this play's folder, or at no play (null). */
 export function vaultOpenedAt(playId: string | null): void {
@@ -40,7 +49,16 @@ export function vaultOpenedAt(playId: string | null): void {
  */
 export function sendingWrite(rel: string, content: string): (landed: boolean) => void {
   const playId = openPlay;
+  sentTo.set(rel, (sentTo.get(rel) ?? 0) + 1);
+  outTo.set(rel, (outTo.get(rel) ?? 0) + 1);
+  let answered = false;
   return (landed) => {
+    if (!answered) {
+      answered = true;
+      const out = (outTo.get(rel) ?? 1) - 1;
+      if (out > 0) outTo.set(rel, out);
+      else outTo.delete(rel);
+    }
     if (!landed || playId === null) return;
     for (const follow of followers) {
       try {
@@ -50,6 +68,11 @@ export function sendingWrite(rel: string, content: string): (landed: boolean) =>
       }
     }
   };
+}
+
+/** How many writes to `rel` have been sent, and whether one is still unanswered. */
+export function writeState(rel: string): { sent: number; out: boolean } {
+  return { sent: sentTo.get(rel) ?? 0, out: (outTo.get(rel) ?? 0) > 0 };
 }
 
 /** Hear every write the app lands. Returns the unsubscribe. */

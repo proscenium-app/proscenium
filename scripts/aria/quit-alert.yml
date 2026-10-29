@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
@@ -38,13 +38,6 @@
   - text: in Characters
 - main "Play":
   - list "Open in this pane":
-    - listitem "Cast":
-      - button "Cast"
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-    - listitem "Mara":
-      - button "Mara"
-      - button "Close Mara"
   - button "Add a surface to this pane"
   - textbox "File name"
   - text: character protagonist act-1 act-2
@@ -78,6 +71,30 @@
     - text: that quiet is just absence, not peace.
     - strong: "Voice:"
     - text: short sentences. Precise nouns. Doesn't finish the sentimental ones. WORDS KEPT NOWHERE
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Sheet" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: Character sheet
+  - heading "Mara" [level=2]
+  - text: Characters/Mara.md aka
+  - textbox "aka"
+  - text: age
+  - textbox "age"
+  - text: pronouns
+  - textbox "pronouns"
+  - text: tags protagonist
+  - button "Remove “protagonist”"
+  - text: act-1
+  - button "Remove “act-1”"
+  - text: act-2
+  - button "Remove “act-2”"
+  - button "Add a tag"
+  - text: In the script
+  - paragraph: 3 lines · 2 scenes Appears in ACT ONE · SCENE 1 · ACT TWO · SCENE 1
+  - button "Sides (PDF) ↗"
+  - button "Show in Cast ↗"
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: Not saved

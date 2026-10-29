@@ -13,6 +13,182 @@
   flex-direction: column;
   gap: var(--s-3);
 }
+/* Wide enough, the timeline is a list beside a page: the list says what
+   happened, and the change chosen in it is drawn beside it. Each scrolls on
+   its own, so the page stays in view while the list is walked. */
+.changes--split {
+  max-width: none;
+  height: 100%;
+  box-sizing: border-box;
+  padding: var(--s-6) var(--s-6) 0;
+}
+.changes__split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.changes--split .changes__split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(250px, 320px) minmax(0, 1fr);
+  gap: var(--s-6);
+}
+.changes__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.changes--split .changes__list,
+.changes--split .changes__detail {
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: var(--s-7);
+}
+.changes--split .changes__list {
+  overflow-x: hidden;
+}
+.changes__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+/* One line of the timeline: who and when, what, where and how much. */
+.change__summary.changerow {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: var(--s-1);
+  padding: var(--s-4) var(--s-5);
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-menu);
+  background: var(--paper);
+}
+.change__summary.changerow:hover {
+  background: var(--hover);
+}
+/* Chosen: the accent's edge and rule, on the row's own paper, so every word
+   on it keeps the contrast it has unchosen. */
+.change__summary.changerow[aria-current="true"] {
+  border-color: var(--accent);
+  background: var(--paper);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.changerow__top,
+.changerow__where {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-width: 0;
+}
+.changerow__what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.changerow__count {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+.changerow__scenes {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: var(--t-mini);
+}
+.changerow .change__stats {
+  flex: none;
+  margin-left: auto;
+}
+/* New since the writer last looked: a word, not only a colour. */
+.change__new {
+  padding: 0 var(--s-2);
+  border-radius: var(--r-chip);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--t-mini);
+  font-weight: 600;
+}
+.change__unit {
+  color: var(--ash);
+}
+/* A change, chosen: who and when, and the steps either way, above the page. */
+.changedetail {
+  display: flex;
+  flex-direction: column;
+}
+.changes--split .changedetail.change {
+  border: 0;
+  background: none;
+  box-shadow: none;
+  overflow: visible;
+}
+.changedetail__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4) 14px;
+}
+.changes--split .changedetail__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0 0 var(--s-4);
+  background: var(--cream);
+  border-bottom: 0.5px solid var(--rule);
+}
+.changes--split .sitting__doc {
+  border-top: 0;
+}
+.changes--split .sitting__dochead,
+.changes--split .sitting__versions,
+.changes--split .sitting__actions {
+  padding-left: 0;
+  padding-right: 0;
+}
+.changes--split .change__diff {
+  max-height: none;
+  overflow: visible;
+  border: 0;
+  padding: var(--s-4) 0;
+  background: none;
+}
+.changedetail__actions {
+  justify-content: flex-end;
+  padding: 0 14px var(--s-3);
+}
+.changes--split .changedetail__actions {
+  padding: var(--s-3) 0 0;
+}
+.changes__new {
+  color: var(--accent-text);
+}
+/* "3 of 7", and the presses either side. */
+.changesteps {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-left: auto;
+}
+.changesteps__count {
+  color: var(--ink-2);
+  font-size: var(--t-mini);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .changes--empty {
   display: flex;
   padding: 0;
@@ -131,8 +307,84 @@
     background: var(--cream);
   }
 }
+/* Whose changes, which document, and Newer / Older: the timeline's controls,
+   above it, so stepping never needs the list in view. */
+.changes__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+.changes__spacer {
+  flex: 1;
+}
+.changes__day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+/* The writer's own sitting reads as theirs: the accent, where an outside
+   change is the neutral capsule. */
+.sitting__who {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.sitting__titles {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sitting__doc {
+  border-top: 0.5px solid var(--rule);
+}
+.sitting__dochead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-4);
+  padding: var(--s-4) 14px 0 32px;
+  font-size: var(--t-small);
+}
+.sitting__doctitle {
+  font-weight: 600;
+}
+.sitting__scenes {
+  color: var(--ink-2);
+  font-size: var(--t-mini);
+}
+.sitting__versions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  padding: var(--s-3) 14px var(--s-4) 32px;
+}
+.sitting__version {
+  border: 0.5px solid var(--rule);
+  border-radius: var(--r-chip);
+  background: var(--paper);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--t-mini);
+  font-variant-numeric: tabular-nums;
+  padding: 2px var(--s-3);
+  cursor: pointer;
+}
+.sitting__version[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent-softer);
+  color: var(--accent-text);
+}
+.sitting__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s-3);
+  padding: var(--s-4) 14px;
+}
+/* The text green, not the card hue: moss on the dark diff tint read 4.4:1. */
 .diffline--add {
-  color: var(--moss);
+  color: var(--ok-text);
 }
 .diffline--del {
   color: var(--bad);
@@ -142,46 +394,191 @@
   font-style: italic;
 }
 
-/* A scene something arrived in from outside the app. The
-   Changes surface holds the diff; these say WHERE, so a change reads as
-   located in the play rather than filed in a list. */
-.card.is-changed {
-  box-shadow: inset 3px 0 0 var(--warn-border);
-}
-.card__changed,
-.outliner__changed {
-  padding: 0 0.3rem;
-  border-radius: 2px;
-  background: var(--warn-tint);
-  color: var(--warn-text);
-  font-size: var(--t-label);
-  letter-spacing: 0.03em;
-}
-.outliner__changed {
-  margin-left: 0.35rem;
-}
-.outliner__row.is-changed {
-  box-shadow: inset 3px 0 0 var(--warn-border);
-}
-
-/* Inline tracked changes ---------------------------- */
-/* A view layer only: these marks are ProseMirror decorations derived from the
-   ledger's diff. Nothing here is in the document, so turning the layer off
-   leaves the play byte-identical. */
-.tracked-added {
-  background: color-mix(in srgb, var(--moss) 16%, transparent);
-  box-shadow: inset 2px 0 0 var(--moss);
-}
-.tracked__removed {
-  margin: 0.1rem 0;
-  padding-left: 0.4rem;
-  box-shadow: inset 2px 0 0 var(--oxide);
+/* The redline ------------------------------------------- */
+/* The same marks on the Changes page and on the script being written
+   (live-redline.ts): a cut element there is drawn as itself, never typed in. */
+.play-page .pl[data-redline="del"][contenteditable="false"] {
   user-select: none;
 }
-.tracked__removedline {
-  display: block;
-  color: var(--oxide);
-  opacity: 0.75;
+/* A change read on the page: the text as it stands, cut words struck through
+   and added ones underlined where they are. Never told by colour alone: the
+   line through and the line under are the marks, and the rule in the margin
+   finds the changed lines for an eye running down the page. */
+.change__diff--page {
+  padding: var(--s-4) 14px;
+  /* A page reads in longer stretches than a list of lines. */
+  max-height: min(70vh, 44rem);
+  white-space: normal;
+}
+.redline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.redline__note {
+  font-family: var(--font-ui);
+}
+/* A line of the script wide and no taller: what the page is drawn against. */
+.redline__measure {
+  position: absolute;
+  visibility: hidden;
+  height: 0;
+  width: calc(
+    var(--fmt-page-width) -
+    var(--fmt-margin-left) -
+    var(--fmt-margin-right) +
+    2 *
+    var(--redline-edge)
+  );
+}
+/* The script's page with the sheet's margins left off: the text block, and
+   room at its left for the margin rule. Its type and columns are the format's
+   (the generated sheet's `.play-page` rules). */
+.redline {
+  /* A line of the script, each side: the same length whatever the font it is read in. */
+  --redline-edge: var(--fmt-line);
+}
+.redline__page.play-page {
+  box-sizing: content-box;
+  width: calc(var(--fmt-page-width) - var(--fmt-margin-left) - var(--fmt-margin-right));
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  padding: var(--fmt-line) var(--redline-edge);
+  overflow: visible;
+  box-shadow: none;
+  border: 0.5px solid var(--rule);
+}
+.redline__page .tiptap {
+  cursor: text;
+}
+/* Added and cut words. `ins` and `del` carry a line each by default; the
+   colours are the ones the counts above already use. */
+.redline-add {
+  color: var(--ok-text);
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
+}
+.redline-del {
+  color: var(--bad);
   text-decoration: line-through;
+}
+/* Cut words and the ones that took their place, told apart at a glance: on
+   the Changes page they are neighbours, on the script the cut words stand in
+   a span of their own (live-redline.ts). */
+.redline-del + .redline-add,
+.redline-cut + .redline-add {
+  margin-left: 0.5ch;
+}
+/* A rule in the left margin beside every element a change touched. It stands
+   at one place down the page: each element's column starts `--redline-in`
+   from the text block's edge (set from the format, RedlineScript.tsx), so the
+   element is drawn that much further left with that much more padding, and a
+   border where its box now begins. Its words stay where the format put them,
+   on the measure the format gave them: the box is moved, never the column. */
+.play-page .pl[data-redline] {
+  --redline-out: calc(var(--redline-in, 0ch) + 1ch + 2px);
+  box-sizing: content-box;
+  position: relative;
+  left: calc(-1 * var(--redline-out));
+  margin-right: calc(-1 * var(--redline-out));
+  padding-left: calc(var(--redline-in, 0ch) + 1ch);
+  border-left: 2px solid var(--ink-2);
+}
+/* Floated beside something else (two speeches at once, a cue set beside its
+   line), an element's column is not the format's indent: the rule keeps to
+   the element. */
+.play-page .pl.pm-dual[data-redline],
+.play-page .pl.pm-beside[data-redline],
+.play-page .pl.pm-run-in[data-redline] {
+  --redline-in: 0ch;
+}
+/* An element with no words of its own to mark (a page break, a boneyard)
+   says what happened to it as a whole. */
+.play-page .pl-pageBreak[data-redline="del"],
+.play-page .pl-boneyard[data-redline="del"] {
+  color: var(--bad);
+  text-decoration: line-through;
+}
+.play-page .pl-pageBreak[data-redline="add"],
+.play-page .pl-boneyard[data-redline="add"] {
+  color: var(--ok-text);
+}
+/* Where unchanged lines were left out. */
+.redline-skip {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  margin: var(--s-3) 0;
+  color: var(--ash);
+  font-family: var(--font-ui);
+  font-size: var(--t-mini);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  text-decoration: none;
+  user-select: none;
+  clear: both;
+}
+.redline-skip::after {
+  content: "";
+  flex: 1;
+  border-top: 0.5px dashed var(--rule);
+  transform: translateY(-0.3em);
+}
+/* Any other text: a note, an outline. Its lines as written. */
+.redline--text {
+  gap: 0;
+  font-family: var(--font-script);
+  font-size: var(--t-small);
+  line-height: 1.5;
+}
+.redline-line {
+  margin: 0;
+  padding-left: var(--s-4);
   white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.redline-line[data-redline] {
+  box-shadow: inset 2px 0 0 var(--ink-2);
+}
+
+/* A document's page (src/app/RedlineDocument.tsx): the sheet it is written
+   on, the play's page width and margins, only as tall as what is shown. */
+.redline__measure--page {
+  width: var(--fmt-page-width);
+}
+.redline__doc.material__page {
+  min-height: 0;
+}
+.redline__doc .prose {
+  cursor: text;
+}
+/* The rule in the margin beside every element a change touched, at one place
+   down the page however deep a list item stands: each list is indented 1.4rem
+   (materials.css), so a nested item's rule reaches back past its indents. On
+   `::after`, since a list item's marker is its `::before`. */
+.redline__doc [data-redline] {
+  position: relative;
+}
+.redline__doc [data-redline]::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1rem;
+  border-left: 2px solid var(--ink-2);
+}
+.redline__doc li > [data-redline]::after {
+  left: -2.4rem;
+}
+.redline__doc li li > [data-redline]::after {
+  left: -3.8rem;
+}
+.redline__doc li li li > [data-redline]::after {
+  left: -5.2rem;
 }

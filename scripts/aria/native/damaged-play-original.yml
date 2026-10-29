@@ -1,0 +1,9 @@
+- dialog "The Lighthouse"
+  - heading "The Lighthouse" [level=2]
+  - paragraph
+  - textbox "Original play file" [readonly]
+  - button "Show in Folder"
+  - button "Close"
+  - button "Try Again"
+  - status [live=polite]
+  - alert [live=assertive]

@@ -10,6 +10,7 @@
  * document is typed blocks and the cue above a speech is known, that scope is a
  * dropdown rather than a project.
  */
+import { keys } from "../ui/keys";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import type { FindScope, FindStorage } from "./find";
@@ -163,7 +164,7 @@ export function FindBar({ editor }: { editor: Editor }) {
             className="findbar__step"
             onClick={() => editor.commands.stepFind(-1)}
             disabled={find.total === 0}
-            title="Previous match (⇧⏎)"
+            title={`Previous match (${keys("⇧⏎")})`}
             aria-label="Previous match"
           >
             <ChevronLeftIcon size={10} />
@@ -172,7 +173,7 @@ export function FindBar({ editor }: { editor: Editor }) {
             className="findbar__step"
             onClick={() => editor.commands.stepFind(1)}
             disabled={find.total === 0}
-            title="Next match (⏎)"
+            title={`Next match (${keys("⏎")})`}
             aria-label="Next match"
           >
             <ChevronRightIcon size={10} />
@@ -217,7 +218,7 @@ export function FindBar({ editor }: { editor: Editor }) {
         <button
           className={`findbar__toggle${find.replaceOpen ? " is-on" : ""}`}
           onClick={() => editor.commands.openFind(!find.replaceOpen ? true : false)}
-          title="Replace (⌘⌥F)"
+          title={`Replace (${keys("⌘⌥F")})`}
           aria-pressed={find.replaceOpen}
         >
           Replace…

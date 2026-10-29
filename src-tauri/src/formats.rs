@@ -194,7 +194,8 @@ pub async fn export_format_file(
     let Some(path) = picked.and_then(|p| p.into_path().ok()) else {
         return Ok(None);
     };
-    crate::store::write_atomic(&path, content.as_bytes()).map_err(|e| e.to_string())?;
+    // Only the file the panel named: under the sandbox that is all it grants.
+    crate::vault::write_granted(&path, content.as_bytes()).map_err(|e| e.to_string())?;
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 

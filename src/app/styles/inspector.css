@@ -65,11 +65,6 @@
   flex-direction: column;
   gap: var(--s-3);
 }
-.insp__pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--s-5);
-}
 /* The label says which FILE the field writes — the one thing about these two
    rows that was never visible anywhere. */
 .insp__where {

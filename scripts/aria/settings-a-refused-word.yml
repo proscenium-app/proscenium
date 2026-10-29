@@ -11,7 +11,7 @@
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
@@ -42,14 +42,8 @@
   - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "The Weight of Water":
-      - button "The Weight of Water"
-      - button "Close The Weight of Water"
-    - listitem "Outline":
-      - button "Outline"
   - button "Add a surface to this pane"
   - 'button "What this line is: Action"': Action
-  - text: Tab cycles · ; menu
   - button "Bold": ⌘B
   - button "Italic": ⌘I
   - button "Underline": ⌘U
@@ -60,6 +54,30 @@
   - text: Page 2 of 2
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage MARA 3 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The synopsis is part of the script. The rest is card metadata.
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: <save status>
@@ -86,6 +104,10 @@
     - text: Show scene navigation strip
     - switch "Show scene navigation strip" [checked]
     - paragraph: Each scene appears at the bottom of the script, sized by its length in pages. Click one to go to that scene.
+    - heading "Comments" [level=4]
+    - text: Your name
+    - textbox "Your name"
+    - paragraph: Signs the comments and replies you add, so a reader can tell them from someone else’s. The name is written into the script with each one.
     - heading "Spelling" [level=4]
     - text: Check spelling as you type
     - switch "Check spelling as you type" [checked]
@@ -100,32 +122,6 @@
       - listitem:
         - text: Smokewordle
         - button "Remove “Smokewordle”"
-    - heading "Scene statuses" [level=4]
-    - paragraph: Offered for scenes in Board, Outline and the Inspector, in this order. Renaming or deleting a status doesn’t change scenes that already have it.
-    - list "Statuses, in order":
-      - listitem:
-        - 'textbox "Status 1 of 4: idea"'
-        - button "Move “idea” up" [disabled]
-        - button "Move “idea” down"
-        - button "Delete “idea”"
-      - listitem:
-        - 'textbox "Status 2 of 4: drafting"'
-        - button "Move “drafting” up"
-        - button "Move “drafting” down"
-        - button "Delete “drafting”"
-      - listitem:
-        - 'textbox "Status 3 of 4: revising"'
-        - button "Move “revising” up"
-        - button "Move “revising” down"
-        - button "Delete “revising”"
-      - listitem:
-        - 'textbox "Status 4 of 4: ready for reading"'
-        - button "Move “ready for reading” up"
-        - button "Move “ready for reading” down" [disabled]
-        - button "Delete “ready for reading”"
-    - textbox "New status"
-    - button "Add Status" [disabled]
-    - paragraph
   - text: Settings are saved on this Mac, not in your plays.
   - button "Done"
   - status

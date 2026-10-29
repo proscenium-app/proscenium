@@ -40,6 +40,20 @@ export type Task =
   | "export-opening"
   | "export-preview";
 export type Area = "script" | "corkboard" | "outliner" | "cast" | "document" | "export";
+/**
+ * The lessons' stable ids, in course order. Usage counts name a lesson and a
+ * step only by these and by `Task` (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-95),
+ * so a test holds both lists to the service's (services/edge/events.json).
+ */
+export const LESSON_IDS = [
+  "first-exchange",
+  "format",
+  "scene-cards",
+  "characters",
+  "files",
+  "export",
+] as const;
+export type LessonId = (typeof LESSON_IDS)[number];
 
 export interface Step {
   id: Task;
@@ -57,7 +71,7 @@ export interface Step {
   carries?: boolean;
 }
 export interface Lesson {
-  id: string;
+  id: LessonId;
   revision: number;
   title: string;
   outcome: string;
@@ -67,19 +81,33 @@ export interface Lesson {
   needsExchange?: boolean;
 }
 
-/** The practice play every lesson writes, as it is before the first lesson. */
-export const COURSE_SEED = "Title: Practice Play\n\n## SCENE 1\n\n";
-/** Bundled teaching text: what the first lesson suggests, and what a later lesson supplies when opened first. */
+/**
+ * The practice play every lesson writes, as it is before the first lesson. Its
+ * title page says where the suggested lines come from.
+ */
+export const COURSE_SEED =
+  "Title: Practice Play\nSource: Lines from Hay Fever, by Noël Coward\n\n## SCENE 1\n\n";
+/**
+ * Bundled teaching text: what the first lesson suggests, and what a later
+ * lesson supplies when opened first. The exchange is the opening of Noël
+ * Coward's Hay Fever (1925, public domain in the United States), in his words
+ * and his order: Sorel's speech is split at its two sentences, so the Line
+ * Break step continues it with the second. The rest is the play's own: Judith,
+ * its lead; its setting as he wrote it; the barometer Sorel says her mother
+ * tapped that morning.
+ */
 export const EXAMPLE = {
-  first: "MARA",
-  line: "You're early.",
-  second: "IVO",
-  reply: "I was hoping you wouldn't notice.",
-  more: "Come in.",
-  summary: "A friend arrives earlier than expected.",
-  character: "ROWAN",
-  notes: "A quiet room. Early morning. Rain at the window.",
-  note: "Remember the sound of the rain.",
+  first: "SOREL",
+  line: "I wish she hadn't sent me the beastly book.",
+  second: "SIMON",
+  reply: "The binding's very dashing.",
+  more: "I must say something nice about it.",
+  summary: "The guests arrive for the weekend.",
+  /** Show Me's line on the printed Characters page. */
+  castNote: "The Blisses, and the guests they asked for the weekend.",
+  character: "JUDITH",
+  notes: "The hall of the Blisses' house at Cookham, in June.",
+  note: "Keep the barometer where Judith can tap it.",
   tag: "rehearsal",
   name: "Rehearsal Notes",
 } as const;
@@ -197,7 +225,7 @@ export const LESSONS: Lesson[] = [
         "summary",
         "Describe a scene",
         "corkboard",
-        "A summary says what happens. It is for you and is not printed. Details on the card holds separate notes and a label.",
+        "A summary says what happens. It is for you and is not printed. Notes on the card hold anything else you want to remember about it.",
       ),
       step(
         "move-scene",

@@ -1,0 +1,28 @@
+- banner
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main
+  - sectionheader
+    - heading "dev" [level=1]
+    - none
+      - textbox "Search plays"
+    - button "New Play" [haspopup]
+    - button "Import a Draft…"
+  - sectionheader
+    - heading "Plays" [level=2]
+    - group "Your plays look like they are in “<plays folder name>” and “elsewhere” inside this folder."
+      - paragraph
+      - button "Use “<plays folder name>”"
+      - button "Use “elsewhere”"
+      - button "Keep This Folder"
+    - paragraph
+  - table "Plays"
+    - row
+      - columnheader
+      - columnheader
+      - columnheader
+      - columnheader
+- contentinfo
+  - button "/dev"
+- status [live=polite]
+- alert [live=assertive]

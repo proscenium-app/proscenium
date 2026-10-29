@@ -248,6 +248,25 @@ pub fn setup(app: &AppHandle) {
         // would say so.
         eprintln!("quit: the app delegate already answers applicationShouldTerminate:");
     }
+    #[cfg(windows)]
+    win::install(app);
+}
+
+/// A quit asked by a check, in a test build: the page is asked as ⌘Q asks it,
+/// and the answer is the check's to read; the app is never ended by it
+/// (selftest_fixture.rs). Ask(id) when a question went out.
+#[cfg(feature = "selftest")]
+pub fn request_for_check(app: &AppHandle) -> Request {
+    // Taken as the check's before the page can answer it.
+    let next = gate().last + 1;
+    crate::selftest_fixture::quit_asked(next);
+    request(app)
+}
+
+/// The gate as a fresh launch has it: a test build's, between a check's quits.
+#[cfg(feature = "selftest")]
+pub fn reset_for_check() {
+    *gate() = Gate::new();
 }
 
 /// A quit was asked for, from anywhere: ask the page, or say to quit now.
@@ -270,7 +289,9 @@ fn watch(app: AppHandle, id: u64) {
             Verdict::Confirm => {
                 #[cfg(target_os = "macos")]
                 appkit::confirm(id);
-                #[cfg(not(target_os = "macos"))]
+                #[cfg(windows)]
+                win::confirm(&app, id);
+                #[cfg(not(any(target_os = "macos", windows)))]
                 {
                     gate().confirmed(id, false);
                     finish(&app, false);
@@ -280,6 +301,11 @@ fn watch(app: AppHandle, id: u64) {
             Verdict::Wait => continue,
             Verdict::Done => break,
             Verdict::Quit | Verdict::Stay => {
+                #[cfg(feature = "selftest")]
+                if crate::selftest_fixture::quit_answered(id, verdict == Verdict::Quit) {
+                    gate().stage = Stage::Idle;
+                    break;
+                }
                 finish(&app, verdict == Verdict::Quit);
                 break;
             }
@@ -297,6 +323,11 @@ fn finish(_app: &AppHandle, go: bool) {
 fn finish(app: &AppHandle, go: bool) {
     if go {
         app.exit(0);
+    } else {
+        // A sign-out or shutdown this held is let go of: the writer chose
+        // to stay, or the page is still putting words somewhere.
+        #[cfg(windows)]
+        win::release();
     }
 }
 
@@ -322,6 +353,8 @@ pub fn close_requested(app: &AppHandle) {
 #[tauri::command]
 pub fn quit_heard(id: u64) {
     gate().heard(id);
+    #[cfg(feature = "selftest")]
+    crate::selftest_fixture::quit_heard(id);
 }
 
 /// The page settled question `id`: `go` when every word is on disk or kept.
@@ -329,6 +362,12 @@ pub fn quit_heard(id: u64) {
 pub fn quit_settled(app: AppHandle, id: u64, go: bool) {
     let verdict = gate().answered(id, go);
     if matches!(verdict, Verdict::Quit | Verdict::Stay) {
+        // A check's question is answered to the check, and the app stays.
+        #[cfg(feature = "selftest")]
+        if crate::selftest_fixture::quit_answered(id, go) {
+            gate().stage = Stage::Idle;
+            return;
+        }
         finish(&app, go);
     }
 }
@@ -337,6 +376,13 @@ pub fn quit_settled(app: AppHandle, id: u64, go: bool) {
 /// when it answered have since been kept: quit now, asking nothing.
 #[tauri::command]
 pub fn quit_now(app: AppHandle) {
+    // Quit Anyway after a check's question: the check reads that the app
+    // would be gone, and it stays.
+    #[cfg(feature = "selftest")]
+    if crate::selftest_fixture::quit_now_for_check() {
+        gate().stage = Stage::Idle;
+        return;
+    }
     if gate().leave() {
         finish(&app, true);
         return;
@@ -348,6 +394,120 @@ pub fn quit_now(app: AppHandle) {
     }
     #[cfg(not(target_os = "macos"))]
     app.exit(0);
+}
+
+/// Windows' side: a sign-out or shutdown is a quit too, asked the same
+/// question; and a page that never answers asks the writer, as a Mac's alert
+/// does.
+///
+/// Windows asks every top-level window whether the session may end
+/// (`WM_QUERYENDSESSION`) and ends it when each says yes. The window says not
+/// yet, with its reason, while the page keeps its words, and the app exits
+/// when the page says so, which lets the session end. A writer who chooses
+/// to end it anyway from Windows' own screen is never stopped.
+#[cfg(windows)]
+mod win {
+    use std::sync::atomic::{AtomicIsize, Ordering};
+
+    use tauri::{AppHandle, Manager};
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows_sys::Win32::System::Shutdown::{
+        ShutdownBlockReasonCreate, ShutdownBlockReasonDestroy,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CallWindowProcW, MessageBoxW, SetWindowLongPtrW, GWLP_WNDPROC, IDYES, MB_DEFBUTTON2,
+        MB_ICONWARNING, MB_YESNO, WM_QUERYENDSESSION, WNDPROC,
+    };
+
+    use super::{gate, request, Request, Stage, Verdict};
+
+    /// The main window, and the window procedure it had before this one.
+    static WINDOW: AtomicIsize = AtomicIsize::new(0);
+    static PREVIOUS: AtomicIsize = AtomicIsize::new(0);
+
+    fn wide(text: &str) -> Vec<u16> {
+        text.encode_utf16().chain(Some(0)).collect()
+    }
+
+    fn main_window(app: &AppHandle) -> HWND {
+        app.get_webview_window("main")
+            .and_then(|w| w.hwnd().ok())
+            .map_or(std::ptr::null_mut(), |h| h.0)
+    }
+
+    /// From setup, once the main window exists: hear Windows ask.
+    pub fn install(app: &AppHandle) {
+        let hwnd = main_window(app);
+        if hwnd.is_null() {
+            eprintln!("quit: no main window to hear a sign-out or shutdown");
+            return;
+        }
+        WINDOW.store(hwnd as isize, Ordering::SeqCst);
+        // SAFETY: the window is this thread's, and the procedure below hands
+        // every message but one to the procedure it replaces.
+        let previous =
+            unsafe { SetWindowLongPtrW(hwnd, GWLP_WNDPROC, procedure as *const () as isize) };
+        PREVIOUS.store(previous, Ordering::SeqCst);
+    }
+
+    unsafe extern "system" fn procedure(
+        hwnd: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if message == WM_QUERYENDSESSION {
+            if let Some(app) = super::APP.get() {
+                if request(app) != Request::Quit {
+                    let reason = wide("Proscenium is keeping your words.");
+                    // SAFETY: this window, and a terminated string Windows copies.
+                    unsafe { ShutdownBlockReasonCreate(hwnd, reason.as_ptr()) };
+                    return 0;
+                }
+            }
+            return 1;
+        }
+        // SAFETY: what SetWindowLongPtrW returned for this window.
+        let previous: WNDPROC = unsafe { std::mem::transmute(PREVIOUS.load(Ordering::SeqCst)) };
+        unsafe { CallWindowProcW(previous, hwnd, message, wparam, lparam) }
+    }
+
+    /// Let a held sign-out or shutdown go on: the quit was called off.
+    pub fn release() {
+        let hwnd = WINDOW.load(Ordering::SeqCst) as HWND;
+        if !hwnd.is_null() {
+            // SAFETY: the main window; no reason is not an error worth saying.
+            unsafe { ShutdownBlockReasonDestroy(hwnd) };
+        }
+    }
+
+    /// A quit the page never answered asks the writer, on the main thread,
+    /// in front of the window. No is the default; only Yes discards.
+    pub fn confirm(app: &AppHandle, id: u64) {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if gate().stage != (Stage::Confirming { id }) {
+                return;
+            }
+            let text =
+                wide("Proscenium couldn't confirm your latest words were saved.\n\nQuit anyway?");
+            let title = wide("Proscenium");
+            // SAFETY: terminated strings, and the main window or none.
+            let answer = unsafe {
+                MessageBoxW(
+                    main_window(&handle),
+                    text.as_ptr(),
+                    title.as_ptr(),
+                    MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2,
+                )
+            };
+            let go = answer == IDYES;
+            let verdict = gate().confirmed(id, go);
+            if matches!(verdict, Verdict::Quit | Verdict::Stay) {
+                super::finish(&handle, go);
+            }
+        });
+    }
 }
 
 /// AppKit's side: `applicationShouldTerminate:` on tao's app delegate, and the

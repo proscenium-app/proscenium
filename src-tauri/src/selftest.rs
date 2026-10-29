@@ -40,27 +40,47 @@ use tauri::{Runtime, Theme, WebviewWindow};
 /// sample-vault/, embedded at build time (build.rs).
 const VAULT: &[(&str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/selftest_vault.rs"));
 
+/// sample-outside/, the files a check opens from outside the Plays folder: laid
+/// beside each launch's Plays folder as the in-memory vault has them, in "/dev".
+const OUTSIDE: &[(&str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/selftest_outside.rs"));
+
 /// scripts/selftest/harness.mjs, bundled by scripts/build-app.mjs --selftest.
 const HARNESS: &str = include_str!(env!("PROSCENIUM_SELFTEST_HARNESS"));
 
 /// Smoke runs every check in both schemes; so does this.
 const PASSES: [(&str, Theme); 2] = [("light", Theme::Light), ("dark", Theme::Dark)];
 
-/// Long enough for the slowest runner to do both passes, short enough that a
-/// page that never loads fails in minutes rather than at the job's timeout.
-const DEFAULT_TIMEOUT_SECS: u64 = 420;
+/// How long an act may go without reporting back: long enough for the slowest
+/// act on a loaded runner, short enough that a page that never loads fails in
+/// minutes rather than at the job's timeout, however many acts a pass runs.
+const DEFAULT_TIMEOUT_SECS: u64 = 300;
 
 struct Run {
     report: PathBuf,
     shots: PathBuf,
+    /// Where each launch's Plays folder and the files beside it are laid out:
+    /// the scratch folder, or under the App Sandbox a folder of the driver's
+    /// outside the container, which only a grant opens (selftest_sandbox.rs).
     root: PathBuf,
+    /// This process's own temporary folder, which holds `home`.
+    scratch: PathBuf,
     home: PathBuf,
+    /// What the sandbox did, when there is one.
+    sandbox: crate::selftest_sandbox::Facts,
     brk: Option<String>,
     /// Only the checks whose names contain this (`selftest.mjs --only`).
     only: Option<String>,
     /// The features a narrowed run keeps (`selftest.mjs --features`, the
-    /// pipeline's plan): smoke-checks.mjs's `selected` decides which checks run.
+    /// pipeline's plan), for the report: the acts below are what it chose.
     features: Option<String>,
+    /// The acts each pass runs, in order (scripts/smoke-checks.mjs ACTS,
+    /// `selftest.mjs --acts`): one per page load, each from a fresh first launch.
+    acts: Vec<String>,
+    /// Whether an act with a failing check runs once more from its start.
+    retry: bool,
+    /// Surfaces whose tree a commit declared changed (`ARIA:` trailers): their
+    /// WebKit trees are recorded on first read, not held.
+    aria: Vec<String>,
     started: Instant,
     state: Mutex<State>,
 }
@@ -79,9 +99,22 @@ struct State {
     carried_console: Vec<Value>,
     carried_advisories: serde_json::Map<String, Value>,
     finished: bool,
+    /// The act running, by its place in `Run::acts`, and which try of it (0 is the first).
+    act: usize,
+    retried: bool,
+    /// Fresh first launches so far: each gets a vault of its own.
+    resets: usize,
+    /// When the running act began (none: the run's start), for the watchdog.
+    act_began: Option<Instant>,
 }
 
+pub use crate::selftest_sandbox::{grant, write_outside};
+
 static RUN: OnceLock<Run> = OnceLock::new();
+
+/// Where the app's own data resolved (`app_config_dir`), for the report: inside
+/// the container under the App Sandbox (docs/app/keeping-work/storage-and-file-format.md#STOR-142).
+static APP_DATA: OnceLock<PathBuf> = OnceLock::new();
 
 /// The test window's number, for captures made off the main thread.
 static WINDOW_NUMBER: OnceLock<isize> = OnceLock::new();
@@ -115,16 +148,34 @@ pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
     if begin_proof() {
         return proof_plugin(builder);
     }
+    if begin_reopen() {
+        return behind_the_lock(builder.js_init_script(REOPEN_SCRIPT))
+            .setup(|_app, _api| {
+                reopen_watchdog();
+                Ok(())
+            })
+            .build();
+    }
     if !begin() {
         return builder.build();
     }
+    let builder = builder.js_init_script(HARNESS).setup(|app, _api| {
+        use tauri::Manager;
+        if let Ok(dir) = app.path().app_config_dir() {
+            let _ = APP_DATA.set(dir);
+        }
+        start_watchdog();
+        native::report_synthesized_buttons();
+        Ok(())
+    });
+    behind_the_lock(builder).build()
+}
+
+/// What every self-test launch needs behind the build host's locked screen:
+/// a page that keeps drawing and running its timers, and a window that stands
+/// in as key, the light scheme first.
+fn behind_the_lock<R: Runtime>(builder: PluginBuilder<R>) -> PluginBuilder<R> {
     builder
-        .js_init_script(HARNESS)
-        .setup(|_app, _api| {
-            start_watchdog();
-            native::report_synthesized_buttons();
-            Ok(())
-        })
         // Before the page runs a line: a check that starts while the screen is
         // locked must already be drawing.
         .on_webview_ready(|webview| {
@@ -151,7 +202,6 @@ pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
                 let _ = window.set_focus();
             }
         })
-        .build()
 }
 
 // --- the update proof ---------------------------------------------------------
@@ -163,18 +213,32 @@ const PROOF_DRIVE: &str = include_str!("../../scripts/update-proof/drive.js");
 /// from, started with `PROSCENIUM_UPDATE_PROOF=<log>` by the build host's proof
 /// script, which checks what the copy comes back as once the update is done. Unlike a self-test, its updater asks the real
 /// update service, which is the point, and the home it runs in is the one it
-/// was given, with the scratch play the script put there.
+/// was given, with the scratch play the script put there. An update-proof
+/// build may be given a stand-in of the service instead
+/// (`PROSCENIUM_UPDATE_PROOF_ORIGIN`, telemetry/allowlist.rs `proof`), which
+/// it then asks alone.
 struct Proof {
     log: PathBuf,
     line: String,
     started: Instant,
+    /// The stand-in's origin, when the proof asks one rather than the real service.
+    #[cfg(feature = "update-proof")]
+    origin: Option<reqwest::Url>,
 }
 
 static PROOF: OnceLock<Proof> = OnceLock::new();
 
 /// Whether this process is the update proof, whose updater asks the real service.
+/// A store build has no updater to ask (docs/engineering/release-engineering.md#REL-56).
+#[cfg_attr(not(feature = "updater"), allow(dead_code))]
 pub fn proving_update() -> bool {
     PROOF.get().is_some()
+}
+
+/// The stand-in an update proof asks, given at launch; none, for the real service.
+#[cfg(feature = "update-proof")]
+pub fn proof_origin() -> Option<&'static reqwest::Url> {
+    PROOF.get().and_then(|proof| proof.origin.as_ref())
 }
 
 fn begin_proof() -> bool {
@@ -190,10 +254,33 @@ fn begin_proof() -> bool {
         eprintln!("[update-proof] PROSCENIUM_UPDATE_PROOF_LINE must be letters, digits, spaces and hyphens");
         std::process::exit(2);
     }
+    // A stand-in's origin, or nothing: one that is not a loopback address and
+    // a port ends the run rather than be ignored, since the proof would then
+    // ask the real service.
+    #[cfg(feature = "update-proof")]
+    let origin = {
+        use crate::telemetry::allowlist::proof;
+        match std::env::var(proof::ORIGIN_VAR) {
+            Ok(given) if !given.is_empty() => match proof::loopback_origin(&given) {
+                Some(origin) => Some(origin),
+                None => {
+                    eprintln!(
+                        "[update-proof] {} must be {}",
+                        proof::ORIGIN_VAR,
+                        proof::SHAPE
+                    );
+                    std::process::exit(2);
+                }
+            },
+            _ => None,
+        }
+    };
     let _ = PROOF.set(Proof {
         log,
         line,
         started: Instant::now(),
+        #[cfg(feature = "update-proof")]
+        origin,
     });
     proof_say(&format!(
         "v{} {} · macOS {} · HOME {}",
@@ -203,6 +290,37 @@ fn begin_proof() -> bool {
         std::env::var("HOME").unwrap_or_default()
     ));
     true
+}
+
+/// The app's configuration, for a proof that asks a stand-in: the updater's one
+/// address is the stand-in's (telemetry/allowlist.rs `proof::point_updater`),
+/// and nothing else changes, the key an update is verified with least of all,
+/// so the stand-in serves the release's own signed archive. Called before the
+/// app is built, since the plugin reads its configuration once, as it starts.
+#[cfg(feature = "update-proof")]
+pub fn proof_context<R: Runtime>(mut context: tauri::Context<R>) -> tauri::Context<R> {
+    let Some(origin) = proof_origin() else {
+        return context;
+    };
+    match context
+        .config_mut()
+        .plugins
+        .0
+        .get_mut("updater")
+        .and_then(Value::as_object_mut)
+    {
+        Some(updater) => {
+            let endpoint = crate::telemetry::allowlist::proof::point_updater(updater, origin);
+            proof_say(&format!(
+                "the updater asks a stand-in of the service: {endpoint}"
+            ));
+        }
+        None => {
+            proof_say("FAILED: this build has no updater configuration to point at the stand-in");
+            std::process::exit(2);
+        }
+    }
+    context
 }
 
 /// One line of the proof's log, which the script reads after this process is gone.
@@ -261,6 +379,192 @@ pub fn selftest_proof_log(line: String) -> Result<(), String> {
     Ok(())
 }
 
+/// The relaunch proof, under the App Sandbox: a second process, given the
+/// home a first one left (`PROSCENIUM_SELFTEST_REOPEN`), reopens the Plays
+/// folder that first launch picked with nothing but the security-scoped
+/// bookmark it stored (docs/app/keeping-work/storage-and-file-format.md#STOR-D12).
+/// The folder panel's grant ended with that process: before anything
+/// resolves, the folder must be refused, and once the page has asked the app
+/// to reopen its last folder, as every launch does, it must be listed.
+struct Reopen {
+    report: PathBuf,
+    /// The Plays folder settings.json remembers.
+    last: Option<String>,
+    /// Whether a bookmark is stored beside it.
+    bookmark: bool,
+    /// What listing the folder said before anything resolved the bookmark.
+    before: Option<String>,
+    started: Instant,
+}
+
+static REOPEN: OnceLock<Reopen> = OnceLock::new();
+
+/// In the page: ask what every launch asks, wait until the app is no longer
+/// on its first screens, and hand both to `selftest_reopened`.
+const REOPEN_SCRIPT: &str = r#"
+(() => {
+  if (window.top !== window) return;
+  const invoke = (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args);
+  const log = (line) => invoke("selftest_log", { line }).catch(() => {});
+  const settle = async () => {
+    for (let i = 0; i < 100 && !window.__TAURI_INTERNALS__; i++) await new Promise((r) => setTimeout(r, 100));
+    log("the relaunched page asks for its last Plays folder");
+    let grant = null, error = null;
+    try { grant = await invoke("vault_reopen_last"); } catch (e) { error = String(e); }
+    log(`it answered ${grant ? grant.path : `nothing (${error})`}`);
+    // The Welcome screen asks where plays live: a launch that reopened its
+    // folder never shows it once the launch screen has gone.
+    let text = "";
+    for (let i = 0; i < 100; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      text = document.body ? document.body.innerText : "";
+      if (text && !document.querySelector("[aria-busy='true']") && i > 20) break;
+    }
+    await invoke("selftest_reopened", { result: { grant, error, welcome: /Where should your plays live/.test(text), text: text.slice(0, 2000) } });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", settle, { once: true });
+  else settle();
+})();
+"#;
+
+fn begin_reopen() -> bool {
+    let Some(home) = std::env::var_os("PROSCENIUM_SELFTEST_REOPEN").map(PathBuf::from) else {
+        return false;
+    };
+    let Some(report) = std::env::var_os("PROSCENIUM_SELFTEST").map(PathBuf::from) else {
+        eprintln!("[selftest] PROSCENIUM_SELFTEST names no report for the relaunch proof");
+        std::process::exit(2);
+    };
+    if let Err(e) = crate::selftest_sandbox::consume_launch_grants() {
+        eprintln!("[selftest] the driver's grants did not take: {e}");
+        std::process::exit(2);
+    }
+    // settings.json as the first launch left it, read before the app reads it.
+    let settings = std::fs::read_dir(home.join("Library/Application Support"))
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path().join("settings.json"))
+        .find(|p| p.is_file())
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
+        .unwrap_or(Value::Null);
+    let last = settings["lastVault"].as_str().map(str::to_string);
+    let before = last.as_ref().map(|p| match std::fs::read_dir(p) {
+        Ok(_) => "listed".to_string(),
+        Err(e) => e.to_string(),
+    });
+    std::env::set_var("HOME", &home);
+    let _ = REOPEN.set(Reopen {
+        report,
+        bookmark: settings["lastVaultBookmark"].as_str().is_some(),
+        last,
+        before,
+        started: Instant::now(),
+    });
+    say("the relaunch proof: reopening the Plays folder the last launch picked");
+    true
+}
+
+/// A relaunch whose page never answers is a failure with a report, not a
+/// process killed in silence.
+fn reopen_watchdog() {
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_secs(120));
+        let _ = selftest_reopened(json!({ "silent": true }));
+    });
+}
+
+/// The page's answer in the relaunch proof: the report, and the end of it.
+#[tauri::command]
+pub fn selftest_reopened(result: Value) -> Result<(), String> {
+    let reopen = REOPEN.get().ok_or("no relaunch proof is running")?;
+    let after = reopen.last.as_ref().map(|p| match std::fs::read_dir(p) {
+        Ok(entries) => {
+            let mut names: Vec<String> = entries
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            json!({ "listed": names })
+        }
+        Err(e) => json!({ "error": e.to_string() }),
+    });
+    let reopened = result["grant"]["path"].as_str();
+    let same = match (reopened, reopen.last.as_deref()) {
+        (Some(a), Some(b)) => {
+            crate::long_path::canonical(Path::new(a)).ok()
+                == crate::long_path::canonical(Path::new(b)).ok()
+        }
+        _ => false,
+    };
+    let mut failures = Vec::new();
+    if result["silent"] == true {
+        failures.push("the relaunched page never answered, two minutes in".to_string());
+    }
+    if reopen.last.is_none() {
+        failures.push("the first launch remembered no Plays folder".to_string());
+    }
+    if !reopen.bookmark {
+        failures.push("the first launch stored no bookmark beside its Plays folder".to_string());
+    }
+    if !reopen
+        .before
+        .as_deref()
+        .is_some_and(|b| b.contains("not permitted"))
+    {
+        failures.push(format!(
+            "before its bookmark resolved, the Plays folder said {:?}, not that it was refused: nothing here proves the bookmark",
+            reopen.before
+        ));
+    }
+    if !same {
+        failures.push(format!(
+            "the launch reopened {reopened:?}, not the Plays folder {:?} ({})",
+            reopen.last,
+            result["error"].as_str().unwrap_or("no error")
+        ));
+    }
+    if !after.as_ref().is_some_and(|a| a.get("listed").is_some()) {
+        failures.push(format!(
+            "after it reopened, the Plays folder said {after:?}"
+        ));
+    }
+    if result["welcome"] == true {
+        failures.push("the relaunch showed the Welcome screen, asking for a folder again".into());
+    }
+    let ok = failures.is_empty();
+    let report = json!({
+        "ok": ok,
+        "failures": failures,
+        "lastVault": reopen.last,
+        "bookmark": reopen.bookmark,
+        "before": reopen.before,
+        "after": after,
+        "page": result,
+        "sandbox": crate::selftest_sandbox::report(
+            &crate::selftest_sandbox::Facts { container_home: None, refused: None },
+            None,
+            crate::scope::cloud_root(),
+        ),
+        "durationMs": reopen.started.elapsed().as_millis() as u64,
+    });
+    std::fs::write(
+        &reopen.report,
+        serde_json::to_string_pretty(&report).unwrap_or_default(),
+    )
+    .map_err(|e| e.to_string())?;
+    say(if ok {
+        "the relaunch proof: the bookmark reopened the Plays folder"
+    } else {
+        "the relaunch proof failed"
+    });
+    for f in &failures {
+        say(&format!("  {f}"));
+    }
+    std::process::exit(if ok { 0 } else { 1 })
+}
+
 /// Read the environment and prepare the run, before anything resolves a path.
 fn begin() -> bool {
     let Some(report) = std::env::var_os("PROSCENIUM_SELFTEST").map(PathBuf::from) else {
@@ -273,19 +577,41 @@ fn begin() -> bool {
             .map(|d| d.join(&report))
             .unwrap_or(report)
     };
+    // Under the App Sandbox, the run's evidence folder and the expected trees
+    // are the driver's to grant, before anything is read or written there.
+    if let Err(e) = crate::selftest_sandbox::consume_launch_grants() {
+        eprintln!("[selftest] the driver's grants did not take: {e}");
+        std::process::exit(2);
+    }
     let shots = report.parent().map(Path::to_path_buf).unwrap_or_default();
     let _ = std::fs::create_dir_all(&shots);
 
-    let root = std::env::temp_dir().join(format!("proscenium-selftest-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
-    let home = root.join("home");
+    // Inside the container when sandboxed: the sandbox points TMPDIR there.
+    let scratch = std::env::temp_dir().join(format!("proscenium-selftest-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&scratch);
+    let home = scratch.join("home");
     if let Err(e) = std::fs::create_dir_all(&home) {
         eprintln!("[selftest] cannot create {}: {e}", home.display());
         std::process::exit(2);
     }
+    let root = match std::env::var_os("PROSCENIUM_SELFTEST_WORLD") {
+        Some(world) if crate::selftest_sandbox::sandboxed() => PathBuf::from(world),
+        _ if crate::selftest_sandbox::sandboxed() => {
+            eprintln!("[selftest] sandboxed, and PROSCENIUM_SELFTEST_WORLD names no folder outside the container: scripts/selftest.mjs names it");
+            std::process::exit(2);
+        }
+        _ => scratch.clone(),
+    };
+    let sandbox = crate::selftest_sandbox::Facts {
+        container_home: crate::selftest_sandbox::sandboxed()
+            .then(|| std::env::var_os("HOME").map(PathBuf::from))
+            .flatten(),
+        refused: crate::selftest_sandbox::try_refused(&root),
+    };
     // Every per-user directory the app resolves — settings, the play stores,
-    // the debug log, Documents — now lives under an empty home. This runs
-    // before the Tauri builder exists, while the process has one thread.
+    // the debug log, Documents — now lives under an empty home: inside the
+    // container still, when sandboxed. This runs before the Tauri builder
+    // exists, while the process has one thread.
     std::env::set_var("HOME", &home);
 
     let brk = std::env::var("PROSCENIUM_SELFTEST_BREAK")
@@ -297,18 +623,39 @@ fn begin() -> bool {
     let features = std::env::var("PROSCENIUM_SELFTEST_FEATURES")
         .ok()
         .filter(|f| !f.is_empty());
+    // The acts, as JSON: names hold spaces, never a list separator.
+    let acts: Vec<String> = std::env::var("PROSCENIUM_SELFTEST_ACTS")
+        .ok()
+        .and_then(|a| serde_json::from_str(&a).ok())
+        .unwrap_or_default();
+    if acts.is_empty() {
+        eprintln!(
+            "[selftest] PROSCENIUM_SELFTEST_ACTS names no act: scripts/selftest.mjs names them"
+        );
+        std::process::exit(2);
+    }
+    let retry = std::env::var("PROSCENIUM_SELFTEST_RETRY").map_or(true, |r| r != "0");
+    let aria: Vec<String> = std::env::var("PROSCENIUM_SELFTEST_ARIA_DECLARED")
+        .ok()
+        .and_then(|a| serde_json::from_str(&a).ok())
+        .unwrap_or_default();
     let run = RUN.get_or_init(|| Run {
         report,
         shots,
         root,
+        scratch,
         home,
+        sandbox,
         brk,
         only,
         features,
+        acts,
+        retry,
+        aria,
         started: Instant::now(),
         state: Mutex::new(State::default()),
     });
-    if let Err(e) = copy_vault(&plays_dir(run, 0)) {
+    if let Err(e) = lay_world(run, &plays_dir(run, 0)) {
         eprintln!("[selftest] cannot copy the sample vault: {e}");
         std::process::exit(2);
     }
@@ -328,34 +675,93 @@ fn start_watchdog() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(DEFAULT_TIMEOUT_SECS);
-    std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(timeout));
-        let pass = run()
-            .map(|r| r.state.lock().unwrap_or_else(|p| p.into_inner()).pass)
-            .unwrap_or(0);
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(5));
+        let Ok(run) = run() else { return };
+        let (quiet, pass, act) = {
+            let state = run.state.lock().unwrap_or_else(|p| p.into_inner());
+            if state.finished {
+                return;
+            }
+            (
+                state.act_began.unwrap_or(run.started).elapsed(),
+                state.pass,
+                state.act,
+            )
+        };
+        if quiet < Duration::from_secs(timeout) {
+            continue;
+        }
         // The window only, never the whole screen: on a desktop the screen is
         // someone's other work.
-        if let (Ok(run), Some(number)) = (run(), WINDOW_NUMBER.get()) {
-            let _ = std::process::Command::new("/usr/sbin/screencapture")
-                .args(["-x", "-o", "-l", &number.to_string()])
-                .arg(run.shots.join("timeout.window.png"))
-                .status();
+        if let Some(number) = WINDOW_NUMBER.get() {
+            crate::selftest_sandbox::capture(*number, &run.shots.join("timeout.window.png"));
         }
         finish(Some(format!(
-            "timed out after {timeout}s in the {} pass — the page never reported back",
+            "timed out: the act {} reported nothing for {timeout}s in the {} pass — the page never reported back",
+            run.acts.get(act).map(String::as_str).unwrap_or("?"),
             PASSES.get(pass).map(|p| p.0).unwrap_or("last")
         )));
     });
 }
 
-/// Each pass gets its own copy of the vault, so a watcher still holding the
-/// last one never sees this one's files move.
-fn plays_dir(run: &Run, pass: usize) -> PathBuf {
-    run.root.join(format!("plays-{}", PASSES[pass].0))
+/// Each fresh first launch (a pass, an act, an act's second try) gets its own
+/// copy of the vault, so a watcher still holding the last one never sees this
+/// one's files move. It sits in a folder called `dev` with sample-outside/'s
+/// folders beside it, as the in-memory vault's Plays folder sits in "/dev"
+/// (selftest_fixture.rs reads one for the other).
+fn plays_dir(run: &Run, launch: usize) -> PathBuf {
+    run.root
+        .join(launch.to_string())
+        .join("dev")
+        .join(format!("plays-{launch}"))
 }
 
-fn copy_vault(dest: &Path) -> std::io::Result<()> {
-    for (rel, bytes) in VAULT {
+/// A fresh first launch, as smoke's fresh browser context is: no settings, no
+/// play stores, no remembered Plays folder, no local storage, and an untouched
+/// copy of the vault; then the page loads again.
+fn fresh_launch(run: &Run, window: &WebviewWindow, launch: usize) -> Result<(), String> {
+    run.state
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .act_began = Some(Instant::now());
+    // Whatever the last act left held or refused goes, as a reload clears
+    // the in-memory vault's gates.
+    crate::selftest_fixture::reset();
+    for dir in [run.home.join("Library"), run.home.join("Documents")] {
+        if dir.starts_with(&run.scratch) {
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+    lay_world(run, &plays_dir(run, launch))?;
+    window
+        .eval("try { localStorage.clear(); sessionStorage.clear(); } catch {} location.reload();")
+        .map_err(|e| e.to_string())
+}
+
+/// The Plays folder at `plays`, and sample-outside/'s folders beside it.
+/// Under the App Sandbox the app may not write there, as it may not write in
+/// a writer's Documents before they pick it: it writes them in its container
+/// once, and the driver copies them out.
+fn lay_world(run: &Run, plays: &Path) -> Result<(), String> {
+    let beside = plays.parent().unwrap_or(plays);
+    if !crate::selftest_sandbox::sandboxed() {
+        return write_files(plays, VAULT)
+            .and_then(|()| write_files(beside, OUTSIDE))
+            .map_err(|e| e.to_string());
+    }
+    let template = run.scratch.join("world");
+    if !template.exists() {
+        write_files(&template.join("plays"), VAULT)
+            .and_then(|()| write_files(&template.join("outside"), OUTSIDE))
+            .map_err(|e| e.to_string())?;
+    }
+    crate::selftest_sandbox::copy_dir(&template.join("plays"), plays)?;
+    crate::selftest_sandbox::copy_dir(&template.join("outside"), beside)
+}
+
+fn write_files(dest: &Path, files: &[(&str, &[u8])]) -> std::io::Result<()> {
+    for (rel, bytes) in files {
         let path = dest.join(rel);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -370,12 +776,27 @@ fn copy_vault(dest: &Path) -> std::io::Result<()> {
 /// after it — the bookmark, the stored path, the open — runs for real.
 pub fn picked_folder() -> Option<String> {
     let run = RUN.get()?;
-    let pass = run.state.lock().ok()?.pass;
-    Some(
-        plays_dir(run, pass.min(PASSES.len() - 1))
-            .to_string_lossy()
-            .to_string(),
-    )
+    let launch = run.state.lock().ok()?.resets;
+    Some(plays_dir(run, launch).to_string_lossy().to_string())
+}
+
+/// Where this run's exports go, for the checks' fixture (selftest_fixture.rs):
+/// beside the report, or under the App Sandbox in the driver's folder, outside
+/// every grant, where only the Save panel's grant of the one file lets an
+/// export in. The driver keeps them with the evidence after.
+pub fn exports_dir() -> Option<PathBuf> {
+    let run = RUN.get()?;
+    Some(if crate::selftest_sandbox::sandboxed() {
+        run.root.join("exports")
+    } else {
+        run.shots.join("exports")
+    })
+}
+
+/// The Plays folder this launch picked, for the checks' fixture
+/// (selftest_fixture.rs).
+pub fn plays_root() -> Option<PathBuf> {
+    picked_folder().map(PathBuf::from)
 }
 
 /// Where an export goes in a self-test: the save panel is the one thing that
@@ -383,26 +804,41 @@ pub fn picked_folder() -> Option<String> {
 /// the file on disk — runs for real (docs/engineering/release-engineering.md#REL-121).
 /// A folder of the run's own evidence, beside the report, so a CI run keeps
 /// what each slice wrote.
+///
+/// Under the App Sandbox the file is granted as the Save panel grants it: that
+/// one file, and not the folder it is in (docs/app/keeping-work/storage-and-file-format.md#STOR-187).
 pub fn export_destination(name: &str) -> Option<PathBuf> {
-    let run = RUN.get()?;
-    let dir = run.shots.join("exports");
-    std::fs::create_dir_all(&dir).ok()?;
-    let leaf = Path::new(name).file_name()?;
-    Some(dir.join(leaf))
+    let dir = exports_dir()?;
+    if !crate::selftest_sandbox::sandboxed() {
+        std::fs::create_dir_all(&dir).ok()?;
+    }
+    let target = dir.join(Path::new(name).file_name()?);
+    if let Err(e) = crate::selftest_sandbox::grant(&target, true, "the Save panel") {
+        say(&format!("export: {e}"));
+        return None;
+    }
+    EXPORTS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .push(target.clone());
+    Some(target)
 }
+
+/// Every file an export was sent to, in order. Read back by name: the folder
+/// they are in is not the app's to list under the sandbox.
+static EXPORTS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
 /// The file the last export wrote, by name and base64, for a check to read
 /// back: what landed on disk, not what the page meant to write.
 #[tauri::command]
 pub fn selftest_exported() -> Result<Option<Value>, String> {
     use base64::Engine as _;
-    let dir = run()?.shots.join("exports");
-    let newest = std::fs::read_dir(&dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
-        .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
+    run()?;
+    let newest = EXPORTS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .iter()
+        .filter_map(|path| Some((std::fs::metadata(path).ok()?.modified().ok()?, path.clone())))
         .max();
     let Some((_, path)) = newest else {
         return Ok(None);
@@ -465,8 +901,61 @@ pub fn selftest_context() -> Result<Value, String> {
         "break": run.brk,
         "only": run.only,
         "features": run.features,
+        "acts": run.acts,
+        "aria": run.aria,
+        // A store build: no updater, since the store updates it.
+        "store": !cfg!(feature = "updater"),
+        "act": state.act,
+        "attempt": if state.retried { 2 } else { 1 },
         "resumeAt": state.resume_at,
     }))
+}
+
+/// An act is done: once
+/// more from its start when a check failed and it has not had its second try,
+/// else the next act, from a fresh first launch; after the last, the pass is
+/// done. A stop (a deliberate break, the Mac taken) ends the pass here.
+#[tauri::command]
+pub fn selftest_act_done(window: WebviewWindow, result: Value) -> Result<(), String> {
+    let run = run()?;
+    if result["stop"] == true {
+        return selftest_done(window, result);
+    }
+    let failed = result["failed"] == true;
+    let (pass_over, launch) = {
+        let mut state = run.state.lock().unwrap_or_else(|p| p.into_inner());
+        let again = failed && run.retry && !state.retried;
+        // What the page said belongs to the pass, but a first try that the
+        // second makes good is a flake: its console stays with its checks.
+        if !again {
+            state
+                .carried_console
+                .extend(result["console"].as_array().cloned().unwrap_or_default());
+        }
+        if let Some(Value::Object(seen)) = result.get("advisories").cloned() {
+            merge_advisories(&mut state.carried_advisories, seen);
+        }
+        if again {
+            state.retried = true;
+        } else {
+            state.retried = false;
+            state.act += 1;
+        }
+        state.resume_at = 0;
+        let over = state.act >= run.acts.len();
+        if !over {
+            state.resets += 1;
+        }
+        (over, state.resets)
+    };
+    if pass_over {
+        // The pass's own result carries nothing more: each act's was carried.
+        let mut done = result;
+        done["console"] = Value::Array(Vec::new());
+        done["advisories"] = Value::Object(serde_json::Map::new());
+        return selftest_done(window, done);
+    }
+    fresh_launch(run, &window, launch)
 }
 
 #[tauri::command]
@@ -547,11 +1036,14 @@ pub async fn selftest_click(
     x: f64,
     y: f64,
     press: Option<bool>,
+    clicks: Option<u8>,
 ) -> Result<(), String> {
     // `press: false` only moves the pointer there: where it rests decides hover.
     let press = press.unwrap_or(true);
+    // `clicks: 2` is a double-click: two presses, the second counted as such.
+    let clicks = clicks.unwrap_or(1).clamp(1, 3);
     on_webview(&window, move |webview, ns_window| {
-        native::click(webview, ns_window, x, y, press)
+        native::click(webview, ns_window, x, y, press, clicks)
     })
     .await
 }
@@ -603,10 +1095,10 @@ pub async fn selftest_capture(window: WebviewWindow, name: String) -> Result<(),
         })
         .collect();
     let number = on_webview(&window, |_, ns_window| Ok(native::window_number(ns_window))).await?;
-    let _ = std::process::Command::new("/usr/sbin/screencapture")
-        .args(["-x", "-o", "-l", &number.to_string()])
-        .arg(run.shots.join(format!("{safe}.window.png")))
-        .status();
+    let shot = run.shots.join(format!("{safe}.window.png"));
+    tauri::async_runtime::spawn_blocking(move || crate::selftest_sandbox::capture(number, &shot))
+        .await
+        .map_err(|e| e.to_string())?;
 
     let (tx, rx) = mpsc::channel();
     on_webview(&window, move |webview, _| {
@@ -712,7 +1204,19 @@ pub fn selftest_aria(
         return Ok(None);
     };
     let variant = expected.join(format!("{name}.{scheme}.yml"));
-    let file = if scheme != "light" && variant.exists() {
+    // A store build reads a surface its own way where it has no updater (the
+    // Updates pane): `<name>.store.yml`, or `<name>.store.dark.yml` in the
+    // dark pass, before the download build's.
+    let store = [
+        (scheme != "light").then(|| expected.join(format!("{name}.store.{scheme}.yml"))),
+        Some(expected.join(format!("{name}.store.yml"))),
+    ]
+    .into_iter()
+    .flatten()
+    .find(|f| !cfg!(feature = "updater") && f.exists());
+    let file = if let Some(store) = store {
+        store
+    } else if scheme != "light" && variant.exists() {
         variant
     } else {
         expected.join(format!("{name}.yml"))
@@ -742,6 +1246,9 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
         }
         result["advisories"] = Value::Object(advisories);
         state.resume_at = 0;
+        state.act = 0;
+        state.retried = false;
+        state.resets += 1;
         state.results.push(result);
         state.pass += 1;
         state.pass
@@ -756,22 +1263,12 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
     if next >= PASSES.len() || stop {
         finish(None);
     }
-    // A fresh first launch, as smoke's fresh browser context is: no settings,
-    // no play stores, no remembered Plays folder, no local storage, and an
-    // untouched copy of the vault.
-    for dir in [run.home.join("Library"), run.home.join("Documents")] {
-        if dir.starts_with(&run.root) {
-            let _ = std::fs::remove_dir_all(&dir);
-        }
-    }
-    copy_vault(&plays_dir(run, next)).map_err(|e| e.to_string())?;
+    let launch = run.state.lock().unwrap_or_else(|p| p.into_inner()).resets;
     window
         .set_theme(Some(PASSES[next].1))
         .map_err(|e| e.to_string())?;
     say(&format!("starting the {} pass", PASSES[next].0));
-    window
-        .eval("try { localStorage.clear(); sessionStorage.clear(); } catch {} location.reload();")
-        .map_err(|e| e.to_string())
+    fresh_launch(run, &window, launch)
 }
 
 /// Write the report and exit: 0 only when both passes ran and nothing failed.
@@ -803,6 +1300,8 @@ fn finish(error: Option<String>) -> ! {
     };
 
     let mut failures: Vec<String> = Vec::new();
+    let mut failed: Vec<Value> = Vec::new();
+    let mut flakes: Vec<Value> = Vec::new();
     for pass in &results {
         let scheme = pass["scheme"].as_str().unwrap_or("?");
         if let Some(crash) = pass["crash"].as_str() {
@@ -812,19 +1311,59 @@ fn finish(error: Option<String>) -> ! {
                 crash.lines().next().unwrap_or("")
             ));
         }
-        for check in pass["checks"].as_array().into_iter().flatten() {
-            if check["ok"] != true {
-                failures.push(format!(
-                    "{scheme} · {}: {}",
-                    check["name"].as_str().unwrap_or("?"),
-                    check["error"]
-                        .as_str()
-                        .unwrap_or("")
-                        .lines()
-                        .next()
-                        .unwrap_or("")
-                ));
+        let checks: Vec<&Value> = pass["checks"].as_array().into_iter().flatten().collect();
+        // Only an act's last try counts. A check that failed in a first try
+        // the second made good is a flake, named apart, and fails nothing.
+        let last_try = |act: &str| {
+            checks
+                .iter()
+                .filter(|c| c["act"].as_str() == Some(act))
+                .filter_map(|c| c["attempt"].as_u64())
+                .max()
+                .unwrap_or(1)
+        };
+        for check in &checks {
+            if check["ok"] == true {
+                continue;
             }
+            let act = check["act"].as_str().unwrap_or("");
+            let first_line = check["error"]
+                .as_str()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string();
+            let last = last_try(act);
+            if check["attempt"].as_u64().unwrap_or(1) < last {
+                // An earlier try never counts: the last try's own entry decides.
+                // It is a flake only if the same check passed there.
+                let passed_later = checks.iter().any(|c| {
+                    c["act"].as_str() == Some(act)
+                        && c["name"] == check["name"]
+                        && c["attempt"].as_u64().unwrap_or(1) == last
+                        && c["ok"] == true
+                });
+                if passed_later {
+                    flakes.push(json!({
+                        "scheme": scheme,
+                        "act": act,
+                        "check": check["name"],
+                        "first": first_line,
+                    }));
+                }
+                continue;
+            }
+            failures.push(format!(
+                "{scheme} · {}: {first_line}",
+                check["name"].as_str().unwrap_or("?"),
+            ));
+            failed.push(json!({
+                "scheme": scheme,
+                "act": act,
+                "check": check["name"],
+                "error": check["error"],
+            }));
         }
         // Smoke fails a scheme on any console error, and so does this.
         if pass["console"].as_array().is_some_and(|c| !c.is_empty()) {
@@ -846,6 +1385,9 @@ fn finish(error: Option<String>) -> ! {
     let report = json!({
         "ok": ok,
         "failures": failures,
+        "failed": failed,
+        "flakes": flakes,
+        "acts": run.acts,
         "app": {
             "version": env!("CARGO_PKG_VERSION"),
             "arch": std::env::consts::ARCH,
@@ -859,15 +1401,21 @@ fn finish(error: Option<String>) -> ! {
         },
         "durationMs": run.started.elapsed().as_millis() as u64,
         "passes": results,
+        "sandbox": crate::selftest_sandbox::report(
+            &run.sandbox,
+            APP_DATA.get().map(PathBuf::as_path),
+            crate::scope::cloud_root(),
+        ),
+        "home": run.home.to_string_lossy(),
     });
     let text = serde_json::to_string_pretty(&report).unwrap_or_default();
     if let Err(e) = std::fs::write(&run.report, text) {
         eprintln!("[selftest] could not write {}: {e}", run.report.display());
     }
     if std::env::var_os("PROSCENIUM_SELFTEST_KEEP").is_none()
-        && run.root.starts_with(std::env::temp_dir())
+        && run.scratch.starts_with(std::env::temp_dir())
     {
-        let _ = std::fs::remove_dir_all(&run.root);
+        let _ = std::fs::remove_dir_all(&run.scratch);
     }
 
     if ok {
@@ -1238,6 +1786,7 @@ mod native {
         x: f64,
         y: f64,
         press: bool,
+        clicks: u8,
     ) -> Result<(), String> {
         let mtm = MainThreadMarker::new().ok_or("not on the main thread")?;
         let window = unsafe { &*(ns_window as *const NSWindow) };
@@ -1254,16 +1803,16 @@ mod native {
         );
         let point = view.convertPoint_toView(local, None);
         let app = NSApplication::sharedApplication(mtm);
-        let kinds: &[NSEventType] = if press {
-            &[
-                NSEventType::MouseMoved,
-                NSEventType::LeftMouseDown,
-                NSEventType::LeftMouseUp,
-            ]
-        } else {
-            &[NSEventType::MouseMoved]
-        };
-        for &kind in kinds {
+        // Each press carries its place in a run of clicks, as AppKit counts
+        // them: the page's `detail`, and its dblclick after the second.
+        let mut events = vec![(NSEventType::MouseMoved, 0)];
+        if press {
+            for n in 1..=isize::from(clicks) {
+                events.push((NSEventType::LeftMouseDown, n));
+                events.push((NSEventType::LeftMouseUp, n));
+            }
+        }
+        for (kind, count) in events {
             PRESSED.store(
                 usize::from(kind == NSEventType::LeftMouseDown),
                 Ordering::Relaxed,
@@ -1276,7 +1825,7 @@ mod native {
                 window.windowNumber(),
                 None,
                 EVENT_NUMBER.fetch_add(1, Ordering::Relaxed),
-                if kind == NSEventType::MouseMoved { 0 } else { 1 },
+                count,
                 if kind == NSEventType::LeftMouseDown { 1.0 } else { 0.0 },
             )
             .ok_or("AppKit would not make the mouse event")?;
@@ -1291,9 +1840,6 @@ mod native {
             || error.contains("Can't find variable: WI")
             || error.contains("mainTarget")
     }
-
-    /// Whether the inspector's page has been held in the foreground (ax_tree).
-    static FRONTEND_HELD: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
     /// Run `script` (scripts/selftest/ax-walk.js) in this webview's own Web
     /// Inspector, connecting it the first time, and deliver what it returns.
@@ -1336,28 +1882,6 @@ mod native {
             if frontend.respondsToSelector(sel!(_setWindowOcclusionDetectionEnabled:)) {
                 let _: () = msg_send![frontend, _setWindowOcclusionDetectionEnabled: false];
             }
-        }
-        // That is not enough on its own. The page is in no window, so after a
-        // stretch with no read (the tutorial checks audit nothing for a
-        // minute) WebKit suspends its process, and the next read waited 13 to
-        // 35 s for it to run again: timed while one hung, the app's main thread
-        // and the inspected page answered at once, the inspector's page ran
-        // nothing, and the walk itself took 12 ms. Its process is held in the
-        // foreground for the run, the way WebKit's own tests hold one (2 is
-        // ProcessThrottleState::Foreground; the hold outlasts later changes).
-        if !FRONTEND_HELD.swap(true, Ordering::Relaxed) {
-            let held = frontend.respondsToSelector(sel!(_setThrottleStateForTesting:));
-            if held {
-                let _: () = unsafe { msg_send![frontend, _setThrottleStateForTesting: 2i32] };
-            }
-            super::say(&format!(
-                "the inspector's page {}",
-                if held {
-                    "is held in the foreground"
-                } else {
-                    "cannot be held in the foreground: this WebKit has no _setThrottleStateForTesting:"
-                }
-            ));
         }
         let body = NSString::from_str(script);
         let arguments = NSDictionary::<NSString, AnyObject>::new();

@@ -6,12 +6,12 @@
     - tab "Board"
     - tab "Outline"
     - tab "Cast"
-    - tab "Changes, <n> pending" [selected]: Changes
+    - tab "Changes" [selected]
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
   - button "Feedback"
   - button "Split side by side"
-  - button "Show the inspector"
+  - button "Hide the inspector" [pressed]
 - navigation "Binder":
   - text: The Weight of Water
   - button "Collapse all folders"
@@ -42,14 +42,42 @@
   - text: at the top level
 - main "Play":
   - list "Open in this pane":
-    - listitem "Cast":
-      - button "Cast"
-    - listitem "Changes":
-      - button "Changes"
-      - button "Close Changes"
   - button "Add a surface to this pane"
   - heading "Copies kept during a save" [level=3]
   - button "Saved copy of Second Draft.fountain <date>, <time>"
+  - tablist "Whose changes":
+    - tab "All" [selected]
+    - tab "Mine"
+    - tab "From Outside"
+  - tablist "How changes are shown":
+    - tab "On the Page" [selected]
+    - tab "Line by Line"
+  - navigation "Changes, newest first":
+    - heading "Today" [level=3]
+    - list:
+      - listitem:
+        - 'button "You wrote <time> The Weight of Water ACT TWO: SCENE 1 3 words added"'
+        - text: You wrote Today, <time>
+        - button "Newer" [disabled]
+        - button "Older" [disabled]
+        - text: "The Weight of Water ACT TWO: SCENE 1 3 words added"
+        - group "Changes on this page"
+        - group "Versions of The Weight of Water":
+          - button "Whole sitting" [pressed]
+          - button "<time>, while writing": <time>
+        - region "What changed in The Weight of Water in this sitting":
+          - group "The Weight of Water, with its changes marked":
+            - separator "21 unchanged elements not shown. ACT TWO · SCENE 1"
+            - text: Boxes everywhere. The tap is gone, capped with a brass plug. MARA It's quiet now. I keep listening for it.
+            - insertion: Ebb and flow.
+        - button "Open The Weight of Water to Restore"
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - paragraph: No scene here
+  - paragraph: "Put the caret in a scene, or type ## Scene in the script, and its card appears here."
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: <save status>

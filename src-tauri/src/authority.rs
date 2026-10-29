@@ -21,7 +21,7 @@ pub struct Authority(Mutex<HashMap<String, PathBuf>>);
 
 impl Authority {
     pub fn contains(&self, path: &Path) -> bool {
-        let Ok(path) = path.canonicalize() else {
+        let Ok(path) = crate::long_path::canonical(path) else {
             return false;
         };
         self.0
@@ -32,7 +32,7 @@ impl Authority {
     }
     /// Never exposed as an IPC command: callers have established native authority.
     pub fn grant(&self, path: &Path) -> Result<FolderGrant, String> {
-        let path = path.canonicalize().map_err(|e| e.to_string())?;
+        let path = crate::long_path::canonical(path).map_err(|e| e.to_string())?;
         if !path.is_dir() {
             return Err("the chosen folder is not available".into());
         }
@@ -70,7 +70,10 @@ impl Authority {
         let root = self.resolve(handle)?;
         let path = crate::vault::resolve_under(&root, relative, "chosen folder")
             .map_err(|e| e.to_string())?;
-        let resolved = path.canonicalize().map_err(|e| e.to_string())?;
+        // Both in their plain form, whatever their length: a play's folder
+        // past Windows' old limit came back in the `\\?\` form, and was
+        // judged outside the Plays folder it is in (long_path.rs).
+        let resolved = crate::long_path::canonical(&path).map_err(|e| e.to_string())?;
         if !resolved.starts_with(&root) {
             return Err("that folder is outside the chosen folder".into());
         }
@@ -93,7 +96,7 @@ mod tests {
         let grant = authority.grant(root.path()).unwrap();
         assert_eq!(
             authority.resolve(&grant.handle).unwrap(),
-            root.path().canonicalize().unwrap()
+            dunce::canonicalize(root.path()).unwrap()
         );
         assert!(
             Authority::default().resolve(&grant.handle).is_err(),

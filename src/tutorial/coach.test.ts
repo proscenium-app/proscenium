@@ -70,27 +70,27 @@ const cue = (task: Task, now: Facts, before: Facts | Baseline = F()): Cue =>
 const says = (c: Cue) => spoken(c.say);
 
 const opening = S([["scene", "SCENE 1"], ["action"]]);
-const named = S([["scene", "SCENE 1"], ["character", "MARA"], ["dialogue"]]);
+const named = S([["scene", "SCENE 1"], ["character", "SOREL"], ["dialogue"]]);
 const spokenOnce = S([
   ["scene", "SCENE 1"],
-  ["character", "MARA"],
-  ["dialogue", "You're early."],
+  ["character", "SOREL"],
+  ["dialogue", "I wish she hadn't sent me the beastly book."],
   ["action"],
 ]);
 const second = S([
   ["scene", "SCENE 1"],
-  ["character", "MARA"],
-  ["dialogue", "You're early."],
-  ["character", "IVO"],
+  ["character", "SOREL"],
+  ["dialogue", "I wish she hadn't sent me the beastly book."],
+  ["character", "SIMON"],
   ["dialogue"],
 ]);
 const exchange = S(
   [
     ["scene", "SCENE 1"],
-    ["character", "MARA"],
-    ["dialogue", "You're early."],
-    ["character", "IVO"],
-    ["dialogue", "I was hoping you wouldn't notice."],
+    ["character", "SOREL"],
+    ["dialogue", "I wish she hadn't sent me the beastly book."],
+    ["character", "SIMON"],
+    ["dialogue", "The binding's very dashing."],
   ],
   2,
 );
@@ -98,7 +98,9 @@ const exchange = S(
 describe("reading the play", () => {
   test("a parsed script becomes blocks with their marks and line breaks", () => {
     const s = readScript(
-      parse("## SCENE 1\n\nMARA\nYou're **early**.\n\nIVO\nWell,\nhello.\n").doc,
+      parse(
+        "## SCENE 1\n\nSOREL\nI wish she hadn't sent me the **beastly** book.\n\nSIMON\nWell,\nhello.\n",
+      ).doc,
       2,
     );
     expect(s.blocks.map((b) => b.type)).toEqual([
@@ -126,16 +128,18 @@ describe("reading the play", () => {
     expect([b.cues, b.spoken, b.finished, b.pageBreaks]).toEqual([2, 2, 2, 1]);
   });
   test("a name is a word or three, without sentence punctuation", () => {
-    for (const n of ["mara", "Mara", "MARA", "Old Man", "JEAN-PAUL", "Dr. Who"])
+    for (const n of ["sorel", "Sorel", "SOREL", "Old Man", "JEAN-PAUL", "Dr. Who"])
       expect(nameLike(n)).toBe(true);
     for (const n of ["The door opens.", "a b c d", "Why?", "", "  "])
       expect(nameLike(n)).toBe(false);
   });
   test("the suggestion shows only what is left to type, and disappears for the writer's own words", () => {
-    expect(ghostRest("MARA", "")).toBe("MARA");
-    expect(ghostRest("MARA", "ma")).toBe("RA");
-    expect(ghostRest("MARA", "JUNIPER")).toBe("");
-    expect(ghostRest("You're early.", "You're")).toBe(" early.");
+    expect(ghostRest("SOREL", "")).toBe("SOREL");
+    expect(ghostRest("SOREL", "so")).toBe("REL");
+    expect(ghostRest("SOREL", "JUNIPER")).toBe("");
+    expect(ghostRest("I wish she hadn't sent me the beastly book.", "I wish")).toBe(
+      " she hadn't sent me the beastly book.",
+    );
   });
 });
 
@@ -144,22 +148,22 @@ describe("Write Your First Exchange", () => {
     const c = cue("speaker", F({ script: opening }));
     expect(c.tone).toBe("do");
     expect(c.target).toEqual({ kind: "line", index: 1 });
-    expect(c.ghost).toEqual({ index: 1, text: "MARA", key: "Return" });
-    expect(says(c)).toBe("Type MARA, then press Return.");
+    expect(c.ghost).toEqual({ index: 1, text: "SOREL", key: "Return" });
+    expect(says(c)).toBe("Type SOREL, then press Return.");
     const typing = cue(
       "speaker",
       F({
         script: S([
           ["scene", "SCENE 1"],
-          ["action", "MA"],
+          ["action", "SO"],
         ]),
       }),
     );
     expect(says(typing)).toBe("Now press Return.");
-    expect(typing.ghost).toEqual({ index: 1, text: "RA", key: "Return" });
+    expect(typing.ghost).toEqual({ index: 1, text: "REL", key: "Return" });
   });
   test("Name the speaker: any name in capitals, confirmed by Return, is done", () => {
-    for (const name of ["MARA", "JUNIPER", "OLD MAN"]) {
+    for (const name of ["SOREL", "JUNIPER", "OLD MAN"]) {
       const c = cue(
         "speaker",
         F({ script: S([["scene", "SCENE 1"], ["character", name], ["dialogue"]]) }),
@@ -175,18 +179,18 @@ describe("Write Your First Exchange", () => {
       F({
         script: S([
           ["scene", "SCENE 1"],
-          ["action", "Mara"],
+          ["action", "Sorel"],
         ]),
       }),
     );
     expect(c.tone).toBe("fix");
-    expect(says(c)).toContain("MARA");
+    expect(says(c)).toContain("SOREL");
     expect(c.fix?.id).toBe("character");
   });
   test("Name the speaker: a lowercase name confirmed with Return is named where it happened", () => {
     const c = cue(
       "speaker",
-      F({ script: S([["scene", "SCENE 1"], ["action", "mara"], ["action"]]) }),
+      F({ script: S([["scene", "SCENE 1"], ["action", "sorel"], ["action"]]) }),
       F({ script: opening }),
     );
     expect(c.tone).toBe("fix");
@@ -233,7 +237,7 @@ describe("Write Your First Exchange", () => {
     const after = F({
       script: S([
         ...exchange.blocks.map((x) => [x.type, x.text] as Line),
-        ["character", "ROWAN"],
+        ["character", "JUDITH"],
         ["dialogue"],
       ]),
     });
@@ -243,14 +247,18 @@ describe("Write Your First Exchange", () => {
   test("Give them a line: the speech line with its suggestion, then Return", () => {
     const c = cue("line", F({ script: named }), F({ script: named }));
     expect(c.target).toEqual({ kind: "line", index: 2 });
-    expect(c.ghost).toEqual({ index: 2, text: "You're early.", key: "Return" });
-    expect(says(c)).toBe("Type what MARA says, then press Return.");
+    expect(c.ghost).toEqual({
+      index: 2,
+      text: "I wish she hadn't sent me the beastly book.",
+      key: "Return",
+    });
+    expect(says(c)).toBe("Type what SOREL says, then press Return.");
     const typed = cue(
       "line",
       F({
         script: S([
           ["scene", "SCENE 1"],
-          ["character", "MARA"],
+          ["character", "SOREL"],
           ["dialogue", "Hello"],
         ]),
       }),
@@ -267,7 +275,7 @@ describe("Write Your First Exchange", () => {
         F({
           script: S([
             ["scene", "SCENE 1"],
-            ["character", "MARA"],
+            ["character", "SOREL"],
             ["dialogue", "Morning, all."],
             ["character"],
           ]),
@@ -282,8 +290,8 @@ describe("Write Your First Exchange", () => {
       F({
         script: S([
           ["scene", "SCENE 1"],
-          ["character", "MARA"],
-          ["action", "You're early."],
+          ["character", "SOREL"],
+          ["action", "I wish she hadn't sent me the beastly book."],
         ]),
       }),
       F({ script: named }),
@@ -308,7 +316,7 @@ describe("Write Your First Exchange", () => {
       F({ script: named }),
     );
     expect(c.target).toEqual({ kind: "line", index: 2 });
-    expect(says(c)).toContain("Click the line under MARA");
+    expect(says(c)).toContain("Click the line under SOREL");
   });
 
   test("Choose the next speaker: the line-type menu first, lighting the line it will change", () => {
@@ -331,7 +339,7 @@ describe("Write Your First Exchange", () => {
     ]);
     expect(cue("speaker-two", F({ script: empty }), F({ script: spokenOnce })).ghost).toEqual({
       index: 3,
-      text: "IVO",
+      text: "SIMON",
       key: "Return",
     });
     const typed = S([
@@ -359,10 +367,10 @@ describe("Write Your First Exchange", () => {
     expect(c.target).toEqual({ kind: "line", index: 4 });
     expect(c.ghost).toEqual({
       index: 4,
-      text: "I was hoping you wouldn't notice.",
+      text: "The binding's very dashing.",
       key: undefined,
     });
-    expect(says(c)).toContain("IVO's reply");
+    expect(says(c)).toContain("SIMON's reply");
     expect(
       cue(
         "reply",
@@ -417,7 +425,15 @@ describe("Format the Script", () => {
     expect(c.tone).toBe("fix");
     expect(c.fix?.id).toBe("undo");
     const broken = S(
-      exchange.blocks.map((x, i) => [x.type, i === 2 ? "You're early.\nCome in." : x.text] as Line),
+      exchange.blocks.map(
+        (x, i) =>
+          [
+            x.type,
+            i === 2
+              ? "I wish she hadn't sent me the beastly book.\nI must say something nice about it."
+              : x.text,
+          ] as Line,
+      ),
       2,
     );
     expect(cue("line-break", F({ script: broken }), play).tone).toBe("done");
@@ -522,7 +538,7 @@ describe("Arrange Scenes on the Board", () => {
 describe("Characters and Opening Pages", () => {
   const cast = F({
     view: "cast",
-    front: { charactersPage: "", characters: ["MARA", "IVO"], openingNotes: "" },
+    front: { charactersPage: "", characters: ["SOREL", "SIMON"], openingNotes: "" },
   });
   test("Open Cast", () => {
     expect(cue("cast", F()).target).toEqual({ kind: "view", view: "cast" });
@@ -539,7 +555,7 @@ describe("Characters and Opening Pages", () => {
         "characters-page",
         F({
           view: "cast",
-          front: { ...cast.front, charactersPage: "# Characters\n\nMARA, early.\n" },
+          front: { ...cast.front, charactersPage: "# Characters\n\nSOREL, reading.\n" },
         }),
         cast,
       ).tone,
@@ -549,18 +565,18 @@ describe("Characters and Opening Pages", () => {
     expect(cue("add-character", cast, cast).target).toEqual({ kind: "ui", id: "add-character" });
     const row = F({
       view: "cast",
-      front: { ...cast.front, characters: ["MARA", "IVO", ""] },
+      front: { ...cast.front, characters: ["SOREL", "SIMON", ""] },
       ui: { focus: "character-name", focusText: "" },
     });
     expect(cue("add-character", row, cast).tone).toBe("do");
-    expect(says(cue("add-character", row, cast))).toContain("ROWAN");
+    expect(says(cue("add-character", row, cast))).toContain("JUDITH");
     const done = cue(
       "add-character",
-      F({ view: "cast", front: { ...cast.front, characters: ["MARA", "IVO", "ROWAN"] } }),
+      F({ view: "cast", front: { ...cast.front, characters: ["SOREL", "SIMON", "JUDITH"] } }),
       cast,
     );
     expect(done.tone).toBe("done");
-    expect(says(done)).toContain("ROWAN");
+    expect(says(done)).toContain("JUDITH");
   });
   test("Write opening notes: menu, item, the notes, Save", () => {
     expect(cue("opening-notes", cast, cast).target).toEqual({ kind: "ui", id: "document-menu" });

@@ -20,6 +20,7 @@ Tutorials provide optional practice beside the real editor. This is the full int
 - <a id="TUT-8"></a> **TUT-8** The guide appears at the work: one card beside the control to choose or the line to type on, pointing at it, with the text to type shown faintly in that line and the key that finishes it. The card never covers its target and never takes focus by itself. There is no separate panel of instructions.
 - <a id="TUT-9"></a> **TUT-9** Each step reads its result from the play and the window, however the writer produced it. When the result appears the guide says so and moves on by itself after a short pause; a result already there, a demonstration and an observe step wait for Next. A recognizable wrong turn is named where it happened, with a one-action repair where the repair is certain. Nothing grades the writer's words.
 - <a id="TUT-10"></a> **TUT-10** All lessons write one practice play, in course order. Each lesson begins where the previous one left that play; a lesson opened out of order is supplied, in the same play, with what the earlier lessons would have left. Stop and Continue return to the same play and step. Start Over begins a new practice play and keeps the old one.
+- <a id="TUT-11"></a> **TUT-11** The lines the guide suggests and supplies are from Noël Coward's *Hay Fever* (1925): its opening exchange, its characters and its setting. A practice play's title page credits them (`Source: Lines from Hay Fever, by Noël Coward`). The app's sample play is an excerpt of the same play ([STOR-135](../keeping-work/storage-and-file-format.md#STOR-135)).
 
 ## Design
 
@@ -64,7 +65,9 @@ offers the next, which starts exactly where the play was left.
 This teaches **how to use Proscenium**. The optional creative-process guide for
 a first draft is parked and remains separate. No story formula, writing assessment,
 AI assistant, generated dialogue, account, or internet connection is required.
-Example dialogue is bundled teaching material; the writer can use their own.
+Example dialogue is bundled teaching material, the opening of Noël Coward's
+*Hay Fever* (1925, public domain in the United States); the writer can use
+their own ([TUT-11](#TUT-11)).
 
 <a id="TUT-D2"></a>
 
@@ -147,7 +150,7 @@ sheet, the save indicator. A ring outlines a control target; a script line is
 lit in place instead.
 
 - **Where to type, and how.** For a typing step the line itself is lit, the
-  suggested words appear faintly where the letters will go (`MARA`), and the
+  suggested words appear faintly where the letters will go (`SOREL`), and the
   key that finishes the line follows as a key cap (**⏎ Return**). As the
   writer types the suggestion, the rest of it stays; their own words replace
   it. The suggestion is decoration only: it never enters the play, the undo
@@ -195,7 +198,7 @@ Menu; the layer rules apply.
 ##### Moving through a step
 
 - **Instruction as a sequence.** A step with two actions says the next one when
-  the first is done: open the line-type menu → choose Character → type IVO →
+  the first is done: open the line-type menu → choose Character → type SIMON →
   press Return. Base copy is one short sentence. **More Help** adds the longer
   explanation in the card and stays open as the writer moves on until they
   close it.
@@ -205,7 +208,7 @@ Menu; the layer rules apply.
   Pointer, keyboard, paste, dictation and menus count equally. Prose,
   capitalization of free text, spelling and speed are never graded.
 - **It says so, then moves on.** When the result is there the card turns to a
-  check and says what happened (“That's a character cue: MARA”). After a short
+  check and says what happened (“That's a character cue: SOREL”). After a short
   pause — and only once the practice has saved — the guide moves to the next
   step by itself. For a speech that may still be growing, the pause is a pause
   in the typing. Moving on never moves focus: the writer keeps typing where
@@ -270,7 +273,8 @@ Stop still works.
 **Target duration:** 3–5 minutes with help; faster users can skip or jump.
 
 On starting, the regular editor shows the practice play (title **Practice
-Play**) with a scene heading and an empty line lit under it, the cursor on that
+Play**, its title page crediting the lines to *Hay Fever*, [TUT-11](#TUT-11))
+with a scene heading and an empty line lit under it, the cursor on that
 line and the card beside it. Use the bundled default format, with the writer's
 own interface text size, accent, and accessibility preferences. Do not run the
 existing FirstRunCard over the guide. The card's **Practice** label stays
@@ -278,10 +282,10 @@ throughout.
 
 | Step | What the page and card show | Done, and the wrong turns it names |
 | --- | --- | --- |
-| **1. Name the speaker** | The empty line lit, `MARA` faint on it and **⏎ Return** after; card: “Type MARA, then press Return.” While typing: “Now press Return.” | A new cue with a Dialogue line under it, any name. Lowercase while typing: “A speaker's name is typed in capitals” with **Use Capitals**. Lowercase then Return: “became a stage direction” at that line, with **Make It a Name**. The element menu (Return or Tab on the empty line) and the line-type menu are followed to Character. |
-| **2. Give them a line** | The speech line lit with “You're early.” faint and **⏎ Return**. | A spoken line followed by the next line. Return on the empty speech opens a menu: the card says Escape and type first. A speech whose type changed gets **Make It Dialogue**. |
-| **3. Choose the next speaker** | The line-type menu ringed, the empty line lit: “Open the line-type menu and choose Character — or press Tab.” Then the Character row; then `IVO` faint on the line. | A second cue with its Dialogue line. The wrong row chosen is named: “This line is Parenthetical. Choose Character instead.” |
-| **4. Write the reply** | The reply line lit with the suggestion faint, no key: “Type IVO's reply. Any words will do.” | Any words; no Return needed. The guide moves on after a pause in the typing. |
+| **1. Name the speaker** | The empty line lit, `SOREL` faint on it and **⏎ Return** after; card: “Type SOREL, then press Return.” While typing: “Now press Return.” | A new cue with a Dialogue line under it, any name. Lowercase while typing: “A speaker's name is typed in capitals” with **Use Capitals**. Lowercase then Return: “became a stage direction” at that line, with **Make It a Name**. The element menu (Return or Tab on the empty line) and the line-type menu are followed to Character. |
+| **2. Give them a line** | The speech line lit with “I wish she hadn't sent me the beastly book.” faint and **⏎ Return**. | A spoken line followed by the next line. Return on the empty speech opens a menu: the card says Escape and type first. A speech whose type changed gets **Make It Dialogue**. |
+| **3. Choose the next speaker** | The line-type menu ringed, the empty line lit: “Open the line-type menu and choose Character — or press Tab.” Then the Character row; then `SIMON` faint on the line. | A second cue with its Dialogue line. The wrong row chosen is named: “This line is Parenthetical. Choose Character instead.” |
+| **4. Write the reply** | The reply line lit with the suggestion faint, no key: “Type SIMON's reply. Any words will do.” | Any words; no Return needed. The guide moves on after a pause in the typing. |
 | **5. See that it's saved** | The save indicator ringed. | Authoritative successful persistence, not a timer. A failed save is named at the indicator and the step waits. **Finish Lesson**. |
 
 After Finish Lesson the card offers **Next Lesson** (which picks up in the same
@@ -396,6 +400,13 @@ outcome is recorded the moment its result is there, before the guide moves on.
 No keystrokes or script text. Progress written before the course existed loads
 with the play last practised in as the course's play.
 
+With anonymous reports on, usage counts say whether the tutorials are used:
+the invitation shown and the button chosen on it, each lesson started,
+continued and finished, and the step a lesson was left at
+([PRIV-95](../keeping-work/privacy-and-telemetry.md#PRIV-95)). They carry the
+course's ids only, never practice text or this progress, and nothing in a
+lesson waits on them.
+
 | Event | Required behavior |
 | --- | --- |
 | Pause, close, or quit | Save practice through existing protections; checkpoint progress on results, step changes and pause. Never depend on an unload callback alone. |
@@ -433,7 +444,7 @@ strengthens the ring.
 - Use the actual visible control name, bold in the sentence; words to type in
   the script's typeface; keys as key caps. Shortcuts are offered beside the
   visible-control route, never instead of it.
-- Prefer “That's a character cue: MARA” to “Great job!” Never say “obviously,”
+- Prefer “That's a character cue: SOREL” to “Great job!” Never say “obviously,”
   “simply,” “even beginners,” or “you did it wrong.” Name what happened.
 - Follow [DESIGN.md](../../../DESIGN.md) and [check:design](../../../scripts/check-design-tokens.sh):
   the type, radius and gap scales and theme tokens; 200% interface text wraps

@@ -24,8 +24,8 @@
  */
 import type { OpenedFacts } from "../storage";
 import { isPlayFileName } from "./play-file";
-import { pathKey, samePath } from "../storage/path-key";
-import { isImportFile } from "../import/formats";
+import { baseName, parentOf, pathKey, relativeTo, samePath } from "../storage/path-key";
+import { isImportFile } from "../storage/import-files";
 export { samePath } from "../storage/path-key";
 
 export type { OpenedFacts };
@@ -45,17 +45,6 @@ export type OpenRoute =
   | { kind: "final-draft"; path: string; name: string; inPlay: PlayLocation | null }
   | { kind: "document-import"; path: string; name: string; inPlay: PlayLocation | null }
   | { kind: "unknown"; path: string; name: string };
-
-function baseName(path: string): string {
-  const trimmed = path.replace(/\/+$/, "");
-  return trimmed.slice(trimmed.lastIndexOf("/") + 1);
-}
-
-function parentOf(path: string): string {
-  const trimmed = path.replace(/\/+$/, "");
-  const i = trimmed.lastIndexOf("/");
-  return i <= 0 ? "/" : trimmed.slice(0, i);
-}
 
 /**
  * Two paths name the same folder. NFC because macOS hands out decomposed
@@ -102,7 +91,8 @@ export function classifyOpened(facts: OpenedFacts): OpenRoute {
   }
   if (ext === "fountain") {
     if (!nearest) return { kind: "loose-script", path: facts.path, name };
-    const script = facts.path.slice(nearest.dir.replace(/\/+$/, "").length + 1);
+    // Inside the play, with `/` between its names whatever the system writes.
+    const script = relativeTo(facts.path, nearest.dir) ?? baseName(facts.path);
     return { kind: "script-in-play", script, ...locate(nearest.dir) };
   }
   if (ext === "fdx") {

@@ -19,19 +19,21 @@
  * lesson opened first needs) go only to the practice play, add or convert,
  * and never remove the writer's words (perform.ts).
  */
+import { onMacWords } from "../ui/system-words";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import type { Workspace } from "../app/useWorkspace";
 import type { Surface } from "../app/panes";
 import type { OpenMaterial } from "../app/use-material-sessions";
-import { charactersPageText } from "../app/FrontPageEditor";
+import { charactersPageText } from "../markdown/characters-page";
 import { fromEditorDoc, scrollPosIntoView } from "../editor";
 import type { Doc } from "../fountain";
-import { useSettingsLoaded } from "../app/settings";
+import { useSettingsLoaded } from "../ui/settings-store";
 import { tutorials } from "../storage/ipc";
 import { flatten, titleOf } from "../workspace/binder";
 import { split, reconstruct, parseTags } from "../workspace/front-matter";
 import { announce, anyLayerOpen } from "../ui";
+import { tutorialUse } from "../diagnostics";
 import {
   COURSE_SEED,
   EXAMPLE,
@@ -236,9 +238,12 @@ export function useTutorial(ws: Workspace, controls: Controls) {
       document.removeEventListener("visibilitychange", offer);
     };
   }, [invitationEligible, state.invitation]);
+  // Counted once, here, as the invitation is recorded seen (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-95).
   const invitationPainted = () => {
-    if (stateRef.current.invitation === "new" && invitationEligible)
+    if (stateRef.current.invitation === "new" && invitationEligible) {
       checkpoint((p) => ({ ...p, invitation: "seen" }));
+      tutorialUse.offered("shown");
+    }
   };
   const dismissInvitation = () => {
     setInvitation(false);
@@ -393,6 +398,20 @@ export function useTutorial(ws: Workspace, controls: Controls) {
       throw new Error("The practice is no longer open. Your play has not been changed.");
   };
   const attemptRef = useRef(attempt);
+  /**
+   * A lesson left before its end, at its step (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-95):
+   * counted once for each time it is left, however many ways the leaving is noticed.
+   */
+  const reportedStop = useRef<string | null>(null);
+  const reportStop = (a: Attempt | null) => {
+    if (!a || a.status !== "active") return;
+    const l = lessonById(a.lesson);
+    const s = l?.steps.find((x) => x.id === a.step);
+    const key = [a.id, a.lesson, a.createdAt, a.step].join("|");
+    if (!l || !s || reportedStop.current === key) return;
+    reportedStop.current = key;
+    tutorialUse.stopped(l.id, s.id);
+  };
   attemptRef.current = attempt;
   const dispatch = (build: (s: EditorState) => Transaction | null) => {
     assertPractice();
@@ -578,7 +597,7 @@ export function useTutorial(ws: Workspace, controls: Controls) {
         const page =
           w.frontMatter.charactersPage || charactersPageText(w.frontMatter.characters ?? []);
         w.patchFrontMatter(
-          { charactersPage: `${page.trimEnd()}\n\n*Two old friends, one early morning.*\n` },
+          { charactersPage: `${page.trimEnd()}\n\n*${EXAMPLE.castNote}*\n` },
           w.openScriptKey,
         );
         break;
@@ -756,6 +775,14 @@ export function useTutorial(ws: Workspace, controls: Controls) {
             };
       begin(a);
       attemptRef.current = a;
+      // Continue picks a paused lesson up where it stopped; anything else begins one.
+      const continued =
+        !!resume &&
+        resume.id === play.id &&
+        resume.status === "paused" &&
+        resume.step === l.steps[at].id;
+      reportedStop.current = null;
+      tutorialUse.lesson(l.id, continued ? "continued" : "started");
       await enter(l, at, !!resume && resume.id === play.id && resume.step === l.steps[at].id);
     });
   const assertPlay = (play: Course) => {
@@ -815,6 +842,8 @@ export function useTutorial(ws: Workspace, controls: Controls) {
       };
       begin(a);
       attemptRef.current = a;
+      reportedStop.current = null;
+      tutorialUse.lesson(l.id, "started");
       setKeptCopy(null);
       void refreshSessions().catch((e) => setError(String(e)));
       await enter(l, 0);
@@ -827,6 +856,12 @@ export function useTutorial(ws: Workspace, controls: Controls) {
         sameAttempt(a, updated) ? { ...updated, status: "finished" } : a,
       ),
     }));
+    const done = lessonById(updated.lesson);
+    if (done)
+      tutorialUse.lesson(
+        done.id,
+        Object.values(updated.outcomes).includes("skipped") ? "finished-with-skips" : "finished",
+      );
     announce(
       `Lesson finished. ${nextLesson(updated.lesson) ? "The next lesson picks up in this same play." : "Your practice play keeps everything."}`,
     );
@@ -1006,6 +1041,7 @@ export function useTutorial(ws: Workspace, controls: Controls) {
       return;
     }
     setLeaving(true);
+    const leaving = latestRef.current.attempt;
     let stopped = false;
     try {
       stopped = await run(async () => {
@@ -1027,12 +1063,16 @@ export function useTutorial(ws: Workspace, controls: Controls) {
     } finally {
       setLeaving(false);
     }
-    if (stopped) await keyboardBack(from);
+    if (stopped) {
+      reportStop(leaving);
+      await keyboardBack(from);
+    }
     return stopped;
   };
   // Opening another play pauses the lesson where it is (docs/app/preferences-and-help/tutorials.md#TUT-D105).
   useEffect(() => {
     if (!attempt || busy || inPractice || attempt.status !== "active") return;
+    reportStop(attempt);
     checkpoint((p) => ({
       ...p,
       attempts: p.attempts.map((a) => (sameAttempt(a, attempt) ? { ...a, status: "paused" } : a)),
@@ -1204,7 +1244,7 @@ export function useTutorial(ws: Workspace, controls: Controls) {
         attempts: p.attempts.filter((a) => a.session !== session),
       }));
       await refreshSessions();
-      announce("Practice moved to Trash.");
+      announce(onMacWords() ? "Practice moved to Trash." : "Practice moved to the Recycle Bin.");
     });
   const keepPractice = (title: string) =>
     run(async () => {
@@ -1287,8 +1327,13 @@ export function useTutorial(ws: Workspace, controls: Controls) {
     isOpenPractice: (session: string) => ws.practicing && ws.vaultRoot?.endsWith("/" + session),
     invitation: invitation && invitationEligible,
     invitationPainted,
-    dismissInvitation,
+    /** Skip for Now. */
+    skipInvitation: () => {
+      tutorialUse.offered("skip");
+      dismissInvitation();
+    },
     acceptInvitation: (all = false) => {
+      tutorialUse.offered(all ? "see-all" : "try");
       dismissInvitation();
       if (all) setOpen(true);
       else void start(LESSONS[0]);

@@ -23,8 +23,10 @@
 //! persists it immediately. Failed renewal keeps the usable grant for this
 //! session and reports that durable access still needs attention.
 //!
-//! Off macOS every function here is a no-op that reports "no bookmark needed",
-//! and the plain path is the whole story.
+//! On Windows the grant is what Rust recorded at the pick: the folder's path
+//! and its NTFS identity, which a reopen checks (`imp` below). Elsewhere every
+//! function here is a no-op that reports "no bookmark needed", and the plain
+//! path is the whole story.
 
 /// The path the writer chose, plus the bookmark that will re-open it.
 pub struct Scoped {
@@ -153,7 +155,48 @@ mod imp {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+/// Windows has no sandbox and no bookmark, so what keeps the Plays folder is
+/// what Rust recorded when the writer chose it in the native picker: its path,
+/// and the identity NTFS gives the folder (`id:<volume>-<file id>:<path>`).
+/// Only Rust writes it, at a native pick; a reopen opens the path only while
+/// the folder there is still the one chosen. A folder moved, replaced or
+/// recreated at that path is not, and the writer is asked again
+/// (docs/app/keeping-work/storage-and-file-format.md#STOR-137).
+#[cfg(windows)]
+mod imp {
+    use super::Scoped;
+    use crate::vault::FileIdentity;
+
+    const PREFIX: &str = "id:";
+
+    pub fn bookmark(path: &str) -> Option<String> {
+        let identity = FileIdentity::read(std::path::Path::new(path)).ok()?;
+        Some(format!("{PREFIX}{}:{path}", identity.key()))
+    }
+
+    pub fn resolve(bookmark: &str) -> Option<Scoped> {
+        let (key, path) = bookmark.strip_prefix(PREFIX)?.split_once(':')?;
+        let folder = std::path::Path::new(path);
+        if !folder.is_dir() || FileIdentity::read(folder).ok()?.key() != key {
+            return None;
+        }
+        Some(Scoped {
+            path: path.to_string(),
+            bookmark: Some(bookmark.to_string()),
+            problem: None,
+        })
+    }
+
+    pub fn cloud_root() -> Option<String> {
+        None
+    }
+
+    pub fn is_icloud_item(_path: &str) -> bool {
+        false
+    }
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 mod imp {
     use super::Scoped;
 
@@ -193,6 +236,35 @@ fn renewed_bookmark(previous: &str, renewed: Option<Option<String>>) -> (String,
 
 #[cfg(test)]
 mod tests {
+    /// A folder moved, replaced or made again at the chosen path is not the
+    /// folder the writer chose: the reopen refuses it, and the app asks again.
+    #[cfg(windows)]
+    #[test]
+    fn a_windows_grant_reopens_only_the_folder_that_was_chosen() {
+        let tmp = tempfile::tempdir().unwrap();
+        let chosen = tmp.path().join("Plays");
+        std::fs::create_dir(&chosen).unwrap();
+        let path = chosen.to_string_lossy().to_string();
+        let grant = super::bookmark(&path).unwrap();
+        let reopened = super::resolve(&grant).unwrap();
+        assert_eq!(reopened.path, path);
+        assert_eq!(reopened.bookmark.as_deref(), Some(grant.as_str()));
+        assert!(reopened.problem.is_none());
+
+        std::fs::rename(&chosen, tmp.path().join("Moved")).unwrap();
+        assert!(super::resolve(&grant).is_none(), "the folder has gone");
+        std::fs::create_dir(&chosen).unwrap();
+        assert!(
+            super::resolve(&grant).is_none(),
+            "another folder at its path"
+        );
+        assert!(super::resolve(&format!("id:0-0:{path}")).is_none());
+        assert!(
+            super::resolve(&path).is_none(),
+            "a bare path is not a grant"
+        );
+    }
+
     #[test]
     fn a_failed_renewal_keeps_the_usable_grant_but_does_not_report_success() {
         let (bookmark, problem) = super::renewed_bookmark("usable", Some(None));

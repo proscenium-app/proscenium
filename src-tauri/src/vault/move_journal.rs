@@ -4,7 +4,7 @@
 //! Relocation intent is durable before the first rename. Binder meaning stays
 //! in the opaque frontend payload; Rust tracks only paths and filesystem identity.
 use super::atomic_file::{
-    create_dir_durable, rename_exclusive, sync_dir, sync_parents, write_new, FileLock,
+    create_dir_durable, rename_exclusive, sync_dir, sync_file, sync_parents, write_new, FileLock,
 };
 use super::{is_case_only, resolve_under, tmp_stem, tmp_token, FileIdentity};
 use serde::{Deserialize, Serialize};
@@ -294,7 +294,7 @@ impl MoveJournal {
             .and_then(|intent| intent.pending.manifest.as_deref())
         {
             let path = resolve_under(root, manifest, "vault")?;
-            std::fs::File::open(&path)?.sync_all()?;
+            sync_file(&path)?;
             if let Some(parent) = path.parent() {
                 sync_dir(parent)?;
             }

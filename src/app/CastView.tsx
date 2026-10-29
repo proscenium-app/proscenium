@@ -11,7 +11,7 @@
  *
  * Three homes, unchanged (storage rule 3):
  *   - name + short description → the fountain title page (prints on the cast page)
- *   - deep-dive notes           → the characters/<slug>.md sheet
+ *   - deep-dive notes           → the Characters/<Name>.md sheet
  *   - appearances and weight    → derived from the script (read-only)
  * Plus one thing the script cannot express: a speaker deliberately kept OFF the
  * cast page, which lives in the play file so auto-add never undoes a removal.
@@ -20,13 +20,8 @@
  */
 import { useId, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CharacterEntry } from "../fountain";
-import {
-  titleOf,
-  type BinderItem,
-  type CharacterWeight,
-  type SceneAppearance,
-  type SceneCard,
-} from "../workspace";
+import { castSheetFor } from "../materials";
+import type { BinderItem, CharacterWeight, SceneAppearance, SceneCard } from "../workspace";
 import { PresenceGrid } from "./PresenceGrid";
 import { FrontPageEditor, charactersPageText } from "./FrontPageEditor";
 import {
@@ -64,22 +59,14 @@ export interface CastViewProps {
   onOpenScene?: (ordinal: number) => void;
   /** Open the export dialog on this character's sides. */
   onExportSides?: (name: string) => void;
-}
-
-function findSheet(binder: BinderItem[], name: string): BinderItem | null {
-  const target = name.trim().toUpperCase();
-  if (!target) return null;
-  const walk = (items: BinderItem[]): BinderItem | null => {
-    for (const it of items) {
-      if (it.type === "character" && titleOf(it).trim().toUpperCase() === target) return it;
-      if (it.children) {
-        const found = walk(it.children);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-  return walk(binder);
+  /**
+   * Where the writer asked to start editing, by double-clicking the Characters
+   * sheet in page view: the engine's id of the paragraph hit, or null. A new
+   * object asks again, even for the same paragraph.
+   */
+  focusRequest?: { paragraphId: string | null } | null;
+  /** The request above was acted on, so a later remount does not act on it again. */
+  onFocusHandled?: () => void;
 }
 
 /** "12 lines · 3 scenes" — the evidence behind a row's tier, in plain words. */
@@ -155,6 +142,30 @@ export function CastView(props: CastViewProps) {
 
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const names = useRef<(HTMLInputElement | null)[]>([]);
+  const descriptions = useRef<(HTMLInputElement | null)[]>([]);
+  // A double-click on the Characters sheet lands where that line is edited:
+  // an edited page is its own prose, so the caret goes to the paragraph hit;
+  // a page that follows the cast list is these rows, so it goes to the
+  // description of the character hit (the first, from the heading).
+  const [pageFocus, setPageFocus] = useState<{ paragraph: number } | null>(null);
+  const { focusRequest, onFocusHandled } = props;
+  const customPage = props.printedPage !== undefined;
+  useLayoutEffect(() => {
+    if (!focusRequest) return;
+    onFocusHandled?.();
+    const id = focusRequest.paragraphId ?? "";
+    if (customPage) {
+      const prose = /^characters-prose-(\d+)$/.exec(id);
+      setPageFocus({ paragraph: prose ? Number(prose[1]) : 0 });
+      return;
+    }
+    const cast = /^cast-(\d+)$/.exec(id);
+    const row = Math.min(cast ? Number(cast[1]) : 0, rowsRef.current.length - 1);
+    const field = descriptions.current[row] ?? names.current[row];
+    field?.focus();
+    field?.scrollIntoView({ block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
   useLayoutEffect(() => {
     if (focusRow !== null) {
       names.current[focusRow]?.focus();
@@ -199,6 +210,7 @@ export function CastView(props: CastViewProps) {
             label="Printed characters page"
             value={props.printedPage ?? charactersPageText(props.characters)}
             onChange={props.onSavePage}
+            focusAt={pageFocus}
           />
         </div>
         <details className="castview__page-options">
@@ -238,7 +250,10 @@ export function CastView(props: CastViewProps) {
                 const headingId = `${castId}-${i}`;
                 const weight = props.weights.get(row.name.trim().toUpperCase());
                 const appearances = appearanceFor(row.name);
-                const sheet = findSheet(props.binder, row.name);
+                // Only a sheet in the Characters folder is this character's
+                // (docs/app/organizing/workspace-model.md#WORK-84): one filed
+                // away with an old draft is not opened as the current one.
+                const sheet = castSheetFor(props.binder, row.name);
                 const setField = (patch: Partial<CharacterEntry>) => {
                   dirty.current = true;
                   apply(rowsRef.current.map((r, j) => (j === i ? { ...r, ...patch } : r)));
@@ -263,6 +278,9 @@ export function CastView(props: CastViewProps) {
                         onBlur={commit}
                       />
                       <input
+                        ref={(el) => {
+                          descriptions.current[i] = el;
+                        }}
                         aria-label={`Description — ${characterName}`}
                         className="castcard__desc"
                         value={row.description ?? ""}

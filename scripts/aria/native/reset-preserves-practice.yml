@@ -1,3 +1,4 @@
+- button "Dismiss"
 - dialog "Reset Tutorial Progress"
   - heading "Reset Tutorial Progress" [level=2]
   - paragraph

@@ -39,8 +39,8 @@ import { loadDictionary } from "../spell/dictionary";
 import { DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
 import { editorExtensions } from "./schema";
 import { Comments, CommentsMargin, type MarginState } from "../comments";
-import { TrackedChanges, setTrackedMarks } from "./tracked-changes";
-import { emptyMarks, type TrackedMarks } from "../review/tracked";
+import { LiveRedline, setLiveRedline } from "./live-redline";
+import { marginRuleCss } from "./redline-margin";
 import { ensureNonEmpty, fromEditorDoc, toEditorDoc } from "./bridge";
 import "./stage-format.css";
 
@@ -67,12 +67,14 @@ export interface PlayEditorProps {
   frontMatter?: FrontMatter | null;
   /** Open the Title Page editor (clicking the title sheet invokes this). */
   onEditTitlePage?: () => void;
+  /** Open Cast at what was double-clicked on the Characters sheet (its paragraph id). */
+  onEditCharactersPage?: (paragraphId: string | null) => void;
   /**
-   * Inline tracked changes — a DECORATION layer over the
-   * open script showing what arrived from outside. Never a document mutation:
-   * switch it off and nothing about the play has changed.
+   * A change drawn on the script (live-redline.ts): the text before it and
+   * the text it left. A DECORATION layer, never the document: take it away
+   * and nothing about the play has changed. Absent ⇒ none.
    */
-  trackedMarks?: TrackedMarks;
+  redline?: { before: string; after: string } | null;
   /**
    * Page zoom: a pure view transform on the rendered sheet — the
    * engine's geometry (and page breaks) are identical at every level.
@@ -81,6 +83,11 @@ export interface PlayEditorProps {
   /** The Comments feed pane is open — the bar's chip reflects and toggles it. */
   commentsOpen?: boolean;
   onToggleComments?: () => void;
+  /**
+   * Show the comment feed: a comment is being made or answered and the margin
+   * has no room for the card it would be typed in (docs/app/writing/comments.md#COMM-56).
+   */
+  onShowComments?: () => void;
   /** Underline misspellings (docs/app/writing/editor-ux.md#EDIT-D116). */
   spellcheck?: boolean;
   language?: string;
@@ -92,7 +99,7 @@ export interface PlayEditorProps {
   cards?: SceneCard[];
   scenePages?: ScenePageMap;
   onJumpToScene?: (ordinal: number) => void;
-  /** Settings ▸ Writing: whether the page map shows (docs/app/preferences-and-help/settings.md#SET-9). */
+  /** Settings ▸ Writing: whether the page map shows (docs/app/preferences-and-help/settings.md#SET-42). */
   showRunningTime?: boolean;
 }
 
@@ -165,10 +172,12 @@ export function PlayEditor({
   layoutMeta,
   frontMatter,
   onEditTitlePage,
-  trackedMarks,
+  onEditCharactersPage,
+  redline,
   zoom = 1,
   commentsOpen = false,
   onToggleComments,
+  onShowComments,
   spellcheck = true,
   language = DEFAULT_PLAY_LANGUAGE,
   learnedWords = NO_WORDS,
@@ -191,14 +200,22 @@ export function PlayEditor({
       PageBreakHandle,
       Find,
       Comments,
-      TrackedChanges,
+      LiveRedline,
       Spellcheck,
     ],
     // Line breaks cross the editor boundary as nodes (bridge.ts); the model
     // on either side keeps its literal newlines.
     content: toEditorDoc(ensureNonEmpty(initialDoc)),
     editable,
-    onUpdate: ({ editor }) => onChange?.(fromEditorDoc(editor.getJSON() as Doc)),
+    // Only a change of the document is an edit. TipTap also says "update" when
+    // the editor is made editable or read-only, with a transaction that
+    // changes nothing: taken for an edit, every play marked its script
+    // "Editing…" as it opened and saved the same bytes back, keeping a
+    // version nobody made.
+    onUpdate: ({ editor, transaction, appendedTransactions }) => {
+      if (!transaction.docChanged && !appendedTransactions.some((tr) => tr.docChanged)) return;
+      onChange?.(fromEditorDoc(editor.getJSON() as Doc));
+    },
     editorProps: {
       // The OS check is OFF, and the app's own one (spellcheck.ts) replaces it.
       // Native squiggles were the first answer and could not be made to work:
@@ -250,7 +267,8 @@ export function PlayEditor({
   }, [editor]);
 
   useEffect(() => {
-    editor?.setEditable(editable);
+    // Editable or not changes no word: no update for it.
+    editor?.setEditable(editable, false);
   }, [editor, editable]);
 
   useElementAnnouncer(editor);
@@ -269,21 +287,18 @@ export function PlayEditor({
       meta: layoutMeta,
       frontMatter,
       onTitlePageClick: onEditTitlePage ?? null,
+      onCharactersPageOpen: onEditCharactersPage ?? null,
     });
-  }, [editor, paginated, format, layoutMeta, frontMatter, onEditTitlePage]);
+  }, [editor, paginated, format, layoutMeta, frontMatter, onEditTitlePage, onEditCharactersPage]);
 
   /**
-   * Push tracked-change marks into the plugin's options and force one redraw.
-   *
-   * The editor outlives a script switch, so this is a command-style update
-   * rather than a re-created instance — same reason as the cast above. The
-   * empty transaction is how a DECORATION-only plugin refreshes: there is no
-   * document change to trigger a redraw, and there must not be one.
+   * Draw a change on the page, or take it off. The editor outlives a script
+   * switch, so this is a command-style update rather than a re-created
+   * instance — same reason as the cast above.
    */
   useEffect(() => {
-    if (!editor) return;
-    setTrackedMarks(editor, trackedMarks ?? emptyMarks());
-  }, [editor, trackedMarks]);
+    if (editor) setLiveRedline(editor, redline ?? null);
+  }, [editor, redline]);
 
   /**
    * The dictionary, fetched the first time the check is wanted and then held
@@ -323,7 +338,7 @@ export function PlayEditor({
    * Rebuild the speller whenever anything behind it moves — the dictionary
    * arriving, a name entering the cast, a word learned or ignored — and push it
    * through the plugin, which re-checks the script. Command-style, like the
-   * cast and the tracked marks above: the editor outlives a script switch.
+   * cast and the redline above: the editor outlives a script switch.
    */
   useEffect(() => {
     if (!editor) return;
@@ -337,7 +352,8 @@ export function PlayEditor({
   }, [editor, lexicon, spellcheck, cast, learnedWords, ignored]);
 
   // The whole stage format, generated from the spec (never hardcoded).
-  const formatCss = useMemo(() => formatToCss(format), [format]);
+  // The format's own sheet, and where a redline's margin rule stands on it.
+  const formatCss = useMemo(() => `${formatToCss(format)}\n${marginRuleCss(format)}`, [format]);
 
   /** What the comment margin measured: desk to hold clear, and whether it's up. */
   const [margin, setMargin] = useState<MarginState>({ show: false, reserve: 0 });
@@ -368,7 +384,7 @@ export function PlayEditor({
       {editable && !tutorialActive && <FirstRunCard editor={editor} />}
       {/* Comments live beside the page they annotate; the whole list lives in
           the feed pane, which App owns (docs/app/writing/comments.md#COMM-D4, docs/app/writing/comments.md#COMM-D5). */}
-      {editor && <CommentsMargin editor={editor} onMargin={setMargin} />}
+      {editor && <CommentsMargin editor={editor} onMargin={setMargin} onNoRoom={onShowComments} />}
       {/* `zoom` (not transform) so scroll extents track the visual size. */}
       <div
         className={`play-page${paginated ? " is-paginated" : ""}`}

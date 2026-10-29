@@ -74,6 +74,13 @@ export function bakedRoll(env = process.env) {
   return file ? parseRoll(JSON.parse(readFileSync(file, "utf8"))) : { ...EMPTY_ROLL };
 }
 
+/**
+ * The roll a build bakes in, as the text the page is given (vite.config.ts):
+ * what each platform's build of a release records, so the release machine
+ * can hold the two to one roll.
+ */
+export const bakedText = (env = process.env) => JSON.stringify(bakedRoll(env));
+
 /** "A", "A and B", "A, B and C". */
 export function listed(names) {
   return names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
