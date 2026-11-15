@@ -1971,6 +1971,7 @@ describe("the first line of a script stays in the script", () => {
     const house = [
       ...["Setting", "Time", "Place", "Characters", "Title Page Text"],
       ...["Characters Page Text", "Opening Notes", "Opening Notes First"],
+      "Production Notes Text",
     ];
     const neither = ["She said", "At rise", "Scene", "Lights", "Note", "Dated", "A title"];
     let marked = 0;
@@ -2004,7 +2005,7 @@ describe("the first line of a script stays in the script", () => {
       tried += shapes.length * 2;
     }
     // Both answers were met: the sweep is no proof if it only ever saw one.
-    expect(tried).toBe(952);
+    expect(tried).toBe(986);
     expect(marked).toBeGreaterThan(300);
     expect(marked).toBeLessThan(tried - 300);
   });

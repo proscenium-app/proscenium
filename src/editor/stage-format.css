@@ -15,7 +15,6 @@
    scroll with the sheet because they are inside the scrolled content, not
    because anything recomputes on scroll. */
 .editor-surface {
-  --page-chrome-zoom: 1;
   /* FindBar.tsx sets it to its own height while it is open. */
   --findbar-height: 0px;
   position: relative;
@@ -54,6 +53,7 @@
  * on one row, and the find bar wraps.
  */
 .elementbar,
+.frontedit-bar,
 .findbar {
   --strip-room: calc(100cqw - 2rem);
   --strip-least: min(var(--strip-room), calc(var(--fmt-page-width) * var(--ui-scale)));
@@ -66,7 +66,8 @@
 /* With the find bar up, the element bar sticks BELOW it rather than under it:
    two sticky strips at top 0 stack on top of each other. FindBar.tsx
    publishes its own height, which grows as its rows wrap. */
-.elementbar {
+.elementbar,
+.frontedit-bar {
   position: sticky;
   top: var(--findbar-height);
   z-index: 5;
@@ -80,7 +81,8 @@
   font-family: var(--font-ui);
 }
 @media all {
-  :where(:root[data-theme="dark"]) .elementbar {
+  :where(:root[data-theme="dark"]) .elementbar,
+  :where(:root[data-theme="dark"]) .frontedit-bar {
     border-bottom-color: rgba(255, 255, 255, 0.07);
   }
 }
@@ -220,9 +222,15 @@ span.formatting-icon {
   opacity: 0;
   transition: opacity var(--motion);
 }
-.elementbar.is-revealing .elementbar__badge,
-.elementbar__btn:hover .elementbar__badge {
+.elementbar.is-revealing .elementbar__badge {
   opacity: 1;
+}
+/* Only for a pointer that hovers: a tap whose hover fades something in is
+   held back from its click on an iPad, so the tap only showed the badge. */
+@media (hover: hover) {
+  .elementbar__btn:hover .elementbar__badge {
+    opacity: 1;
+  }
 }
 /* A glyph and a number that only the icon fits show. */
 .elementbar__onlyicon,
@@ -354,7 +362,8 @@ span.formatting-icon {
   pointer-events: none;
 }
 .pgchrome__fill {
-  /* height set inline by the widget: <remaining rows>lh */
+  /* height set inline by the widget: <remaining rows>lh, and what each row of
+     text on the page was drawn short by (--line-shortfall, line-shortfall.ts) */
 }
 .pgchrome__botmargin {
   position: relative;
@@ -428,6 +437,13 @@ span.formatting-icon {
   position: relative;
   height: var(--fmt-block-height);
 }
+/* A page edited where it stands (docs/app/formatting/formats-and-layout.md#FMT-165): the sheet grows with what is
+   typed, and is never shorter than a page. */
+.frontsheet--editing {
+  height: auto;
+  min-height: var(--fmt-block-height);
+  pointer-events: auto;
+}
 .titlesheet--editable,
 .frontsheet--editable {
   pointer-events: auto;
@@ -491,8 +507,8 @@ span.formatting-icon {
    it draws at its static position and occupies ZERO flow space — it cannot
    move a wrap or shift the break it labels. */
 .pl-pagebreak-handle {
-  /* Editing controls stay usable when the page fits a narrow pane. */
-  zoom: var(--page-chrome-zoom, 1);
+  /* Chrome, in the UI's own sizes: the page's scale never reaches it, so the
+     editing controls stay usable when the page fits a narrow pane. */
   position: absolute;
   display: inline-flex;
   align-items: center;
@@ -919,12 +935,17 @@ span.formatting-icon {
   margin-left: auto;
   opacity: 0;
 }
-.comment-card:hover .cthread__actions,
 .comment-card.is-active .cthread__actions,
-.commentsfeed__row:hover .cthread__actions,
 .commentsfeed__row.is-focused .cthread__actions,
 .cthread__msg:focus-within .cthread__actions {
   opacity: 1;
+}
+/* A finger sees them at once (touch-controls.css). */
+@media (hover: hover) {
+  .comment-card:hover .cthread__actions,
+  .commentsfeed__row:hover .cthread__actions {
+    opacity: 1;
+  }
 }
 .cthread__actions button {
   /* A 24px target around a small glyph (WCAG 2.5.8, docs/app/preferences-and-help/accessibility.md#A11Y-11). */
@@ -958,6 +979,31 @@ span.formatting-icon {
   user-select: text;
   cursor: text;
 }
+/* A closed reply field at the foot of every conversation (Thread.tsx): it reads
+   as the place the next reply is typed, and a press opens it there. */
+.cthread__replybox {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  margin-top: var(--s-4);
+  padding: 0 var(--s-3);
+  font: inherit;
+  font-size: var(--t-small);
+  text-align: left;
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-chip);
+  background: var(--field);
+  color: var(--placeholder);
+  cursor: text;
+}
+.cthread__replybox:hover {
+  border-color: var(--ink-2);
+}
+.cthread__replybox:focus-visible {
+  outline: none;
+  border: 1px solid var(--accent);
+  box-shadow: var(--focus-ring);
+}
 .cthread__name,
 .cthread__field {
   display: block;
@@ -977,7 +1023,9 @@ span.formatting-icon {
 }
 .cthread__field {
   padding: var(--s-3);
-  resize: vertical;
+  /* As tall as its words (Thread.tsx): a field that scrolls inside itself moves the page in WebKit. */
+  resize: none;
+  overflow: hidden;
 }
 .cthread__name::placeholder,
 .cthread__field::placeholder {
@@ -1015,7 +1063,7 @@ span.formatting-icon {
 .comments-chip {
   display: inline-flex;
   align-items: center;
-  height: var(--h-mini);
+  height: var(--h-badge);
   margin-right: var(--s-3);
   padding: 0 var(--s-4);
   border-radius: var(--r-pill);
@@ -1156,6 +1204,7 @@ span.formatting-icon {
   }
 }
 .rts__seg {
+  position: relative;
   height: 6px;
   flex: 1 1 0;
   min-width: 3px;
@@ -1172,14 +1221,36 @@ span.formatting-icon {
 .rts__seg:last-of-type {
   border-radius: 0 var(--r-pill) var(--r-pill) 0;
 }
-.rts__seg:hover {
-  opacity: 1;
+@media (hover: hover) {
+  .rts__seg:hover {
+    opacity: 1;
+  }
 }
 /* The caret's scene: a 2px marker straight through it, so "where am I" is
    readable at a glance without changing the scene's own hue. */
 .rts__seg.is-here {
   opacity: 1;
   box-shadow: inset 0 0 0 1px var(--accent-text);
+}
+/* Where in that scene (docs/app/preferences-and-help/settings.md#SET-45): a
+   line standing up through the segment at the share of the scene read so
+   far, taller than the segment so it reads on any hue, and ringed in the
+   strip's own ground so it reads against the marker's colour too. */
+.rts__place {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  background: var(--accent-text);
+  border-radius: var(--r-pill);
+  box-shadow: 0 0 0 1px #e4dac6;
+  pointer-events: none;
+}
+@media all {
+  :where(:root[data-theme="dark"]) .rts__place {
+    box-shadow: 0 0 0 1px #221f1c;
+  }
 }
 .rts__tick {
   width: 2px;
@@ -1216,4 +1287,20 @@ span.formatting-icon {
 }
 .rts__seg--ash {
   background: var(--ash);
+}
+/* A notes page turned on and not written yet (docs/app/formatting/formats-and-layout.md#FMT-167): a sheet that says where
+   its words go. Drawn on the page alone; print never sees it. */
+.frontsheet--placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fmt-line);
+}
+.frontsheet__placeholderhead {
+  font-weight: 700;
+}
+.frontsheet__placeholderhint {
+  color: var(--ash);
+  font-style: italic;
 }

@@ -459,6 +459,28 @@ describe("what goes in", () => {
     expect(buildDocument(input({ frontSheets: [] })).sections[0].kind).toBe("script");
   });
 
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: production notes are their own page of opening styles, last before the script", () => {
+    const text = `Title: Tideline\nAuthor: Jo\nProduction Notes Text: ${JSON.stringify(
+      "Six actors play every role.\n\nA *slash* marks an overlap.",
+    )}\n\nMARA\nHello.\n`;
+    const doc = buildDocument(input({ frontSheets: ["title", "production"] }, text));
+    const front = doc.sections[0].items.filter((i) => i.kind === "p");
+    const at = front.findIndex((p) => p.kind === "p" && p.style === "openingHeading");
+    const notes = front.slice(at);
+    expect(notes.map((p) => p.kind === "p" && [p.style, p.align, !!p.pageBreakBefore])).toEqual([
+      ["openingHeading", "center", true],
+      ["openingText", "left", false],
+      ["openingText", "left", false],
+    ]);
+    // The writer's emphasis stays on its words.
+    expect(JSON.stringify(notes[2])).toContain('"italic":true');
+    expect(doc.sections[1].kind).toBe("script");
+    expect(doc.sections[1].begins).toBe("page");
+    // Left out, there is no trace of it.
+    const without = buildDocument(input({ frontSheets: ["title"] }, text));
+    expect(JSON.stringify(without)).not.toContain("PRODUCTION NOTES");
+  });
+
   it("docs/app/formatting/formats-and-layout.md#FMT-148: a page break straight after an inline opening still breaks the page", () => {
     const doc = buildDocument(
       input({ spec: SKETCH }, "Title: Bits\nAuthor: Jo\n\n===\n\nMARA\nHello.\n"),

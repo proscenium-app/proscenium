@@ -1048,6 +1048,24 @@ pub async fn selftest_click(
     .await
 }
 
+/// One half of a drag, or the pointer moved with the button held: `down`
+/// presses the left button at a point, `drag` moves it there still pressed,
+/// `up` lets it go there. A click is a down and an up at one point; a drag is
+/// the drags between, which AppKit sends as `LeftMouseDragged` and WebKit turns
+/// into a selection that follows the pointer.
+#[tauri::command]
+pub async fn selftest_mouse(
+    window: WebviewWindow,
+    kind: String,
+    x: f64,
+    y: f64,
+) -> Result<(), String> {
+    on_webview(&window, move |webview, ns_window| {
+        native::mouse(webview, ns_window, &kind, x, y)
+    })
+    .await
+}
+
 /// Where native input would go now, for a key or click the page never saw.
 #[tauri::command]
 pub async fn selftest_input_facts(window: WebviewWindow) -> Result<Value, String> {
@@ -1792,16 +1810,7 @@ mod native {
         let window = unsafe { &*(ns_window as *const NSWindow) };
         let view = unsafe { &*(webview as *const NSView) };
         make_key(mtm, window);
-        let bounds = view.bounds();
-        let local = NSPoint::new(
-            x,
-            if view.isFlipped() {
-                y
-            } else {
-                bounds.size.height - y
-            },
-        );
-        let point = view.convertPoint_toView(local, None);
+        let point = window_point(view, x, y);
         let app = NSApplication::sharedApplication(mtm);
         // Each press carries its place in a run of clicks, as AppKit counts
         // them: the page's `detail`, and its dblclick after the second.
@@ -1831,6 +1840,57 @@ mod native {
             .ok_or("AppKit would not make the mouse event")?;
             app.sendEvent(&ns_event);
         }
+        Ok(())
+    }
+
+    /// A point in the page's CSS pixels, in the window's coordinates.
+    fn window_point(view: &NSView, x: f64, y: f64) -> NSPoint {
+        let bounds = view.bounds();
+        let local = NSPoint::new(
+            x,
+            if view.isFlipped() {
+                y
+            } else {
+                bounds.size.height - y
+            },
+        );
+        view.convertPoint_toView(local, None)
+    }
+
+    /// The left button pressed, moved while pressed, or let go (`selftest_mouse`).
+    pub fn mouse(
+        webview: *mut c_void,
+        ns_window: *mut c_void,
+        kind: &str,
+        x: f64,
+        y: f64,
+    ) -> Result<(), String> {
+        let mtm = MainThreadMarker::new().ok_or("not on the main thread")?;
+        let window = unsafe { &*(ns_window as *const NSWindow) };
+        let view = unsafe { &*(webview as *const NSView) };
+        let (event_type, held) = match kind {
+            "down" => (NSEventType::LeftMouseDown, true),
+            "drag" => (NSEventType::LeftMouseDragged, true),
+            "up" => (NSEventType::LeftMouseUp, false),
+            other => return Err(format!("no mouse event \"{other}\"")),
+        };
+        if event_type == NSEventType::LeftMouseDown {
+            make_key(mtm, window);
+        }
+        PRESSED.store(usize::from(held), Ordering::Relaxed);
+        let ns_event = NSEvent::mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure(
+            event_type,
+            window_point(view, x, y),
+            NSEventModifierFlags(0),
+            now(),
+            window.windowNumber(),
+            None,
+            EVENT_NUMBER.fetch_add(1, Ordering::Relaxed),
+            1,
+            if held { 1.0 } else { 0.0 },
+        )
+        .ok_or("AppKit would not make the mouse event")?;
+        NSApplication::sharedApplication(mtm).sendEvent(&ns_event);
         Ok(())
     }
 

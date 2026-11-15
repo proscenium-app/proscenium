@@ -70,6 +70,16 @@ describe("an anonymous copy (docs/app/formatting/formats-and-layout.md#FMT-143)"
     expect(lines.some((line) => line.startsWith("SOPHIE"))).toBe(true);
   });
 
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: keeps the production notes, which are the play's", () => {
+    const fm = { ...FM, productionNotes: "Six actors play every role." };
+    const sheets = paginateFrontMatter(anonymousFrontMatter(fm, "fallback"), spec());
+    expect(sheets.map((page) => page.kind)).toEqual(["title", "characters", "production"]);
+    expect(sheets[2].lines.map((line) => line.text)).toEqual([
+      "PRODUCTION NOTES",
+      "Six actors play every role.",
+    ]);
+  });
+
   it("replaces a title page written as prose with the title alone", () => {
     const prose = {
       ...FM,

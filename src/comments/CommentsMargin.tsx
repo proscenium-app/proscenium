@@ -29,6 +29,7 @@ import {
   type CommentThread,
   type PmCommentEntry,
 } from "./plugin";
+import { onHover } from "../ui/hover";
 import { useCommentFocus } from "./focus";
 import { sameSpots, stackCards } from "./stack";
 import { ThreadView, threadIsBusy } from "./Thread";
@@ -322,8 +323,10 @@ export function CommentsMargin({
               if (!words) e.preventDefault(); // the card takes the focus, not the caret
               editor.commands.focusComment(root.pos);
             }}
-            onMouseEnter={() => editor.commands.hoverComment(root.pos)}
-            onMouseLeave={() => editor.commands.hoverComment(null)}
+            {...onHover(
+              () => editor.commands.hoverComment(root.pos),
+              () => editor.commands.hoverComment(null),
+            )}
           >
             <ThreadView
               editor={editor}

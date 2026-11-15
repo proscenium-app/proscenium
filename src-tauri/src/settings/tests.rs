@@ -70,7 +70,9 @@ fn a_missing_file_is_every_default() {
             format_order: vec![],
             interface_text_size: 100,
             running_time_strip: true,
+            scene_place_marker: true,
             spellcheck: true,
+            auto_caps: true,
             learned_words: vec![],
             play_statuses: DEFAULT_PLAY_STATUSES
                 .iter()
@@ -114,6 +116,18 @@ fn an_update_leaves_the_vault_its_bookmark_and_unknown_keys_alone() {
     assert_eq!(after["runningTimeStrip"], json!(false));
     assert_eq!(after["accent"], json!("velvet"));
     assert_eq!(after["spellcheck"], json!(false));
+}
+
+#[test]
+fn the_place_marker_is_its_own_switch() {
+    // docs/app/preferences-and-help/settings.md#SET-45: off by a patch, and the
+    // strip it sits on left as it was.
+    let (_dir, path) = temp_settings();
+    let s = update_at(&path, patch(json!({ "scenePlaceMarker": false }))).unwrap();
+    assert!(!s.scene_place_marker);
+    assert!(s.running_time_strip);
+    assert_eq!(read_json(&path)["scenePlaceMarker"], json!(false));
+    assert!(serde_json::from_value::<SettingsPatch>(json!({ "scenePlaceMarker": "off" })).is_err());
 }
 
 #[test]
@@ -391,6 +405,7 @@ fn a_wrong_value_costs_only_that_preference() {
         json!({
             "accent": 42,
             "runningTimeStrip": "yes",
+            "scenePlaceMarker": "no",
             "spellcheck": false,
             "learnedWords": ["Mara", 7, null, "Jonah"],
             "openAtLaunch": "somewhere",
@@ -400,6 +415,7 @@ fn a_wrong_value_costs_only_that_preference() {
     let s = from_object(&read_object(&path));
     assert_eq!(s.accent, "gilt");
     assert!(s.running_time_strip);
+    assert!(s.scene_place_marker);
     assert!(!s.spellcheck);
     assert_eq!(s.learned_words, vec!["Mara", "Jonah"]);
     assert_eq!(s.open_at_launch, OpenAtLaunch::LastPlay);
@@ -491,6 +507,7 @@ fn the_model_serializes_under_the_names_the_frontend_reads() {
         vec![
             "accent",
             "appearance",
+            "autoCaps",
             "checkForUpdates",
             "commentName",
             "defaultFormat",
@@ -503,6 +520,7 @@ fn the_model_serializes_under_the_names_the_frontend_reads() {
             "playStatuses",
             "privacyNoticeSeen",
             "runningTimeStrip",
+            "scenePlaceMarker",
             "shareAnalytics",
             "showProgress",
             "spellcheck",
@@ -903,5 +921,42 @@ fn appearance_and_format_order_persist_without_changing_other_settings() {
     ] {
         assert!(update_at(&path, patch(invalid)).is_err());
         assert_eq!(from_object(&read_object(&path)), changed);
+    }
+}
+
+#[test]
+fn release_notes_take_only_a_version() {
+    assert!(is_version("0.9.1"));
+    assert!(is_version("1.0.0"));
+    // A beta's whole version, as a copy on the beta track is offered it.
+    for beta in ["1.0.1-beta.2", "1.0.1-beta.0", "10.20.30-beta.123456"] {
+        assert!(is_version(beta), "{beta:?} refused");
+    }
+    for bad in [
+        "",
+        "1.0",
+        "1.0.0.0",
+        "v1.0.0",
+        "1.0.0-rc.1",
+        "1..0",
+        "1.0.0/../../x",
+        "1.0.0 --x",
+        // No other track's version, and no beta's that is not whole.
+        "1.0.1-alpha.3",
+        "1.0.1-beta",
+        "1.0.1-beta.",
+        "1.0.1-beta.x",
+        "1.0.1-beta.1.2",
+        "1.0.1-beta.1/../x",
+        "1.0.1-beta.1 --x",
+        "1.0.1-beta.-1",
+        "1.0.1-beta.1234567",
+        "1.0.1-beta.1-beta.2",
+        "1.0.1-Beta.1",
+        "1.0-beta.1",
+        "-beta.1",
+        "../1.0.1-beta.1",
+    ] {
+        assert!(!is_version(bad), "{bad:?} passed");
     }
 }

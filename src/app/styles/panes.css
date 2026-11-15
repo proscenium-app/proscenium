@@ -238,10 +238,17 @@
   height: 9px;
   display: block;
 }
-.pane__tab:hover .pane__tabclose,
 .pane__tab.is-on .pane__tabclose,
 .pane__tab:focus-within .pane__tabclose {
   visibility: visible;
+}
+/* Only for a pointer that hovers: on an iPad a tap is a hover first, and a
+   tap whose hover shows something is held back from its click (WebKit's
+   hover-to-reveal rule), so the tap only showed the box. */
+@media (hover: hover) {
+  .pane__tab:hover .pane__tabclose {
+    visibility: visible;
+  }
 }
 .pane__tabclose:hover {
   color: var(--ink);

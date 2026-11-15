@@ -15,6 +15,8 @@
  * Mutable orchestration state lives in refs so the autosave/watcher callbacks
  * never see stale closures; React state drives rendering.
  */
+import { castFromPage, pageWithCast } from "../markdown/characters-page";
+import type { KeptName } from "../editor/names-in-directions";
 import {
   settleWorkspaceDocuments,
   settleQuitDocuments,
@@ -29,14 +31,23 @@ export type { MaterialGate, OpenMaterial } from "./use-material-sessions";
 import { joinPath, matchingPath, pathKey } from "../storage/path-key";
 import { flatten } from "../workspace/binder";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { revertReviewedFile } from "../review/revert";
 import type { RawPlayDetails } from "./RawPlaySheet";
 import { recoverBinderMoves } from "../workspace/binder-relocation";
+import {
+  CLOUD_IDLE,
+  CLOUD_LOOKING,
+  cloudDownloader,
+  type CloudDownloader,
+  type CloudState,
+} from "../workspace/cloud-download";
 import { reviewRecoveryFiles } from "../storage/recover-sessions";
 import { BufferRecovery, type RecoveryBuffer } from "../storage/buffer-recovery";
 import { canonicalLanguage, DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
 import { commentJumpTarget, liveRangeIds } from "../comments";
+import { settleOpenComments } from "../comments/settle";
 import { syncAppearances } from "../materials";
 import {
   burstTexts,
@@ -78,6 +89,7 @@ import {
 import type { FormatSpec } from "../format";
 import { useFormatRegistry } from "./formats/use-formats";
 import { settingsStore } from "../ui/settings-store";
+import { theTrash } from "../ui/system-words";
 import {
   paginateDoc,
   scenePageMap,
@@ -92,6 +104,8 @@ import { watcherHealth } from "../storage/ipc";
 import { copyPractice } from "../tutorial/copy-practice";
 import { ulid } from "../storage/ulid";
 import { tutorials, type ExportFileType, type PracticeSource } from "../storage/ipc";
+import type { TrashEntry } from "../storage/ipc";
+import { putBackEntry, type PutBackOutcome } from "../workspace/trash";
 import { anonymousFrontMatter, anonymousMeta } from "../pdf/anonymous";
 import { pageRangeLabel, type FrontSheet } from "../pdf/plan";
 import { sidesDoc } from "../pdf/sides";
@@ -475,6 +489,12 @@ export interface Workspace {
    * The Plays screen offers no first play meanwhile.
    */
   lookingBelow: boolean;
+  /**
+   * What is still coming down from iCloud into the open folder
+   * (docs/engineering/cross-platform.md#PLAT-69). The Plays screen says so,
+   * and offers no first play meanwhile.
+   */
+  cloudDownload: CloudState;
   /** The last Plays folder has been tried: what opens from Finder can be routed. */
   booted: boolean;
   /** Edit a play's dashboard metadata (status / logline) from the picker. */
@@ -630,8 +650,22 @@ export interface Workspace {
   saveFrontMatter: (fm: FrontMatter, forScript?: string | null) => boolean;
   /** Which script is open, as a key that changes when another one opens; null for none. */
   openScriptKey: string | null;
-  /** Save the printed cast list (name + description) to the fountain title page. */
+  /** The command's declined names for the open script, from the play file (docs/app/keeping-work/storage-and-file-format.md#STOR-194). */
+  castKeptNow: () => KeptName[];
+  /** Write the command's declined names for the open script. */
+  saveCastKept: (entries: KeptName[]) => Promise<void>;
+  /**
+   * Save the cast list (name + description) to the fountain title page, and
+   * the printed Characters page with it where the page shows the cast
+   * (docs/app/formatting/formats-and-layout.md#FMT-166).
+   */
   saveCharacters: (entries: CharacterEntry[]) => void;
+  /**
+   * Save the printed Characters page, and the cast list with it where the
+   * page shows one: a name in bold leads a character's line. Undefined goes
+   * back to the page the cast list makes.
+   */
+  saveCharactersPage: (text: string | undefined, forScript: string | null) => boolean;
   patchFrontMatter: (patch: Partial<FrontMatter>, forScript: string | null) => boolean;
   /** Which scenes each UPPERCASE cue speaks in (derived from the script). */
   castAppearances: () => Map<string, SceneAppearance[]>;
@@ -787,6 +821,8 @@ export interface Workspace {
   consumeCreated: () => void;
   /** Move to Trash. Resolves with the undo the toast offers (docs/app/keeping-work/storage-and-file-format.md#STOR-90). */
   remove: (id: string) => Promise<TrashResult | null>;
+  /** Put one thing back from Proscenium’s Trash, from the Plays screen (src/workspace/trash.ts). */
+  putBackFromTrash: (entry: TrashEntry) => Promise<PutBackOutcome>;
 }
 
 export function useWorkspace(): Workspace {
@@ -1083,6 +1119,16 @@ export function useWorkspace(): Workspace {
   // Same shape for the binder reconciler: loadWorkspace and the watcher both
   // call it, and neither should re-bind when the binder changes.
   const reconcileNowRef = useRef<() => Promise<void>>(async () => {});
+  /*
+   * The open folder, asked for from iCloud in passes while it is open
+   * (docs/engineering/cross-platform.md#PLAT-69), and what the passes found
+   * still coming down. What arrives is looked for where the writer is: the
+   * Plays screen's plays, or the open play's files.
+   */
+  const cloudRef = useRef<CloudDownloader | null>(null);
+  const [cloud, setCloud] = useState<CloudState>(CLOUD_IDLE);
+  const lookForPlaysRef = useRef<() => void>(() => {});
+  const rescanRef = useRef<(() => void) | null>(null);
   // The play file read and taken up whole, as a change of it from outside is;
   // assigned once takePlayFromDisk exists below.
   const takePlayFromDiskRef = useRef<(playPath: string) => Promise<void>>(async () => {});
@@ -1673,6 +1719,9 @@ export function useWorkspace(): Workspace {
    * the moment of the swap.
    */
   const settleOpenScript = useCallback(async (): Promise<Settled> => {
+    // A comment still being typed is part of what is left: settled first, so
+    // it is in the write below (docs/app/writing/comments.md#COMM-76).
+    if (editorRef.current) settleOpenComments(editorRef.current);
     await landOpenScript();
     const session = sessionRef.current;
     const sid = activeScriptIdRef.current;
@@ -1972,9 +2021,25 @@ export function useWorkspace(): Workspace {
       });
       if (target === null) return;
       const pos = target + 1;
+      // A key or click before the deferred focus below is the writer moving on
+      // (⌃⇥ out, ← in the rail): the scene is still selected and scrolled to,
+      // but focus stays where they put it. A throttled timer runs late enough
+      // for that to happen.
+      let movedOn = false;
+      const onInput = () => {
+        movedOn = true;
+      };
+      window.addEventListener("keydown", onInput, true);
+      window.addEventListener("pointerdown", onInput, true);
       // Defer until the editor pane is un-hidden so the scroll can measure.
       setTimeout(() => {
-        editor.chain().focus().setTextSelection(pos).run();
+        window.removeEventListener("keydown", onInput, true);
+        window.removeEventListener("pointerdown", onInput, true);
+        // Focus at once, not through TipTap's `focus` command: that focuses in
+        // yet another animation frame, by when a key pressed in the rail could
+        // have been taken back into the script.
+        if (!movedOn) editor.view.focus();
+        editor.commands.setTextSelection(pos);
         // Explicitly, because ProseMirror's own `scrollIntoView()` moves nothing
         // in this layout — which is why clicking a card used to switch to the
         // script and then leave the writer at whatever they were last reading
@@ -2041,8 +2106,14 @@ export function useWorkspace(): Workspace {
     (replace = false) => {
       const editor = editorRef.current;
       if (!editor) return;
-      setView("editor"); // also closes an open material and re-selects the script
-      setTimeout(() => editor.commands.openFind(replace), 0);
+      // The script in front, drawn at once (this also closes an open material
+      // and re-selects the script), and its find bar opened in the same turn
+      // as the tap or key that asked. An iPad brings up the screen's keyboard
+      // only for a field focused while it is still handling the tap: opened a
+      // moment later, as it was, the bar had the caret in its field and no
+      // keyboard to type with (docs/engineering/cross-platform.md#PLAT-71).
+      flushSync(() => setView("editor"));
+      flushSync(() => editor.commands.openFind(replace));
     },
     [setView],
   );
@@ -2412,6 +2483,37 @@ export function useWorkspace(): Workspace {
    * Throws on failure so callers choose how to surface it (openFolder shows an
    * error; the startup-restore silently falls back to the welcome screen).
    */
+  /**
+   * The folder just opened, asked for from iCloud for as long as it is the one
+   * open (docs/engineering/cross-platform.md#PLAT-69): the Plays folder, whose
+   * plays are looked for again as they arrive, or a play, whose open files are
+   * checked for changes from outside. A folder iCloud Drive does not keep is
+   * asked once and never again.
+   */
+  const followCloud = useCallback((plays: boolean) => {
+    cloudRef.current?.stop();
+    // Until the first pass answers, a folder that lists empty may be one
+    // still in iCloud: nothing is offered into it meanwhile.
+    setCloud(CLOUD_LOOKING);
+    const generation = workspaceGenRef.current;
+    const live = () => generation === workspaceGenRef.current;
+    const follower = cloudDownloader({
+      ask: vault.downloadCloud,
+      arrived: () => {
+        if (!live()) return;
+        if (plays) lookForPlaysRef.current();
+        else rescanRef.current?.();
+      },
+      changed: (state) => {
+        if (live()) setCloud(state);
+      },
+      live,
+    });
+    cloudRef.current = follower;
+    follower.nudge();
+  }, []);
+  useEffect(() => () => cloudRef.current?.stop(), []);
+
   const openAny = useCallback(
     async (picked: string) => {
       if (!(await teardownWorkspace())) return false;
@@ -2421,6 +2523,9 @@ export function useWorkspace(): Workspace {
       setPreserved([]);
       vaultRootRef.current = opened.root;
       setVaultRoot(opened.root);
+      // iCloud is asked for the folder at once, while its plays are looked
+      // for: a play iCloud has not brought down comes down meanwhile.
+      followCloud(true);
       // Listed before it is remembered: a folder the app can open but not read
       // (the App Sandbox, before a grant) must not become the folder the next
       // launch reopens — nor cost the one it replaced its bookmark.
@@ -2462,7 +2567,7 @@ export function useWorkspace(): Workspace {
       }
       return true;
     },
-    [teardownWorkspace],
+    [teardownWorkspace, followCloud],
   );
 
   /**
@@ -2482,6 +2587,7 @@ export function useWorkspace(): Workspace {
         setRoot(opened.root);
         setConflictCopies(opened.conflicts);
         setPreserved([]);
+        followCloud(false);
 
         // The file may have been renamed in Finder since the scan. Discovery is
         // by extension, so a mismatch never hides a play; the app adopts the
@@ -2537,7 +2643,7 @@ export function useWorkspace(): Workspace {
         setError(String(e));
       }
     },
-    [teardownWorkspace, loadPlay, openAny],
+    [teardownWorkspace, loadPlay, openAny, followCloud],
   );
 
   const backToVault = useCallback(async () => {
@@ -3385,8 +3491,8 @@ export function useWorkspace(): Workspace {
           if (!settled.safe) {
             setError(
               settled.why === "still-changing"
-                ? `“${settled.title}” was still changing, so nothing was moved to the Trash.`
-                : `“${settled.title}” couldn't be saved or kept in Versions, so nothing was moved to the Trash.`,
+                ? `“${settled.title}” was still changing, so nothing was moved to ${theTrash()}.`
+                : `“${settled.title}” couldn't be saved or kept in Versions, so nothing was moved to ${theTrash()}.`,
             );
             return undefined;
           }
@@ -4091,6 +4197,32 @@ export function useWorkspace(): Workspace {
   );
   const consumeCreated = useCallback(() => setJustCreated(null), []);
 
+  /**
+   * Put one thing back from Proscenium’s Trash, in line with every open and
+   * binder op, from the Plays screen alone, whose folder every play is in.
+   * The plays are listed afresh first, so one renamed since is found by its
+   * id, and again after, so what came back is listed.
+   */
+  const putBackFromTrash = useCallback(
+    (entry: TrashEntry): Promise<PutBackOutcome> =>
+      line(async (): Promise<PutBackOutcome> => {
+        const root = vaultRootRef.current;
+        const onPlays = () => vaultRootRef.current === root && playDirRef.current === null;
+        if (!root || !onPlays())
+          return { ok: false, said: "Proscenium’s Trash puts things back from the Plays screen." };
+        // Practice's own folder of plays is not where a play's things go back.
+        if (practiceRef.current && (entry.ring.kind === "play" || entry.ring.kind === "plays"))
+          return {
+            ok: false,
+            said: "Return to your own plays to put this back. It stays in Proscenium’s Trash.",
+          };
+        const out = await putBackEntry(entry, await discoverPlays(), new Date().toISOString());
+        if (out.ok && onPlays()) setPlays(await discoverPlays());
+        return out;
+      }),
+    [line],
+  );
+
   const versionsOf = useCallback(
     (id: string): VersionsTarget | null =>
       id === "outline" || id === outline.record()?.id
@@ -4204,9 +4336,15 @@ export function useWorkspace(): Workspace {
   // fountain title page; save it through the same dirty→autosave path.
   const saveCharacters = useCallback(
     (entries: CharacterEntry[]) => {
+      const fm = frontMatterRef.current;
+      // The page follows the list wherever it shows a cast: a description
+      // changed in Cast, or a speaker added by themselves, is on it too.
+      const page =
+        fm.charactersPage === undefined ? null : pageWithCast(fm.charactersPage, entries);
       saveFrontMatter({
-        ...frontMatterRef.current,
+        ...fm,
         characters: entries.length ? entries : undefined,
+        ...(page !== null ? { charactersPage: page } : {}),
       });
     },
     [saveFrontMatter],
@@ -4247,41 +4385,73 @@ export function useWorkspace(): Workspace {
   }, [cards]);
 
   /**
-   * Rewrite the play file's hidden-speaker set, replayed against whatever base
-   * wins — the same guarded pattern as a card edit, so an outside write landing
-   * mid-flight merges rather than colliding.
+   * Rewrite the open script's entry in the play file, replayed against
+   * whatever base wins — the same guarded pattern as a card edit, so an
+   * outside write landing mid-flight merges rather than colliding. Resolves to
+   * the entry as written, or null when nothing was, or the script changed.
    */
-  const patchCastHidden = useCallback(async (change: (hidden: string[]) => string[]) => {
-    const base = playRef.current;
-    const playPath = playPathRef.current;
-    const scriptId = activeScriptIdRef.current;
-    const playId = playIdRef.current;
-    if (!base || !playPath || !scriptId) return;
-    try {
-      const committed = await commitPlay(
-        playPath,
-        base,
-        (prior) => {
-          const from = prior ?? base.data;
-          const data = scriptDataFor(from, scriptId);
-          return withScriptData(from, scriptId, {
-            ...data,
-            castHidden: change(data.castHidden ?? []),
-          });
-        },
-        new Date().toISOString(),
-      );
-      if (playIdRef.current !== playId) return;
-      if (committed.status === "ok") {
-        takeWrittenRef.current(base, committed);
-        if (activeScriptIdRef.current === scriptId) {
-          setCastHidden(scriptDataFor(committed.data, scriptId).castHidden ?? []);
+  const patchScriptData = useCallback(
+    async (change: (data: ScriptData) => ScriptData): Promise<ScriptData | null> => {
+      const base = playRef.current;
+      const playPath = playPathRef.current;
+      const scriptId = activeScriptIdRef.current;
+      const playId = playIdRef.current;
+      if (!base || !playPath || !scriptId) return null;
+      try {
+        const committed = await commitPlay(
+          playPath,
+          base,
+          (prior) => {
+            const from = prior ?? base.data;
+            return withScriptData(from, scriptId, change(scriptDataFor(from, scriptId)));
+          },
+          new Date().toISOString(),
+        );
+        if (playIdRef.current !== playId) return null;
+        if (committed.status === "ok") {
+          takeWrittenRef.current(base, committed);
+          return activeScriptIdRef.current === scriptId
+            ? scriptDataFor(committed.data, scriptId)
+            : null;
         }
-      } else setError("This play changed on disk — reopen it to see the change.");
-    } catch (e) {
-      setError(String(e));
-    }
+        setError("This play changed on disk — reopen it to see the change.");
+      } catch (e) {
+        setError(String(e));
+      }
+      return null;
+    },
+    [],
+  );
+
+  /** Rewrite the play file's hidden-speaker set. */
+  const patchCastHidden = useCallback(
+    async (change: (hidden: string[]) => string[]) => {
+      const data = await patchScriptData((d) => ({ ...d, castHidden: change(d.castHidden ?? []) }));
+      if (data) setCastHidden(data.castHidden ?? []);
+    },
+    [patchScriptData],
+  );
+
+  /**
+   * The names the writer kept in their own case from Capitalize Character
+   * Names in Directions…, for the open script, as the play file has them now
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-194).
+   */
+  const castKeptNow = useCallback((): KeptName[] => {
+    const scriptId = activeScriptIdRef.current;
+    const play = playRef.current?.data;
+    return (scriptId && play ? scriptDataFor(play, scriptId).castKept : null) ?? [];
   }, []);
+  /** The command's new list, written whole; empty, the key goes. */
+  const saveCastKept = useCallback(
+    async (entries: KeptName[]) => {
+      await patchScriptData((d) => {
+        const { castKept: _, ...rest } = d;
+        return entries.length ? { ...rest, castKept: entries } : rest;
+      });
+    },
+    [patchScriptData],
+  );
 
   /**
    * Take a speaker off the printed cast page for good. Canonical in the play file
@@ -4305,6 +4475,37 @@ export function useWorkspace(): Workspace {
       void patchCastHidden((hidden) => hidden.filter((n) => n !== key));
     },
     [patchCastHidden],
+  );
+
+  /**
+   * The printed Characters page, and the cast list with it where the page
+   * shows one (docs/app/formatting/formats-and-layout.md#FMT-166). A speaker
+   * whose line the writer took off the page is taken off the cast list for
+   * good, as Cast's remove does, or auto-add would put them back on the page
+   * at the next save; one put back on the page is let back.
+   */
+  const saveCharactersPage = useCallback(
+    (text: string | undefined, forScript: string | null) => {
+      const fm = frontMatterRef.current;
+      const shown = text === undefined ? null : castFromPage(text);
+      const saved = saveFrontMatter(
+        {
+          ...fm,
+          charactersPage: text,
+          ...(shown ? { characters: shown } : {}),
+        },
+        forScript,
+      );
+      if (!saved || !shown) return saved;
+      const now = new Set(shown.map((c) => c.name.trim().toUpperCase()));
+      for (const c of fm.characters ?? []) {
+        const key = c.name.trim().toUpperCase();
+        if (!now.has(key) && (castWeights.get(key)?.cues ?? 0) > 0) hideFromCast(key);
+      }
+      for (const key of now) if (castHidden.includes(key)) unhideFromCast(key);
+      return saved;
+    },
+    [saveFrontMatter, castWeights, castHidden, hideFromCast, unhideFromCast],
   );
 
   /**
@@ -4636,6 +4837,7 @@ export function useWorkspace(): Workspace {
         });
     }, PLAYS_SETTLE_MS);
   }, []);
+  lookForPlaysRef.current = lookForPlaysSoon;
 
   /**
    * The PLAY FILE read and taken up whole: its binder shown, the open script's
@@ -4931,7 +5133,11 @@ export function useWorkspace(): Workspace {
       // Back on the Plays screen: what came down meanwhile is listed too.
       if (playDirRef.current === null) lookForPlaysSoon();
       void rescan();
+      // And iCloud is asked at once for what changed on other devices meanwhile.
+      cloudRef.current?.nudge();
     };
+    // What came down from iCloud is checked as a change from outside is.
+    rescanRef.current = () => void rescan();
     document.addEventListener("visibilitychange", onForeground);
     window.addEventListener("focus", onForeground);
     let off: (() => void) | undefined;
@@ -4945,6 +5151,7 @@ export function useWorkspace(): Workspace {
       });
     return () => {
       cancelled = true;
+      rescanRef.current = null;
       document.removeEventListener("visibilitychange", onForeground);
       window.removeEventListener("focus", onForeground);
       off?.();
@@ -5113,12 +5320,18 @@ export function useWorkspace(): Workspace {
     });
   }, [root, mode, readOnly, binder, cards, materialsTick]);
 
-  // Flush on blur/quit (docs/app/keeping-work/storage-and-file-format.md#STOR-D10). And back in the window, saves the disk
-  // refused try again: the writer was most likely in Finder unlocking the
+  // Flush on blur/quit (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), and as the page is hidden or put away,
+  // as the documents do (MaterialEditor.tsx): a system that suspends an app
+  // the writer leaves may end it there without a word, and what autosave's
+  // wait had not written would go with it. And back in the window, saves the
+  // disk refused try again: the writer was most likely in Finder unlocking the
   // file, or making room, as the toast asked — "it will save once" is kept
   // without waiting for the next keystroke.
   useEffect(() => {
     const onBlur = () => autosaveRef.current?.flushNow();
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") onBlur();
+    };
     const onFocus = () => {
       for (const key of refusedRef.current.keys()) {
         if (key.startsWith("script:")) flushRef.current();
@@ -5129,10 +5342,14 @@ export function useWorkspace(): Workspace {
     window.addEventListener("blur", onBlur);
     window.addEventListener("focus", onFocus);
     window.addEventListener("beforeunload", onBlur);
+    window.addEventListener("pagehide", onBlur);
+    document.addEventListener("visibilitychange", onHidden);
     return () => {
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("beforeunload", onBlur);
+      window.removeEventListener("pagehide", onBlur);
+      document.removeEventListener("visibilitychange", onHidden);
     };
   }, []);
 
@@ -5331,6 +5548,7 @@ export function useWorkspace(): Workspace {
       if (playsFolderHint && vaultRoot) setKeptFolder(vaultRoot);
     },
     lookingBelow: vaultRoot !== null && foldersBelow === null,
+    cloudDownload: cloud,
     booted,
     updatePlay: (dir, patch) => void updatePlay(dir, patch),
     root,
@@ -5422,6 +5640,9 @@ export function useWorkspace(): Workspace {
     saveFrontMatter,
     openScriptKey,
     saveCharacters,
+    saveCharactersPage,
+    castKeptNow,
+    saveCastKept,
     patchFrontMatter,
     castAppearances,
     castWeights,
@@ -5483,5 +5704,6 @@ export function useWorkspace(): Workspace {
     justCreated,
     consumeCreated,
     remove,
+    putBackFromTrash,
   };
 }

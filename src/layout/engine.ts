@@ -28,7 +28,8 @@ import {
   START_POSITION,
   type PagePosition,
 } from "./furniture";
-import { openingParagraphs } from "./opening-prose";
+import type { FrontBlock, FrontPage } from "./front-pages";
+import { frontPagesFor } from "./page-files";
 import type { BlockNode, BlockType, Doc, FrontMatter } from "../fountain/model";
 import { charAdvanceIn, charsPerLine } from "../format/metrics";
 import {
@@ -44,7 +45,11 @@ import {
   type FormatSpec,
 } from "../format/spec";
 
-export type FrontSheetKind = "title" | "characters" | "setting";
+/** The four pages a play's front matter fields and texts print. A page kept as
+ * a file of the play's Front Matter folder is its own kind: its id. */
+export type FrontSheetKind = "title" | "characters" | "setting" | "production";
+
+export { PRODUCTION_NOTES_HEADING } from "./front-pages";
 
 export interface FrontMatterLine {
   text: string;
@@ -57,6 +62,8 @@ export interface FrontMatterLine {
   /** One semantic paragraph may span several physical sheets. */
   paragraphId: string;
   role: "heading" | "paragraph" | "cast";
+  /** A title page's own title from a page file, which a word processor sets in its Title style. */
+  titleStyle?: true;
   /**
    * On a paragraph's first line only: its whole text and emphasis, unwrapped,
    * and the blank rows the format puts above it when it follows another, for
@@ -67,7 +74,10 @@ export interface FrontMatterLine {
 }
 
 export interface FrontMatterPage {
-  kind: FrontSheetKind;
+  /** The page the sheet is part of: one of the four (`FrontSheetKind`), or a page file's own. */
+  kind: string;
+  /** A page file's name, which an export names its sheets by; the four are named by src/pdf/plan.ts. */
+  label?: string;
   lines: FrontMatterLine[];
 }
 
@@ -78,39 +88,50 @@ export function paginateFrontMatter(
   fm: FrontMatter | null | undefined,
   spec: FormatSpec,
 ): FrontMatterPage[] {
-  return spec.frontMatter.placement === "inline" ? [] : layoutFrontMatter(fm, spec);
+  return spec.frontMatter.placement === "inline"
+    ? []
+    : layoutFrontPages(frontPagesFor(fm, spec.frontMatter), spec);
 }
 
-/** Both placements share wrapping, overflow and the source-independent grid. */
-function layoutFrontMatter(
-  fm: FrontMatter | null | undefined,
-  spec: FormatSpec,
-): FrontMatterPage[] {
-  if (!fm) return [];
+/**
+ * Every sheet the pages before the script print, whichever the placement: one
+ * loop for every page (src/layout/front-pages.ts says what each page holds).
+ * Each page starts a sheet of its own, a third of the paper down for a title
+ * page and at the format's section top for the rest; its blocks wrap on the
+ * script's own character grid and continue onto more sheets; and its foot,
+ * the title page's contact block, stands at the bottom of the sheet with at
+ * least the format's gap above it. An inline opening is one page whose sheets
+ * are the first numbered pages' openings (`paginate`, below).
+ */
+export function layoutFrontPages(frontPages: FrontPage[], spec: FormatSpec): FrontMatterPage[] {
   const policy = spec.frontMatter;
   const width = textBlockWidthIn(spec);
   const cpl = charsPerLine(spec, width);
   const capacity = Math.max(1, maxLinesPerPage(spec));
+  const titleTop =
+    (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) /
+    linePitchIn(spec);
   const pages: FrontMatterPage[] = [];
-  let current: FrontMatterPage;
+  let current: FrontMatterPage = { kind: "title", lines: [] };
   let row = 0;
-  const start = (kind: FrontSheetKind, at = policy.sectionTopRows) => {
-    current = { kind, lines: [] };
+  const start = (kind: string, at: number, label: string | undefined) => {
+    current = { kind, ...(label ? { label } : {}), lines: [] };
     pages.push(current);
     row = Math.min(capacity - 1, Math.max(0, at));
   };
   const linesFor = (text: string) =>
     wrapText(text, cpl).map((line) => text.slice(line.start, line.end).replace(/ +$/, ""));
-  const paragraph = (
-    text: string,
-    id: string,
-    role: FrontMatterLine["role"] = "paragraph",
-    align: ElementAlign = "left",
-    fontStyle = policy.bodyFontStyle,
-    gap = 0,
-    keepWithNext = false,
-    runs: StyleRun[] = [],
-  ) => {
+  const place = ({
+    text,
+    id,
+    role,
+    align,
+    fontStyle,
+    gap,
+    keepWithNext,
+    runs,
+    titleStyle,
+  }: FrontBlock) => {
     if (!text.trim()) return;
     const lines = linesFor(text);
     const top = Math.min(capacity - 1, policy.sectionTopRows);
@@ -118,12 +139,13 @@ function layoutFrontMatter(
     // A short entry travels whole; an entry larger than a page splits. Never
     // create an empty sheet just to honor an impossible oversized gap.
     if (current.lines.length && row + gap + want > capacity && want <= capacity - top)
-      start(current.kind);
+      start(current.kind, policy.sectionTopRows, current.label);
     else if (current.lines.length) row += gap;
     let first = true;
     for (const wrapped of wrapText(text, cpl)) {
       const lineText = text.slice(wrapped.start, wrapped.end).replace(/ +$/, "");
-      if (row + 1 > capacity && current.lines.length) start(current.kind);
+      if (row + 1 > capacity && current.lines.length)
+        start(current.kind, policy.sectionTopRows, current.label);
       row = Math.min(row, capacity - 1);
       const textWidth = lineText.length * charAdvanceIn(spec);
       const xIn =
@@ -149,118 +171,17 @@ function layoutFrontMatter(
         role,
         ...(clipped.length ? { runs: clipped } : {}),
         ...(first ? { source: { text, runs, gapRows: gap } } : {}),
+        ...(titleStyle ? { titleStyle } : {}),
       });
       first = false;
       row += 1;
     }
   };
-  const prose = (value: string, kind: FrontSheetKind, separate: boolean) => {
-    if (!value.trim()) return;
-    if (separate)
-      start(
-        kind,
-        kind === "title"
-          ? (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) /
-              linePitchIn(spec)
-          : policy.sectionTopRows,
-      );
-    for (const [i, p] of openingParagraphs(value).entries()) {
-      paragraph(
-        p.text,
-        `${kind}-prose-${i}`,
-        p.heading ? "heading" : "paragraph",
-        p.align,
-        p.heading ? policy.headingFontStyle : policy.bodyFontStyle,
-        i ? policy.fieldGapRows : 0,
-        p.heading,
-        p.runs,
-      );
-    }
-  };
-  if (policy.placement === "inline") {
-    start("title");
-    if (fm.titlePage !== undefined) prose(fm.titlePage, "title", false);
-    else {
-      paragraph(fm.title?.toUpperCase() ?? "", "title", "heading", "left", policy.titleFontStyle);
-      const credit = fm.credit ?? (fm.authors?.length ? "by" : "");
-      paragraph(
-        [credit, fm.authors?.join(", ")].filter(Boolean).join(" "),
-        "authors",
-        "paragraph",
-        "left",
-        policy.bodyFontStyle,
-        policy.titleGapRows,
-      );
-      paragraph(fm.draftDate ?? "", "draft-date");
-      for (const [i, text] of (fm.contact ?? []).entries()) paragraph(text, `contact-${i}`);
-    }
-    if (fm.openingNotesBeforeCharacters && fm.openingNotes !== undefined)
-      prose(fm.openingNotes, "setting", false);
-    if (fm.charactersPage !== undefined) prose(fm.charactersPage, "characters", false);
-    else if (fm.characters?.length) {
-      const cast = fm.characters
-        .map((c) => (c.description ? `${c.name} (${c.description})` : c.name))
-        .join(", ");
-      paragraph(
-        `Characters: ${cast}`,
-        "characters",
-        "paragraph",
-        "left",
-        policy.bodyFontStyle,
-        policy.fieldGapRows,
-      );
-    }
-    if (fm.openingNotes !== undefined) {
-      if (!fm.openingNotesBeforeCharacters) prose(fm.openingNotes, "setting", false);
-    } else
-      for (const [label, value] of [
-        ["Setting", fm.setting],
-        ["Time", fm.time],
-        ["Place", fm.place],
-      ] as const) {
-        if (value?.trim()) paragraph(`${label}: ${value}`, label);
-      }
-    return pages.filter((page) => page.lines.length);
-  }
-  if (fm.titlePage !== undefined) prose(fm.titlePage, "title", true);
-  else if (fm.title?.trim()) {
-    const titleTop =
-      (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) /
-      linePitchIn(spec);
-    start("title", titleTop);
-    paragraph(fm.title.toUpperCase(), "title", "heading", "center", policy.titleFontStyle);
-    paragraph(
-      fm.credit ?? (fm.authors?.length ? "by" : ""),
-      "credit",
-      "paragraph",
-      "center",
-      policy.bodyFontStyle,
-      policy.titleGapRows,
-    );
-    paragraph(
-      fm.authors?.join(", ") ?? "",
-      "authors",
-      "paragraph",
-      "center",
-      policy.bodyFontStyle,
-      policy.titleGapRows,
-    );
-    const contact: { text: string; id: string; gap: number }[] = [];
-    let blanks = 0;
-    (fm.contact ?? []).forEach((text, i) => {
-      if (text.trim()) {
-        contact.push({ text, id: `contact-${i}`, gap: blanks });
-        blanks = 0;
-      } else blanks++;
-    });
-    if (fm.draftDate)
-      contact.push({
-        text: fm.draftDate,
-        id: "draft-date",
-        gap: contact.length ? blanks + policy.fieldGapRows : 0,
-      });
-    const height = contact.reduce(
-      (sum, item) => sum + (item.text.trim() ? linesFor(item.text).length : 0) + item.gap,
+  for (const page of frontPages) {
+    start(page.kind, page.top === "title" ? titleTop : policy.sectionTopRows, page.label);
+    for (const block of page.blocks) place(block);
+    const height = page.foot.reduce(
+      (sum, block) => sum + (block.text.trim() ? linesFor(block.text).length : 0) + block.gap,
       0,
     );
     if (height) {
@@ -268,66 +189,7 @@ function layoutFrontMatter(
         row + policy.titleContactGapRows,
         capacity - policy.contactBottomRows - height,
       );
-      for (const item of contact)
-        paragraph(
-          item.text,
-          item.id,
-          "paragraph",
-          policy.contactAlign,
-          policy.bodyFontStyle,
-          item.gap,
-        );
-    }
-  }
-  if (fm.openingNotesBeforeCharacters && fm.openingNotes !== undefined)
-    prose(fm.openingNotes, "setting", true);
-  if (fm.charactersPage !== undefined) prose(fm.charactersPage, "characters", true);
-  else if (fm.characters?.length) {
-    start("characters");
-    paragraph(
-      "CHARACTERS",
-      "characters-heading",
-      "heading",
-      "center",
-      policy.headingFontStyle,
-      0,
-      true,
-    );
-    fm.characters.forEach((character, i) => {
-      const text = character.description
-        ? `${character.name.toUpperCase()} — ${character.description}`
-        : character.name.toUpperCase();
-      paragraph(
-        text,
-        `cast-${i}`,
-        "cast",
-        "left",
-        policy.bodyFontStyle,
-        i ? policy.castGapRows : policy.headingGapRows,
-      );
-    });
-  }
-  const fields = [
-    ["SETTING", fm.setting],
-    ["TIME", fm.time],
-    ["PLACE", fm.place],
-  ] as const;
-  if (fm.openingNotes !== undefined) {
-    if (!fm.openingNotesBeforeCharacters) prose(fm.openingNotes, "setting", true);
-  } else if (fields.some(([, value]) => value?.trim())) {
-    start("setting");
-    for (const [label, value] of fields) {
-      if (!value?.trim()) continue;
-      paragraph(
-        label,
-        `${label}-heading`,
-        "heading",
-        "left",
-        policy.headingFontStyle,
-        policy.fieldGapRows,
-        true,
-      );
-      paragraph(value, label, "paragraph", "left", policy.bodyFontStyle);
+      for (const block of page.foot) place(block);
     }
   }
   return pages.filter((page) => page.lines.length);
@@ -692,6 +554,50 @@ function wrapParagraph(
 /* ------------------------------------------------------------------ */
 /* Pagination                                                           */
 /* ------------------------------------------------------------------ */
+
+/**
+ * How many of a block's lines to leave on this page when it splits
+ * (docs/app/formatting/formats-and-layout.md#FMT-158). The format's minimum
+ * lines on either side of a break hold for the paragraph the break falls in,
+ * not only for the block: a paragraph is a run of lines with no empty line in
+ * it, and a break between two paragraphs is always one. So the opening word
+ * of a paragraph is never left alone at the foot of a page. The most lines,
+ * up to `most` and no fewer than `least`, that keep those minimums and put
+ * words on the next page's first line; then the most that keep them with an
+ * empty line opening the next page. Where neither is on the page, `fallback`:
+ * 0, so the block moves to the next page whole, as one too short to split
+ * always has; or, for a block taller than a fresh page, `most`, the progress
+ * the page has to make. A lyric is verse, and may end at any line.
+ */
+function cleanBreak(
+  entry: Prepared,
+  most: number,
+  least: number,
+  minBefore: number,
+  minAfter: number,
+  fallback: number,
+): number {
+  if (entry.block.type === "lyric") return most;
+  const { lines } = entry;
+  const { text } = entry.block;
+  const blank = (i: number) => !text.slice(lines[i].start, lines[i].end).trim();
+  const keeps = (at: number) => {
+    if (blank(at - 1) || blank(at)) return true;
+    let before = 0;
+    for (let i = at - 1; i >= entry.fromLine && !blank(i); i--) before++;
+    let after = 0;
+    for (let i = at; i < lines.length && !blank(i); i++) after++;
+    return before >= minBefore && after >= minAfter;
+  };
+  let emptyFirst: number | null = null;
+  for (let take = most; take >= least; take--) {
+    const at = entry.fromLine + take;
+    if (!keeps(at)) continue;
+    if (!blank(at)) return take;
+    emptyFirst ??= take;
+  }
+  return emptyFirst ?? fallback;
+}
 
 interface Prepared {
   block: LayoutBlock;
@@ -1160,7 +1066,10 @@ export function paginate(
   }
 
   if (spec.frontMatter.placement === "inline") {
-    for (const [index, opening] of layoutFrontMatter(meta.frontMatter, spec).entries()) {
+    for (const [index, opening] of layoutFrontPages(
+      frontPagesFor(meta.frontMatter, spec.frontMatter),
+      spec,
+    ).entries()) {
       if (index) closePage(page);
       page.intro = opening.lines;
       page.rowsUsed = opening.lines[opening.lines.length - 1].row + 1;
@@ -1229,7 +1138,10 @@ export function paginate(
           ? 0
           : Math.max(lastAfter, el.spacingBefore);
     const rowStart = beside ? page.placed[page.placed.length - 1].atRow : page.rowsUsed;
-    const avail = maxRows - rowStart - contdRow - gap;
+    // Whole rows only: a format may space elements by part of a line, which
+    // leaves part of a row free, and a split that took "3.5 lines" read past
+    // the block's last line and threw.
+    const avail = Math.floor(maxRows - rowStart - contdRow - gap + 1e-9);
 
     if (remaining <= avail) {
       placeLines(page, entry, remaining, gap);
@@ -1253,7 +1165,9 @@ export function paginate(
     // A continuation chunk has already satisfied the "before" minimum on an
     // earlier page; only the remainder minimum still binds.
     const effMinBefore = entry.fromLine > 0 ? 1 : minBefore;
-    const take = Math.min(avail, remaining - minAfter);
+    const most = Math.min(avail, remaining - minAfter);
+    const take =
+      most >= effMinBefore ? cleanBreak(entry, most, effMinBefore, minBefore, minAfter, 0) : most;
 
     if (splittable && avail > 0 && take >= effMinBefore) {
       placeLines(page, entry, take, gap);
@@ -1275,7 +1189,14 @@ export function paginate(
     if (pageEmpty && !page.pendingContd) {
       // A block that alone exceeds a fresh page: force-split at the sheet
       // edge (progress guarantee — minimums can't be satisfied).
-      const forced = Math.max(1, Math.min(avail, remaining - 1));
+      const forced = cleanBreak(
+        entry,
+        Math.max(1, Math.min(avail, remaining - 1)),
+        1,
+        minBefore,
+        minAfter,
+        Math.max(1, Math.min(avail, remaining - 1)),
+      );
       placeLines(page, entry, forced, 0);
       const splitLine = entry.lines[entry.fromLine + forced];
       const contd =

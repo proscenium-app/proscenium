@@ -53,7 +53,8 @@
       "indentFromMargin": 1.5,
       "parenWrap": true,
       "spacingBefore": 1,
-      "spacingAfter": 1
+      "spacingAfter": 1,
+      "capitalizeCastNames": true
     },
     "character": {
       "indentFromMargin": 2,

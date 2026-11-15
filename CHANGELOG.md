@@ -12,6 +12,15 @@ that version's section.
 
 ## [Unreleased]
 
+## [1.0.6]
+
+### Security
+
+- The library Proscenium makes its secure connections with is updated for
+  four published advisories. The Windows updater no longer carries code to
+  unpack zip files, which it never needed and which had an advisory of its
+  own. Neither could be reached from Proscenium.
+
 ## [1.0.5] - 2026-10-29
 
 ### Added

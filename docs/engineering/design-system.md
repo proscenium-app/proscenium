@@ -217,6 +217,28 @@ for descriptive text.
 **UI-48** Regular **28px**, small **22px**, mini **20px**. The `@media (pointer: coarse)`
 pass lifts everything to 44pt — gated on the pointer, not on the platform,
 which is what makes the iPad fork a values change rather than a layout change.
+It lifts the three control heights themselves (`--h-regular`, `--h-small`,
+`--h-mini`), so every control built on them grows with them; it used to name
+each control's class, and a renamed class (the view switcher's) went on being
+named and lifting nothing. What only shows a state, a chip, a capsule or a
+tag, keeps `--h-badge`; a switch keeps its track (`--h-track`), and a switch,
+a checkbox and a radio grow what a finger presses around them instead
+(docs/engineering/cross-platform.md#PLAT-70). The pass is last in the
+stylesheet, so it wins.
+
+<a id="UI-65"></a>
+
+**UI-65** **The top bar folds** (`src/ui/use-media.ts`), asking the window's width
+and the pointer, never the platform. **Wide**, as on every Mac: identity on
+the left, the view switcher centred, Help & Tutorials, Feedback, the split and
+the inspector on the right. **Folded**, on a finger below 1000 points, where
+44-point controls no longer fit beside the switcher: Help & Tutorials,
+Feedback, Settings and the changes switch go into **More** (⋯). **Compact**,
+below 700 points on any pointer: the switcher is a pull-down naming the view
+the pane shows, which also holds what "+" would add, and the split and the
+inspector join More. A Mac's window is never under 820 points, so a Mac's bar
+never folds. On a finger the split button asks which way, Side by Side or Top
+and Bottom, since a finger has no ⌥ to click with.
 
 <a id="UI-49"></a>
 

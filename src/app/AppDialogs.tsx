@@ -4,7 +4,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { Doc } from "../fountain/model";
 import { Alert } from "../ui";
-import { FrontMatterPanel } from "./FrontMatterPanel";
+import { CastNamesSheet } from "./CastNamesSheet";
 import { ExportDialog, type ExportRequest } from "./ExportDialog";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import { GoToScene } from "./GoToScene";
@@ -24,6 +24,9 @@ interface Props {
   ws: Pick<
     Workspace,
     | "frontMatter"
+    | "cast"
+    | "castKeptNow"
+    | "saveCastKept"
     | "openScriptKey"
     | "saveFrontMatter"
     | "cards"
@@ -57,8 +60,8 @@ interface Props {
     | "exportScript"
     | "layoutForExport"
   >;
-  showTitlePage: boolean;
-  setShowTitlePage: Dispatch<SetStateAction<boolean>>;
+  showCastNames: boolean;
+  setShowCastNames: Dispatch<SetStateAction<boolean>>;
   showExport: ExportRequest | null;
   setShowExport: Dispatch<SetStateAction<ExportRequest | null>>;
   showShortcuts: boolean;
@@ -75,8 +78,8 @@ interface Props {
 
 export function AppDialogs({
   ws,
-  showTitlePage,
-  setShowTitlePage,
+  showCastNames,
+  setShowCastNames,
   showExport,
   setShowExport,
   showShortcuts,
@@ -92,12 +95,14 @@ export function AppDialogs({
 }: Props) {
   return (
     <>
-      {showTitlePage && (
-        <FrontMatterPanel
-          frontMatter={ws.frontMatter}
-          scriptKey={ws.openScriptKey}
-          onSave={ws.saveFrontMatter}
-          onClose={() => setShowTitlePage(false)}
+      {showCastNames && (
+        <CastNamesSheet
+          editor={ws.editor}
+          names={[...ws.cast, ...(ws.frontMatter.characters ?? []).map((c) => c.name)]}
+          language={ws.playLanguage}
+          kept={ws.castKeptNow()}
+          onKept={(entries) => void ws.saveCastKept(entries)}
+          onClose={() => setShowCastNames(false)}
         />
       )}
       {showExport && (
@@ -127,7 +132,7 @@ export function AppDialogs({
           details={ws.rawPlay}
           onClose={ws.closeRawPlay}
           onRetry={ws.retryRawPlay}
-          onReveal={ws.revealRawPlay}
+          onReveal={ws.canReveal ? ws.revealRawPlay : undefined}
         />
       )}
       {settingsSheet.section && (

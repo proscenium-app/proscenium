@@ -18,9 +18,14 @@
  * a PC's Ctrl+Shift, and where that is a chord already, Windows' own
  * convention takes its place: Find and Replace is Ctrl+H, the previous and
  * next scene Ctrl+PageUp and Ctrl+PageDown.
+ *
+ * AN IPAD'S. Its keyboards have ⌘ and ⌥, and its chords are a Mac's, written
+ * in a Mac's glyphs, but for one: iPadOS keeps ⌘⌥D for its Dock, and nothing
+ * the app can ask for wins it back, so Dialogue is ⌘⇧D there, the PC's chord
+ * for it, which nothing of the Mac's uses.
  */
 
-export type KeyStyle = "mac" | "pc";
+export type KeyStyle = "mac" | "ipad" | "pc";
 
 let style: KeyStyle = "mac";
 
@@ -67,9 +72,19 @@ export const PC_CHORDS: Readonly<Record<string, string>> = {
   "⌘⌫": "⌦",
 };
 
+/**
+ * A Mac chord's iPad form, in the Mac's notation, where they differ: the
+ * Dock's ⌘⌥D (src-tauri/src/menu.rs keeps the menu's own copy, IPAD_KEYS).
+ */
+export const IPAD_CHORDS: Readonly<Record<string, string>> = {
+  "⌘⌥D": "⌘⇧D",
+};
+
 /** This system's chord for a Mac chord, in the Mac's notation. */
 export function chord(mac: string): string {
-  return style === "pc" ? (PC_CHORDS[mac] ?? mac) : mac;
+  if (style === "pc") return PC_CHORDS[mac] ?? mac;
+  if (style === "ipad") return IPAD_CHORDS[mac] ?? mac;
+  return mac;
 }
 
 const MODIFIERS = "⌃⌥⇧⌘";
@@ -96,8 +111,8 @@ const PC_KEY: Readonly<Record<string, string>> = {
  * (`Return`, `⌘Return`): a Mac's with its glyph, a PC's in words.
  */
 export function keyCap(key: string): string {
-  if (style === "mac") return MAC_CAPS[key] ?? key;
-  return PC_CAPS[key] ?? keys(key.replace("Return", "⏎"));
+  if (style === "pc") return PC_CAPS[key] ?? keys(key.replace("Return", "⏎"));
+  return MAC_CAPS[key] ?? keys(key);
 }
 
 const MAC_CAPS: Readonly<Record<string, string>> = {
@@ -130,12 +145,18 @@ function pcWords(c: string): string {
 }
 
 /**
- * A shortcut as this system writes it. A Mac's is shown as written; a PC's is
- * moved to its chord and written in words. Alternatives separated by ` / `
- * are each written so.
+ * A shortcut as this system writes it. A Mac's is shown as written; an iPad's
+ * in the same glyphs, moved to its chord where it differs; a PC's is moved to
+ * its chord and written in words. Alternatives separated by ` / ` are each
+ * written so.
  */
 export function keys(mac: string): string {
   if (style === "mac") return mac;
+  if (style === "ipad")
+    return mac
+      .split(" / ")
+      .map((c) => IPAD_CHORDS[c] ?? c)
+      .join(" / ");
   return mac
     .split(" / ")
     .map((c) => pcWords(PC_CHORDS[c] ?? c))

@@ -1,4 +1,5 @@
 - dialog "Settings"
+  - button "Close"
   - heading "Settings" [level=2]
   - tablist "Settings sections"
     - tab "General"
@@ -25,7 +26,6 @@
     - paragraph
       - link "Release notes"
     - paragraph
-  - button "Done"
   - generic
     - status [live=polite]
     - alert [live=assertive]

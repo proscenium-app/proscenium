@@ -5,7 +5,7 @@
     - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
-    - tab "Cast"
+    - tab "Cast & Pages"
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -29,10 +29,10 @@
   - generic "Comments"
     - article
       - sectionheader
-        - button "Reply to comment"
         - button "Edit comment"
         - button "Resolve comment"
       - paragraph
+      - button "Reply to comment"
   - textbox "Script"
   - image "Scene navigation: 2 pages. On screen: <scene>"
 - contentinfo

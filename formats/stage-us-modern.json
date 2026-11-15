@@ -58,7 +58,8 @@
       "parenWrap": false,
       "fontStyle": "italic",
       "spacingBefore": 1,
-      "spacingAfter": 1
+      "spacingAfter": 1,
+      "capitalizeCastNames": true
     },
     "character": {
       "indentFromMargin": 2.5,

@@ -152,8 +152,9 @@ class CaretView {
 
   private onKey = (event: KeyboardEvent) => {
     const { key } = event;
-    // A line's end: End, and on a Mac ⌘→ and Control-E too (a PC's Ctrl+→ is a word).
-    const mac = keyStyle() === "mac";
+    // A line's end: End, and on a Mac's or an iPad's keyboard ⌘→ and
+    // Control-E too (a PC's Ctrl+→ is a word).
+    const mac = keyStyle() !== "pc";
     const toEnd =
       key === "End" ||
       (mac && key === "ArrowRight" && event.metaKey) ||
@@ -246,7 +247,7 @@ class CaretView {
       selection.empty;
     const at = shown ? this.stands(selection.head) : null;
     if (!at) {
-      bar.hidden = true;
+      if (!bar.hidden) bar.hidden = true;
       if (moved) this.hint = null;
       return;
     }
@@ -274,17 +275,26 @@ class CaretView {
 
     const win = view.dom.ownerDocument.defaultView;
     const box = caretBox(stand, frame, effectiveZoom(host), win?.devicePixelRatio || 1);
-    bar.style.left = `${box.left}px`;
-    bar.style.top = `${box.top}px`;
-    bar.style.width = `${box.width}px`;
-    bar.style.height = `${box.height}px`;
-    bar.hidden = false;
+    // Written only where it changed: each draw is also every redraw a resize
+    // or a transaction asks for, and on an iPad a tap that met the bar shown
+    // again was held back from its click, as a hover that showed something.
+    setPx(bar, "left", box.left);
+    setPx(bar, "top", box.top);
+    setPx(bar, "width", box.width);
+    setPx(bar, "height", box.height);
+    if (bar.hidden) bar.hidden = false;
     if (solid) {
       // Two names for one animation: changing the name is what starts it again.
       this.beat = !this.beat;
       bar.dataset.beat = this.beat ? "a" : "b";
     }
   }
+}
+
+/** A length of the bar's style, set only when it is not what it already is. */
+function setPx(bar: HTMLElement, side: "left" | "top" | "width" | "height", px: number) {
+  const value = `${px}px`;
+  if (bar.style[side] !== value) bar.style[side] = value;
 }
 
 const key = new PluginKey("documentCaret");

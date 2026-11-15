@@ -74,6 +74,7 @@ export interface ElementDraft {
   startsNewPage: boolean;
   tightStack: boolean;
   print: boolean;
+  capitalizeCastNames: boolean;
 }
 
 export interface FormatDraft {
@@ -134,6 +135,7 @@ function elementFromSpec(el: ElementFormat): ElementDraft {
     startsNewPage: el.startsNewPage,
     tightStack: el.tightStack,
     print: el.print,
+    capitalizeCastNames: el.capitalizeCastNames,
   };
 }
 
@@ -214,6 +216,8 @@ export function draftToRaw(draft: FormatDraft): Record<string, unknown> {
       startsNewPage: el.startsNewPage,
       tightStack: el.tightStack,
       print: el.print,
+      // Action's alone: a format file takes it nowhere else (validate.ts).
+      ...(key === "action" ? { capitalizeCastNames: el.capitalizeCastNames } : {}),
     };
   }
   const m = draft.page.margins;

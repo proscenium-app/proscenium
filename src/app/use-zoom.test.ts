@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "bun:test";
-import { ZOOM_MAX, ZOOM_MIN, fitLevel } from "./use-zoom";
+import type { FormatSpec } from "../format";
+import { ZOOM_MAX, ZOOM_MIN, fitLevel, zoomFloor } from "./use-zoom";
 
 /** US Letter at 96px to the inch: the sheet at 100%. */
 const LETTER = { width: 816, height: 1056 };
@@ -65,5 +66,26 @@ describe("fit levels", () => {
     expect(fitLevel("fit-width", { width: 9000, height: 9000, above: 0, below: 0 }, LETTER)).toBe(
       ZOOM_MAX,
     );
+  });
+});
+
+describe("the zoom's floor (docs/app/writing/editor-ux.md#EDIT-195)", () => {
+  const type = (size: number) => ({ type: { size } }) as FormatSpec;
+
+  it("keeps 12-point type at WebKit's 9 pixels or more", () => {
+    const floor = zoomFloor(type(12));
+    expect(floor).toBe(0.57);
+    expect(((12 * 96) / 72) * floor).toBeGreaterThanOrEqual(9);
+  });
+
+  it("follows the format's type: smaller type, a higher floor", () => {
+    expect(zoomFloor(type(10))).toBe(0.68);
+    expect(zoomFloor(type(18))).toBe(0.38);
+  });
+
+  it("stays between the zoom's own least and 100%", () => {
+    expect(zoomFloor(type(72))).toBe(ZOOM_MIN);
+    expect(zoomFloor(type(4))).toBe(1);
+    expect(zoomFloor(type(0))).toBe(ZOOM_MIN);
   });
 });

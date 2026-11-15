@@ -11,19 +11,38 @@
 //! such key, and neither does a local or development build: their version is
 //! the package's, `X.Y.Z`. A Windows track build is given its whole version at
 //! build time instead (`PROSCENIUM_VERSION`), since it has no Info.plist.
+//!
+//! An iPad build carries the key as a Mac's does (scripts/release-ios.mjs): its
+//! TestFlight alpha is the Mac alpha's `X.Y.Z-alpha.N` of the same commit,
+//! which the reports service refuses as every alpha's, so the team's own copy
+//! is never counted as a writer's
+//! (docs/engineering/services-and-feedback.md#SERV-272). Its `X.Y.Z` is
+//! the bundle's own `CFBundleShortVersionString`, the version App Store Connect
+//! was given, which the iPad's bundle check holds to the key on every build
+//! (scripts/check-bundle-ios.mjs).
 
 use tauri::{AppHandle, Runtime};
 
 /// The key a track build adds to its Info.plist.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
 pub const KEY: &str = "ProsceniumVersion";
 
 /// This copy's whole version.
 pub fn whole<R: Runtime>(app: &AppHandle<R>) -> String {
-    let package = app.package_info().version.to_string();
+    let package = release_of(app);
     bundle_version()
         .filter(|v| belongs_to(v, &package))
         .unwrap_or(package)
+}
+
+/// The release this copy is, or is a pre-release of: the package's version,
+/// which on an iPad is its bundle's own `CFBundleShortVersionString`.
+fn release_of<R: Runtime>(app: &AppHandle<R>) -> String {
+    #[cfg(target_os = "ios")]
+    if let Some(short) = bundle_string("CFBundleShortVersionString") {
+        return short;
+    }
+    app.package_info().version.to_string()
 }
 
 /// A track version of this package: `X.Y.Z-alpha.N` or `X.Y.Z-beta.N`, with the
@@ -44,10 +63,16 @@ pub fn belongs_to(version: &str, package: &str) -> bool {
         && (n == "0" || !n.starts_with('0'))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 fn bundle_version() -> Option<String> {
+    bundle_string(KEY)
+}
+
+/// A string in this bundle's own Info.plist.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn bundle_string(key: &str) -> Option<String> {
     use objc2_foundation::{NSBundle, NSString};
-    let value = NSBundle::mainBundle().objectForInfoDictionaryKey(&NSString::from_str(KEY))?;
+    let value = NSBundle::mainBundle().objectForInfoDictionaryKey(&NSString::from_str(key))?;
     let text = value.downcast_ref::<NSString>()?;
     Some(text.to_string())
 }
@@ -68,7 +93,7 @@ fn bundle_version() -> Option<String> {
 #[used]
 static WHOLE: Option<&str> = option_env!("PROSCENIUM_VERSION");
 
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(not(any(target_os = "macos", target_os = "ios", windows)))]
 fn bundle_version() -> Option<String> {
     None
 }

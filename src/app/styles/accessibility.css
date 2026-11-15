@@ -46,7 +46,7 @@
   height: auto;
   min-height: 16px;
 }
-/* A switch's height is --h-small, which scales, and its width was a fixed
+/* A switch's height is --h-track, which scales, and its width was a fixed
    38px: at 200% every switch in Settings drew as an upright oval that no
    longer read as a switch. Width, knob and travel scale with it. */
 :root[data-large-text="true"] .switch:not(.switch--mini) {

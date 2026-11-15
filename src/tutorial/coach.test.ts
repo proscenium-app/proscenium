@@ -578,25 +578,17 @@ describe("Characters and Opening Pages", () => {
     expect(done.tone).toBe("done");
     expect(says(done)).toContain("JUDITH");
   });
-  test("Write opening notes: menu, item, the notes, Save", () => {
-    expect(cue("opening-notes", cast, cast).target).toEqual({ kind: "ui", id: "document-menu" });
+  test("Write opening notes: in Cast & Pages, turned on, then written", () => {
+    const away = cue("opening-notes", F({ view: "script" }), cast);
+    expect(away.back).toBe(true);
+    expect(away.target).toEqual({ kind: "view", view: "cast" });
+    expect(cue("opening-notes", cast, cast).target).toEqual({
+      kind: "ui",
+      id: "opening-notes-switch",
+    });
     expect(
-      cue("opening-notes", F({ ui: { menu: ["opening-pages", "export-pdf"] } }), cast).target,
-    ).toEqual({ kind: "menu", id: "opening-pages" });
-    expect(
-      cue(
-        "opening-notes",
-        F({ ui: { sheet: "opening-pages", fields: { "opening-notes": "" } } }),
-        cast,
-      ).target,
+      cue("opening-notes", F({ ...cast, ui: { fields: { "opening-notes": "" } } }), cast).target,
     ).toEqual({ kind: "ui", id: "opening-notes" });
-    expect(
-      cue(
-        "opening-notes",
-        F({ ui: { sheet: "opening-pages", fields: { "opening-notes": "A kitchen." } } }),
-        cast,
-      ).target,
-    ).toEqual({ kind: "ui", id: "opening-save" });
     expect(
       cue("opening-notes", F({ front: { ...cast.front, openingNotes: "A kitchen." } }), cast).tone,
     ).toBe("done");

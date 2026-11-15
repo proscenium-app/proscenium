@@ -23,6 +23,7 @@
       "src/app/styles/settings.css",
       "src/app/styles/status-controls.css",
       "src/app/styles/title-page.css",
+      "src/app/styles/trash.css",
       "src/app/styles/version-compare.css",
       "src/app/styles/window-shell.css",
       "src/main.tsx",

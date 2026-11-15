@@ -42,7 +42,10 @@ replaces A11Y-1 (docs/engineering/withdrawn-requirements.md#A11Y-1).
   stop, and always has a key or a menu item that does the same thing.
 - <a id="A11Y-7"></a> **A11Y-7** **⌃⇥ / ⌃⇧⇥ move between the areas** (`app/regions.ts`): toolbar, a banner
   waiting on an answer, binder, the play, inspector, status bar. Tab in the
-  script is the element ring, so without this the page is a keyboard trap. A
+  script is the element ring, so without this the page is a keyboard trap. On
+  an iPad, whose system keeps Control-Tab from the page, the View menu's Next
+  Area and Previous Area take the same chords and do the same
+  (docs/engineering/cross-platform.md#PLAT-76). A
   banner lands on the answer it leads with, arrows reach the others. Tab in a
   document's list indents, and is spent where it cannot
   (docs/app/organizing/workspace-model.md#WORK-72); in a sheet, where these
@@ -113,6 +116,15 @@ last promise was a human VoiceOver pass that will never run.
   boots in the dark scheme is the native self-test's, whose dark pass launches
   so (A11Y-16), not smoke's; and Playwright's WebKit is a WebKit, not Apple's
   WKWebView and not the floor's Safari.
+  **The iPad's acts** give the page the iPad's record, a touch pointer (a
+  coarse pointer that cannot hover) and an iPad's windows: 820 × 1180 and
+  1180 × 820, a third of a Split View at 320 points and a small Stage Manager
+  window. In each they hold every surface's box inside the window, every
+  control reached by a tap with no key pressed, each a 44-point target nothing
+  lies over, nothing drawn only for a hover or said only in a tooltip
+  (docs/engineering/cross-platform.md#PLAT-70), spell checking off wherever a
+  play's words are typed, and the app following Reduce Motion and Increase
+  Contrast; their surfaces are audited and their trees held as every other's.
 - <a id="A11Y-16"></a> **A11Y-16** **The native self-test, in WebKit's own tree.** In the real
   app's WKWebView, on every surface the checks audit, the self-test reads the
   tree WebKit hands its NSAccessibility wrapper, which is what VoiceOver
@@ -142,6 +154,14 @@ last promise was a human VoiceOver pass that will never run.
   tree. Nothing is claimed of Narrator or any other screen reader, nor of the
   tree Windows' UI Automation builds beyond the window and first screen the
   installed-artifact proof finds.
+  Of the iPad they claim what smoke's iPad acts hold (A11Y-19): under the
+  iPad's record, with a touch pointer, in an iPad's windows, axe-core in both
+  schemes, Playwright's reading of the tree, every control reached by a tap
+  with no key pressed, 44-point targets, nothing drawn only for a hover or said
+  only in a tooltip, and the app following Reduce Motion and Increase Contrast;
+  and what the iPad's native pass holds in the real app. Nothing is claimed of
+  VoiceOver, Voice Control or Full Keyboard Access on an iPad beyond the keys
+  those passes press, nor of Apple Pencil.
 
 ## Design
 

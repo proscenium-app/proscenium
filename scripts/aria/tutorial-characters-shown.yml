@@ -5,7 +5,7 @@
     - tab "Script"
     - tab "Board"
     - tab "Outline"
-    - tab "Cast" [selected]
+    - tab "Cast & Pages" [selected]
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -31,8 +31,30 @@
   - button "New"
   - text: at the top level
 - main "Play":
-  - heading "Characters Page" [level=1]
-  - paragraph: Edit the page your readers will see. Cast tools and private notes are below.
+  - heading "Cast & Pages" [level=1]
+  - paragraph: Every page before the script, in the order they print, and the cast.
+  - navigation "Pages before the script":
+    - button "Title Page"
+    - button "Characters"
+    - button "Opening Notes"
+    - button "Production Notes"
+    - button "Cast"
+  - region "Title Page":
+    - heading "Title Page" [level=2]
+    - text: Title
+    - textbox "Title"
+    - text: Credit
+    - textbox "Credit"
+    - text: Authors
+    - textbox "Authors"
+    - text: Contact
+    - textbox "Contact"
+    - text: Draft date
+    - textbox "Draft date"
+    - text: Write the title page freely
+    - switch "Write the title page freely"
+  - heading "Characters Page" [level=2]
+  - paragraph: The page your readers will see. A name in bold starts a character’s line, and the cast list below follows it, as it follows the list.
   - group "Printed characters page":
     - toolbar "Formatting":
       - 'button "Paragraph style: Body Text"': Body Text
@@ -51,6 +73,14 @@
     - paragraph:
       - emphasis: The Blisses, and the guests they asked for the weekend.
   - group: Page Options
+  - region "Opening Notes":
+    - heading "Opening Notes" [level=2]
+    - switch "Include opening notes"
+    - paragraph: An optional page for setting, time, place, a dedication or other notes, with headings of your own.
+  - region "Production Notes":
+    - heading "Production Notes" [level=2]
+    - switch "Include production notes"
+    - paragraph: "An optional page for whoever stages the play: casting and doubling, the set, music, or how the text marks overlapping lines. It prints under the heading PRODUCTION NOTES, just before the script."
   - heading "Cast Tools" [level=2]
   - paragraph: Names, private notes, appearances and sides.
   - group "JUNIPER":

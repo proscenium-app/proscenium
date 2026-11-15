@@ -560,8 +560,9 @@
 }
 /* The rule in the margin beside every element a change touched, at one place
    down the page however deep a list item stands: each list is indented 1.4rem
-   (materials.css), so a nested item's rule reaches back past its indents. On
-   `::after`, since a list item's marker is its `::before`. */
+   (materials.css), so a nested item's rule reaches back past its indents, each
+   at the page's scale. On `::after`, since a list item's marker is its
+   `::before`. */
 .redline__doc [data-redline] {
   position: relative;
 }
@@ -570,15 +571,15 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: -1rem;
+  left: calc(-1rem * var(--prose-scale, 1));
   border-left: 2px solid var(--ink-2);
 }
 .redline__doc li > [data-redline]::after {
-  left: -2.4rem;
+  left: calc(-2.4rem * var(--prose-scale, 1));
 }
 .redline__doc li li > [data-redline]::after {
-  left: -3.8rem;
+  left: calc(-3.8rem * var(--prose-scale, 1));
 }
 .redline__doc li li li > [data-redline]::after {
-  left: -5.2rem;
+  left: calc(-5.2rem * var(--prose-scale, 1));
 }

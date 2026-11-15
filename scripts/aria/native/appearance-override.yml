@@ -1,4 +1,5 @@
 - dialog "Settings"
+  - button "Close"
   - heading "Settings" [level=2]
   - tablist "Settings sections"
     - tab "General"
@@ -27,7 +28,6 @@
     - heading "LIGHT AND DARK" [level=4]
     - button "Appearance: Dark" [haspopup]
     - paragraph
-  - button "Done"
   - generic
     - status [live=polite]
     - alert [live=assertive]

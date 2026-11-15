@@ -1,0 +1,32 @@
+- banner:
+  - button "Show the binder"
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast & Pages"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Split the focused pane"
+  - button "Show the inspector"
+  - button "More"
+- main "Play":
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- contentinfo:
+  - text: /dev/sample-vault/The Weight of Water Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 94%"': Fit width · 94%
+  - button "Zoom in"
+- status
+- alert

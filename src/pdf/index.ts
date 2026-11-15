@@ -26,6 +26,7 @@ export { renderPdf } from "./render";
 export type { PdfFontBytes } from "./render";
 export {
   FRONT_SHEET_LABEL,
+  frontSheetLabel,
   defaultFrontSheets,
   formatPageRange,
   frontKindsOf,

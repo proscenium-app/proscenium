@@ -58,17 +58,16 @@ pub const LICENSE: &str = "https://go.proscenium.ink/license";
 pub const SUPPORT: &str = "https://go.proscenium.ink/support";
 
 /// Every release, and one release's notes under `/v<version>`, opened in
-/// the writer's browser from Settings › Updates. A build with no updater has
-/// no release notes to open.
-#[cfg_attr(not(feature = "updater"), allow(dead_code))]
+/// the writer's browser from Settings › Updates, in every build.
 pub const RELEASES: &str = "https://go.proscenium.ink/releases";
 
 /// Private feedback inbox; no automatic metadata.
 pub const FEEDBACK: &str = "https://feedback.proscenium.ink/v1/messages";
 
-/// docs/app/keeping-work/privacy-and-telemetry.md#PRIV-5: installed in WebKit's configuration before the first page loads.
+/// docs/app/keeping-work/privacy-and-telemetry.md#PRIV-5: installed in WebKit's configuration before the first page loads,
+/// on a Mac, and on an iPad in the web view's own the moment it exists (ipad.rs).
 /// Also consumed verbatim by scripts/check-webkit-network.ts's socket test.
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", target_os = "ios", test))]
 pub const WEBVIEW_RULES: &str = r#"[
   {"trigger":{"url-filter":".*"},"action":{"type":"block"}},
   {"trigger":{"url-filter":"^tauri:"},"action":{"type":"ignore-previous-rules"}},
@@ -79,7 +78,7 @@ pub const WEBVIEW_RULES: &str = r#"[
   {"trigger":{"url-filter":"^http://ipc[.]localhost/"},"action":{"type":"ignore-previous-rules"}}
 ]"#;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub fn webview_rules() -> String {
     if cfg!(dev) {
         // The literal above, which the tests below parse: it cannot fail here.

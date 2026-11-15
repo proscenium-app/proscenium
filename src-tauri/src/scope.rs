@@ -28,7 +28,9 @@
 //! function here is a no-op that reports "no bookmark needed", and the plain
 //! path is the whole story.
 
-/// The path the writer chose, plus the bookmark that will re-open it.
+/// The path the writer chose, plus the bookmark that will re-open it. A
+/// desktop's alone: an iPad reopens through the folder-picker plugin.
+#[cfg(desktop)]
 pub struct Scoped {
     pub path: String,
     /// `None` where this platform needs no grant to reach the path.
@@ -198,26 +200,35 @@ mod imp {
 
 #[cfg(not(any(target_os = "macos", windows)))]
 mod imp {
-    use super::Scoped;
-
     pub fn bookmark(_path: &str) -> Option<String> {
         None
     }
 
-    pub fn resolve(_bookmark: &str) -> Option<Scoped> {
+    #[cfg(desktop)]
+    pub fn resolve(_bookmark: &str) -> Option<super::Scoped> {
         None
     }
 
+    /// An iPad asks the folder-picker plugin for its container instead
+    /// (ipad.rs), which needs the app.
+    #[cfg(not(target_os = "ios"))]
     pub fn cloud_root() -> Option<String> {
         None
     }
 
-    pub fn is_icloud_item(_path: &str) -> bool {
-        false
+    /// On an iPad, iCloud Drive's items are under the folder iCloud keeps on
+    /// the device, `…/Mobile Documents/`, where a folder picked in iCloud
+    /// Drive is: a folder On My iPad, or the app's own Documents, is not.
+    pub fn is_icloud_item(path: &str) -> bool {
+        cfg!(target_os = "ios") && path.contains("/Mobile Documents/")
     }
 }
 
-pub use imp::{bookmark, cloud_root, is_icloud_item, resolve};
+#[cfg(not(target_os = "ios"))]
+pub use imp::cloud_root;
+#[cfg(desktop)]
+pub use imp::resolve;
+pub use imp::{bookmark, is_icloud_item};
 
 #[cfg(any(target_os = "macos", test))]
 fn renewed_bookmark(previous: &str, renewed: Option<Option<String>>) -> (String, Option<String>) {

@@ -786,7 +786,11 @@ function clickSeen(timeout = 1500) {
   });
 }
 
+/** Where the native pointer last went, and whether its button is held. */
+let pointer = { x: 0, y: 0, down: false };
+
 async function nativeClick(x, y, clicks = 1) {
+  pointer = { x, y, down: false };
   const seen = clickSeen();
   await invoke("selftest_click", { x, y, clicks });
   if (!(await seen)) {
@@ -858,7 +862,42 @@ const page = {
       }
     },
   },
-  mouse: { click: nativeClick },
+  mouse: {
+    click: nativeClick,
+    /**
+     * Playwright's down, move and up, as AppKit's own events: a move with the
+     * button held is a drag, sent in `steps` as Playwright sends it.
+     */
+    async move(x, y, { steps = 1 } = {}) {
+      const from = pointer;
+      for (let i = 1; i <= steps; i++) {
+        const at = {
+          x: from.x + ((x - from.x) * i) / steps,
+          y: from.y + ((y - from.y) * i) / steps,
+        };
+        if (pointer.down) await invoke("selftest_mouse", { kind: "drag", ...at });
+        else await invoke("selftest_click", { ...at, press: false });
+        pointer = { ...pointer, ...at };
+      }
+      await frame();
+    },
+    async down() {
+      await invoke("selftest_mouse", { kind: "down", x: pointer.x, y: pointer.y });
+      pointer.down = true;
+      await frame();
+    },
+    async up() {
+      const seen = clickSeen();
+      await invoke("selftest_mouse", { kind: "up", x: pointer.x, y: pointer.y });
+      pointer.down = false;
+      if (!(await seen))
+        throw new Error(
+          `a native mouseup at ${Math.round(pointer.x)},${Math.round(pointer.y)} never reached the page`,
+        );
+      await frame();
+      await frame();
+    },
+  },
   evaluate: async (fn, arg) => fn(arg),
   /**
    * Playwright's init script, for the pages after this one: a function from

@@ -3,7 +3,7 @@
 
 /** The card beside its target, never over it (docs/app/preferences-and-help/tutorials.md#TUT-D103). */
 import { describe, expect, test } from "bun:test";
-import { overlaps, placeCard, scrollFor, type Box } from "./place";
+import { keepInside, overlaps, placeCard, scrollFor, type Box } from "./place";
 
 const window = { left: 0, top: 0, width: 1280, height: 800 };
 const card = { width: 300, height: 120 };
@@ -72,6 +72,34 @@ describe("placing the guide's card", () => {
         expect(overlaps(at(p), target)).toBe(false);
         expect(inside(at(p))).toBe(true);
       }
+  });
+});
+
+describe("a finished step's card, kept where the work happened", () => {
+  // An iPad's window, landscape, and the card beside the save indicator.
+  const ipad = { left: 0, top: 0, width: 1180, height: 768 };
+  const step = { width: 300, height: 120 };
+  const saved = { left: 1060, top: 750, width: 90, height: 14 };
+
+  test("stays put while it still fits", () => {
+    const placed = placeCard(saved, step, ipad);
+    expect(keepInside(placed, step, ipad)).toBe(placed);
+  });
+
+  test("taller once finished, moves up only as far as the window needs, and keeps its side", () => {
+    const placed = placeCard(saved, step, ipad);
+    const done = { width: 300, height: 220 };
+    const kept = keepInside(placed, done, ipad);
+    expect(kept.top + done.height).toBeLessThanOrEqual(768 - 8);
+    expect(kept.top).toBe(768 - 8 - done.height);
+    expect(kept.left).toBe(placed.left);
+    expect(kept.side).toBe(placed.side);
+  });
+
+  test("wider than the room to its right, moves left into the window", () => {
+    const kept = keepInside({ left: 1000, top: 100, side: "below", arrow: 40 }, step, ipad);
+    expect(kept.left).toBe(1180 - 8 - step.width);
+    expect(kept.top).toBe(100);
   });
 });
 

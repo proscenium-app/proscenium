@@ -77,6 +77,7 @@ import type { SavedCopy } from "../storage/ipc";
 import type { RecoveryCopiesState } from "./RecoveryCopies";
 import { useAnnouncedStatus } from "../ui/use-announced-status";
 import { announce, ensureAnnouncer } from "../ui/announce";
+import { moveToTrash, theTrash, trashKeepsIt } from "../ui/system-words";
 import { ChangeStatus, useChangeStatus, type StatusSink } from "./status";
 import { touchedSceneNames } from "./locate";
 import { wordStats } from "./redline";
@@ -1153,7 +1154,7 @@ function OtherVersionRow({
               Keep this one
             </Button>
             <Button size="small" disabled={busy} onClick={() => setConfirming("trash")}>
-              Move to Trash
+              {moveToTrash()}
             </Button>
           </div>
         </div>
@@ -1173,9 +1174,9 @@ function OtherVersionRow({
       )}
       {confirming === "trash" && (
         <Alert
-          title="Move this version to the Trash?"
-          body="It goes to the Trash, where you can put it back."
-          confirmLabel="Move to Trash"
+          title={`Move this version to ${theTrash()}?`}
+          body={trashKeepsIt()}
+          confirmLabel={moveToTrash()}
           onCancel={() => setConfirming(null)}
           onConfirm={() => {
             setConfirming(null);
