@@ -427,8 +427,10 @@ fn version_change(file: &Path, now: &str) -> Option<(Version, Version)> {
     (from != to).then_some((from, to))
 }
 
-/// The operating system's name and version, as every event carries them.
-#[cfg(target_os = "macos")]
+/// The operating system's name and version, as every event carries them:
+/// macOS's, or iPadOS's, asked of the system at launch, so the first report
+/// and a crash in the first moment carry it too.
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) fn operating_system() -> (&'static str, String) {
     let v = objc2_foundation::NSProcessInfo::processInfo().operatingSystemVersion();
     let version = if v.patchVersion > 0 {
@@ -436,7 +438,14 @@ pub(crate) fn operating_system() -> (&'static str, String) {
     } else {
         format!("{}.{}", v.majorVersion, v.minorVersion)
     };
-    ("macOS", version)
+    (
+        if cfg!(target_os = "ios") {
+            "iPadOS"
+        } else {
+            "macOS"
+        },
+        version,
+    )
 }
 
 /// Windows' version and build, `10.0.<build>`, from where Windows keeps them
@@ -463,7 +472,7 @@ pub(crate) fn operating_system() -> (&'static str, String) {
     ("Windows", version)
 }
 
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(not(any(target_os = "macos", windows, target_os = "ios")))]
 pub(crate) fn operating_system() -> (&'static str, String) {
     (std::env::consts::OS, String::new())
 }
@@ -493,12 +502,20 @@ pub(crate) mod example {
     };
 }
 
-/// The platform every report and the update check name: `darwin` or `windows`.
-pub(crate) const fn platform() -> &'static str {
-    if cfg!(windows) {
-        "windows"
-    } else {
-        "darwin"
+/// The platform every report names: `darwin`, `windows` or `ios`. An update
+/// check names the first two alone: an iPad never checks, since TestFlight
+/// and the App Store update it
+/// (docs/engineering/services-and-feedback.md#SERV-282).
+pub(crate) fn platform() -> &'static str {
+    platform_of(std::env::consts::OS)
+}
+
+/// The report's name for a system, as Rust names it. Pure.
+fn platform_of(os: &str) -> &'static str {
+    match os {
+        "windows" => "windows",
+        "ios" => "ios",
+        _ => "darwin",
     }
 }
 
@@ -601,11 +618,16 @@ pub fn channel() -> &'static str {
 #[tauri::command]
 pub fn telemetry_configured(app: AppHandle) -> bool {
     // A build with a key, or without one, as a check stands in for it
-    // (selftest_fixture.rs): a test build's own has none.
+    // (selftest_fixture.rs). A test build has no key of its own, and stands in
+    // for a release build, which has one: the page shows a copy with no
+    // reports no notice of them, and the checks that read the notice read a
+    // release's, unless a check stages otherwise.
     #[cfg(feature = "selftest")]
-    if let Some(keyed) = crate::selftest_fixture::staged_key() {
-        return keyed;
+    {
+        let _ = &app;
+        crate::selftest_fixture::staged_key().unwrap_or(true)
     }
+    #[cfg(not(feature = "selftest"))]
     with_telemetry(&app, |t| t.client.is_some()).unwrap_or(false)
 }
 
@@ -646,6 +668,29 @@ mod tests {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::net::TcpListener;
     use std::sync::mpsc;
+
+    /// Each system is reported by the name the reports service takes it under
+    /// (services/edge/src/reports.ts `REPORTING_SYSTEMS`,
+    /// docs/engineering/services-and-feedback.md#SERV-282): a report the service
+    /// refuses is a report lost.
+    #[test]
+    fn each_system_is_named_as_the_reports_service_takes_it() {
+        assert_eq!(platform_of("macos"), "darwin");
+        assert_eq!(platform_of("windows"), "windows");
+        assert_eq!(platform_of("ios"), "ios");
+        let service = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../services/edge/src/reports.ts"),
+        )
+        .unwrap();
+        let line = service
+            .lines()
+            .find(|l| l.contains("export const REPORTING_SYSTEMS"))
+            .expect("the service's systems");
+        for name in ["macos", "windows", "ios"].map(platform_of) {
+            assert!(line.contains(&format!("\"{name}\"")), "{name} in {line}");
+        }
+    }
 
     /// A server on this machine that answers every request with `status` and
     /// reports each body it received.

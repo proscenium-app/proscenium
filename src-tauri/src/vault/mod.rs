@@ -30,7 +30,9 @@ pub(crate) mod path_key;
 pub mod read_limit;
 use path_key::{comparison_path, path_key};
 pub(crate) mod atomic_file;
+pub mod coordination;
 mod move_journal;
+pub mod ring;
 mod write_journal;
 pub(crate) use identity::FileIdentity;
 pub use move_journal::PendingMove;
@@ -191,8 +193,10 @@ pub trait Vault: Send + Sync {
     fn list(&self, rel_dir: &str) -> std::io::Result<Vec<Entry>>;
     fn read(&self, rel: &str) -> std::io::Result<Vec<u8>>;
     fn exists(&self, rel: &str) -> bool;
-    /// Move to the OS trash (recoverable), never a permanent unlink.
-    fn trash(&self, rel: &str) -> std::io::Result<()>;
+    /// Move to the OS trash (recoverable), never a permanent unlink. `note` is
+    /// what the page says of it, kept beside it where the delete goes to
+    /// Proscenium’s Trash, so Put Back can return it where it was.
+    fn trash(&self, rel: &str, note: Option<&str>) -> std::io::Result<()>;
     /// Atomically relocate a file or directory within the vault (binder
     /// move/rename). A directory rename moves its whole subtree atomically.
     fn rename(&self, from: &str, to: &str) -> std::io::Result<()>;
@@ -250,24 +254,6 @@ fn write_lock(target: &Path) -> Arc<Mutex<()>> {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     locks.entry(comparison_path(target)).or_default().clone()
-}
-
-/// Recursive directory copy — mobile's trash, which cannot assume that app
-/// data and a chosen Plays folder sit on the same volume.
-#[cfg(any(target_os = "ios", target_os = "android"))]
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
-    std::fs::create_dir_all(to)?;
-    for entry in std::fs::read_dir(from)? {
-        let entry = entry?;
-        let src = entry.path();
-        let dst = to.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_tree(&src, &dst)?;
-        } else {
-            std::fs::copy(&src, &dst)?;
-        }
-    }
-    Ok(())
 }
 
 /// A short, unique token for an atomic write's temp sibling. Process id plus a
@@ -349,6 +335,7 @@ pub(crate) fn write_atomic_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::
 /// Every macOS build writes exports this way, so the build that is not
 /// sandboxed proves the path the sandboxed one depends on. Where macOS offers
 /// no replacement folder, and on other systems, it is [`write_atomic`].
+#[cfg(any(desktop, test))]
 pub fn write_granted(target: &Path, bytes: &[u8]) -> std::io::Result<()> {
     #[cfg(target_os = "macos")]
     if let Some(dir) = replacement_dir(target) {
@@ -764,24 +751,38 @@ impl LocalFsVault {
         self.resolve(rel)
     }
 
-    fn rel_of(&self, abs: &Path) -> String {
-        abs.strip_prefix(&self.root)
-            .unwrap_or(abs)
-            .to_string_lossy()
-            .replace('\\', "/")
+    /// A listed entry's path in the Plays folder, built from the folder that
+    /// was asked for and the entry's name, never from an absolute path. A
+    /// coordinated listing works in the folder the coordinator hands back, and
+    /// on an iPad Foundation names a folder in iCloud Drive `/var/mobile/…`
+    /// where the vault's canonical root is `/private/var/mobile/…`: one folder,
+    /// two spellings. Stripping the root from the other spelling fails, and an
+    /// absolute path written into a play's binder makes every reader refuse
+    /// the play.
+    fn rel_in(rel_dir: &str, name: &str) -> String {
+        let mut parts: Vec<String> = Path::new(rel_dir)
+            .components()
+            .filter_map(|c| match c {
+                Component::Normal(part) => Some(part.to_string_lossy().into_owned()),
+                _ => None,
+            })
+            .collect();
+        parts.push(name.to_string());
+        parts.join("/")
     }
 
     /// Desktop: hand the item to the OS trash, where the user already knows to
     /// look for it.
     #[cfg(not(any(target_os = "ios", target_os = "android")))]
-    fn trash_impl(&self, abs: &Path) -> std::io::Result<()> {
+    fn trash_impl(&self, _rel: &str, abs: &Path, _note: Option<&str>) -> std::io::Result<()> {
         os_trash(abs).map_err(|e| std::io::Error::other(e.to_string()))
     }
 
     /// Mobile: there is no OS trash to hand a file to (and the `trash` crate has
     /// no platform module for these targets — it does not compile, let alone
     /// run). The recoverable-delete contract is kept with a device-local ring
-    /// in APP DATA (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), never inside the play folder.
+    /// in APP DATA (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), never inside the play folder:
+    /// Proscenium’s Trash, which the page opens and puts back from (`ring.rs`).
     ///
     /// Living outside the Plays folder is the point, twice over: it is never
     /// canonical, and it is never synced — so a delete on the iPad cannot be
@@ -790,65 +791,96 @@ impl LocalFsVault {
     ///
     /// A copy-then-remove rather than a rename: app data and the Plays folder
     /// are on the same volume today, but a chosen folder need not be, and a
-    /// cross-device rename fails outright.
+    /// cross-device rename fails outright. The ring records where it came from
+    /// and the page's note before the original goes, so nothing is removed
+    /// that could not be put back.
     #[cfg(any(target_os = "ios", target_os = "android"))]
-    fn trash_impl(&self, abs: &Path) -> std::io::Result<()> {
+    fn trash_impl(&self, rel: &str, abs: &Path, note: Option<&str>) -> std::io::Result<()> {
         let Some(dir) = self.trash_dir.clone() else {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Unsupported,
                 "no trash directory for this play",
             ));
         };
-        std::fs::create_dir_all(&dir)?;
-
-        let name = abs
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| "deleted".to_string());
-        // Local time, like a version's name — a writer digging something out of
-        // the trash reads these names against their own clock.
-        let ts = chrono::Local::now().format("%Y%m%d-%H%M%S").to_string();
-
-        // Second-resolution timestamps collide when a binder folder and its
-        // contents go in the same tick; suffix rather than clobber.
-        let mut n = 0u32;
-        let dest = loop {
-            let candidate = dir.join(if n == 0 {
-                format!("{ts}-{name}")
-            } else {
-                format!("{ts}-{n}-{name}")
-            });
-            if !candidate.exists() {
-                break candidate;
-            }
-            n += 1;
-        };
-
+        // A play iCloud has evicted is a folder of names whose bytes are
+        // elsewhere. Copied as it stands, the ring would keep the names and
+        // the play itself would go with the folder: so what was evicted comes
+        // down first, or nothing is deleted.
+        fetch_whole(abs)?;
+        let ring = ring::Ring::at(dir);
+        // Where it came from is the path the page named, its folders and name,
+        // never one recovered from `abs`, which on an iPad may be the root's
+        // other spelling (`rel_in`).
+        let named = rel.trim_end_matches('/');
+        let (folder, name) = named.rsplit_once('/').unwrap_or(("", named));
+        let kept = ring.keep(
+            abs,
+            &Self::rel_in(folder, name),
+            note,
+            std::time::SystemTime::now(),
+        )?;
         if abs.is_dir() {
-            copy_tree(abs, &dest)?;
-            std::fs::remove_dir_all(abs)?;
+            // A folder half removed has only its copy whole: that stays.
+            std::fs::remove_dir_all(abs)
         } else {
-            std::fs::copy(abs, &dest)?;
-            std::fs::remove_file(abs)?;
+            // A file not removed is still where it was: the trash lets its copy go.
+            std::fs::remove_file(abs).inspect_err(|_| {
+                let _ = ring.forget(&kept);
+            })
         }
-        Ok(())
     }
 }
 
-impl Vault for LocalFsVault {
-    fn root(&self) -> &Path {
-        &self.root
-    }
+/// What a delete says when part of what it would remove is still in iCloud.
+#[cfg(any(target_os = "ios", target_os = "android"))]
+const NOT_DOWNLOADED: &str = "Part of it is in iCloud and has not finished downloading to this device, so nothing was deleted. Try again once it has.";
 
-    fn list(&self, rel_dir: &str) -> std::io::Result<Vec<Entry>> {
-        let dir = self.resolve(rel_dir)?;
+/// Every file under `path` with its bytes on this device: an evicted one is
+/// fetched by a coordinated read, which waits for it to come down, and one
+/// that does not come down refuses the delete before anything is copied.
+#[cfg(any(target_os = "ios", target_os = "android"))]
+fn fetch_whole(path: &Path) -> std::io::Result<()> {
+    let fetch = |file: &Path| {
+        coordination::with(file, coordination::Access::Read, icloud::require_available)
+            .map_err(|_| std::io::Error::new(std::io::ErrorKind::WouldBlock, NOT_DOWNLOADED))
+    };
+    if !path.is_dir() {
+        return if icloud::unavailable(path) {
+            fetch(path)
+        } else {
+            Ok(())
+        };
+    }
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if let Some(real) = icloud::placeholder_target(&name) {
+            fetch(&path.join(real))?;
+        } else if entry.file_type()?.is_dir() {
+            fetch_whole(&entry.path())?;
+        } else if icloud::unavailable(&entry.path()) {
+            fetch(&entry.path())?;
+        }
+    }
+    Ok(())
+}
+
+/// A file's bytes, or WouldBlock when iCloud has them and this device does not.
+fn read_available(path: &Path) -> std::io::Result<Vec<u8>> {
+    icloud::require_available(path)?;
+    read_limit::read_document(path)
+}
+
+impl LocalFsVault {
+    /// A folder's entries as the binder lists them: what [`Vault::list`] runs,
+    /// inside a coordinated listing where the folder is in iCloud Drive.
+    fn list_in(&self, rel_dir: &str, dir: &Path) -> std::io::Result<Vec<Entry>> {
         let mut entries = Vec::new();
         // `.<name>.icloud` stubs, held back until the real names are known.
         let mut evicted: Vec<String> = Vec::new();
 
-        for entry in std::fs::read_dir(&dir)? {
+        for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
-            let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
             // Our own atomic-write temp file, alive for milliseconds. Listing
             // it would flicker a phantom row into the binder mid-save.
@@ -871,7 +903,7 @@ impl Vault for LocalFsVault {
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| d.as_millis() as u64);
             entries.push(Entry {
-                rel_path: self.rel_of(&path),
+                rel_path: Self::rel_in(rel_dir, &name),
                 is_dir,
                 is_sync_artifact: is_sync_artifact(&name),
                 modified_ms,
@@ -885,12 +917,11 @@ impl Vault for LocalFsVault {
             if entries.iter().any(|e| e.name == name) {
                 continue;
             }
-            let path = dir.join(&name);
             // An evicted file's bytes are in the cloud; its stub's mtime says
             // when eviction happened, not when the writer wrote. Reporting that
             // would be worse than reporting nothing.
             entries.push(Entry {
-                rel_path: self.rel_of(&path),
+                rel_path: Self::rel_in(rel_dir, &name),
                 is_dir: false,
                 is_sync_artifact: is_sync_artifact(&name),
                 modified_ms: None,
@@ -901,11 +932,23 @@ impl Vault for LocalFsVault {
         entries.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(entries)
     }
+}
+
+impl Vault for LocalFsVault {
+    fn root(&self) -> &Path {
+        &self.root
+    }
+
+    fn list(&self, rel_dir: &str) -> std::io::Result<Vec<Entry>> {
+        let dir = self.resolve(rel_dir)?;
+        coordination::with(&dir, coordination::Access::List, |dir| {
+            self.list_in(rel_dir, dir)
+        })
+    }
 
     fn read(&self, rel: &str) -> std::io::Result<Vec<u8>> {
         let path = self.resolve(rel)?;
-        icloud::require_available(&path)?;
-        read_limit::read_document(&path)
+        coordination::with(&path, coordination::Access::Read, read_available)
     }
 
     fn exists(&self, rel: &str) -> bool {
@@ -914,11 +957,11 @@ impl Vault for LocalFsVault {
             .unwrap_or(false)
     }
 
-    fn trash(&self, rel: &str) -> std::io::Result<()> {
+    fn trash(&self, rel: &str, note: Option<&str>) -> std::io::Result<()> {
         // Deletes are recoverable, never a silent unlink (docs/app/organizing/workspace-model.md#WORK-D100).
         // The mechanism is platform-specific; the contract is not — see
         // `trash_impl`.
-        self.trash_impl(&self.resolve(rel)?)
+        self.trash_impl(rel, &self.resolve(rel)?, note)
     }
 
     fn rename(&self, from: &str, to: &str) -> std::io::Result<()> {
@@ -986,6 +1029,28 @@ impl LocalFsVault {
         let lock = write_lock(&target);
         let _held = lock.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
         self.require_root()?;
+        // In iCloud Drive the check and the replace run inside one coordinated
+        // write, so iCloud's own process never meets the file between them
+        // (coordination.rs). Everywhere else this is the write itself.
+        coordination::with(&target, coordination::Access::Replace, |_| {
+            self.write_guarded_in(rel, &target, bytes, expected, rebase, new_hash)
+        })
+    }
+
+    /// [`Self::write_guarded`] once its file's lock is held: the check, and
+    /// the replace when the check passes. Nothing in here asks for coordinated
+    /// access again: a read inside the write's own access would wait for that
+    /// access to end, and it would wait for the read.
+    fn write_guarded_in(
+        &self,
+        rel: &str,
+        target: &Path,
+        bytes: &[u8],
+        expected: Option<&str>,
+        rebase: bool,
+        new_hash: String,
+    ) -> std::io::Result<WriteOutcome> {
+        let target = target.to_path_buf();
         icloud::require_available(&target)?;
         let _transaction = self.journal()?.write_guard(rel)?;
         let _process = self.writes()?.lock(rel)?;
@@ -1054,7 +1119,7 @@ impl LocalFsVault {
             Ok(true) => {}
             Ok(false) => {
                 self.self_writes.revoke(&token);
-                let hash = match self.read(rel) {
+                let hash = match read_available(&target) {
                     Ok(bytes) => sha256_hex(&bytes),
                     Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
                     Err(error) => return Err(error),

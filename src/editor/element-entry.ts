@@ -15,6 +15,7 @@
  *  - ⌘B/⌘I/⌘U: bold / italic / underline.
  */
 import { binding } from "../ui/keys";
+import { formatOnce, markFormat } from "../ui/format-input";
 import { Extension } from "@tiptap/core";
 import type { CommandProps, Editor } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
@@ -107,8 +108,21 @@ export function confirmActionAs(node: PMNode): "character" | "transition" | null
   if (hasLineBreak(node)) return null;
   const text = ownText(node);
   if (NATURAL_TRANSITION.test(text)) return "transition";
-  if (isAllCaps(text) && !NATURAL_SLUG.test(text)) return "character";
+  // Capitals the editor made of a name in the direction are not the writer
+  // typing a cue: `Charlie.` that came out `CHARLIE.` stays a direction
+  // (docs/app/writing/editor-ux.md#EDIT-207).
+  if (isAllCaps(text) && !NATURAL_SLUG.test(text) && !madeCapitals(node)) return "character";
   return null;
+}
+
+/** Does the line hold capitals the editor made of a name (names-in-directions.ts)? */
+function madeCapitals(node: PMNode): boolean {
+  let made = false;
+  node.descendants((child) => {
+    if (child.isText && child.marks.some((m) => m.type.name === "castCaps")) made = true;
+    return !made;
+  });
+  return made;
 }
 
 /**
@@ -240,7 +254,13 @@ export const ElementEntry = Extension.create({
 
   addKeyboardShortcuts() {
     const set = (name: string) => () => this.editor.chain().focus().setNode(name).run();
-    const mark = (name: string) => () => toggleEmphasis(this.editor, name);
+    // A press that reached the script as the menu's item or the system's
+    // format too runs once (src/ui/format-input.ts).
+    const mark = (name: string) => () => {
+      const format = markFormat(name);
+      if (format && !formatOnce(this.editor, format, "key")) return true;
+      return toggleEmphasis(this.editor, name);
+    };
 
     return {
       Enter: () => handleEnter(this.editor),

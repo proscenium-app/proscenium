@@ -14,6 +14,9 @@
 import fontkit from "@pdf-lib/fontkit";
 import {
   PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNumber,
   popGraphicsState,
   pushGraphicsState,
   setCharacterSpacing,
@@ -32,7 +35,13 @@ import {
   type LayoutResult,
   type StyleRun,
 } from "../layout";
-import { selectFrontMatter, styleSegments, type FrontSheet } from "./plan";
+import {
+  pageLabelRanges,
+  selectFrontMatter,
+  styleSegments,
+  type FrontSheet,
+  type PageLabelRange,
+} from "./plan";
 import { TaggedPdf, type PdfElement } from "./tagged";
 import { canonicalLanguage, DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
 
@@ -57,6 +66,22 @@ function pick(faces: Faces, bold: boolean, italic: boolean): PDFFont {
   if (bold) return faces.bold;
   if (italic) return faces.italic;
   return faces.regular;
+}
+
+/** The catalog's /PageLabels number tree (ISO 32000-1 §12.4.2), so a viewer
+ * calls each sheet what it prints rather than its position in the file. */
+function setPageLabels(doc: PDFDocument, ranges: readonly PageLabelRange[]): void {
+  const { context } = doc;
+  const nums = ranges.flatMap((range) => {
+    const label = context.obj({});
+    if (range.start !== undefined) {
+      label.set(PDFName.of("S"), PDFName.of("D"));
+      label.set(PDFName.of("St"), PDFNumber.of(range.start));
+    }
+    if (range.prefix) label.set(PDFName.of("P"), PDFHexString.fromText(range.prefix));
+    return [PDFNumber.of(range.index), label];
+  });
+  doc.catalog.set(PDFName.of("PageLabels"), context.obj({ Nums: context.obj(nums) }));
 }
 
 function baseStyle(style: ElementFontStyle): { bold: boolean; italic: boolean } {
@@ -140,10 +165,12 @@ export async function renderPdf(args: {
       }),
     );
   };
-  for (const page of selectFrontMatter(paginateFrontMatter(frontMatter, spec), args.frontSheets)) {
+  const frontPages = selectFrontMatter(paginateFrontMatter(frontMatter, spec), args.frontSheets);
+  for (const page of frontPages) {
     const p = doc.addPage([pageW, pageH]);
     for (const line of page.lines) drawFrontLine(p, line, page.kind);
   }
+  setPageLabels(doc, pageLabelRanges(frontPages, layout.pages));
   // Establish the opening's semantic order before adding body paragraphs.
   for (const page of layout.pages)
     for (const line of page.intro ?? []) frontParagraph("opening", line);

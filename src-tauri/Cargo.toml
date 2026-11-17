@@ -1,6 +1,6 @@
 [package]
 name = "proscenium"
-version = "1.0.5"
+version = "1.0.6"
 description = "A local-first, cross-platform playwriting app"
 authors = ["Habiby LLC"]
 edition = "2021"
@@ -34,7 +34,7 @@ notify = "6"
 # system proxy, as tauri-plugin-updater uses them, so a build with both still
 # has one TLS stack.
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "system-proxy"] }
-rustls = { version = "0.23.45", default-features = false, features = ["ring"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring"] }
 # Only SDK protocol types: no transport, integrations or automatic metadata.
 sentry-types = "=0.36.0"
 backtrace = "=0.3.74"
@@ -54,8 +54,23 @@ uuid = { version = "1", features = ["v4"] }
 trash = "5"
 # Updates (release-engineering §6). Desktop only: the iPad and the Mac App Store
 # are updated by the store, so their builds leave the `updater` feature off.
-tauri-plugin-updater = { version = "=2.11.0", optional = true }
-minisign-verify = { version = "0.2", optional = true }
+# Without the plugin's `zip` feature, its default: a Windows update is the NSIS
+# `-setup.exe` itself (`createUpdaterArtifacts: true`), which the plugin runs
+# as it is, and it unzips nothing. So no `zip` crate is built into any copy
+# (GHSA-m665-v7pm-7grj, which `zip` ^4 carries, and every plugin before 2.14.1
+# asks for ^4). On a Mac the feature changes nothing: the plugin's own tar and
+# flate2 are its Mac dependencies either way, and the app installs a Mac
+# update itself (updates/install.rs).
+# 2.14.0 moves with tauri 2.12, which every plugin from 2.13.0 asks for. Its
+# `Update::install`, which a Windows update goes through, checks the signature
+# again, and refuses one that names a version other than the one announced.
+# 2.14.1 is the same source with `base64` 0.23, whose error the app's own
+# check (updates/download.rs) could not hand on as the plugin's, and `zip` 9,
+# which no copy builds.
+tauri-plugin-updater = { version = "=2.14.0", optional = true, default-features = false, features = ["rustls-tls", "system-proxy"] }
+# The plugin's own minisign-verify, so a failed check is the plugin's error
+# (updates/download.rs). 0.3 verifies as 0.2.5 did, in safe code.
+minisign-verify = { version = "0.3", optional = true }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
 plist = { version = "1.10.1", optional = true }
@@ -147,6 +162,31 @@ objc2-web-kit = { version = "0.3", default-features = false, features = [
 # how quit.rs answers a quit AppKit is holding from inside the loop it holds it in.
 block2 = "0.6"
 
+# iOS only. WebKit's content rules, the page's network fence, compiled before
+# the iPad's window exists and added to its web view the moment it does
+# (ipad.rs, docs/engineering/cross-platform.md#PLAT-62). The same crates as a
+# Mac's, without AppKit.
+[target.'cfg(target_os = "ios")'.dependencies]
+objc2 = "0.6"
+# NSProcessInfo is iPadOS's version every report carries (telemetry/mod.rs),
+# and NSBundle the alpha's whole version in its Info.plist (version.rs), as on
+# a Mac.
+objc2-foundation = { version = "0.3", default-features = false, features = [
+  "std",
+  "NSBundle",
+  "NSError",
+  "NSProcessInfo",
+  "NSString",
+] }
+objc2-web-kit = { version = "0.3", default-features = false, features = [
+  "std",
+  "block2",
+  "WKContentRuleList",
+  "WKContentRuleListStore",
+  "WKUserContentController",
+] }
+block2 = "0.6"
+
 [target.'cfg(unix)'.dependencies]
 # File locks and exclusive/exchange renames protect local writes in store builds too.
 libc = "0.2"
@@ -175,8 +215,8 @@ windows-sys = { version = "0.61", features = [
 # WebView2's resource filter, the page's network fence (webview_fence.rs): the
 # same webview2-com and windows wry builds the webview with, so its interfaces
 # are the ones Tauri hands over.
-webview2-com = "0.38"
-windows = "0.61"
+webview2-com = "0.39"
+windows = "0.62"
 
 [dev-dependencies]
 tempfile = "3"
@@ -191,6 +231,11 @@ custom-protocol = ["tauri/custom-protocol"]
 # download build, and left out of the Mac App Store channel (release-
 # engineering REL-56), which builds without default features.
 webkit-background = []
+# Reports compiled in (build.rs's `proscenium_reports`), as `PROSCENIUM_REPORTS=1`
+# says it for a Mac's and a PC's release build: the iPad's release build says it
+# with this, since Xcode builds its Rust through the Tauri CLI, which passes
+# Cargo its features and not the environment (scripts/release-ios.mjs).
+reports = []
 # The in-app updater. On in every Developer ID build; the App Store build turns
 # default features off, because the store is what updates it there.
 updater = ["dep:tauri-plugin-updater", "dep:minisign-verify", "dep:flate2", "dep:tar", "dep:plist", "dep:semver", "dep:tempfile"]
@@ -229,3 +274,8 @@ selftest = [
 # pipeline refuses either in the default build, and
 # `scripts/check-bundle.mjs --release` a binary that carries either's words.
 update-proof = ["selftest"]
+# The iPad probe (`node scripts/ipad-sim.mjs`): the page's harness for the iPad
+# simulator's proof, on iOS alone (src/ipad_probe.rs). NEVER in a release
+# build, like `selftest`: the iPad's bundle check refuses a binary that carries
+# its words.
+ipad-probe = []

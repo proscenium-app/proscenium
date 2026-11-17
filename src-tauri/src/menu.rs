@@ -17,18 +17,25 @@
 //! The predefined items (Undo, Cut, Minimize, the app menu's About/Quit) stay
 //! predefined so the OS wires them itself — a hand-rolled Copy is a Copy that
 //! does not work in a native text field.
+//!
+//! An iPad has no Tauri menu, so the same tables go to iPadOS's main menu
+//! instead (`ipad_menus`, docs/engineering/cross-platform.md#PLAT-76): the
+//! picker plugin builds it, and an item chosen there raises the same event.
 
-#[cfg(not(windows))]
+#[cfg(all(desktop, not(windows)))]
 use tauri::menu::{AboutMetadata, PredefinedMenuItem};
+#[cfg(desktop)]
 use tauri::menu::{Menu, MenuItem, Submenu, SubmenuBuilder};
-use tauri::{AppHandle, Emitter, Runtime};
+#[cfg(desktop)]
+use tauri::Runtime;
+use tauri::{AppHandle, Emitter};
 
 /// The event a menu item raises. One channel, one payload: the item's id.
 pub const EVENT_MENU_ACTION: &str = "menu://action";
 
 /// `(id, label, accelerator)` — the accelerator is what macOS draws beside the
 /// item, and the frontend binds the same chord at the window so both routes
-/// work whether or not the menu bar exists (iOS has none).
+/// work whether or not a menu takes it first.
 type Item = (&'static str, &'static str, Option<&'static str>);
 
 const FILE: &[Item] = &[
@@ -70,13 +77,21 @@ const SCRIPT: &[Item] = &[
     // The same words as the script-name menu in the page (src/app/Toolbar.tsx):
     // one sheet, one name. The menu bar said Edit Title Page… for it.
     ("title-page", "Edit Opening Pages…", None),
+    // The same words as the script-name menu in the page (src/app/Toolbar.tsx).
+    (
+        "cast-names",
+        "Capitalize Character Names in Directions…",
+        None,
+    ),
 ];
 
 const VIEW: &[Item] = &[
     ("view-script", "Script", Some("CmdOrCtrl+1")),
     ("view-corkboard", "Board", Some("CmdOrCtrl+2")),
     ("view-outliner", "Outline", Some("CmdOrCtrl+3")),
-    ("view-cast", "Cast", Some("CmdOrCtrl+4")),
+    // `&&` is one `&`: a lone one marks a mnemonic, which the Mac's menu
+    // strips and a PC's underlines (`ipad_item` reads it the same way).
+    ("view-cast", "Cast && Pages", Some("CmdOrCtrl+4")),
     ("view-changes", "Changes", Some("CmdOrCtrl+5")),
     ("", "", None),
     ("toggle-binder", "Binder", Some("CmdOrCtrl+Alt+B")),
@@ -100,7 +115,7 @@ const VIEW: &[Item] = &[
 ];
 
 const PLAY: &[Item] = &[
-    ("view-cast", "Cast", None),
+    ("view-cast", "Cast && Pages", None),
     ("history", "Versions…", None),
     ("", "", None),
     ("find", "Find…", Some("CmdOrCtrl+F")),
@@ -111,6 +126,10 @@ const PLAY: &[Item] = &[
     ("", "", None),
     ("comment", "Comment", Some("CmdOrCtrl+Alt+M")),
 ];
+
+/// Settings…, in the app's own menu on a Mac and an iPad, in File on a PC.
+#[cfg_attr(windows, allow(dead_code))]
+const SETTINGS: Item = ("settings", "Settings…", Some("CmdOrCtrl+,"));
 
 const HELP: &[Item] = &[
     ("tutorials", "Tutorials", None),
@@ -171,7 +190,16 @@ pub const PC_KEYS: &[(&str, &str)] = &[
     ("shortcuts", "Ctrl+/"),
 ];
 
+/// The chord an iPad's menu takes for an item, where it is not the Mac's, as
+/// `src/ui/keys.ts` writes it there (`IPAD_CHORDS`; `src/ui/keys.test.ts`
+/// holds the two together): iPadOS keeps ⌘⌥D for its Dock, and nothing the
+/// app asks for wins it back, so Dialogue is ⌘⇧D, which nothing of the Mac's
+/// uses.
+#[cfg_attr(not(any(target_os = "ios", test)), allow(dead_code))]
+pub const IPAD_KEYS: &[(&str, &str)] = &[("el-dialogue", "CmdOrCtrl+Shift+D")];
+
 /// Build one submenu from a table, turning `("", "", None)` into a separator.
+#[cfg(desktop)]
 fn build<R: Runtime>(app: &AppHandle<R>, title: &str, items: &[Item]) -> tauri::Result<Submenu<R>> {
     let mut b = SubmenuBuilder::new(app, title);
     for (id, label, accel) in items {
@@ -188,6 +216,7 @@ fn build<R: Runtime>(app: &AppHandle<R>, title: &str, items: &[Item]) -> tauri::
 /// chord is only drawn beside it: WebView2 holds the keyboard, so the page
 /// binds every chord at the window (use-shell-commands.ts), and an
 /// accelerator the window did see would be a second press of the same key.
+#[cfg(desktop)]
 fn item<R: Runtime>(
     app: &AppHandle<R>,
     id: &str,
@@ -292,9 +321,10 @@ pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
 #[cfg_attr(not(windows), allow(dead_code))]
 pub const QUIT: &str = "quit";
 
-#[cfg(not(windows))]
+#[cfg(all(desktop, not(windows)))]
 pub fn build_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
-    let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
+    let (id, label, accel) = SETTINGS;
+    let settings = MenuItem::with_id(app, id, label, true, accel)?;
     let app_menu = SubmenuBuilder::new(app, "Proscenium").about(Some(AboutMetadata::default()));
     // Where a Mac app puts it, under About (docs/engineering/release-engineering.md#REL-D6). Only a
     // build that can update itself offers to.
@@ -364,6 +394,129 @@ pub fn on_menu_event(app: &AppHandle, id: &str) {
     let _ = app.emit(EVENT_MENU_ACTION, id.to_string());
 }
 
+// --- The iPad's main menu -----------------------------------------------------
+
+/// What the Mac's menus hold that an iPad cannot do: it has no Finder to
+/// reveal a play in. Check for Updates and the Window menu are not in the
+/// tables: TestFlight and the App Store update an iPad, and iPadOS keeps its
+/// windows' commands for itself.
+#[cfg(any(target_os = "ios", test))]
+const NOT_ON_AN_IPAD: &[&str] = &["reveal"];
+
+/// What an iPad's View menu carries that a Mac's does not: ⌃⇥ and ⌃⇧⇥, which
+/// move between the window's areas
+/// (docs/app/preferences-and-help/accessibility.md#A11Y-7). A Mac's page and a
+/// PC's take them themselves; on an iPad UIKit keeps Control-Tab, and the page
+/// hears the Control key alone. So the menu takes them, its Tab key commands
+/// put before the system's own behaviour (MainMenu.swift), and gives them back
+/// as `next-area` and `previous-area`, which the page runs as its own ⌃⇥.
+#[cfg(any(target_os = "ios", test))]
+const IPAD_AREAS: &[Item] = &[
+    ("", "", None),
+    ("next-area", "Next Area", Some("Ctrl+Tab")),
+    ("previous-area", "Previous Area", Some("Ctrl+Shift+Tab")),
+];
+
+/// The Mac's menus as iPadOS's main menu takes them
+/// (docs/engineering/cross-platform.md#PLAT-76), in the Mac's order: the same
+/// items, ids and chords. Each menu is either one the system already has
+/// (`application`, `file`, `edit`, `view`, `window`, `help`), which the app's
+/// items go into, or one of the app's own (Script, Play), which goes after the
+/// one before it. Edit and Window carry nothing: as on a Mac, Undo, Cut, Copy,
+/// Paste and Select All are the system's, wired to whatever has focus, and
+/// the system's window commands stay its own. They are listed so the app's own
+/// menus land where a Mac has them.
+#[cfg(any(target_os = "ios", test))]
+pub fn ipad_menus() -> Vec<tauri_plugin_vault_picker::MenuSpec> {
+    let menu =
+        |title: &str, system: Option<&str>, items: &[Item]| tauri_plugin_vault_picker::MenuSpec {
+            title: title.into(),
+            system: system.map(Into::into),
+            items: items
+                .iter()
+                .filter(|(id, _, _)| !NOT_ON_AN_IPAD.contains(id))
+                .map(|&(id, label, accel)| ipad_item(id, label, ipad_accel(id, accel)))
+                .collect(),
+        };
+    let view: Vec<Item> = VIEW.iter().chain(IPAD_AREAS).copied().collect();
+    vec![
+        menu("Proscenium", Some("application"), &[SETTINGS]),
+        menu("File", Some("file"), FILE),
+        menu("Edit", Some("edit"), &[]),
+        menu("Script", None, SCRIPT),
+        menu("View", Some("view"), &view),
+        menu("Play", None, PLAY),
+        menu("Window", Some("window"), &[]),
+        menu("Help", Some("help"), HELP),
+    ]
+}
+
+/// An item's chord on an iPad: the Mac's, but where iPadOS keeps it for
+/// itself (`IPAD_KEYS`), the one the page binds there instead.
+#[cfg(any(target_os = "ios", test))]
+fn ipad_accel(id: &str, mac: Option<&'static str>) -> Option<&'static str> {
+    match IPAD_KEYS.iter().find(|(item, _)| *item == id) {
+        Some((_, ipad)) => Some(ipad),
+        None => mac,
+    }
+}
+
+/// One item of the iPad's menu: an id of `""` is a separator, as in the tables.
+#[cfg(any(target_os = "ios", test))]
+fn ipad_item(
+    id: &str,
+    label: &str,
+    accel: Option<&str>,
+) -> tauri_plugin_vault_picker::MenuItemSpec {
+    let (key, modifiers) = match accel.and_then(ipad_chord) {
+        Some((key, modifiers)) => (Some(key), modifiers),
+        None => (None, Vec::new()),
+    };
+    tauri_plugin_vault_picker::MenuItemSpec {
+        id: id.into(),
+        // A menu bar writes a lone `&` as `&&`; UIKit takes the words as they are.
+        label: label.replace("&&", "&"),
+        key,
+        modifiers,
+    }
+}
+
+/// An accelerator as UIKit's key commands take it: the key, a character or
+/// `return`, `tab`, `up` or `down`, and its modifiers, `command`, `shift`, `alternate`
+/// and `control`. `None` for anything else, which the tests refuse, so no
+/// chord is lost on the way to the iPad.
+#[cfg(any(target_os = "ios", test))]
+fn ipad_chord(accel: &str) -> Option<(String, Vec<String>)> {
+    let mut modifiers = Vec::new();
+    let mut key = None;
+    for part in accel.split('+') {
+        let named = match part {
+            "CmdOrCtrl" | "CommandOrControl" | "Cmd" | "Command" => Some("command"),
+            "Shift" => Some("shift"),
+            "Alt" | "Option" => Some("alternate"),
+            "Ctrl" | "Control" => Some("control"),
+            _ => None,
+        };
+        if let Some(modifier) = named {
+            modifiers.push(modifier.to_string());
+            continue;
+        }
+        if key.is_some() {
+            return None;
+        }
+        key = Some(match part {
+            "Plus" => "+".to_string(),
+            "Enter" | "Return" => "return".to_string(),
+            "Tab" => "tab".to_string(),
+            "Up" => "up".to_string(),
+            "Down" => "down".to_string(),
+            one if one.chars().count() == 1 => one.to_lowercase(),
+            _ => return None,
+        });
+    }
+    Some((key?, modifiers))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -390,5 +543,182 @@ mod tests {
             .find(|(id, _, _)| *id == "new-play")
             .expect("the File menu has New Play…");
         assert_eq!(*accel, Some("CmdOrCtrl+N"));
+    }
+
+    /// Every chord of the Mac's menus reaches the iPad's: an accelerator the
+    /// iPad could not read would leave its item there with no chord.
+    #[test]
+    fn every_chord_reaches_the_ipad() {
+        for (id, _, accel) in FILE
+            .iter()
+            .chain(SCRIPT)
+            .chain(VIEW)
+            .chain(PLAY)
+            .chain(HELP)
+            .chain([&SETTINGS])
+        {
+            if let Some(accel) = accel {
+                assert!(
+                    ipad_chord(accel).is_some(),
+                    "{id}: {accel} has no iPad chord"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn chords_are_written_as_uikit_takes_them() {
+        let chord = |a: &str| ipad_chord(a).expect(a);
+        let words = |m: &[&str]| m.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert_eq!(chord("CmdOrCtrl+N"), ("n".into(), words(&["command"])));
+        assert_eq!(
+            chord("CmdOrCtrl+Shift+I"),
+            ("i".into(), words(&["command", "shift"]))
+        );
+        assert_eq!(
+            chord("CmdOrCtrl+Alt+D"),
+            ("d".into(), words(&["command", "alternate"]))
+        );
+        assert_eq!(
+            chord("Ctrl+Cmd+F"),
+            ("f".into(), words(&["control", "command"]))
+        );
+        assert_eq!(chord("Shift+Enter"), ("return".into(), words(&["shift"])));
+        assert_eq!(
+            chord("CmdOrCtrl+Enter"),
+            ("return".into(), words(&["command"]))
+        );
+        assert_eq!(
+            chord("Cmd+Alt+Up"),
+            ("up".into(), words(&["command", "alternate"]))
+        );
+        assert_eq!(chord("CmdOrCtrl+Plus"), ("+".into(), words(&["command"])));
+        assert_eq!(chord("CmdOrCtrl+-"), ("-".into(), words(&["command"])));
+        assert_eq!(chord("CmdOrCtrl+;"), (";".into(), words(&["command"])));
+        assert_eq!(chord("CmdOrCtrl+,"), (",".into(), words(&["command"])));
+        assert_eq!(ipad_chord("CmdOrCtrl+Space+X"), None);
+        assert_eq!(ipad_chord("CmdOrCtrl+Shift"), None);
+    }
+
+    /// A lone `&` is a mnemonic to a menu bar, stripped on a Mac and underlined
+    /// on a PC, so an ampersand is written `&&`; the iPad, which takes words as
+    /// they are, gets one back. Cast && Pages read "Cast  Pages" otherwise.
+    #[test]
+    fn an_ampersand_is_written_twice_and_read_once() {
+        for (_, label, _) in FILE
+            .iter()
+            .chain(SCRIPT)
+            .chain(VIEW)
+            .chain(PLAY)
+            .chain(HELP)
+        {
+            let lone = label.replace("&&", "");
+            assert!(!lone.contains('&'), "a lone & in {label:?}");
+        }
+        let view = ipad_menus()
+            .into_iter()
+            .find(|m| m.title == "View")
+            .unwrap();
+        assert!(view.items.iter().any(|i| i.label == "Cast & Pages"));
+    }
+
+    /// The iPad's menu is the Mac's, item for item, but for Reveal in Finder,
+    /// in the Mac's order, with Settings… in the app's own menu, and the View
+    /// menu's ⌃⇥ and ⌃⇧⇥ after the Mac's own (`IPAD_AREAS`).
+    #[test]
+    fn the_ipad_carries_the_macs_menus() {
+        let menus = ipad_menus();
+        let titles: Vec<&str> = menus.iter().map(|m| m.title.as_str()).collect();
+        assert_eq!(
+            titles,
+            [
+                "Proscenium",
+                "File",
+                "Edit",
+                "Script",
+                "View",
+                "Play",
+                "Window",
+                "Help"
+            ]
+        );
+        let ids = |title: &str| -> Vec<String> {
+            menus
+                .iter()
+                .find(|m| m.title == title)
+                .unwrap()
+                .items
+                .iter()
+                .map(|i| i.id.clone())
+                .collect()
+        };
+        let mac = |items: &[Item]| -> Vec<String> {
+            items
+                .iter()
+                .map(|(id, _, _)| id.to_string())
+                .filter(|id| id != "reveal")
+                .collect()
+        };
+        assert_eq!(ids("File"), mac(FILE));
+        assert_eq!(ids("Script"), mac(SCRIPT));
+        let view: Vec<Item> = VIEW.iter().chain(IPAD_AREAS).copied().collect();
+        assert_eq!(ids("View"), mac(&view));
+        assert_eq!(ids("Play"), mac(PLAY));
+        assert_eq!(ids("Help"), mac(HELP));
+        assert_eq!(ids("Proscenium"), ["settings"]);
+        assert!(ids("Edit").is_empty() && ids("Window").is_empty());
+        assert!(menus
+            .iter()
+            .flat_map(|m| &m.items)
+            .all(|i| i.id != "reveal"));
+        let settings = &menus[0].items[0];
+        assert_eq!(settings.key.as_deref(), Some(","));
+        assert_eq!(settings.modifiers, ["command"]);
+    }
+
+    /// iPadOS keeps ⌘⌥D for its Dock, so the iPad's menu takes Dialogue at
+    /// ⌘⇧D, as the page binds it there (`IPAD_KEYS`, src/ui/keys.ts), and
+    /// every other item at the Mac's own chord.
+    #[test]
+    fn the_ipad_takes_dialogue_at_command_shift_d() {
+        let menus = ipad_menus();
+        let items: Vec<_> = menus.iter().flat_map(|m| &m.items).collect();
+        let dialogue = items.iter().find(|i| i.id == "el-dialogue").unwrap();
+        assert_eq!(dialogue.key.as_deref(), Some("d"));
+        assert_eq!(dialogue.modifiers, ["command", "shift"]);
+        let character = items.iter().find(|i| i.id == "el-character").unwrap();
+        assert_eq!(character.modifiers, ["command", "alternate"]);
+        let chords: Vec<_> = items
+            .iter()
+            .filter_map(|i| i.key.as_ref().map(|k| (k.clone(), i.modifiers.clone())))
+            .collect();
+        let mut unique = chords.clone();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(
+            unique.len(),
+            chords.len(),
+            "two of the iPad's items share a chord"
+        );
+        assert!(!chords
+            .iter()
+            .any(|(k, m)| k == "d" && *m == ["command", "alternate"]));
+    }
+
+    /// ⌃⇥ and ⌃⇧⇥ in the iPad's View menu, which UIKit keeps from the page,
+    /// and in no menu of a Mac's, whose page takes them itself.
+    #[test]
+    fn the_ipad_menu_moves_between_the_areas() {
+        let menus = ipad_menus();
+        let view = menus.iter().find(|m| m.title == "View").unwrap();
+        let next = view.items.iter().find(|i| i.id == "next-area").unwrap();
+        assert_eq!(next.key.as_deref(), Some("tab"));
+        assert_eq!(next.modifiers, ["control"]);
+        let previous = view.items.iter().find(|i| i.id == "previous-area").unwrap();
+        assert_eq!(previous.key.as_deref(), Some("tab"));
+        assert_eq!(previous.modifiers, ["control", "shift"]);
+        for table in [FILE, SCRIPT, VIEW, PLAY, HELP] {
+            assert!(!table.iter().any(|(id, _, _)| id.ends_with("-area")));
+        }
     }
 }

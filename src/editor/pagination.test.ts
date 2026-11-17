@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "bun:test";
+import { getSchema } from "@tiptap/core";
 import dgModernRaw from "../../formats/dg-modern.json";
-import type { BlockNode } from "../fountain/model";
+import type { BlockNode, Doc } from "../fountain/model";
 import { validateFormatSpec } from "../format/validate";
-import { paginateDoc } from "../layout/engine";
-import { pageTopSources } from "./pagination";
+import { paginate, paginateDoc } from "../layout/engine";
+import { toEditorDoc } from "./bridge";
+import { blocksFromPmDoc, pageTopSources } from "./pagination";
+import { playExtensions } from "./schema";
 
 /**
  * The re-printed "(CONT'D)" cue is a chrome widget carrying `pl-character`, so
@@ -138,5 +141,60 @@ describe("the block that opens a page hugs its top margin", () => {
     expect(rule).not.toBeNull();
     expect(rule![1]).toContain(".play-page .pl.pm-page-top");
     expect(rule![2]).toMatch(/margin-top:\s*0/);
+  });
+});
+
+/**
+ * A line break inside a speech or an action is a `lineBreak` node in the editor
+ * and a newline in the model. The page view's layout read only the text, so a
+ * speech in paragraphs went to the engine as one paragraph: its lines were not
+ * the page's, and the page broke partway through a line with room left on it,
+ * where the PDF broke at the line's end.
+ */
+describe("the page view breaks a speech in paragraphs where print does", () => {
+  const spec = (() => {
+    const v = validateFormatSpec(dgModernRaw);
+    if (!v.ok) throw new Error(v.errors.join("\n"));
+    return v.spec;
+  })();
+  const schema = getSchema(playExtensions);
+  const speech = [
+    "They call me the quiet one. Quiet is like a weather report and I have been reported on in nicer places than this.",
+    "",
+    "I know what quiet is. I am not that. I grew up in a loud house. Dad sang and Mom kept bees, in a shed past the garden. So I would come home and there would be a hum behind a door, and I was meant to leave it be and go find a snack.",
+    "",
+    "That is quiet. That is what it sounds like. I was the one with the snack.",
+  ].join("\n");
+  const doc = (lead: number): Doc => ({
+    type: "doc",
+    content: [
+      ...Array.from(
+        { length: lead },
+        (_, i): BlockNode => ({
+          type: "action",
+          content: [{ type: "text", text: `Beat ${i + 1}.` }],
+        }),
+      ),
+      { type: "character", content: [{ type: "text", text: "CHARLIE" }] },
+      { type: "dialogue", content: [{ type: "text", text: speech }] },
+    ],
+  });
+
+  it("sends each line break to the engine as a newline", () => {
+    const pm = schema.nodeFromJSON(toEditorDoc(doc(0)));
+    const { blocks } = blocksFromPmDoc(pm, spec);
+    expect(blocks[1].text).toBe(speech);
+  });
+
+  it("puts the break at the same line at every place on the page", () => {
+    for (let lead = 0; lead < 24; lead++) {
+      const model = doc(lead);
+      const print = paginateDoc(model, spec).pages.map((p) => p.lines.map((l) => l.text));
+      const pm = schema.nodeFromJSON(toEditorDoc(model));
+      const view = paginate(blocksFromPmDoc(pm, spec).blocks, spec, {}).pages.map((p) =>
+        p.lines.map((l) => l.text),
+      );
+      expect(view).toEqual(print);
+    }
   });
 });

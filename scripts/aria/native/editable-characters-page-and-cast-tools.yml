@@ -5,7 +5,7 @@
     - tab "Script"
     - tab "Board"
     - tab "Outline"
-    - tab "Cast" [selected]
+    - tab "Cast & Pages" [selected]
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -20,9 +20,11 @@
     - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
-    - treeitem "SCENE 1 1" [level=2]
-    - treeitem "SCENE 2 1–2" [level=2]
-    - treeitem "SCENE 1 2" [level=2] [selected]
+    - treeitem "ACT ONE 1–2" [level=2] [expanded]
+    - treeitem "SCENE 1 1" [level=3]
+    - treeitem "SCENE 2 1–2" [level=3]
+    - treeitem "ACT TWO 2" [level=2] [expanded]
+    - treeitem "SCENE 1 2" [level=3] [selected]
     - treeitem "Characters" [level=1] [expanded]
     - treeitem "Mara" [level=2]
     - treeitem "Jonah" [level=2]
@@ -36,12 +38,35 @@
     - button "New" [haspopup]
 - main "Play"
   - group "Open in this pane"
-    - listitem "Cast"
-      - button "Cast" [current=true]
-      - button "Close Cast"
+    - listitem "Cast & Pages"
+      - button "Cast & Pages" [current=true]
+      - button "Close Cast & Pages"
   - button "Add a surface to this pane" [haspopup]
   - sectionheader
-    - heading "Characters Page" [level=1]
+    - heading "Cast & Pages" [level=1]
+    - paragraph
+  - navigation "Pages before the script"
+    - button "Title Page"
+    - button "Characters"
+    - button "Opening Notes"
+    - button "Production Notes"
+    - button "Cast"
+  - region "Title Page"
+    - heading "Title Page" [level=2]
+    - none
+    - textbox "Title"
+    - none
+    - textbox "Credit"
+    - none
+    - textbox "Authors"
+    - none
+    - textbox "Contact"
+    - none
+    - textbox "Draft date"
+    - none
+      - switch "Write the title page freely"
+  - sectionheader
+    - heading "Characters Page" [level=2]
     - paragraph
   - group "Printed characters page"
     - toolbar "Formatting"
@@ -56,6 +81,24 @@
     - none "Page Options"
     - button "Use Cast List Automatically"
     - button "Replace Page from Cast List"
+    - paragraph
+  - region "Opening Notes"
+    - heading "Opening Notes" [level=2]
+    - switch "Include opening notes"
+    - paragraph
+    - group "Opening notes text"
+      - toolbar "Formatting"
+        - button "Paragraph style: Heading 2" [haspopup]
+        - button "Bold"
+        - button "Italic"
+        - button "Text alignment: Align Left" [haspopup]
+        - button "Bulleted list"
+        - button "Numbered list"
+      - textbox
+    - button "Place opening notes: After Characters" [haspopup]
+  - region "Production Notes"
+    - heading "Production Notes" [level=2]
+    - switch "Include production notes"
     - paragraph
   - sectionheader
     - heading "Cast Tools" [level=2]

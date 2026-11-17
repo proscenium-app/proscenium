@@ -5,7 +5,7 @@
     - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
-    - tab "Cast"
+    - tab "Cast & Pages"
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -22,9 +22,13 @@
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
     - group "Scenes in The Weight of Water":
-      - treeitem "SCENE 1 1" [level=2]
-      - treeitem "SCENE 2 1–2" [level=2]
-      - treeitem "SCENE 1 2" [level=2] [selected]
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3] [selected]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]
@@ -39,7 +43,7 @@
     - group "Loglines":
       - treeitem "Logline" [level=2]
   - button "New"
-  - text: at the top level
+  - text: in Loglines
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -86,40 +90,24 @@
   - button "Zoom in"
 - status
 - alert
-- dialog "Opening Pages":
-  - heading "Opening Pages" [level=2]
-  - text: Title page, Characters page, then optional opening notes. You choose the content. Title
-  - textbox "Title"
-  - text: Credit
-  - textbox "Credit"
-  - text: Authors
-  - textbox "Authors"
-  - text: Contact
-  - textbox "Contact"
-  - text: Draft date
-  - textbox "Draft date"
-  - text: Write the title page freely
-  - checkbox "Write the title page freely"
-  - heading "Opening Notes" [level=2]
-  - paragraph: An optional page for setting, time, place, a dedication or other notes. Write your own headings, or leave it empty to omit the page.
-  - group "Opening notes text":
-    - toolbar "Formatting":
-      - 'button "Paragraph style: Heading 2"': Heading 2
-      - button "Bold"
-      - button "Italic"
-      - 'button "Text alignment: Align Left"': Align Left
-      - button "Bulleted list":
-        - img
-      - button "Numbered list":
-        - img
-    - heading "Setting" [level=2]
-    - paragraph: A coastal kitchen, and the rooms of memory around it.
-    - heading "Time" [level=2]
-    - paragraph: The last night of winter.
-  - text: Place opening notes
-  - 'button "Place opening notes: After Characters"': After Characters
-  - paragraph: Edit the Characters page in Cast. Export lets you choose which opening pages to include.
+- dialog "Capitalize Character Names":
+  - heading "Capitalize Character Names" [level=2]
+  - text: Character names in stage directions and parentheticals, in capitals. Untick any you want to keep as written.
+  - checkbox "All names" [checked]
+  - text: All names
+  - list "Names in the stage directions":
+    - listitem:
+      - 'checkbox "Mara, in: I keep listening for it. Mara and Jonah wait." [checked]'
+      - text: I keep listening for it.
+      - strong: Mara
+      - text: and Jonah wait.
+    - listitem:
+      - 'checkbox "Jonah, in: I keep listening for it. Mara and Jonah wait." [checked]'
+      - text: I keep listening for it. Mara and
+      - strong: Jonah
+      - text: wait.
+  - text: 2 of 2
   - button "Cancel"
-  - button "Save"
+  - button "Capitalize 2 Names"
   - status
   - alert

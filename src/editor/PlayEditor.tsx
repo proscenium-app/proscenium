@@ -10,7 +10,17 @@
  * serialization. With the page view on, the Pagination extension draws the
  * layout engine's page breaks live.
  */
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Doc, FrontMatter } from "../fountain";
@@ -18,11 +28,16 @@ import { formatToCss, type FormatSpec } from "../format";
 import type { LayoutMeta } from "../layout";
 import { ElementEntry } from "./element-entry";
 import { AutoDetect, EllipsisFloor } from "./input-rules";
-import { AutoCaps } from "./auto-caps";
+import { AutoCaps, autoCapsKey } from "./auto-caps";
+import { CastNames, namesInDirectionsOn } from "./names-in-directions";
+import { useOrdinaryWords } from "./use-ordinary-words";
+import { SpeechCues } from "./speech-cues";
 import { CharacterAutocomplete } from "./character-autocomplete";
 import { LeaderKey } from "./leader-key";
 import { ElementBar, elementLabel } from "./ElementBar";
 import { announce } from "../ui/announce";
+import { pressed } from "../ui/keys";
+import { useZoomAnchor } from "../ui/zoom-anchor";
 import { Find } from "./find";
 import { FindBar } from "./FindBar";
 import { RunningTimeStrip } from "./RunningTimeStrip";
@@ -31,18 +46,25 @@ import { useVisibleScene } from "./caret-scene";
 import type { ScenePageMap } from "../layout";
 import type { SceneCard } from "../workspace";
 import { PageBreakHandle } from "./page-break";
-import { Pagination } from "./pagination";
+import { PendingSelection } from "../ui/pending-selection";
+import { Pagination, frontEditHost, type FrontEditKind, type NotesSheetKind } from "./pagination";
+import { measureLineShortfall } from "./line-shortfall";
 import { Spellcheck } from "./spellcheck";
 import { SpellMenu } from "./SpellMenu";
-import { createSpeller, STAGE_WORDS, type Lexicon } from "../spell";
-import { loadDictionary } from "../spell/dictionary";
+import { useSpeller } from "./use-speller";
 import { DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
 import { editorExtensions } from "./schema";
 import { Comments, CommentsMargin, type MarginState } from "../comments";
 import { LiveRedline, setLiveRedline } from "./live-redline";
 import { marginRuleCss } from "./redline-margin";
 import { ensureNonEmpty, fromEditorDoc, toEditorDoc } from "./bridge";
+import { CaretOnFocus } from "../ui/caret-on-focus";
+import { FormatInput } from "../ui/format-input";
+import { toggleEmphasis } from "./breaks";
 import "./stage-format.css";
+
+/** The lines whose sentences begin with a capital on a screen's keyboard. */
+const SENTENCE_CAPS = new Set(["action", "dialogue"]);
 
 export interface PlayEditorProps {
   tutorialActive?: boolean;
@@ -69,6 +91,27 @@ export interface PlayEditorProps {
   onEditTitlePage?: () => void;
   /** Open Cast at what was double-clicked on the Characters sheet (its paragraph id). */
   onEditCharactersPage?: (paragraphId: string | null) => void;
+  /** Open Opening Pages at what was double-clicked on the opening or production notes. */
+  onEditNotesPage?: (kind: NotesSheetKind, paragraphId: string | null) => void;
+  /**
+   * The editor for a page before the script, edited where it stands
+   * (docs/app/formatting/formats-and-layout.md#FMT-165): given, a double-click
+   * on the Characters page, the opening notes or the production notes edits it
+   * on the page instead of opening it elsewhere. `at` is the engine's id of the
+   * paragraph double-clicked; `done` ends the editing. `bar` is the strip
+   * at the top of the script, where the element bar stands, for the page's
+   * formatting bar: on the desk with the app's other tools, not on the paper.
+   */
+  renderFrontPage?: (
+    kind: FrontEditKind,
+    at: string | null,
+    done: () => void,
+    bar: HTMLElement | null,
+  ) => ReactNode;
+  /** The script on the page: another one ends the editing of a page before the script. */
+  scriptKey?: string | null;
+  /** Notes pages turned on and not written yet, drawn as sheets to write on. */
+  emptyPages?: readonly NotesSheetKind[];
   /**
    * A change drawn on the script (live-redline.ts): the text before it and
    * the text it left. A DECORATION layer, never the document: take it away
@@ -90,6 +133,11 @@ export interface PlayEditorProps {
   onShowComments?: () => void;
   /** Underline misspellings (docs/app/writing/editor-ux.md#EDIT-D116). */
   spellcheck?: boolean;
+  /**
+   * Capitals as they are typed (Settings › Writing, docs/app/writing/editor-ux.md#EDIT-54):
+   * cues and headings, and names in the directions where the format asks.
+   */
+  autoCaps?: boolean;
   language?: string;
   /** Words the writer has taught the checker, from app settings. */
   learnedWords?: string[];
@@ -101,7 +149,12 @@ export interface PlayEditorProps {
   onJumpToScene?: (ordinal: number) => void;
   /** Settings ▸ Writing: whether the page map shows (docs/app/preferences-and-help/settings.md#SET-42). */
   showRunningTime?: boolean;
+  /** Settings ▸ Writing: whether the strip marks the place in the scene (docs/app/preferences-and-help/settings.md#SET-45). */
+  showScenePlace?: boolean;
 }
+
+/** Stable empty default, as below: a fresh [] each render would lay the page out again. */
+const NO_PAGES: readonly NotesSheetKind[] = [];
 
 /** Stable empty default: a fresh [] each render would re-check the script. */
 const NO_WORDS: string[] = [];
@@ -173,12 +226,17 @@ export function PlayEditor({
   frontMatter,
   onEditTitlePage,
   onEditCharactersPage,
+  onEditNotesPage,
+  renderFrontPage,
+  scriptKey,
+  emptyPages = NO_PAGES,
   redline,
   zoom = 1,
   commentsOpen = false,
   onToggleComments,
   onShowComments,
   spellcheck = true,
+  autoCaps = true,
   language = DEFAULT_PLAY_LANGUAGE,
   learnedWords = NO_WORDS,
   onLearnWord,
@@ -186,6 +244,7 @@ export function PlayEditor({
   scenePages,
   onJumpToScene,
   showRunningTime = true,
+  showScenePlace = true,
 }: PlayEditorProps) {
   const editor = useEditor({
     extensions: [
@@ -194,14 +253,26 @@ export function PlayEditor({
       AutoDetect,
       EllipsisFloor,
       AutoCaps,
+      CastNames,
+      SpeechCues,
       CharacterAutocomplete,
       LeaderKey,
       Pagination,
       PageBreakHandle,
+      // A click is never undone by an update arriving with it (docs/app/writing/editor-ux.md#EDIT-211).
+      PendingSelection,
       Find,
       Comments,
       LiveRedline,
       Spellcheck,
+      CaretOnFocus,
+      // An iPad's ⌘B, ⌘I and ⌘U, and its screen keyboard's B, I and U, as the
+      // script's own (docs/engineering/cross-platform.md#PLAT-76).
+      FormatInput({
+        bold: (ed) => toggleEmphasis(ed, "strong"),
+        italic: (ed) => toggleEmphasis(ed, "em"),
+        underline: (ed) => toggleEmphasis(ed, "underline"),
+      }),
     ],
     // Line breaks cross the editor boundary as nodes (bridge.ts); the model
     // on either side keeps its literal newlines.
@@ -223,12 +294,19 @@ export function PlayEditor({
       // default, and even with them on, every character name and invented place
       // in the play is a typo — the OS has no way to know the cast. A checker
       // that reads the cast, respects the element types, and can be taught is
-      // the feature a writer actually wanted. autocorrect/auto-capitalize stay off
-      // so nothing fights the auto-caps input rules.
-      attributes: {
+      // the feature a writer actually wanted. Autocorrect stays off, and so do
+      // the system's capitals wherever the app's own auto-caps uppercases a
+      // line, so nothing fights the auto-caps input rules. In action and
+      // dialogue, which auto-caps leaves alone, a screen's keyboard begins
+      // each sentence with a capital (`sentences`), as it does in every other
+      // app: with the system's capitals off throughout, a writer on the glass
+      // started every sentence in lower case. The attribute follows the caret.
+      attributes: (state) => ({
         spellcheck: "false",
         autocorrect: "off",
-        autocapitalize: "off",
+        autocapitalize: SENTENCE_CAPS.has(state.selection.$head.parent.type.name)
+          ? "sentences"
+          : "off",
         // macOS's writing suggestions deleted typed letters on a ProseMirror
         // page in WebKit (ProseEditor.tsx has the evidence). Off here as well:
         // the script is where most of the words are typed.
@@ -239,14 +317,17 @@ export function PlayEditor({
         role: "textbox",
         "aria-multiline": "true",
         "aria-label": "Script",
-      },
+      }),
       // Paste is the other door the "…" glyph comes through (other editors,
       // the web). Input rules don't fire on paste, so undo it here too — a
       // script's ellipsis is three dots on the grid.
       transformPastedText: (text) => text.replace(/…/g, "..."),
       transformPastedHTML: (html) => html.replace(/…/g, "..."),
       handleKeyDown: (_view, event) => {
-        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+        // ⌘S exactly, as this system has it: any ⌘ or Ctrl with an S once
+        // took the element chords that hold one, a PC's Scene Heading
+        // (Ctrl+Shift+S) among them, which saved instead.
+        if (pressed(event, "⌘S")) {
           event.preventDefault();
           onSaveShortcut?.();
           return true;
@@ -279,7 +360,94 @@ export function PlayEditor({
     editor?.commands.setCharacterCast(cast ?? []);
   }, [editor, cast]);
 
+  // Auto-caps on or off. A command dispatches even when it changes nothing,
+  // so it is sent only when the switch moves.
+  useEffect(() => {
+    if (editor && autoCapsKey.getState(editor.state)?.on !== autoCaps)
+      editor.commands.setAutoCaps(autoCaps);
+  }, [editor, autoCaps]);
+
+  /* Names in the directions (names-in-directions.ts): on where the format asks
+     and auto-caps is on, from the binder's cast and the title page's
+     Characters list (the script's own cues are read as a name is finished),
+     with the play's dictionary for the names that are ordinary words. */
+  const castNamesOn = namesInDirectionsOn(autoCaps, format);
+  const ordinary = useOrdinaryWords(language, castNamesOn);
+  const titleCast = frontMatter?.characters;
+  const castNames = useMemo(
+    () => [...(cast ?? []), ...(titleCast ?? []).map((c) => c.name)],
+    [cast, titleCast],
+  );
+  useEffect(() => {
+    editor?.commands.setCastNames({ on: castNamesOn, names: castNames, ordinary });
+  }, [editor, castNamesOn, castNames, ordinary]);
+
+  /* A page before the script edited where it stands (docs/app/formatting/formats-and-layout.md#FMT-165): the sheet the
+     editor is mounted in is made once and drawn in the page's place. */
+  const [frontEdit, setFrontEdit] = useState<{ kind: FrontEditKind; at: string | null } | null>(
+    null,
+  );
+  const [frontHost] = useState(() => (typeof document === "undefined" ? null : frontEditHost()));
+  const inPlace = !!renderFrontPage;
+  const editCharactersHere = useCallback(
+    (at: string | null) => setFrontEdit({ kind: "characters", at }),
+    [],
+  );
+  const editNotesHere = useCallback(
+    (kind: NotesSheetKind, at: string | null) => setFrontEdit({ kind, at }),
+    [],
+  );
+  const doneFront = useCallback(() => {
+    setFrontEdit(null);
+    // Back to the script where its caret was, unless a click there ended it.
+    window.requestAnimationFrame(() => {
+      if (editor && !editor.isDestroyed && !editor.view.hasFocus()) editor.view.focus();
+    });
+  }, [editor]);
+  // The sheets are drawn in page view alone: without them there is nothing to
+  // edit. And a page being edited is the open script's: another script ends it.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the script changing is the cause
+  useEffect(() => {
+    setFrontEdit(null);
+  }, [scriptKey]);
+  useEffect(() => {
+    if (!paginated) setFrontEdit(null);
+  }, [paginated]);
+  // A click into the script ends the editing, as leaving any field does.
+  useEffect(() => {
+    if (!editor || !frontEdit) return;
+    editor.on("focus", doneFront);
+    return () => {
+      editor.off("focus", doneFront);
+    };
+  }, [editor, frontEdit, doneFront]);
+  /* The page's editor is made once its sheet is in the page: made in a sheet
+     the layout has not drawn yet, it took the keyboard in an element the
+     document did not hold, and the keyboard stayed in the script. The sheet is
+     drawn by a layout's transaction, so each transaction asks, until it is. */
+  const [frontAttached, setFrontAttached] = useState(false);
+  /** The strip at the top of the script that holds the page's formatting bar while it is edited. */
+  const [frontBar, setFrontBar] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!editor || !frontEdit || !frontHost) {
+      setFrontAttached(false);
+      return;
+    }
+    const check = () => {
+      if (frontHost.root.isConnected) setFrontAttached(true);
+    };
+    check();
+    editor.on("transaction", check);
+    return () => {
+      editor.off("transaction", check);
+    };
+  }, [editor, frontEdit, frontHost]);
+  const editingFront =
+    frontEdit && frontHost ? { kind: frontEdit.kind, root: frontHost.root } : null;
+  const editingKind = editingFront?.kind ?? null;
+
   // Keep live pagination in sync with the active format / view / header meta.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the sheet changes with its kind alone
   useEffect(() => {
     editor?.commands.setPagination({
       enabled: paginated,
@@ -287,9 +455,26 @@ export function PlayEditor({
       meta: layoutMeta,
       frontMatter,
       onTitlePageClick: onEditTitlePage ?? null,
-      onCharactersPageOpen: onEditCharactersPage ?? null,
+      onCharactersPageOpen: inPlace ? editCharactersHere : (onEditCharactersPage ?? null),
+      onNotesPageOpen: inPlace ? editNotesHere : (onEditNotesPage ?? null),
+      editingFront,
+      emptyPages,
     });
-  }, [editor, paginated, format, layoutMeta, frontMatter, onEditTitlePage, onEditCharactersPage]);
+  }, [
+    editor,
+    paginated,
+    format,
+    layoutMeta,
+    frontMatter,
+    onEditTitlePage,
+    onEditCharactersPage,
+    onEditNotesPage,
+    inPlace,
+    editCharactersHere,
+    editNotesHere,
+    editingKind,
+    emptyPages,
+  ]);
 
   /**
    * Draw a change on the page, or take it off. The editor outlives a script
@@ -301,59 +486,36 @@ export function PlayEditor({
   }, [editor, redline]);
 
   /**
-   * The dictionary, fetched the first time the check is wanted and then held
-   * for the session (the module caches it across editors too). A failure is
-   * silence: no dictionary means no underlines, never a dialog over the page.
+   * The speller (use-speller.ts), made again whenever anything behind it
+   * moves — the dictionary arriving, a name entering the cast, a word learned
+   * or ignored — and pushed through the plugin, which re-checks the script.
+   * Command-style, like the cast and the redline above: the editor outlives a
+   * script switch.
    */
-  const [loadedDictionary, setLoadedDictionary] = useState<{
-    language: string;
-    lexicon: Lexicon | null;
-  } | null>(null);
-  const lexicon = loadedDictionary?.language === language ? loadedDictionary.lexicon : null;
+  const { speller, ignore: ignoreWord } = useSpeller({
+    on: spellcheck,
+    language,
+    cast,
+    learnedWords,
+  });
   useEffect(() => {
-    if (!spellcheck) return;
-    let live = true;
-    void loadDictionary(language).then(
-      (loaded) => {
-        if (live) setLoadedDictionary({ language, lexicon: loaded });
-      },
-      () => {
-        /* no dictionary this session */
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [spellcheck, language]);
-
-  /** Words waved through until the app restarts — the menu's "Ignore". */
-  const [ignored, setIgnored] = useState<string[]>([]);
-  const ignoreWord = useCallback((word: string) => {
-    setIgnored((prev) =>
-      prev.some((w) => w.toLowerCase() === word.toLowerCase()) ? prev : [...prev, word],
-    );
-  }, []);
-
-  /**
-   * Rebuild the speller whenever anything behind it moves — the dictionary
-   * arriving, a name entering the cast, a word learned or ignored — and push it
-   * through the plugin, which re-checks the script. Command-style, like the
-   * cast and the redline above: the editor outlives a script switch.
-   */
-  useEffect(() => {
-    if (!editor) return;
-    if (!spellcheck || !lexicon) {
-      editor.commands.setSpeller(null);
-      return;
-    }
-    editor.commands.setSpeller(
-      createSpeller(lexicon, [...STAGE_WORDS, ...(cast ?? []), ...learnedWords, ...ignored]),
-    );
-  }, [editor, lexicon, spellcheck, cast, learnedWords, ignored]);
+    editor?.commands.setSpeller(speller);
+  }, [editor, speller]);
 
   // The whole stage format, generated from the spec (never hardcoded).
   // The format's own sheet, and where a redline's margin rule stands on it.
   const formatCss = useMemo(() => `${formatToCss(format)}\n${marginRuleCss(format)}`, [format]);
+
+  /* What a line of the page is drawn short of its pitch, for the page's
+     remainders (line-shortfall.ts, docs/app/writing/editor-ux.md#EDIT-197):
+     measured again whenever the pitch can change, before the page is seen. */
+  const page = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (page.current) measureLineShortfall(page.current);
+  }, [zoom, formatCss, paginated]);
+  // A zoom keeps the writer's place (docs/app/writing/editor-ux.md#EDIT-198):
+  // after the shortfall above, which can move a line by a fraction of a pixel.
+  useZoomAnchor(page, zoom);
 
   /** What the comment margin measured: desk to hold clear, and whether it's up. */
   const [margin, setMargin] = useState<MarginState>({ show: false, reserve: 0 });
@@ -374,7 +536,11 @@ export function PlayEditor({
       style={margin.reserve ? { marginRight: margin.reserve } : undefined}
     >
       <style>{formatCss}</style>
-      {editor && editable && (
+      {/* While a page before the script is edited, its formatting bar stands
+          where the element bar does: the script's elements are no use on that
+          page, and a bar drawn on the paper read as part of the page. */}
+      {editor && frontEdit && frontAttached && <div ref={setFrontBar} className="frontedit-bar" />}
+      {editor && editable && !(frontEdit && frontAttached) && (
         <ElementBar
           editor={editor}
           commentsOpen={commentsOpen}
@@ -385,10 +551,14 @@ export function PlayEditor({
       {/* Comments live beside the page they annotate; the whole list lives in
           the feed pane, which App owns (docs/app/writing/comments.md#COMM-D4, docs/app/writing/comments.md#COMM-D5). */}
       {editor && <CommentsMargin editor={editor} onMargin={setMargin} onNoRoom={onShowComments} />}
-      {/* `zoom` (not transform) so scroll extents track the visual size. */}
+      {/* The zoom scales the page's own lengths and type (`--page-scale`,
+          formatToCss), never CSS `zoom`, which iPadOS kept from the editor's
+          words (docs/app/writing/editor-ux.md#EDIT-196): the page is laid out
+          at its zoomed size, so scroll extents track what is drawn. */}
       <div
+        ref={page}
         className={`play-page${paginated ? " is-paginated" : ""}`}
-        style={{ zoom, "--page-chrome-zoom": 1 / zoom } as CSSProperties}
+        style={{ "--page-scale": zoom } as CSSProperties}
       >
         <EditorContent editor={editor} />
       </div>
@@ -405,9 +575,19 @@ export function PlayEditor({
           scenePages={scenePages}
           caretOrdinal={visibleScene}
           onJump={onJumpToScene}
+          editor={editor}
+          showPlace={showScenePlace}
         />
       )}
       {editor && <FindBar editor={editor} />}
+      {frontHost &&
+        frontEdit &&
+        frontAttached &&
+        renderFrontPage &&
+        createPortal(
+          renderFrontPage(frontEdit.kind, frontEdit.at, doneFront, frontBar),
+          frontHost.mount,
+        )}
       {/* The correction menu is a right-click away from an underlined word; it
           renders nothing until one is open. */}
       {editor && editable && (

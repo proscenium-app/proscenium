@@ -13,7 +13,7 @@ test("docs/app/keeping-work/storage-and-file-format.md#STOR-5: canonical files e
   expect(/\bvault_remove\b/.test(bridge)).toBe(false);
   expect(/\bfn remove\(/.test(backend)).toBe(false);
   expect(/async fn vault_trash\(/.test(native)).toBe(true);
-  expect(bridge.includes('invoke("vault_trash", { rel })')).toBe(true);
+  expect(bridge.includes('invoke("vault_trash", { rel, note: note ?? null })')).toBe(true);
   // The separately scoped app-data store still maintains recovery and Versions.
   expect(/async fn store_remove\(/.test(native)).toBe(true);
   expect(/async fn recovery_remove\(/.test(native)).toBe(true);

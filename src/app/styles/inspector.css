@@ -172,6 +172,7 @@
 }
 .insp__addtag {
   width: var(--h-mini);
+  height: var(--h-mini);
   padding: 0;
   justify-content: center;
   cursor: pointer;

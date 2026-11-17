@@ -14,7 +14,14 @@
  * play-file concern.
  */
 
-export type MarkType = "strong" | "em" | "underline";
+/**
+ * `castCaps` and `castKept` are the page's: whose case a character's name in
+ * a direction is in (docs/app/writing/editor-ux.md#EDIT-205). The model carries
+ * them out of the editor and back, so a scene moved on the board keeps them;
+ * nothing parses them and `serializeInline` drops them.
+ */
+export type CaseMarkType = "castCaps" | "castKept";
+export type MarkType = "strong" | "em" | "underline" | CaseMarkType;
 
 export interface Mark {
   type: MarkType;
@@ -88,6 +95,19 @@ export interface CharacterEntry {
 }
 
 /**
+ * A page before the script as a file of the play's Front Matter folder holds
+ * it (src/layout/page-files.ts reads its words, header and fields).
+ */
+export interface FrontPageSource {
+  /** The file's binder id, which a rename or a move within the folder keeps. */
+  id: string;
+  /** What a writer calls the page: its file's name, "Title Page". */
+  name: string;
+  /** The file's text, header and all. */
+  text: string;
+}
+
+/**
  * Front matter is NOT part of the ProseMirror doc; it is a structured object
  * serialized to/from the Fountain title page (docs/engineering/fountain-model.md#FOUN-D107). Standard keys map to named fields; the house keys
  * Setting/Time/Place/Characters are custom title-page keys; anything else is
@@ -113,12 +133,26 @@ export interface FrontMatter {
   openingNotes?: string;
   openingNotesBeforeCharacters?: boolean;
   /**
+   * The production notes page, as Markdown: casting and doubling, staging, how
+   * the text is marked. Prints on its own sheet just before the script, under
+   * the heading PRODUCTION NOTES. Undefined or empty prints no page
+   * (docs/app/formatting/formats-and-layout.md#FMT-160).
+   */
+  productionNotes?: string;
+  /**
    * AT RISE mirror for the front-matter panel (unit J). In unit D the AT RISE
    * line lives canonically as the first `action` node of the first scene and is
    * serialized from there; this field is a read-only convenience and is never
    * separately emitted.
    */
   atRise?: string;
+  /**
+   * The pages before the script when the play keeps them as files, in the
+   * folder's order. Read from the folder and never from or into the title
+   * page: the serializer writes only the keys above. When present they are
+   * the play's pages, and the fields above are only the details they show.
+   */
+  pages?: FrontPageSource[];
   /**
    * Unknown / unmodeled title-page keys, preserved verbatim for round-trip. A
    * key named twice holds the lines of each entry, and so does a house key's

@@ -43,12 +43,12 @@ export interface UiFacts {
   menu: string[];
   /** The editor's own element menu (Return or Tab on an empty line). */
   elementMenu: boolean;
-  sheet: "export" | "opening-pages" | "other" | null;
+  sheet: "export" | "other" | null;
   /** The `data-tutorial` id around the focused control, and what it holds. */
   focus: string | null;
   focusText: string;
   /** Single fields on screen, by `data-tutorial` id, with what they hold now: the tag
-   *  being typed, Opening Pages' notes before Save. Absent when not on screen. */
+   *  being typed, the opening notes as they are written. Absent when not on screen. */
   fields: Record<string, string>;
 }
 export interface Facts {
@@ -559,12 +559,12 @@ export function coach(task: Task, f: Facts, b: Baseline): Cue {
 
     case "cast":
       return f.view === "cast"
-        ? done(["The printed Characters page is at the top, the cast tools below it."])
-        : todo(["Choose ", { ui: "Cast" }, "."], { kind: "view", view: "cast" });
+        ? done(["Every page before the script is here, and the cast tools below them."])
+        : todo(["Choose ", { ui: "Cast & Pages" }, "."], { kind: "view", view: "cast" });
     case "characters-page":
       if (words(f.front.charactersPage) && f.front.charactersPage !== b.charactersPage)
         return done(["The printed page keeps your wording now."]);
-      if (f.view !== "cast") return backTo("cast", "Cast");
+      if (f.view !== "cast") return backTo("cast", "Cast & Pages");
       return todo(
         [
           f.ui.focus === "characters-page"
@@ -577,7 +577,7 @@ export function coach(task: Task, f: Facts, b: Baseline): Cue {
       const names = f.front.characters.filter(words);
       if (names.length > b.characters)
         return done([{ type: names[names.length - 1].trim() }, " is in the cast."]);
-      if (f.view !== "cast") return backTo("cast", "Cast");
+      if (f.view !== "cast") return backTo("cast", "Cast & Pages");
       if (f.ui.focus === "character-name")
         return words(f.ui.focusText)
           ? todo(["Click outside the row to keep the name."], { kind: "focus" })
@@ -587,17 +587,17 @@ export function coach(task: Task, f: Facts, b: Baseline): Cue {
     case "opening-notes":
       if (words(f.front.openingNotes) && f.front.openingNotes !== b.openingNotes)
         return done(["Your opening notes are saved in the play."]);
-      if (f.ui.sheet === "opening-pages")
-        return words(f.ui.fields["opening-notes"] ?? "") &&
-          f.ui.fields["opening-notes"] !== b.openingNotes
-          ? todo(["Choose ", { ui: "Save" }, "."], { kind: "ui", id: "opening-save" })
-          : todo(["Write a line here — a place, a time, a dedication."], {
-              kind: "ui",
-              id: "opening-notes",
-            });
-      if (f.ui.menu.includes("opening-pages"))
-        return menuCue("opening-pages", "Edit Opening Pages…");
-      return openDocumentMenu("Edit Opening Pages…");
+      if (f.view !== "cast") return backTo("cast", "Cast & Pages");
+      // Written as they are typed: the editor is on screen once they are on.
+      return "opening-notes" in f.ui.fields
+        ? todo(["Write a line here — a place, a time, a dedication."], {
+            kind: "ui",
+            id: "opening-notes",
+          })
+        : todo(["Turn on ", { ui: "Opening Notes" }, "."], {
+            kind: "ui",
+            id: "opening-notes-switch",
+          });
 
     case "document":
       if (f.documents.length > b.documents)

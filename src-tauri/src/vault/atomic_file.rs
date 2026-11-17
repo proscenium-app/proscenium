@@ -41,6 +41,25 @@ pub fn read_patiently<T>(op: impl FnMut() -> io::Result<T>) -> io::Result<T> {
     }
 }
 
+/// A read of a file another save may be removing this moment, as the saves of
+/// a play retire their journal records. On Windows a file whose deletion has
+/// begun stays at its name, and refuses every open with Access Denied, until
+/// the program removing it lets go; then it is gone. So Access Denied is waited
+/// out here as a hold is, and the read ends in the file or in NotFound, for up
+/// to two seconds; Access Denied that outlasts that is the file's own
+/// permissions. Elsewhere a removed file is gone at once, and it runs once.
+pub fn read_retiring<T>(op: impl FnMut() -> io::Result<T>) -> io::Result<T> {
+    #[cfg(windows)]
+    {
+        win::read_retiring(op)
+    }
+    #[cfg(not(windows))]
+    {
+        let mut op = op;
+        op()
+    }
+}
+
 /// A folder's entries reach the disk. On Windows a folder has no sync: every
 /// install there is a write-through rename, which is on disk when it returns.
 pub fn sync_dir(path: &Path) -> io::Result<()> {
@@ -103,11 +122,25 @@ pub fn sync_parents(from: &Path, to: &Path) -> io::Result<()> {
 }
 
 /// Install an immutable journal record. No existence query authorises replacement.
+///
+/// Written whole under a temporary name, then renamed to its own exclusively:
+/// a name already taken is still refused, and a save of another file that
+/// reads the folder at that instant finds the record whole or not at all.
+/// Made at its own name, it stood there empty for a moment, and a save that
+/// read it then could not parse it and refused.
 pub fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let parent = path
         .parent()
         .ok_or_else(|| io::Error::other("no journal directory"))?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| io::Error::other("no journal record name"))?;
     create_dir_durable(parent)?;
+    let temp = parent.join(format!(
+        ".{}.{}.tmp",
+        name.to_string_lossy(),
+        super::tmp_token()
+    ));
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
     #[cfg(unix)]
@@ -115,12 +148,14 @@ pub fn write_new(path: &Path, bytes: &[u8]) -> io::Result<()> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    let mut file = options.open(path)?;
-    let result = (|| {
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        sync_dir(parent)
-    })();
+    let mut file = options.open(&temp)?;
+    let written = file.write_all(bytes).and_then(|()| file.sync_all());
+    drop(file);
+    if let Err(error) = written.and_then(|()| rename_exclusive(&temp, path)) {
+        let _ = std::fs::remove_file(&temp);
+        return Err(error);
+    }
+    let result = sync_dir(parent);
     if result.is_err() {
         let _ = std::fs::remove_file(path);
     }
@@ -508,6 +543,10 @@ mod win {
         waiting(held, op)
     }
 
+    pub fn read_retiring<T>(op: impl FnMut() -> io::Result<T>) -> io::Result<T> {
+        waiting(transient, op)
+    }
+
     pub fn move_file(from: &Path, to: &Path, replacing: bool) -> io::Result<()> {
         let (from, to) = (wide(from)?, wide(to)?);
         let flags = MOVEFILE_WRITE_THROUGH
@@ -757,6 +796,42 @@ mod tests {
         assert!(matches!(FileLock::try_at(&lock), Err(e) if e.kind() == io::ErrorKind::WouldBlock));
         drop(owner);
         assert!(FileLock::try_at(&lock).is_ok());
+    }
+
+    /// Every save in a play reads the one folder of records for its own file's
+    /// while the saves of other files make theirs. A record seen before its
+    /// bytes were written was read in part, and the save reading it refused.
+    #[test]
+    fn a_record_appears_whole_or_not_at_all() {
+        let dir = tempfile::tempdir().unwrap();
+        let bytes = vec![b'r'; 1024];
+        for n in 0..200 {
+            let path = dir.path().join("writes").join(format!("{n:x}.json"));
+            let ready = std::sync::Barrier::new(2);
+            let seen = std::thread::scope(|scope| {
+                let reader = scope.spawn(|| {
+                    ready.wait();
+                    loop {
+                        match std::fs::read(&path) {
+                            Ok(found) => return found.len(),
+                            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+                            Err(e) => panic!("{e}"),
+                        }
+                    }
+                });
+                ready.wait();
+                write_new(&path, &bytes).unwrap();
+                reader.join().unwrap()
+            });
+            assert_eq!(seen, bytes.len(), "record {n}: a reader found it in part");
+        }
+        // Nothing but the records: no temporary name is left beside them.
+        assert_eq!(
+            std::fs::read_dir(dir.path().join("writes"))
+                .unwrap()
+                .count(),
+            200
+        );
     }
 
     #[test]

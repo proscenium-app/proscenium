@@ -5,7 +5,16 @@ import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { PDFArray, PDFDocument, PDFName, PDFRawStream, decodePDFRawStream } from "pdf-lib";
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNumber,
+  PDFRawStream,
+  decodePDFRawStream,
+} from "pdf-lib";
 
 import dgModernRaw from "../../formats/dg-modern.json";
 import type { Doc } from "../fountain/model";
@@ -218,5 +227,68 @@ describe("renderPdf", () => {
     const parsed = await PDFDocument.load(bytes);
     // title + cast only — no setting page.
     expect(parsed.getPageCount()).toBe(layout.pages.length + 2);
+  });
+});
+
+describe("renderPdf page labels", () => {
+  /** Each sheet's label as a viewer reads /PageLabels: prefix, then the number. */
+  function labels(pdf: PDFDocument): string[] {
+    const tree = pdf.catalog.lookup(PDFName.of("PageLabels"), PDFDict);
+    const nums = tree.lookup(PDFName.of("Nums"), PDFArray).asArray();
+    const runs: { index: number; prefix: string; start: number | null }[] = [];
+    for (let i = 0; i < nums.length; i += 2) {
+      const dict = pdf.context.lookup(nums[i + 1], PDFDict);
+      const prefix = dict.lookup(PDFName.of("P"));
+      const start = dict.lookup(PDFName.of("St"));
+      runs.push({
+        index: (nums[i] as PDFNumber).asNumber(),
+        prefix: prefix instanceof PDFHexString ? prefix.decodeText() : "",
+        start: dict.has(PDFName.of("S"))
+          ? start instanceof PDFNumber
+            ? start.asNumber()
+            : 1
+          : null,
+      });
+    }
+    return Array.from({ length: pdf.getPageCount() }, (_, sheet) => {
+      const run = runs.filter((r) => r.index <= sheet).pop() ?? runs[0];
+      return run.prefix + (run.start === null ? "" : String(run.start + sheet - run.index));
+    });
+  }
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: a viewer calls each script page the number printed on it, past the title page", async () => {
+    const doc = speechDoc(40);
+    const layout = paginateDoc(doc, DG, { title: "Tideline" });
+    expect(layout.pages.length).toBeGreaterThan(2);
+    const pdf = await PDFDocument.load(
+      await renderPdf({
+        layout,
+        spec: DG,
+        meta: { title: "Tideline" },
+        frontMatter: { title: "Tideline", characters: [{ name: "Solo" }] },
+        fonts: FONTS,
+      }),
+    );
+    expect(labels(pdf)).toEqual([
+      "Title",
+      "Characters",
+      ...layout.pages.map((page) => String(page.pageNumber)),
+    ]);
+    // The number a viewer shows is the one the page's header prints.
+    expect(layout.pages[1].header?.right).toBe("2.");
+    expect(labels(pdf)[3]).toBe("2");
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: an excerpt of pages 2 and 3 is labelled 2 and 3", async () => {
+    const layout = paginateDoc(speechDoc(40), DG);
+    const pdf = await PDFDocument.load(
+      await renderPdf({
+        layout: selectPages(layout, [2, 3]),
+        spec: DG,
+        meta: {},
+        fonts: FONTS,
+      }),
+    );
+    expect(labels(pdf)).toEqual(["2", "3"]);
   });
 });

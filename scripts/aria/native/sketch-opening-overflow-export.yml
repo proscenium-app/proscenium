@@ -1,3 +1,4 @@
+- button "Dismiss"
 - dialog "Export PDF"
   - heading "Export PDF" [level=2]
   - none

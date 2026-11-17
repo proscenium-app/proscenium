@@ -382,3 +382,37 @@ fn removal_is_reported_and_resets_coalescing() {
         WatchDecision::External(_)
     ));
 }
+
+#[cfg(unix)]
+#[test]
+fn an_event_under_a_second_spelling_of_the_root_is_relative_and_one_outside_is_dropped() {
+    // A real iPad names its Plays folder /var/mobile/… where the vault's root
+    // is canonical, /private/var/mobile/…; a symlinked folder stands in for
+    // the second spelling. Neither is ever reported as an absolute path.
+    let dir = tempfile::tempdir().unwrap();
+    let root = std::fs::canonicalize(dir.path()).unwrap().join("Plays");
+    std::fs::create_dir_all(root.join("The Weight of Water")).unwrap();
+    let other = std::fs::canonicalize(dir.path()).unwrap().join("Other");
+    std::os::unix::fs::symlink(&root, &other).unwrap();
+
+    let file = root.join("The Weight of Water").join("Notes.md");
+    std::fs::write(&file, b"notes").unwrap();
+    assert_eq!(
+        rel_of(&root, &file).as_deref(),
+        Some("The Weight of Water/Notes.md")
+    );
+    let spelled = other.join("The Weight of Water").join("Notes.md");
+    assert_eq!(
+        rel_of(&root, &spelled).as_deref(),
+        Some("The Weight of Water/Notes.md")
+    );
+    // Gone by the time it is reported: its folder still says where it was.
+    std::fs::remove_file(&file).unwrap();
+    assert_eq!(
+        rel_of(&root, &spelled).as_deref(),
+        Some("The Weight of Water/Notes.md")
+    );
+    let outside = dir.path().join("elsewhere.md");
+    std::fs::write(&outside, b"not the vault's").unwrap();
+    assert_eq!(rel_of(&root, &outside), None);
+}

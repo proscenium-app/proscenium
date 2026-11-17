@@ -27,7 +27,7 @@ const KEY_SHA256 = createHash("sha256").update(KEY).digest("hex");
 const keyed = { [TRACK_KEY_HEADER]: KEY };
 const migration = (
   await Promise.all(
-    ["0001_updates.sql", "0008_update_kinds.sql"].map((f) =>
+    ["0001_updates.sql", "0008_update_kinds.sql", "0009_crawler_kind.sql"].map((f) =>
       Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text(),
     ),
   )
@@ -326,6 +326,74 @@ describe("update service", () => {
     const offered = (await update.json()) as ReturnType<typeof latest>;
     for (const p of Object.values(offered.platforms)) expect(p.url).toContain("/v1/update/v0.9.1/");
   });
+  test("a HEAD of a release's file answers its headers and no body, and is counted as nothing (docs/engineering/services-and-feedback.md#SERV-289)", async () => {
+    const f = fixture();
+    const upstream = f.deps.fetch;
+    f.deps.fetch = async (r) =>
+      r.url.endsWith("latest.json")
+        ? upstream(r)
+        : (f.calls.push(r),
+          new Response("signed archive", { headers: { "Content-Length": "14" } }));
+    const head = (path: string, headers: Record<string, string> = {}) =>
+      f.run(new Request(f.request(path, headers), { method: "HEAD" }));
+    const dmg = "/v1/download/v0.9.1/Proscenium_0.9.1_universal.dmg";
+    const brew = { "User-Agent": "Homebrew/4.4.0 (Macintosh; arm64 Mac OS X 15.1) curl/8.7.1" };
+    for (const [path, headers, length] of [
+      [dmg, brew, "14"],
+      [dmg, {}, "14"],
+      ["/v1/update/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz", {}, "14"],
+      ["/v1/stable/update/v0.9.1/Proscenium_0.9.1_universal.app.tar.gz.sig", {}, "14"],
+      [
+        "/v1/alpha/download/v1.0.1-alpha.58/Proscenium_1.0.1-alpha.58_universal.dmg",
+        keyed,
+        String("alpha disk image".length),
+      ],
+    ] as [string, Record<string, string>, string][]) {
+      const r = await head(path, headers);
+      expect(r.status, path).toBe(200);
+      expect(r.headers.get("Content-Length"), path).toBe(length);
+      expect(r.headers.get("Content-Type"), path).toBe("application/octet-stream");
+      expect(r.headers.get("Cache-Control"), path).toBe("no-store");
+      expect(await r.text(), path).toBe("");
+    }
+    // GitHub is asked as a GET would ask it; only its headers are read.
+    const files = f.calls.filter((r) => !r.url.endsWith("latest.json"));
+    expect(files.map((r) => r.method)).toEqual(["GET", "GET", "GET", "GET"]);
+    expect(f.db.query("SELECT * FROM update_counts").all()).toEqual([]);
+    // Homebrew's header probe, then its file: one install, one request counted.
+    expect((await head(dmg, brew)).status).toBe(200);
+    const got = await f.run(f.request(dmg, brew));
+    expect(got.status).toBe(200);
+    expect(got.headers.get("Content-Length")).toBe("14");
+    expect(await got.text()).toBe("signed archive");
+    expect(f.db.query("SELECT kind, count FROM update_counts").all()).toEqual([
+      { kind: "homebrew", count: 1 },
+    ]);
+  });
+  test("a HEAD is refused wherever a GET of the file would be, and a check never answers one (docs/engineering/services-and-feedback.md#SERV-289)", async () => {
+    const f = fixture();
+    const head = (path: string, headers: Record<string, string> = {}) =>
+      f.run(new Request(f.request(path, headers), { method: "HEAD" }));
+    for (const [path, headers] of [
+      ["/v1/download/v8.8.8/Proscenium_8.8.8_universal.dmg", {}], // not admitted
+      ["/v1/download/v0.9.1/Proscenium_0.9.0_universal.dmg", {}], // not its own file
+      ["/v1/download/v0.9.1/secret.txt", {}],
+      ["/v1/download/v0.9.1/Proscenium_0.9.1_x64-setup.exe", {}], // its manifest names no Windows
+      ["/v1/alpha/download/v1.0.1-alpha.99/Proscenium_1.0.1-alpha.99_universal.dmg", keyed], // unpublished
+      ["/v1/alpha/download/v1.0.1-alpha.58/Proscenium_1.0.1-alpha.58_universal.dmg", {}], // no key
+      ["/v1/darwin/aarch64/0.9.0", {}], // a check
+      ["/v1/beta/darwin/aarch64/0.9.0", {}],
+    ] as [string, Record<string, string>][]) {
+      const r = await head(path, headers);
+      expect(r.status, path).toBe(404);
+      expect(await r.text(), path).toBe("");
+    }
+    expect(f.db.query("SELECT * FROM update_counts").all()).toEqual([]);
+    // A GET of the same unadmitted file is the same 404.
+    expect(
+      (await f.run(f.request("/v1/download/v8.8.8/Proscenium_8.8.8_universal.dmg"))).status,
+    ).toBe(404);
+  });
   test("what a file counts as, and what it is for", () => {
     expect(countedAs("download", "Proscenium_1.0.4_universal.dmg", "")).toBe("website");
     expect(countedAs("download", "Proscenium_1.0.4_x64-setup.exe", "Homebrew/4.4.0")).toBe(
@@ -356,6 +424,111 @@ describe("update service", () => {
       arch: "aarch64",
     });
   });
+  test("a program's fetch of a release's file counts as a crawler's, and a person's still as the website's (docs/engineering/services-and-feedback.md#SERV-290)", () => {
+    const dmg = "Proscenium_1.0.5_universal.dmg";
+    const installer = "Proscenium_1.0.5_x64-setup.exe";
+    // Programs that name themselves.
+    for (const agent of [
+      "ClaudeBot/1.0",
+      "GPTBot/1.3",
+      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+      "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)",
+      "Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)",
+      "Mozilla/5.0 (compatible; SomeCrawler/3.1)",
+      "Mozilla/5.0 (compatible; Spider-Man/1.0)",
+      "msh-pdfmin/1",
+    ])
+      expect(countedAs("download", installer, agent), agent).toBe("crawler");
+    // The stock iPhone string of headless-browser tooling, from iOS 13.2.3.
+    expect(
+      countedAs(
+        "download",
+        installer,
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1",
+      ),
+    ).toBe("crawler");
+    // A Windows token with no Win64 or ARM64: no 64-bit browser sends it.
+    expect(
+      countedAs(
+        "download",
+        installer,
+        "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36",
+      ),
+    ).toBe("crawler");
+    // People's browsers.
+    for (const agent of [
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:157.0) Gecko/20100101 Firefox/157.0",
+      "Mozilla/5.0 (Windows NT 10.0; ARM64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5.2 Safari/605.1.15",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:157.0) Gecko/20100101 Firefox/157.0",
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1",
+      "curl/8.7.1",
+      "",
+    ])
+      expect(countedAs("download", dmg, agent), agent).toBe("website");
+    // The project's own machines, Homebrew, the update route and a signature are decided first.
+    expect(countedAs("download", dmg, "proscenium-checks (release) bot")).toBe("own");
+    expect(countedAs("download", dmg, "Homebrew/4.4.0 (Macintosh) bot")).toBe("homebrew");
+    expect(countedAs("update", "Proscenium_1.0.5_universal.app.tar.gz", "ClaudeBot/1.0")).toBe(
+      "update",
+    );
+    expect(countedAs("download", `${installer}.sig`, "ClaudeBot/1.0")).toBe("signature");
+    expect(countedAs("update", `${installer}.sig`, "ClaudeBot/1.0")).toBe("signature");
+  });
+  test("a crawler's download is streamed, counted as its own kind and never as a website's (docs/engineering/services-and-feedback.md#SERV-290)", async () => {
+    const f = fixture();
+    const dmg = "/v1/download/v0.9.1/Proscenium_0.9.1_universal.dmg";
+    for (const agent of [
+      "ClaudeBot/1.0",
+      "msh-pdfmin/1",
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X)",
+    ]) {
+      const r = await f.run(f.request(dmg, { "User-Agent": agent }));
+      expect(r.status, agent).toBe(200);
+      expect(await r.text()).toBe("signed archive");
+    }
+    const person = await f.run(
+      f.request(dmg, {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15",
+      }),
+    );
+    expect(person.status).toBe(200);
+    expect(
+      f.db
+        .query("SELECT kind, platform, arch, version, count FROM update_counts ORDER BY kind")
+        .all(),
+    ).toEqual([
+      { kind: "crawler", platform: "darwin", arch: "universal", version: "0.9.1", count: 3 },
+      { kind: "website", platform: "darwin", arch: "universal", version: "0.9.1", count: 1 },
+    ]);
+    // Nothing of the program is kept.
+    expect(JSON.stringify(f.db.query("SELECT * FROM update_counts").all())).not.toContain("Claude");
+  });
+  test("the host's robots.txt asks every crawler to stay out, and is counted as nothing (docs/engineering/services-and-feedback.md#SERV-291)", async () => {
+    const f = fixture();
+    const r = await f.run(f.request("/robots.txt"));
+    expect(r.status).toBe(200);
+    expect(r.headers.get("Content-Type")).toBe("text/plain; charset=utf-8");
+    expect(await r.text()).toBe("User-agent: *\nDisallow: /\n");
+    const head = await f.run(new Request(f.request("/robots.txt"), { method: "HEAD" }));
+    expect(head.status).toBe(200);
+    expect(await head.text()).toBe("");
+    // Only the host's own, only to a GET or a HEAD, with no query.
+    for (const r of [
+      f.request("/robots.txt?x=1"),
+      f.request("/v1/robots.txt"),
+      new Request(f.request("/robots.txt"), { method: "POST" }),
+      new Request("https://evil.test/robots.txt"),
+    ]) {
+      const result = await f.run(r);
+      expect(result.status).toBe(404);
+      expect(await result.text()).toBe("");
+    }
+    expect(f.db.query("SELECT * FROM update_counts").all()).toEqual([]);
+    expect(f.calls).toHaveLength(0);
+  });
   test("unknown paths, hosts and methods have a bare 404", async () => {
     const f = fixture();
     for (const r of [
@@ -364,6 +537,11 @@ describe("update service", () => {
       // (docs/engineering/services-and-feedback.md#SERV-283); Linux never has.
       f.request("/v1/linux/x86_64/0.9.0"),
       f.request("/v1/beta/linux/x86_64/0.9.0"),
+      // The iPad reports, and never checks: TestFlight and the App Store
+      // update it (docs/engineering/services-and-feedback.md#SERV-282).
+      f.request("/v1/ios/aarch64/0.9.0", { "Proscenium-OS": "26.5" }),
+      f.request("/v1/stable/ios/aarch64/0.9.0", { "Proscenium-OS": "26.5" }),
+      f.request("/v1/beta/ios/aarch64/0.9.0", { "Proscenium-OS": "26.5" }),
       f.request("/v1/darwin/aarch64/0.9.0?secret=1"),
       new Request("https://evil.test/v1/darwin/aarch64/0.9.0"),
       new Request(f.request(), { method: "POST" }),

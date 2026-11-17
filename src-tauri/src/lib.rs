@@ -16,10 +16,18 @@ mod export;
 mod feedback;
 mod folder_access;
 mod formats;
+/// The iPad's own parts: WebKit's content rules, leaving the app, coordinated
+/// access in iCloud Drive, and which copy this is.
+#[cfg(target_os = "ios")]
+mod ipad;
+/// The iPad simulator's probe: a test build's alone, never a release's.
+#[cfg(all(feature = "ipad-probe", target_os = "ios"))]
+mod ipad_probe;
 mod long_path;
-/// Desktop-only: iOS has no menu bar, and every item here is also bound at
-/// the window by the frontend, so the mobile build simply carries neither.
-#[cfg(desktop)]
+/// The menu bar. On an iPad its tables become iPadOS's main menu (ipad.rs);
+/// every item is also bound at the window by the frontend, where no menu
+/// takes the chord first.
+#[cfg(any(desktop, target_os = "ios"))]
 mod menu;
 mod opens;
 /// Windows: what differs when the app runs from its MSIX package (the
@@ -59,6 +67,9 @@ mod symbols;
 /// Copy Diagnostics (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D100). `telemetry::allowlist` holds
 /// every address the app uses.
 mod telemetry;
+/// Proscenium’s Trash, where there is no system trash: what its rings
+/// keep, and Put Back (docs/engineering/cross-platform.md#PLAT-16).
+mod trash;
 mod tutorials;
 /// The in-app updater (docs/engineering/release-engineering.md#REL-D6). Desktop builds with the
 /// `updater` feature only: the App Store and the iPad are updated by the store.
@@ -79,6 +90,8 @@ mod webview_fence;
 mod webview_policy;
 #[cfg(any(target_os = "macos", windows))]
 mod window_color;
+#[cfg(desktop)]
+mod window_frame;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -306,7 +319,7 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
     let stored = settings::last_vault_path(&app)?;
     let path = crate::long_path::canonical(std::path::Path::new(&stored)).ok()?;
     let mut own_roots = vec![app.path().app_data_dir().ok()];
-    if let Some(cloud) = scope::cloud_root() {
+    if let Some(cloud) = cloud_root(&app) {
         own_roots.push(Some(PathBuf::from(cloud)));
     }
     #[cfg(mobile)]
@@ -345,8 +358,21 @@ async fn vault_reopen_last(app: AppHandle) -> Option<FolderGrant> {
 #[tauri::command]
 async fn vault_cloud_root(app: AppHandle) -> Option<FolderGrant> {
     app.state::<Authority>()
-        .grant(std::path::Path::new(&scope::cloud_root()?))
+        .grant(std::path::Path::new(&cloud_root(&app)?))
         .ok()
+}
+
+/// The app's iCloud container's `Documents`, or `None` where iCloud is not
+/// there: an iPad's through the folder-picker plugin (ipad.rs).
+#[cfg(target_os = "ios")]
+fn cloud_root(app: &AppHandle) -> Option<String> {
+    ipad::cloud_root(app)
+}
+
+/// A Mac's from the sandbox's own call (scope.rs); none on Windows.
+#[cfg(not(target_os = "ios"))]
+fn cloud_root(_app: &AppHandle) -> Option<String> {
+    scope::cloud_root()
 }
 
 /// Windows' first door on the Welcome screen (docs/app/keeping-work/storage-and-file-format.md#STOR-D12):
@@ -427,10 +453,22 @@ async fn vault_open(
     play_id: Option<String>,
 ) -> Result<OpenResult, String> {
     let path = authority.resolve(&handle)?;
-    let trash_dir = play_id
-        .as_deref()
-        .and_then(|id| PlayStore::open(&app, id).ok())
-        .map(|s| s.root().join("trash"));
+    #[cfg(feature = "ipad-probe")]
+    ipad_probe::note(format!("vault_open {}", path.display()));
+    // Mobile's recoverable delete goes to a ring in app data, Proscenium’s
+    // Trash (docs/engineering/cross-platform.md#PLAT-16): a play's own, keyed by
+    // its id, and for the Plays folder, where a delete would be of a whole
+    // play, one beside them. Desktop hands deletes to the system's trash.
+    let trash_dir = match play_id.as_deref() {
+        Some(id) => PlayStore::open(&app, id)
+            .ok()
+            .map(|s| s.root().join("trash")),
+        None if cfg!(mobile) => store::app_data_dir(&app).ok().map(|d| d.join("trash")),
+        None => None,
+    };
+    // In iCloud Drive every access to the folder is coordinated from now on.
+    #[cfg(target_os = "ios")]
+    ipad::opened(&app, &path);
     let mut mgr = state.lock().unwrap_or_else(|p| p.into_inner());
     let self_writes = mgr.self_writes.clone();
     // The frontend settled the old workspace before opening this one. Release
@@ -466,6 +504,8 @@ async fn vault_open(
 
     let identity = vault.identity();
     mgr.vault = Some(vault);
+    #[cfg(feature = "ipad-probe")]
+    ipad_probe::note(format!("vault_open done {}", root.display()));
 
     // A Plays folder the panel just granted is remembered now that it has
     // opened, with the bookmark taken at the click (docs/app/keeping-work/storage-and-file-format.md#STOR-D12). A play's own
@@ -538,7 +578,12 @@ async fn watcher_status() -> Option<()> {
 /// platform-neutral (docs/engineering/architecture.md#ARCH-D100: Rust stores bytes) and the whole notion of
 /// eviction is confined to the boundary that already knows about plugins.
 #[cfg(mobile)]
-fn fetch_evicted(app: &AppHandle, vault: &LocalFsVault, rel: &str) -> Result<Vec<u8>, String> {
+fn fetch_evicted(
+    app: &AppHandle,
+    vault: &LocalFsVault,
+    rel: &str,
+    first: &std::io::Error,
+) -> Result<Vec<u8>, String> {
     use tauri_plugin_vault_picker::VaultPickerExt;
 
     let abs = vault.abs_path(rel).map_err(estr)?;
@@ -551,10 +596,59 @@ fn fetch_evicted(app: &AppHandle, vault: &LocalFsVault, rel: &str) -> Result<Vec
         // Saying "missing" here is what would let docs/app/keeping-work/storage-and-file-format.md#STOR-D8 reconciliation mistake a
         // slow download for a deleted play.
         return Err(format!(
-            "{rel} is in iCloud and has not finished downloading yet"
+            "{rel} is in iCloud and has not finished downloading yet{}",
+            read_detail(&abs, first)
         ));
     }
     vault.read(rel).map_err(estr)
+}
+
+/// What a test build adds to a read it could not make: where it read and what
+/// the read met, for the check that fails there. Nothing in any other build.
+#[cfg(mobile)]
+fn read_detail(at: &std::path::Path, first: &std::io::Error) -> String {
+    if cfg!(feature = "selftest") {
+        format!(
+            " (a test build's detail: read at {}: {first})",
+            at.display()
+        )
+    } else {
+        String::new()
+    }
+}
+
+/// One pass of asking iCloud for the open folder: whether iCloud Drive keeps it,
+/// and how many of its files and folders were not on this device yet, each of
+/// them asked for (docs/engineering/cross-platform.md#PLAT-69).
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct CloudDownload {
+    ubiquitous: bool,
+    waiting: u32,
+}
+
+/// The app asks iCloud for the open folder itself
+/// (docs/engineering/cross-platform.md#PLAT-69). On an iPad, iCloud Drive keeps
+/// a folder's names and leaves what is in it in the cloud until something asks,
+/// so a Plays folder nothing had asked for listed as folders with nothing in
+/// them. A desktop's iCloud Drive brings a file down when it is read, and a
+/// folder outside iCloud has nothing to bring: both answer that nothing waits.
+#[tauri::command]
+async fn vault_download(
+    #[allow(unused_variables)] app: AppHandle,
+    #[allow(unused_variables)] state: ManagerState<'_>,
+) -> Result<CloudDownload, String> {
+    #[cfg(target_os = "ios")]
+    {
+        let vault = current_vault(&state)?;
+        let pass = ipad::download(&app, vault.root())?;
+        Ok(CloudDownload {
+            ubiquitous: pass.ubiquitous,
+            waiting: pass.waiting,
+        })
+    }
+    #[cfg(not(target_os = "ios"))]
+    Ok(CloudDownload::default())
 }
 
 #[tauri::command]
@@ -576,7 +670,7 @@ async fn vault_read(
                 std::io::ErrorKind::NotFound | std::io::ErrorKind::WouldBlock
             ) =>
         {
-            fetch_evicted(&app, &vault, &rel)?
+            fetch_evicted(&app, &vault, &rel, &e)?
         }
         Err(e) => return Err(estr(e)),
     };
@@ -675,10 +769,18 @@ async fn vault_exists(state: ManagerState<'_>, rel: String) -> Result<bool, Stri
     Ok(current_vault(&state)?.exists(&rel))
 }
 
-/// Move a file/dir to the OS trash (user-facing delete — recoverable).
+/// Move a file/dir to the OS trash (user-facing delete — recoverable). `note`
+/// is what the page says of it, kept beside it where the delete goes to
+/// Proscenium’s Trash, for Put Back.
 #[tauri::command]
-async fn vault_trash(state: ManagerState<'_>, rel: String) -> Result<(), String> {
-    current_vault(&state)?.trash(&rel).map_err(estr)
+async fn vault_trash(
+    state: ManagerState<'_>,
+    rel: String,
+    note: Option<String>,
+) -> Result<(), String> {
+    current_vault(&state)?
+        .trash(&rel, note.as_deref())
+        .map_err(estr)
 }
 
 /// Atomically relocate a file/dir within the vault (binder move/rename).
@@ -800,32 +902,65 @@ struct Capabilities {
     /// rescan carries the external-change contract instead — the conflict floor
     /// (docs/app/keeping-work/storage-and-file-format.md#STOR-D9) makes a missed event safe either way.
     can_watch_files: bool,
-    /// How a shortcut is written for this system: `mac`, in its glyphs (⌘⇧E),
-    /// or `pc`, in words (Ctrl+Shift+E). The one formatter reads it
-    /// (src/ui/keys.ts); no component asks which system it is on.
+    /// How a shortcut is written and bound for this system: `mac`, in its
+    /// glyphs (⌘⇧E); `ipad`, a Mac's but for the chords iPadOS keeps (its
+    /// Dock's ⌘⌥D); or `pc`, in words (Ctrl+Shift+E). The one formatter reads
+    /// it (src/ui/keys.ts); no component asks which system it is on.
     keys: &'static str,
     /// What this system calls the things a writer is told about.
     words: Words,
     /// The first door on the Welcome screen: the app's iCloud Drive container
     /// (`icloud`), or Documents › Plays (`documents`), where there is no
-    /// container; null where neither is offered.
+    /// container; null where neither is offered. The container's door shows
+    /// only where `vault_cloud_root` finds the container, so this asks for
+    /// nothing at launch.
     suggested_folder: Option<&'static str>,
     /// How File › Print… prints: in this system's print panel (`panel`), or
     /// by opening the exported PDF in the writer's PDF app (`pdf-app`).
     print: &'static str,
+    /// The system's own spelling may run in the documents' editor. Not on an
+    /// iPad: there WebKit turns smart quotes and dashes off only where spell
+    /// checking is off, and iPadOS's Smart Punctuation would otherwise rewrite
+    /// a writer's quotes and dashes in the file's bytes.
+    system_spelling: bool,
+    /// A native menu bar carries the menu's commands and takes their chords
+    /// before the page does. Where there is none (an iPad), the page binds
+    /// every one of them itself.
+    menu_bar: bool,
+    /// The window's title bar is drawn over the top of the page, with its
+    /// controls at the top left (`titleBarStyle: Overlay`, a Mac's traffic
+    /// lights): the page's top bar keeps their place clear, and a sheet keeps
+    /// a strip of title bar above it. Not on an iPad, whose WebKit calls
+    /// itself a Mac's but has no traffic lights, nor on a PC.
+    title_bar_overlay: bool,
+    /// The page's top bars move the window: a press on their empty space asks
+    /// the window to start dragging (Tauri's drag regions). Not on an iPad,
+    /// whose windows move by the system's own handle and whose shell has no
+    /// window plugin to ask.
+    window_drag: bool,
+    /// Which top corner this system puts a window's close control in: `left`
+    /// on a Mac and an iPad, `right` on a PC. Settings, which stands in for a
+    /// window of its own, puts its close button there.
+    close_at: &'static str,
+    /// How many days Proscenium’s Trash keeps what is deleted, where the
+    /// system has no trash and a delete goes there (an iPad): the page opens
+    /// it and puts things back from it. None where the system's trash takes
+    /// a delete (docs/engineering/cross-platform.md#PLAT-16).
+    own_trash_days: Option<u64>,
 }
 
 /// The system's own names, for the words the page shows (docs/engineering/cross-platform.md#PLAT-35).
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Words {
-    /// `Mac` or `PC`: "this Mac", "your other PCs".
+    /// `Mac`, `PC` or `iPad`: "this Mac", "your other PCs".
     machine: &'static str,
-    /// `macOS` or `Windows`.
+    /// `macOS`, `Windows` or `iPadOS`.
     system: &'static str,
-    /// `Finder` or `File Explorer`.
+    /// `Finder`, `File Explorer` or `Files`.
     file_manager: &'static str,
-    /// `Trash` or `Recycle Bin`.
+    /// `Trash`, `Recycle Bin`, or on an iPad, which has no system trash, the
+    /// ring in app data a delete goes to (docs/engineering/cross-platform.md#PLAT-16).
     trash: &'static str,
 }
 
@@ -840,13 +975,28 @@ async fn capabilities() -> Capabilities {
         can_reveal: desktop,
         can_export_anywhere: desktop,
         can_watch_files: desktop,
-        keys: if cfg!(windows) { "pc" } else { "mac" },
+        // An iPad's keyboard has ⌘, and its chords are a Mac's but for the
+        // Dock's ⌘⌥D, which nothing the app asks for wins back.
+        keys: if cfg!(windows) {
+            "pc"
+        } else if cfg!(target_os = "ios") {
+            "ipad"
+        } else {
+            "mac"
+        },
         words: if cfg!(windows) {
             Words {
                 machine: "PC",
                 system: "Windows",
                 file_manager: "File Explorer",
                 trash: "Recycle Bin",
+            }
+        } else if cfg!(target_os = "ios") {
+            Words {
+                machine: "iPad",
+                system: "iPadOS",
+                file_manager: "Files",
+                trash: "Proscenium’s Trash",
             }
         } else {
             Words {
@@ -856,14 +1006,23 @@ async fn capabilities() -> Capabilities {
                 trash: "Trash",
             }
         },
+        // An iPad's, as a Mac's: the app's own container, beside the picker
+        // (docs/engineering/cross-platform.md#PLAT-8).
         suggested_folder: if cfg!(windows) {
             Some("documents")
-        } else if cfg!(target_os = "macos") {
+        } else if cfg!(any(target_os = "macos", target_os = "ios")) {
             Some("icloud")
         } else {
             None
         },
+        // The iPad's print panel takes the exported PDF, as a Mac's does (export.rs).
         print: if cfg!(windows) { "pdf-app" } else { "panel" },
+        system_spelling: desktop,
+        menu_bar: desktop,
+        title_bar_overlay: cfg!(target_os = "macos"),
+        window_drag: desktop,
+        close_at: if cfg!(windows) { "right" } else { "left" },
+        own_trash_days: cfg!(target_os = "ios").then_some(vault::ring::KEEP_DAYS),
     }
 }
 
@@ -1157,6 +1316,26 @@ async fn opened_facts(
     Ok(OpenedWithGrant { facts, folder })
 }
 
+/// A file opened from the system's file manager, read as it allows: on an
+/// iPad inside a file coordinator's access, through the grant Files gave
+/// (ipad.rs); elsewhere as it is.
+fn read_opened<T>(
+    path: &std::path::Path,
+    read: impl FnOnce(&std::path::Path) -> std::io::Result<T>,
+) -> std::io::Result<T> {
+    let result = vault::coordination::with(path, vault::coordination::Access::Read, read);
+    #[cfg(feature = "ipad-probe")]
+    ipad_probe::note(format!(
+        "opened read {}: {}",
+        path.display(),
+        match &result {
+            Ok(_) => "read".to_string(),
+            Err(e) => e.to_string(),
+        }
+    ));
+    result
+}
+
 /// The text of a file opened from Finder, to make a play from it. Refuses any
 /// path that did not arrive by an open event.
 #[tauri::command]
@@ -1168,7 +1347,7 @@ async fn opened_read(
     if !pending.is_granted(&p) {
         return Err("that file was not opened with Proscenium".to_string());
     }
-    let bytes = vault::read_limit::read_document(&p).map_err(estr)?;
+    let bytes = read_opened(&p, vault::read_limit::read_document).map_err(estr)?;
     let hash = sha256_hex(&bytes);
     let content = String::from_utf8(bytes).map_err(|_| "file is not valid UTF-8".to_string())?;
     Ok(ReadResult { content, hash })
@@ -1184,7 +1363,7 @@ async fn opened_read_binary(
     if !pending.is_granted(&p) {
         return Err("that file was not opened with Proscenium".into());
     }
-    let bytes = vault::read_limit::read_document(&p).map_err(estr)?;
+    let bytes = read_opened(&p, vault::read_limit::read_document).map_err(estr)?;
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
@@ -1208,7 +1387,7 @@ async fn opened_read_package(
     if !pending.is_granted(&p) {
         return Err("that file was not opened with Proscenium".into());
     }
-    let files = vault::read_limit::read_package(&p).map_err(estr)?;
+    let files = read_opened(&p, vault::read_limit::read_package).map_err(estr)?;
     Ok(files.map(|files| {
         files
             .into_iter()
@@ -1306,6 +1485,9 @@ pub fn run() {
                 .find(|w| w.label == "main")
                 .cloned()
                 .ok_or("tauri.conf.json has no main window")?;
+            // Where the writer left it, or the whole screen the first time (window_frame.rs).
+            #[cfg(all(desktop, not(feature = "selftest")))]
+            let main = window_frame::open_at(app.handle(), main);
             #[cfg(target_os = "macos")]
             {
                 // The desk, light or dark, from the first instant (window_color.rs).
@@ -1316,7 +1498,18 @@ pub fn run() {
                 webview_policy::build(app.handle().clone(), main, background)
                     .map_err(std::io::Error::other)?;
             }
-            #[cfg(not(target_os = "macos"))]
+            // The iPad's web view gets WebKit's content rules too, before the
+            // page has a byte of its own (ipad.rs); every access in iCloud
+            // Drive is coordinated; which copy this is, learned once; and the
+            // Mac's menu and the keyboard's frame, from the iPad.
+            #[cfg(target_os = "ios")]
+            {
+                ipad::install_coordinator(app.handle());
+                ipad::learn_facts(app.handle());
+                ipad::install_native(app.handle());
+                ipad::build_window(app.handle().clone(), main).map_err(std::io::Error::other)?;
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "ios")))]
             {
                 let builder = tauri::WebviewWindowBuilder::from_config(app.handle(), &main)?
                     .on_navigation(navigation_allowed);
@@ -1384,6 +1577,9 @@ pub fn run() {
             // flag left by a crash, which would hold every update back.
             let _ = settings::write_buffer_state(app.handle(), false);
             app.manage(Mutex::new(VaultManager::default()));
+            // What Proscenium’s Trash has kept its span goes (trash.rs).
+            #[cfg(mobile)]
+            trash::prune_at_launch(app.handle());
             #[cfg(all(desktop, feature = "updater"))]
             updates::setup(app.handle());
             telemetry::setup(app.handle());
@@ -1392,12 +1588,21 @@ pub fn run() {
         // The last window closing is the app quitting: it waits for the same
         // answer ⌘Q does, instead of taking the page with it (quit.rs).
         .on_window_event(|window, event| {
+            #[cfg(all(desktop, not(feature = "selftest")))]
+            window_frame::follow(window, event);
             #[cfg(desktop)]
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 quit::close_requested(window.app_handle());
             }
-            #[cfg(mobile)]
+            // Leaving the iPad's app is a quit that may come back: the page
+            // settles while the app holds iOS's time (ipad.rs). On return the
+            // page's own rescan runs (docs/engineering/cross-platform.md#PLAT-33).
+            #[cfg(target_os = "ios")]
+            if let tauri::WindowEvent::Suspended = event {
+                ipad::leaving(window.app_handle());
+            }
+            #[cfg(target_os = "android")]
             let _ = (window, event);
         })
         .invoke_handler(tauri::generate_handler![
@@ -1413,6 +1618,7 @@ pub fn run() {
             vault_list,
             watcher_status,
             vault_read,
+            vault_download,
             vault_write,
             vault_create_binary,
             vault_saved_copies,
@@ -1447,6 +1653,15 @@ pub fn run() {
             settings::open_license,
             settings::open_support,
             settings::open_privacy,
+            settings::open_release_notes,
+            #[cfg(target_os = "ios")]
+            ipad::leaving_settled,
+            #[cfg(target_os = "ios")]
+            ipad::keyboard_inset,
+            #[cfg(all(feature = "ipad-probe", target_os = "ios"))]
+            ipad_probe::ipad_probe_report,
+            #[cfg(all(feature = "ipad-probe", target_os = "ios"))]
+            ipad_probe::ipad_probe_swift_download,
             symbols::formatting_symbols,
             accent::system_accent,
             caret::steady_caret,
@@ -1456,6 +1671,8 @@ pub fn run() {
             tutorials::tutorials_reserve_copy,
             tutorials::tutorials_copy_file,
             tutorials::tutorials_trash,
+            trash::trash_list,
+            trash::trash_put_back,
             tutorials::tutorials_read,
             tutorials::tutorials_write,
             settings::app_info,
@@ -1489,8 +1706,6 @@ pub fn run() {
             updates::update_check,
             #[cfg(all(desktop, feature = "updater"))]
             updates::update_restart,
-            #[cfg(all(desktop, feature = "updater"))]
-            updates::update_release_notes,
             #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_context,
             #[cfg(feature = "selftest")]
@@ -1503,6 +1718,8 @@ pub fn run() {
             selftest::selftest_key,
             #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_click,
+            #[cfg(all(feature = "selftest", target_os = "macos"))]
+            selftest::selftest_mouse,
             #[cfg(all(feature = "selftest", target_os = "macos"))]
             selftest::selftest_resize,
             #[cfg(feature = "selftest")]
@@ -1549,6 +1766,10 @@ pub fn run() {
             if let tauri::RunEvent::Opened { urls } = &event {
                 let paths = opens::paths_from_urls(urls);
                 if !paths.is_empty() {
+                    // On an iPad, each read of a file Files opened is
+                    // coordinated, through the grant the plugin took with it.
+                    #[cfg(target_os = "ios")]
+                    ipad::opened_from_files(&paths);
                     app.state::<opens::PendingOpens>().push(paths);
                     let _ = app.emit(opens::EVENT_OPENED, ());
                 }
@@ -1556,6 +1777,10 @@ pub fn run() {
             // A normal quit sends what is waiting, briefly, if reports are on.
             if let tauri::RunEvent::Exit = &event {
                 telemetry::on_exit(app);
+                // A restart into an update opens the new copy last
+                // (docs/engineering/release-engineering.md#REL-130).
+                #[cfg(all(target_os = "macos", feature = "updater"))]
+                updates::relaunch::if_asked();
             }
             let _ = (app, event);
         });

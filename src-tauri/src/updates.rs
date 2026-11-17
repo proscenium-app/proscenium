@@ -63,10 +63,6 @@ pub(crate) const TRACK_KEY_HEADER: &str = "Proscenium-Track-Key";
 /// The event the page listens on; its payload is the [`UpdateState`].
 pub const EVENT_STATE: &str = "updates://state";
 
-/// The release notes live beside each release; only the version varies. The
-/// address is kept with every other one the app uses (telemetry/allowlist.rs).
-const RELEASES: &str = crate::telemetry::allowlist::RELEASES;
-
 /// Long enough after launch that the check never competes with opening a play.
 const FIRST_CHECK_AFTER: Duration = Duration::from_secs(15);
 /// How often the schedule looks at the clock.
@@ -737,37 +733,86 @@ pub async fn update_restart(app: AppHandle) -> Result<RestartOutcome, String> {
         publish(&app, state);
         return Err(e);
     }
+    #[cfg(target_os = "macos")]
+    {
+        relaunch::ask(install::running_bundle().map_err(|e| e.to_string())?);
+        app.exit(0);
+        // The app is ending; this command's answer is never read.
+        match std::future::pending::<std::convert::Infallible>().await {}
+    }
+    #[cfg(not(target_os = "macos"))]
     app.restart()
 }
 
-/// Release notes in the writer's browser: one version's, or every release's.
-/// The address is fixed; the page supplies at most a version, and only a
-/// version with notes is accepted: a release's `X.Y.Z`, or a beta's
-/// `X.Y.Z-beta.N`, which is what a copy on the beta track is offered. Where
-/// each lands is decided where the link is answered
-/// (docs/engineering/services-and-feedback.md#SERV-281): a release's own page,
-/// and for a beta, which has no such page, the Guide's.
-#[tauri::command]
-pub async fn update_release_notes(version: Option<String>) -> Result<(), String> {
-    let url = match version {
-        Some(v) if is_version(&v) => format!("{RELEASES}/v{v}"),
-        Some(v) => return Err(format!("\"{v}\" is not a version")),
-        None => RELEASES.to_string(),
-    };
-    crate::shell::open(url)
-}
+/// The restart into an update, on a Mac
+/// (docs/engineering/release-engineering.md#REL-130): the new copy is opened
+/// by LaunchServices once this one has ended, as a double-click would open
+/// it. Tauri's restart starts it as this process's child instead, which macOS
+/// does not know as the app: when this copy quits and its child goes on, the
+/// system counts it as Proscenium still running after quitting, adds
+/// "Proscenium - background tasks" to Login Items & Extensions and says so in
+/// a notification.
+#[cfg(target_os = "macos")]
+pub mod relaunch {
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
+    use std::sync::OnceLock;
 
-/// `X.Y.Z`, or `X.Y.Z-beta.N`: digits, at most six to a number, and nothing
-/// before, between or after them. An alpha's version is not one: an alpha has
-/// no notes to open.
-fn is_version(v: &str) -> bool {
-    let number = |p: &str| !p.is_empty() && p.len() <= 6 && p.bytes().all(|b| b.is_ascii_digit());
-    let (release, beta) = match v.split_once("-beta.") {
-        Some((release, n)) => (release, Some(n)),
-        None => (v, None),
-    };
-    let parts: Vec<&str> = release.split('.').collect();
-    parts.len() == 3 && parts.iter().all(|p| number(p)) && beta.map_or(true, number)
+    static BUNDLE: OnceLock<PathBuf> = OnceLock::new();
+
+    /// Asked once, by a restart into an installed update.
+    pub fn ask(bundle: PathBuf) {
+        let _ = BUNDLE.set(bundle);
+    }
+
+    /// At the app's end, after its last reports went: open the new copy if a
+    /// restart asked for one.
+    pub fn if_asked() {
+        let Some(bundle) = BUNDLE.get() else {
+            return;
+        };
+        let opened = Command::new("/usr/bin/open")
+            .args(open_args(bundle))
+            .status()
+            .is_ok_and(|status| status.success());
+        if !opened {
+            // The writer still gets the app back: started directly, as
+            // before, rather than left closed.
+            eprintln!("Proscenium could not reopen itself through LaunchServices");
+            if let Ok(exe) = std::env::current_exe() {
+                let _ = Command::new(exe).spawn();
+            }
+        }
+    }
+
+    /// `-n`: a new copy, since this one is still registered while it ends,
+    /// and `open` would only bring it forward.
+    pub(super) fn open_args(bundle: &Path) -> [&std::ffi::OsStr; 2] {
+        ["-n".as_ref(), bundle.as_os_str()]
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// The restart opens the installed bundle as a new copy of the app,
+        /// never the executable inside it.
+        #[test]
+        fn a_restart_opens_the_bundle_as_a_new_copy() {
+            let bundle = Path::new("/Applications/Proscenium.app");
+            assert_eq!(
+                open_args(bundle),
+                ["-n".as_ref(), bundle.as_os_str()] as [&std::ffi::OsStr; 2]
+            );
+        }
+
+        /// Nothing is opened at a quit that no restart asked for.
+        #[test]
+        fn a_plain_quit_opens_nothing() {
+            assert!(BUNDLE.get().is_none());
+            if_asked();
+        }
+    }
 }
 
 /// The unsaved-work beacon (`buffer-state.json`, settings.rs): the page writes
@@ -928,43 +973,6 @@ mod tests {
         assert!(v("1.0.1-alpha.7") < v("1.0.1-alpha.57"));
         assert!(v("1.0.1-alpha.57") < v("1.0.1-beta.1"));
         assert!(v("1.0.1-beta.1") < v("1.0.1"));
-    }
-
-    #[test]
-    fn release_notes_take_only_a_version() {
-        assert!(is_version("0.9.1"));
-        assert!(is_version("1.0.0"));
-        // A beta's whole version, as a copy on the beta track is offered it.
-        for beta in ["1.0.1-beta.2", "1.0.1-beta.0", "10.20.30-beta.123456"] {
-            assert!(is_version(beta), "{beta:?} refused");
-        }
-        for bad in [
-            "",
-            "1.0",
-            "1.0.0.0",
-            "v1.0.0",
-            "1.0.0-rc.1",
-            "1..0",
-            "1.0.0/../../x",
-            "1.0.0 --x",
-            // No other track's version, and no beta's that is not whole.
-            "1.0.1-alpha.3",
-            "1.0.1-beta",
-            "1.0.1-beta.",
-            "1.0.1-beta.x",
-            "1.0.1-beta.1.2",
-            "1.0.1-beta.1/../x",
-            "1.0.1-beta.1 --x",
-            "1.0.1-beta.-1",
-            "1.0.1-beta.1234567",
-            "1.0.1-beta.1-beta.2",
-            "1.0.1-Beta.1",
-            "1.0-beta.1",
-            "-beta.1",
-            "../1.0.1-beta.1",
-        ] {
-            assert!(!is_version(bad), "{bad:?} passed");
-        }
     }
 
     #[test]

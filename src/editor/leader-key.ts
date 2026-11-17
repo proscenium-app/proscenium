@@ -184,7 +184,11 @@ class LeaderMenuView {
     });
     const hint = document.createElement("div");
     hint.className = "pl-elementmenu__hint";
-    hint.textContent = `press a key · esc cancels · ${keys("⌘⌥")} chords work anywhere`;
+    // On a touch screen, what a finger does: its screen's keyboard has no Esc,
+    // and a tap anywhere else closes the menu.
+    hint.textContent = window.matchMedia("(pointer: coarse)").matches
+      ? "tap one, or type its letter · tap elsewhere to cancel"
+      : `press a key · esc cancels · ${keys("⌘⌥")} chords work anywhere`;
     this.dom.replaceChildren(...rows, hint);
     placeAtCaret(this.dom, this.view);
     this.activation.link();

@@ -2,7 +2,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * The Cast surface — a real, top-level view (peer to Script / Board / Outline).
+ * Cast & Pages — a real, top-level view (peer to Script / Board / Outline):
+ * every page before the script, in the order they print, and the cast
+ * (docs/app/formatting/formats-and-layout.md#FMT-167). The title page, the
+ * Characters page, the opening notes and the production notes are written
+ * here; the Characters page and the cast rows below are one list, kept in
+ * step both ways (docs/app/formatting/formats-and-layout.md#FMT-166).
  *
  * The list fills itself. A speaker who says something in the script is a
  * character, so they appear here without anyone pressing a button; what the
@@ -19,7 +24,9 @@
  * Edits auto-save on blur, matching the Board/Outline surfaces (no Save button).
  */
 import { useId, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CharacterEntry } from "../fountain";
+import type { CharacterEntry, FrontMatter } from "../fountain";
+import type { NotesSheetKind } from "../editor";
+import { NotesSection, TitlePageSection } from "./OpeningPageSections";
 import { castSheetFor } from "../materials";
 import type { BinderItem, CharacterWeight, SceneAppearance, SceneCard } from "../workspace";
 import { PresenceGrid } from "./PresenceGrid";
@@ -34,10 +41,23 @@ import {
   announce,
 } from "../ui";
 
+/** Where Cast & Pages opens: one of its pages, or its cast. */
+export type PagesSection = "title" | "characters" | NotesSheetKind | "cast";
+
 export interface CastViewProps {
   characters: CharacterEntry[];
   printedPage?: string;
+  /** The Characters page, and the cast list with it where it shows one. */
   onSavePage: (text: string | undefined) => void;
+  /** The play's front matter, for the title page and the notes pages. */
+  frontMatter: FrontMatter;
+  onPatchFrontMatter: (patch: Partial<FrontMatter>) => void;
+  /** Notes pages turned on and still empty, this session. */
+  pagesOn: ReadonlySet<NotesSheetKind>;
+  onPageOn: (kind: NotesSheetKind, on: boolean) => void;
+  /** Open at this page or the cast; a new object asks again. */
+  sectionRequest?: { section: PagesSection } | null;
+  onSectionHandled?: () => void;
   appearances: Map<string, SceneAppearance[]>;
   weights: Map<string, CharacterWeight>;
   /** Scenes in the play — the denominator for "appears throughout". */
@@ -59,14 +79,6 @@ export interface CastViewProps {
   onOpenScene?: (ordinal: number) => void;
   /** Open the export dialog on this character's sides. */
   onExportSides?: (name: string) => void;
-  /**
-   * Where the writer asked to start editing, by double-clicking the Characters
-   * sheet in page view: the engine's id of the paragraph hit, or null. A new
-   * object asks again, even for the same paragraph.
-   */
-  focusRequest?: { paragraphId: string | null } | null;
-  /** The request above was acted on, so a later remount does not act on it again. */
-  onFocusHandled?: () => void;
 }
 
 /** "12 lines · 3 scenes" — the evidence behind a row's tier, in plain words. */
@@ -143,29 +155,6 @@ export function CastView(props: CastViewProps) {
   const [focusRow, setFocusRow] = useState<number | null>(null);
   const names = useRef<(HTMLInputElement | null)[]>([]);
   const descriptions = useRef<(HTMLInputElement | null)[]>([]);
-  // A double-click on the Characters sheet lands where that line is edited:
-  // an edited page is its own prose, so the caret goes to the paragraph hit;
-  // a page that follows the cast list is these rows, so it goes to the
-  // description of the character hit (the first, from the heading).
-  const [pageFocus, setPageFocus] = useState<{ paragraph: number } | null>(null);
-  const { focusRequest, onFocusHandled } = props;
-  const customPage = props.printedPage !== undefined;
-  useLayoutEffect(() => {
-    if (!focusRequest) return;
-    onFocusHandled?.();
-    const id = focusRequest.paragraphId ?? "";
-    if (customPage) {
-      const prose = /^characters-prose-(\d+)$/.exec(id);
-      setPageFocus({ paragraph: prose ? Number(prose[1]) : 0 });
-      return;
-    }
-    const cast = /^cast-(\d+)$/.exec(id);
-    const row = Math.min(cast ? Number(cast[1]) : 0, rowsRef.current.length - 1);
-    const field = descriptions.current[row] ?? names.current[row];
-    field?.focus();
-    field?.scrollIntoView({ block: "center" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusRequest]);
   useLayoutEffect(() => {
     if (focusRow !== null) {
       names.current[focusRow]?.focus();
@@ -191,6 +180,22 @@ export function CastView(props: CastViewProps) {
 
   const castId = useId();
 
+  // Opened at one of its pages (the title sheet, Edit Opening Pages…): there,
+  // with the keyboard in its first field.
+  const { sectionRequest, onSectionHandled } = props;
+  useLayoutEffect(() => {
+    if (!sectionRequest) return;
+    onSectionHandled?.();
+    const section = document.getElementById(`pages-${sectionRequest.section}`);
+    section?.scrollIntoView({ block: "start" });
+    section
+      ?.querySelector<HTMLElement>("input, textarea, [contenteditable='true'], [role='switch']")
+      ?.focus({ preventScroll: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sectionRequest]);
+  const jump = (section: PagesSection) =>
+    document.getElementById(`pages-${section}`)?.scrollIntoView({ block: "start" });
+
   const groups = [{ tier: "cast", indices: rows.map((_, i) => i) }];
   const appearanceFor = (name: string): SceneAppearance[] =>
     props.appearances.get(name.trim().toUpperCase()) ?? [];
@@ -199,9 +204,38 @@ export function CastView(props: CastViewProps) {
     <div className="castview">
       <div className="castview__inner">
         <header className="castview__head">
-          <h1 className="castview__title">Characters Page</h1>
+          <h1 className="castview__title">Cast &amp; Pages</h1>
           <p className="castview__sub">
-            Edit the page your readers will see. Cast tools and private notes are below.
+            Every page before the script, in the order they print, and the cast.
+          </p>
+        </header>
+        <nav className="pages__jump" aria-label="Pages before the script">
+          {(
+            [
+              ["title", "Title Page"],
+              ["characters", "Characters"],
+              ["setting", "Opening Notes"],
+              ["production", "Production Notes"],
+              ["cast", "Cast"],
+            ] as const
+          ).map(([section, label]) => (
+            <Button key={section} size="small" treatment="borderless" onClick={() => jump(section)}>
+              {label}
+            </Button>
+          ))}
+        </nav>
+
+        <TitlePageSection
+          frontMatter={props.frontMatter}
+          scriptKey={props.scriptKey}
+          onPatch={props.onPatchFrontMatter}
+        />
+
+        <header className="castview__head pages__section" id="pages-characters">
+          <h2 className="castview__title">Characters Page</h2>
+          <p className="castview__sub">
+            The page your readers will see. A name in bold starts a character’s line, and the cast
+            list below follows it, as it follows the list.
           </p>
         </header>
 
@@ -210,7 +244,6 @@ export function CastView(props: CastViewProps) {
             label="Printed characters page"
             value={props.printedPage ?? charactersPageText(props.characters)}
             onChange={props.onSavePage}
-            focusAt={pageFocus}
           />
         </div>
         <details className="castview__page-options">
@@ -227,11 +260,23 @@ export function CastView(props: CastViewProps) {
             Replace Page from Cast List
           </Button>
           <p className="settings__note">
-            Replacing uses the names and descriptions below. Changes to the cast list do not change
-            a page you have edited.
+            Replacing writes the page again from the names and descriptions below, and drops the
+            rest of its words.
           </p>
         </details>
-        <header className="castview__head">
+
+        {(["setting", "production"] as const).map((kind) => (
+          <NotesSection
+            key={kind}
+            kind={kind}
+            frontMatter={props.frontMatter}
+            on={props.pagesOn.has(kind)}
+            onSwitch={(on) => props.onPageOn(kind, on)}
+            onPatch={props.onPatchFrontMatter}
+          />
+        ))}
+
+        <header className="castview__head pages__section" id="pages-cast">
           <h2 className="castview__title">Cast Tools</h2>
           <p className="castview__sub">Names, private notes, appearances and sides.</p>
         </header>

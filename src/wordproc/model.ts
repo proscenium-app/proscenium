@@ -481,7 +481,7 @@ function clipRuns(runs: readonly StyleRun[], start: number, end: number): StyleR
 }
 
 function frontStyle(kind: FrontSheet, line: FrontMatterLine): StyleKey {
-  if (line.paragraphId === "title") return "title";
+  if (line.paragraphId === "title" || line.titleStyle) return "title";
   if (line.role === "heading") return "openingHeading";
   if (line.role === "cast") return "castList";
   return kind === "title" ? "titlePage" : "openingText";

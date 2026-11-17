@@ -1,0 +1,58 @@
+- banner:
+  - button "Show the binder"
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast & Pages"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Split the focused pane"
+  - button "Show the inspector"
+  - button "More"
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Action"': Action
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- contentinfo:
+  - text: /dev/sample-vault/The Weight of Water Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 94%"': Fit width · 94%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Settings":
+  - button "Close"
+  - heading "Settings" [level=2]
+  - tablist "Settings sections":
+    - tab "General"
+    - tab "Appearance"
+    - tab "Writing"
+    - tab "Formats"
+    - tab "Keyboard Shortcuts"
+    - tab "Help & Feedback"
+    - tab "Privacy" [selected]
+    - tab "Updates"
+    - tab "About"
+  - tabpanel "Privacy":
+    - heading "Privacy" [level=3]
+    - heading "Reports" [level=4]
+    - text: Share anonymous usage and crash reports
+    - switch "Share anonymous usage and crash reports" [checked]
+    - paragraph: Counts launches and features used, with the Proscenium and iPadOS versions and chip. Crash reports include stack traces and the kind of failure. Never includes your writing, titles, character names, file names, paths, error messages or memory dumps.
+    - paragraph: Turning this off also discards reports that haven’t been sent. Checking for updates is a separate setting, in Updates. Send Feedback works with reports off.
+    - button "Read the Privacy Policy"
+  - text: Settings are saved on this iPad, not in your plays.
+  - status
+  - alert

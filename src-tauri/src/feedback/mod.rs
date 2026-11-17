@@ -231,8 +231,11 @@ pub async fn feedback_send(
     deliver(crate::telemetry::allowlist::FEEDBACK, &body).await?;
     remove(&root)
 }
+/// Async, so Tauri runs it on a worker: on an iPad the pasteboard's answer
+/// comes from the main thread, and a command run there (every one that is
+/// not async) waited on itself, and the app answered nothing again.
 #[tauri::command]
-pub fn feedback_copy(app: tauri::AppHandle, message: String) -> Result<(), String> {
+pub async fn feedback_copy(app: tauri::AppHandle, message: String) -> Result<(), String> {
     let copied = crate::telemetry::copy_text(&app, &message);
     // What reached the clipboard, for a test build's checks (selftest_fixture.rs).
     #[cfg(feature = "selftest")]

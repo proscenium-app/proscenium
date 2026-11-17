@@ -32,7 +32,7 @@ function labelForSurface(surface: Surface, binder: BinderItem[], scriptTitle: st
     case "outliner":
       return "Outline";
     case "cast":
-      return "Cast";
+      return "Cast & Pages";
     case "changes":
       return "Changes";
     case "comments":
@@ -67,7 +67,7 @@ const ADDABLE: { surface: Surface; label: string }[] = [
   { surface: { kind: "script" }, label: "Script" },
   { surface: { kind: "corkboard" }, label: "Board" },
   { surface: { kind: "outliner" }, label: "Outline" },
-  { surface: { kind: "cast" }, label: "Cast" },
+  { surface: { kind: "cast" }, label: "Cast & Pages" },
   { surface: { kind: "changes" }, label: "Changes" },
   { surface: { kind: "comments" }, label: "Comments" },
 ];
@@ -176,6 +176,14 @@ export function useWorkspacePanes({
   const setScriptSlot = useCallback((el: HTMLDivElement | null) => {
     scriptSlotRef.current = el;
     scriptScrollerRef.current = el?.closest(".pane__body") ?? null;
+    // The script's pages go into its slot the moment the slot exists
+    // (docs/app/organizing/workspace-model.md#WORK-88). The pane puts its remembered
+    // scroll back in its own layout effect, which runs before the re-parenting
+    // effect below; with the slot still empty that scroll had nothing under it
+    // and stopped at the top, so the top bar's Script came back to the title
+    // page. A ref is attached before either effect runs.
+    const host = editorHostRef.current;
+    if (el && host && host.parentElement !== el) el.appendChild(host);
   }, []);
   /** Every pane, for the sheet a fit solves against when none shows the script. */
   const paneRootRef = useRef<HTMLElement | null>(null);

@@ -5,7 +5,7 @@
     - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
-    - tab "Cast"
+    - tab "Cast & Pages"
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -22,9 +22,13 @@
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
     - group "Scenes in The Weight of Water":
-      - treeitem "SCENE 1 1" [level=2]
-      - treeitem "SCENE 2 1–2" [level=2]
-      - treeitem "SCENE 1 2" [level=2]
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]
@@ -135,7 +139,7 @@
     - term: Ctrl+3
     - definition: Outline
     - term: Ctrl+4
-    - definition: Cast
+    - definition: Cast & Pages
     - term: Ctrl+5
     - definition: Changes
     - term: Ctrl+Shift+B

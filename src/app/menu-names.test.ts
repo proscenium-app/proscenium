@@ -15,9 +15,10 @@ const plays = readFileSync(new URL("./VaultScreen.tsx", import.meta.url), "utf8"
 
 /** The label of a menu-bar item, from its `(id, label, accelerator)` row. */
 const barItem = (id: string) => {
-  const row = new RegExp(`\\("${id}",\\s*"([^"]+)",\\s*(None|Some\\("([^"]+)"\\))\\)`).exec(
-    menuBar,
-  );
+  // rustfmt puts a row too long for one line on several, with a trailing comma.
+  const row = new RegExp(
+    `\\(\\s*"${id}",\\s*"([^"]+)",\\s*(None|Some\\("([^"]+)"\\)),?\\s*\\)`,
+  ).exec(menuBar);
   if (!row) throw new Error(`menu.rs has no item ${id}`);
   return { label: row[1], accelerator: row[3] ?? null };
 };
@@ -27,6 +28,11 @@ describe("one name for one thing, in the menu bar and the page", () => {
     const inPage = /id: "opening-pages", label: "([^"]+)"/.exec(toolbar)?.[1];
     expect(inPage).toBe("Edit Opening Pages…");
     expect(barItem("title-page").label).toBe(inPage!);
+  });
+  test("Capitalize Character Names in Directions… is one name in both menus", () => {
+    const inPage = /id: "cast-names",\s*label: "([^"]+)"/.exec(toolbar)?.[1];
+    expect(inPage).toBe("Capitalize Character Names in Directions…");
+    expect(barItem("cast-names").label).toBe(inPage!);
   });
   test("New Play… is ⌘N in the menu bar, as the Plays screen's New Play menu shows", () => {
     expect(barItem("new-play").accelerator).toBe("CmdOrCtrl+N");

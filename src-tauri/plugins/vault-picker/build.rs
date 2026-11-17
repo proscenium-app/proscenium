@@ -8,13 +8,16 @@ const COMMANDS: &[&str] = &[];
 
 fn main() {
     // Tauri hands swift-rs an iOS floor of 13.0 unless this is set
-    // (tauri-utils `link_swift_library`), but the generated app target is 14.0
-    // and `UTType.folder` — the type the folder picker opens with — is 14+.
-    // Without this the Swift fails to compile against a floor the app never
-    // actually ships. Package.swift declares .iOS(.v14) to match; swift-rs
-    // takes the triple from here, not from there, so both are needed.
+    // (tauri-utils `link_swift_library`), but the app's floor is iPadOS 17.0
+    // (docs/engineering/cross-platform.md#PLAT-26) and `UTType.folder` — the
+    // type the folder picker opens with — is 14+. Without this the Swift is
+    // compiled against a floor the app never ships, as it is for the iOS
+    // compile gate, which runs outside Xcode. Inside Xcode's build the app
+    // target's own 17.0 is set already. Package.swift declares .iOS(.v17) to
+    // match; swift-rs takes the triple from here, not from there, so both are
+    // needed.
     if std::env::var_os("IPHONEOS_DEPLOYMENT_TARGET").is_none() {
-        std::env::set_var("IPHONEOS_DEPLOYMENT_TARGET", "14.0");
+        std::env::set_var("IPHONEOS_DEPLOYMENT_TARGET", "17.0");
     }
 
     // `android_path` is deliberately absent — there is no Kotlin side yet

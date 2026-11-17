@@ -62,6 +62,8 @@ describe("format files", () => {
         startsNewPage: true,
         tightStack: true,
         print: key !== "synopsis",
+        // The directions' typing rule, which only Action takes (docs/app/formatting/formats-and-layout.md#FMT-163).
+        capitalizeCastNames: key === "action",
       };
     }
     spec.pagination = {

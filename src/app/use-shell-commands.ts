@@ -9,6 +9,7 @@ import {
   type MutableRefObject,
 } from "react";
 import { keyStyle, pressed } from "../ui/keys";
+import { menuBar } from "../ui/system-traits";
 import { anyLayerOpen, useToast } from "../ui";
 import { vault } from "../storage";
 import { openFeedback } from "../feedback";
@@ -16,9 +17,10 @@ import { copyDiagnostics, formatsInUse } from "../diagnostics";
 import { openSettings } from "./settings";
 import { openHelp } from "../tutorial/events";
 import { checkForUpdatesNow } from "./updates";
-import { saveInFormatDesigner } from "./formats/open";
+import { formatDesignerUp, saveInFormatDesigner } from "./formats/open";
+import { menuActsOverLayer } from "./menu-over-layers";
 import { cycleRegion } from "./regions";
-import { useMenuActions } from "./menu-actions";
+import { runMenuItem, useMenuActions } from "./menu-actions";
 import { useZoom, ZOOM_STEP } from "./use-zoom";
 import type { usePanes } from "./use-panes";
 import type { ViewId } from "./Toolbar";
@@ -28,6 +30,12 @@ import type { ExportRequest } from "./ExportDialog";
 
 /** Whether a PC's chords are in force, where they differ from a Mac's (ui/keys.ts). */
 const pc = () => keyStyle() === "pc";
+
+/**
+ * Whether the window answers a menu chord itself: no menu bar takes it first
+ * (an iPad, ui/system-traits.ts), or WebView2 holds the keyboard (a PC).
+ */
+const windowAnswers = () => pc() || !menuBar();
 
 export const VIEW_TO_SURFACE: Record<ViewId, Surface> = {
   script: { kind: "script" },
@@ -50,6 +58,8 @@ interface ShellActions {
   zoomReset: () => void;
   zoomCtl: Pick<ReturnType<typeof useZoom>, "setMode">;
   openTitlePage: () => void;
+  /** Capitalize Character Names in Directions… */
+  openCastNames: () => void;
   openHistory: () => void;
   /** File › New Play… (⌘N): the Plays screen names a blank play. */
   askNewPlay: () => void;
@@ -105,6 +115,7 @@ export function useShellCommands(
     zoomReset,
     zoomCtl,
     openTitlePage,
+    openCastNames,
     openHistory,
     askNewPlay,
     toast,
@@ -127,18 +138,19 @@ export function useShellCommands(
    * should work while the writer is reading the board or the binder, not only
    * with the caret in the script. `preventDefault` before the native find sees
    * it; `openFind` switches to the Script surface first.
+   *
+   * By the key's place, not its letter (`pressed`): ⌥ makes a Mac's and an
+   * iPad's keyboard type another character (ƒ for F). A Mac's menu bar takes
+   * the chord before the page; an iPad's has none. A PC's are Ctrl+F and
+   * Ctrl+H (ui/keys.ts). ⌃⌘F is focus mode, and matches neither.
    */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // A PC's are Ctrl+F and Ctrl+H (ui/keys.ts).
-      const replace = pc() ? pressed(e, "⌘⌥F") : e.altKey;
-      if (pc()) {
-        if (!pressed(e, "⌘F") && !replace) return;
-      } else {
-        if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "f") return;
-        // ⌃⌘F is focus mode, not find — both would otherwise fire on one chord.
-        if (e.metaKey && e.ctrlKey) return;
-      }
+      const replace = pressed(e, "⌘⌥F");
+      if (!pressed(e, "⌘F") && !replace) return;
+      // The script's own keys opened it already, at once (editor/find.ts).
+      // Opening it again a moment later would undo an Escape pressed between.
+      if (e.defaultPrevented) return;
       // A menu or sheet is up: the window's keys wait for it (docs/app/preferences-and-help/accessibility.md#A11Y-3).
       if (anyLayerOpen()) return;
       if (mode !== "workspace" || !scriptTitle) return;
@@ -261,10 +273,25 @@ export function useShellCommands(
         return;
       }
       // ⌘O is File › Open Vault…. A Mac's menu bar takes the chord first; on
-      // a PC, WebView2 holds the keyboard, so the window answers it.
-      if (pc() && pressed(e, "⌘O")) {
+      // a PC, WebView2 holds the keyboard, and an iPad has no menu bar, so
+      // there the window answers it.
+      if (windowAnswers() && pressed(e, "⌘O")) {
         e.preventDefault();
         openFolder();
+        return;
+      }
+      // ⌘⇧I is File › Import a Draft…, and ⌘S File › Save, where no menu bar
+      // takes them. Import a Draft has no chord in a PC's keys: Ctrl+Shift+I
+      // is the inspector's there. The script answers ⌘S itself, first.
+      if (!menuBar() && !pc() && pressed(e, "⌘⇧I")) {
+        e.preventDefault();
+        window.dispatchEvent(new Event("proscenium:import-draft"));
+        return;
+      }
+      if (!menuBar() && pressed(e, "⌘S")) {
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        onSaveShortcut();
         return;
       }
       // All Plays needs a play, not a script, as the menu bar's item does: a
@@ -286,13 +313,14 @@ export function useShellCommands(
         panes.show(VIEW_TO_SURFACE[order[Number(key) - 1]]);
         return;
       }
-      // A PC's panel chords are Ctrl+Shift (ui/keys.ts): no Ctrl+Alt there.
-      if (pc() ? pressed(e, "⌘⌥B") : e.altKey && key === "b") {
+      // By the key's place, as find's: ⌥B types ∫ on a Mac's or an iPad's
+      // keyboard. A PC's panel chords are Ctrl+Shift (ui/keys.ts).
+      if (pressed(e, "⌘⌥B")) {
         e.preventDefault();
         setBinderOpen(!binderVisible);
         return;
       }
-      if (pc() ? pressed(e, "⌘⌥I") : e.altKey && key === "i") {
+      if (pressed(e, "⌘⌥I")) {
         e.preventDefault();
         setInspectorOpen(!inspectorVisible);
         return;
@@ -469,6 +497,9 @@ export function useShellCommands(
         case "title-page":
           openTitlePage();
           return;
+        case "cast-names":
+          openCastNames();
+          return;
         case "history":
           openHistory();
           return;
@@ -487,6 +518,14 @@ export function useShellCommands(
           return;
         case "toggle-comments":
           toggleComments();
+          return;
+        // An iPad's ⌃⇥ and ⌃⇧⇥, which UIKit keeps from the page and its menu
+        // gives back (src-tauri/src/menu.rs, IPAD_AREAS).
+        case "next-area":
+          cycleRegion(1);
+          return;
+        case "previous-area":
+          cycleRegion(-1);
           return;
         case "split-row":
           splitFocused("row");
@@ -555,17 +594,24 @@ export function useShellCommands(
       zoomReset,
       zoomCtl,
       openTitlePage,
+      openCastNames,
       toast,
       stepScene,
     ],
   );
   const menuWhileLayer = useCallback(
-    // Help may copy diagnostics or open its feedback sheet above Settings.
     (id: string) =>
-      (id === "shortcuts" && showShortcutsRef.current) ||
-      id === "copy-diagnostics" ||
-      id === "report-problem",
+      menuActsOverLayer(id, {
+        shortcutsShown: showShortcutsRef.current,
+        designerUp: formatDesignerUp(),
+      }),
     [],
   );
   useMenuActions({ editor: editor, run: runMenuAction, allowWhileLayer: menuWhileLayer });
+  /** A menu item's id, run as the menu bar's item runs it, from a menu in the page. */
+  const runMenuCommand = useCallback(
+    (id: string) => runMenuItem(editor, runMenuAction, id),
+    [editor, runMenuAction],
+  );
+  return { runMenuCommand };
 }

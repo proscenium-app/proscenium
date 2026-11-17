@@ -28,7 +28,7 @@
  * webview sees these events at all.
  */
 import { keyStyle } from "../ui/keys";
-import { systemWords } from "../ui/system-words";
+import { moveToTrash, systemWords } from "../ui/system-words";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BINDER_MIME } from "./binder-drag";
 import { ancestorsOf, dropPlan, filterBinder, findItem, folderIds, type DropWhere } from "./binder";
@@ -39,6 +39,7 @@ import { titleOf } from "./binder";
 import type { BinderItem, BinderItemType, CardColor } from "./play-file";
 import { BinderMoveSheet } from "./BinderMoveSheet";
 import { CARD_COLORS, ColorChoice } from "./card-colors";
+import { AS_TYPED } from "../ui/as-typed";
 
 /** One scene, as the rail shows it. Not a file: it opens, and takes a color, and that is all. */
 export interface BinderScene {
@@ -48,6 +49,49 @@ export interface BinderScene {
   color: string;
   /** "7–10", from `scenePages`; absent while the script has not paginated. */
   pages: string | null;
+  /** The act (`#` section) the scene sits under, if the script has acts. */
+  act?: string;
+}
+
+/** An act, as the rail shows it: its name and its pages, over its scenes. */
+export interface BinderAct {
+  label: string;
+  /** "1–12", from `scenePages`; absent while the script has not paginated. */
+  pages: string | null;
+}
+
+/**
+ * A run of scenes under one act, in script order (docs/app/organizing/workspace-model.md#WORK-89).
+ * Scenes before the first act, or in a play with none, are a run with no act,
+ * and stay directly under the script. Grouped by runs, as the board does, so
+ * the rail and the board never disagree about which scenes an act holds.
+ */
+export interface SceneGroup {
+  /** Stable within one script's groups: the act runs counted in order. */
+  key: string;
+  act: BinderAct | null;
+  scenes: BinderScene[];
+}
+
+export function sceneGroups(scenes: BinderScene[], acts: BinderAct[] = []): SceneGroup[] {
+  const groups: SceneGroup[] = [];
+  let actRuns = 0;
+  for (const scene of scenes) {
+    const last = groups[groups.length - 1];
+    if (last && (last.act?.label ?? undefined) === scene.act) {
+      last.scenes.push(scene);
+      continue;
+    }
+    if (scene.act) {
+      const label = scene.act;
+      groups.push({
+        key: `act-${actRuns++}`,
+        act: { label, pages: acts.find((a) => a.label === label)?.pages ?? null },
+        scenes: [scene],
+      });
+    } else groups.push({ key: `loose-${groups.length}`, act: null, scenes: [scene] });
+  }
+  return groups;
 }
 
 export interface BinderProps {
@@ -78,6 +122,8 @@ export interface BinderProps {
    * so it cannot disagree with the board about what a scene is.
    */
   scenes?: BinderScene[];
+  /** The open script's acts, for the rows its scenes fold under (docs/app/organizing/workspace-model.md#WORK-89). */
+  acts?: BinderAct[];
   /** The scene the caret is in, so the rail marks where you are writing. */
   caretScene?: number | null;
   onOpenScene?: (ordinal: number) => void;
@@ -203,16 +249,26 @@ type Row =
       label: string;
       scene: BinderScene;
       depth: number;
+      /** The script's row, or the act's when the scene folds under one. */
+      parentId: string;
+    }
+  | {
+      kind: "act";
+      id: string;
+      label: string;
+      group: SceneGroup;
+      depth: number;
       parentId: string;
     };
 
 const sceneRowId = (script: string, scene: string) => `scene:${script}:${scene}`;
+const actRowId = (script: string, key: string) => `act:${script}:${key}`;
 
 function visibleRows(
   items: BinderItem[],
   isOpen: (id: string) => boolean,
   activeId: string | null,
-  scenes: BinderScene[],
+  groups: SceneGroup[],
   depth = 0,
   parentId: string | null = null,
   out: Row[] = [],
@@ -220,18 +276,36 @@ function visibleRows(
   for (const item of items) {
     out.push({ kind: "file", id: item.id, label: titleOf(item), item, depth, parentId });
     if (item.type === "script" && item.id === activeId) {
-      for (const scene of scenes)
-        out.push({
-          kind: "scene",
-          id: sceneRowId(item.id, scene.id),
-          label: scene.label,
-          scene,
-          depth: depth + 1,
-          parentId: item.id,
-        });
+      for (const group of groups) {
+        let under = item.id;
+        let sceneDepth = depth + 1;
+        if (group.act) {
+          const id = actRowId(item.id, group.key);
+          out.push({
+            kind: "act",
+            id,
+            label: group.act.label,
+            group,
+            depth: depth + 1,
+            parentId: item.id,
+          });
+          if (!isOpen(id)) continue;
+          under = id;
+          sceneDepth = depth + 2;
+        }
+        for (const scene of group.scenes)
+          out.push({
+            kind: "scene",
+            id: sceneRowId(item.id, scene.id),
+            label: scene.label,
+            scene,
+            depth: sceneDepth,
+            parentId: under,
+          });
+      }
     }
     if (item.type === "folder" && item.children?.length && isOpen(item.id)) {
-      visibleRows(item.children, isOpen, activeId, scenes, depth + 1, item.id, out);
+      visibleRows(item.children, isOpen, activeId, groups, depth + 1, item.id, out);
     }
   }
   return out;
@@ -295,9 +369,13 @@ export function Binder(props: BinderProps) {
     (id: string) => (query.trim() ? true : !collapsed.has(id)),
     [collapsed, query],
   );
+  const groups = useMemo(
+    () => sceneGroups(props.scenes ?? [], props.acts),
+    [props.scenes, props.acts],
+  );
   const rows = useMemo(
-    () => visibleRows(filtered, isOpen, activeId, props.scenes ?? []),
-    [filtered, isOpen, activeId, props.scenes],
+    () => visibleRows(filtered, isOpen, activeId, groups),
+    [filtered, isOpen, activeId, groups],
   );
   const treeHadFocus = useRef(false);
 
@@ -437,6 +515,34 @@ export function Binder(props: BinderProps) {
       const next = rows[Math.max(0, Math.min(rows.length - 1, n))];
       if (next) setCursorId(next.id);
     };
+
+    if (current?.kind === "act") {
+      // An act folds and unfolds like a folder and opens like a scene; it is
+      // the script's words, not a file, so no file command reaches it.
+      const open = isOpen(current.id);
+      if (e.key === "Enter" && !e.ctrlKey) {
+        e.preventDefault();
+        if (!open) toggle(current.id, false, binder);
+        props.onOpenScene?.(current.group.scenes[0].ordinal);
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (open) go(i + 1);
+        else toggle(current.id, false, binder);
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (open) toggle(current.id, false, binder);
+        else setCursorId(current.parentId);
+        return;
+      }
+      if (["F2", "Backspace", "Delete", "F10", "Enter"].includes(e.key) || e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        return;
+      }
+    }
 
     if (current?.kind === "scene") {
       // A scene has navigation, activation and its color, never file mutation commands.
@@ -643,7 +749,7 @@ export function Binder(props: BinderProps) {
         </span>
         <span className="binder__headactions">
           {readOnly && (
-            <span className="binder__ro" title="newer schema">
+            <span className="binder__ro" title="newer schema" data-news>
               read-only
             </span>
           )}
@@ -661,6 +767,7 @@ export function Binder(props: BinderProps) {
       <div className="binder__filter">
         <SearchIcon />
         <input
+          {...AS_TYPED}
           className="binder__filterinput"
           type="search"
           value={query}
@@ -742,7 +849,15 @@ export function Binder(props: BinderProps) {
              binder and every row in it read as unnamed "generic" to VoiceOver
              in the app, while Chromium read a tree (docs/app/preferences-and-help/accessibility.md#A11Y-16
              found it). */
-          <ul className="binder__tree" role="presentation">
+          <ul
+            className="binder__tree"
+            role="presentation"
+            // A press anywhere in the tree first forgets the row pressed last,
+            // so a row's own press, after this, is the one a double-click reads.
+            onPointerDownCapture={() => {
+              rowPressed = null;
+            }}
+          >
             {filtered.map((item) => (
               <BinderNode
                 key={item.id}
@@ -768,6 +883,7 @@ export function Binder(props: BinderProps) {
                 spring={spring}
                 openMenu={(id, x, y) => setMenu({ id, x, y })}
                 openSceneMenu={(scene, x, y) => setSceneMenu({ scene, x, y })}
+                groups={groups}
               />
             ))}
           </ul>
@@ -874,7 +990,12 @@ interface NodeProps {
   spring: (id: string) => void;
   openMenu: (id: string, x: number, y: number) => void;
   openSceneMenu: (scene: BinderScene, x: number, y: number) => void;
+  /** The open script's scenes, in their act runs. */
+  groups: SceneGroup[];
 }
+
+/** The row the last press in the binder was on, or null for anywhere else in it. */
+let rowPressed: string | null = null;
 
 function BinderNode(p: NodeProps) {
   const { item, depth, actions } = p;
@@ -1001,8 +1122,15 @@ function BinderNode(p: NodeProps) {
             if (!open) p.toggle(item.id, false, p.fullTree);
           } else actions.onSelect(item);
         }}
+        onPointerDown={() => {
+          rowPressed = item.id;
+        }}
         onDoubleClick={(e) => {
           if (actions.readOnly) return;
+          // Only a double-click both of whose presses were on this row renames
+          // it. On an iPad two quick taps on a folder and the row under it came
+          // as one double-click on the folder, and put it into its rename.
+          if (rowPressed !== item.id) return;
           e.stopPropagation();
           p.setRenamingId(item.id);
         }}
@@ -1071,7 +1199,11 @@ function BinderNode(p: NodeProps) {
           <span className="binder__label">{titleOf(item)}</span>
         )}
         {isNew && !editing && (
-          <span className="binder__newdot" title="Appeared in the folder and was filed for you">
+          <span
+            className="binder__newdot"
+            title="Appeared in the folder and was filed for you"
+            data-news
+          >
             ●
           </span>
         )}
@@ -1079,6 +1211,7 @@ function BinderNode(p: NodeProps) {
           <span
             className="binder__missing"
             title="In the binder, but not in the folder any more. Nothing has been deleted."
+            data-news
           >
             missing
           </span>
@@ -1115,50 +1248,32 @@ function BinderNode(p: NodeProps) {
         )}
       </div>
       {/*
-        Scenes, under the script they are in (docs/app/organizing/workspace-model.md#WORK-5). The board is already the
-        scene navigator; this makes the rail one too, without a second list to
-        keep in step — the rows are DERIVED from the same `cards` and
-        `scenePages` the board reads. A row opens its scene and, from its menu,
-        sets its color; a scene is not a file, so it cannot be dragged, renamed
+        Scenes, under the script they are in (docs/app/organizing/workspace-model.md#WORK-5), folded under their acts
+        (docs/app/organizing/workspace-model.md#WORK-89). The board is already the scene navigator; this makes the rail
+        one too, without a second list to keep in step — the rows are DERIVED
+        from the same `cards` and `scenePages` the board reads. A row opens its
+        scene and, from its menu, sets its color; an act opens at its first
+        scene and folds. Neither is a file, so neither can be dragged, renamed
         or trashed here.
        */}
-      {item.type === "script" && selected && (actions.scenes?.length ?? 0) > 0 && (
+      {item.type === "script" && selected && p.groups.length > 0 && (
         <ul role="group" aria-label={`Scenes in ${titleOf(item)}`}>
-          {actions.scenes?.map((sc) => (
-            /* `role="presentation"` like every other row's <li>: without it
-               the list item sat between the group and its treeitem, and
-               VoiceOver's tree lost these rows' level and position. */
-            <li key={sc.id} role="presentation">
-              <div
-                className={`binder__row binder__row--scene${
-                  sc.ordinal === actions.caretScene ? " is-selected" : ""
-                }`}
-                style={{ "--pad": `${8 + (depth + 1) * 16}px` } as React.CSSProperties}
-                id={`binderrow-${sceneRowId(item.id, sc.id)}`}
-                data-row={sceneRowId(item.id, sc.id)}
-                role="treeitem"
-                tabIndex={p.cursorId === sceneRowId(item.id, sc.id) ? 0 : -1}
-                aria-level={depth + 2}
-                aria-selected={sc.ordinal === actions.caretScene}
-                onFocus={() => p.setCursorId(sceneRowId(item.id, sc.id))}
-                onClick={() => {
-                  p.setCursorId(sceneRowId(item.id, sc.id));
-                  actions.onOpenScene?.(sc.ordinal);
-                }}
-                onContextMenu={(e) => {
-                  if (!actions.onSetSceneColor) return;
-                  e.preventDefault();
-                  e.stopPropagation();
-                  p.setCursorId(sceneRowId(item.id, sc.id));
-                  p.openSceneMenu(sc, e.clientX, e.clientY);
-                }}
-              >
-                <span className={`binder__huedot swatch--${sc.color}`} aria-hidden="true" />
-                <span className="binder__label">{sc.label}</span>
-                {sc.pages && <span className="binder__pages">{sc.pages}</span>}
-              </div>
-            </li>
-          ))}
+          {p.groups.flatMap((group) =>
+            group.act
+              ? [
+                  <ActNode
+                    {...p}
+                    key={group.key}
+                    script={item.id}
+                    group={group}
+                    act={group.act}
+                    depth={depth + 1}
+                  />,
+                ]
+              : group.scenes.map((sc) => (
+                  <SceneNode {...p} key={sc.id} script={item.id} scene={sc} depth={depth + 1} />
+                )),
+          )}
         </ul>
       )}
       {isFolder && open && (
@@ -1253,6 +1368,106 @@ function CreateMenu({
   );
 }
 
+type RowNodeProps = Omit<NodeProps, "depth"> & { script: string; depth: number };
+
+/** A scene's row: it opens its scene and, from its menu, takes a color. */
+function SceneNode(p: RowNodeProps & { scene: BinderScene }) {
+  const { scene: sc, actions, depth } = p;
+  const id = sceneRowId(p.script, sc.id);
+  return (
+    /* `role="presentation"` like every other row's <li>: without it
+       the list item sat between the group and its treeitem, and
+       VoiceOver's tree lost these rows' level and position. */
+    <li role="presentation">
+      <div
+        className={`binder__row binder__row--scene${
+          sc.ordinal === actions.caretScene ? " is-selected" : ""
+        }`}
+        style={{ "--pad": `${8 + depth * 16}px` } as React.CSSProperties}
+        id={`binderrow-${id}`}
+        data-row={id}
+        role="treeitem"
+        tabIndex={p.cursorId === id ? 0 : -1}
+        aria-level={depth + 1}
+        aria-selected={sc.ordinal === actions.caretScene}
+        onFocus={() => p.setCursorId(id)}
+        onClick={() => {
+          p.setCursorId(id);
+          actions.onOpenScene?.(sc.ordinal);
+        }}
+        onContextMenu={(e) => {
+          if (!actions.onSetSceneColor) return;
+          e.preventDefault();
+          e.stopPropagation();
+          p.setCursorId(id);
+          p.openSceneMenu(sc, e.clientX, e.clientY);
+        }}
+      >
+        <span className={`binder__huedot swatch--${sc.color}`} aria-hidden="true" />
+        <span className="binder__label">{sc.label}</span>
+        {sc.pages && <span className="binder__pages">{sc.pages}</span>}
+      </div>
+    </li>
+  );
+}
+
+/**
+ * An act's row (docs/app/organizing/workspace-model.md#WORK-89): its name and pages over its scenes, which
+ * fold under it like a folder's contents. A click opens the script at the
+ * act and unfolds it; the chevron folds it without moving the script.
+ */
+function ActNode(p: RowNodeProps & { group: SceneGroup; act: BinderAct }) {
+  const { group, act, actions, depth } = p;
+  const id = actRowId(p.script, group.key);
+  const open = p.isOpen(id);
+  // Folded over the scene the caret is in, the act marks where you are writing.
+  const holdsCaret = group.scenes.some((sc) => sc.ordinal === actions.caretScene);
+  const marked = !open && holdsCaret;
+  return (
+    <li role="presentation">
+      <div
+        className={`binder__row binder__row--act${marked ? " is-selected" : ""}`}
+        style={{ "--pad": `${8 + depth * 16}px` } as React.CSSProperties}
+        id={`binderrow-${id}`}
+        data-row={id}
+        role="treeitem"
+        tabIndex={p.cursorId === id ? 0 : -1}
+        aria-level={depth + 1}
+        aria-expanded={open}
+        aria-selected={marked}
+        onFocus={(e) => {
+          if (e.target === e.currentTarget) p.setCursorId(id);
+        }}
+        onClick={() => {
+          p.setCursorId(id);
+          if (!open) p.toggle(id, false, p.fullTree);
+          actions.onOpenScene?.(group.scenes[0].ordinal);
+        }}
+      >
+        <span
+          className={`binder__twisty${open ? " is-open" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            p.setCursorId(id);
+            p.toggle(id, false, p.fullTree);
+          }}
+        >
+          <DisclosureIcon />
+        </span>
+        <span className="binder__label">{act.label}</span>
+        {act.pages && <span className="binder__pages">{act.pages}</span>}
+      </div>
+      {open && (
+        <ul role="group" aria-label={`Scenes in ${act.label}`}>
+          {group.scenes.map((sc) => (
+            <SceneNode {...p} key={sc.id} scene={sc} depth={depth + 1} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 /**
  * A scene row's menu: its color, by name and swatch
  * (docs/app/organizing/workspace-model.md#WORK-85). The dot beside every scene
@@ -1323,7 +1538,7 @@ export function rowMenuEntries(
   }
   entries.push({ kind: "sep" });
   entries.push({
-    label: `Move to ${systemWords().trash === "Trash" ? "Trash" : "the Recycle Bin"}`,
+    label: moveToTrash(),
     shortcut: "⌘⌫",
     destructive: true,
     onSelect: () => actions.onDelete(item.id),

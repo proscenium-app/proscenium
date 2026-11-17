@@ -17,7 +17,8 @@
  * without the writer going through the panel anyway.
  *
  * "A folder I choose…" is the door for Dropbox, OneDrive, Google Drive,
- * Syncthing, and "just this Mac". On a sandboxed build that click is also what
+ * Syncthing, and "just this Mac"; on an iPad, for iCloud Drive, On My iPad and
+ * every other place in Files. On a sandboxed build that click is also what
  * creates the security-scoped bookmark every later launch depends on.
  *
  * When iCloud is unavailable — not signed in, or turned off for this app —
@@ -25,6 +26,8 @@
  *
  * Under the question, once, one sentence says that anonymous usage and crash
  * reports are sent and where to switch them off (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D3).
+ * A copy built without reports never says it: the notice waits, unseen, for a
+ * copy that sends them (privacy-notice.ts).
  * It is remembered as seen as it appears and stays for the rest of that visit,
  * so a later Welcome screen — a Plays folder gone missing — does not say it
  * again. It appears only once the launch has finished reopening the last Plays
@@ -34,7 +37,7 @@
 import { useEffect, useState } from "react";
 import { AppMarkIcon, Button } from "../ui";
 import { PRIVACY_NOTICE } from "./privacy-notice";
-import { systemWords } from "../ui/system-words";
+import { chooseFolderNote, systemWords, yourOtherMachines } from "../ui/system-words";
 
 export interface WelcomeScreenProps {
   /** The iCloud container's path, or null when iCloud is unavailable. */
@@ -107,7 +110,7 @@ export function WelcomeScreen({
             <button type="button" className="welcome__choice" onClick={onChooseCloud}>
               <span className="welcome__choiceName">iCloud Drive</span>
               <span className="welcome__choiceNote">
-                Recommended — your plays appear on your other {words.machine}s too.
+                Recommended — your plays appear on {yourOtherMachines()} too.
               </span>
             </button>
           )}
@@ -122,9 +125,7 @@ export function WelcomeScreen({
           )}
           <button type="button" className="welcome__choice" onClick={onChooseFolder}>
             <span className="welcome__choiceName">A folder I choose…</span>
-            <span className="welcome__choiceNote">
-              Dropbox, an external drive, or just this {words.machine}.
-            </span>
+            <span className="welcome__choiceNote">{chooseFolderNote()}</span>
           </button>
         </div>
 

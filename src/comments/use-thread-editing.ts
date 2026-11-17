@@ -10,12 +10,13 @@
  * of the same save and resolve, which is how one surface came to focus the
  * comment it edited and the other not.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { addReply, commentDraft, deleteComment, resolveThread, saveCommentText } from "./actions";
 import type { CommentFocus } from "./focus";
 import { cleanCommentName, signComment } from "./model";
 import { commentsState, type CommentThread, type PmCommentEntry } from "./plugin";
+import { holdOpenComment } from "./settle";
 import { settingsStore, updateSettings } from "../ui/settings-store";
 
 export interface ThreadEditing {
@@ -230,6 +231,46 @@ export function useThreadEditing({
     addReply(editor, thread.root.pos, signComment(text, who));
     complete({ action: "Reply added", id: rootId, control: "Reply to comment", count: false });
   };
+
+  // A field still open when the script is left is settled, not dropped
+  // (docs/app/writing/comments.md#COMM-76): its words are saved as the comment
+  // or reply they were typed for, and a new comment with none is taken out, as
+  // Esc takes it out. Read through a ref: the workspace asks at any moment,
+  // and this render's values may be a keystroke old.
+  const fieldRef = useRef({ editingId, newId, replyingId, draft, name });
+  fieldRef.current = { editingId, newId, replyingId, draft, name };
+  useEffect(() => {
+    if (!editor) return;
+    const settle = () => {
+      const field = fieldRef.current;
+      const state = commentsState(editor.state);
+      const text = commentDraft(field.draft);
+      const who = () => {
+        const signed = cleanCommentName(field.name);
+        if (signed !== settingsStore.getSnapshot().commentName)
+          updateSettings({ commentName: signed });
+        return signed;
+      };
+      if (field.editingId) {
+        const entry = state?.entries.find((e) => e.id === field.editingId);
+        const wasNew = field.newId === field.editingId;
+        if (entry && text)
+          saveCommentText(editor, entry.pos, wasNew ? signComment(text, who()) : text);
+        else if (entry && wasNew) deleteComment(editor, entry.pos);
+      } else if (field.replyingId && text) {
+        const thread = state?.threads.find((t) => t.root.id === field.replyingId);
+        if (thread) addReply(editor, thread.root.pos, signComment(text, who()));
+      }
+      if (field.editingId || field.replyingId) {
+        fieldRef.current = { ...field, editingId: null, newId: null, replyingId: null, draft: "" };
+        close();
+      }
+    };
+    const release = holdOpenComment(editor, settle);
+    return release;
+    // `close` only sets this hook's state, which is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   return {
     editingId,

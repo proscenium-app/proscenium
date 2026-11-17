@@ -43,7 +43,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { formatCssVars, inchesToCh, pageSizeIn, type FormatSpec } from "../format";
 import type { FrontMatterLine, FrontMatterPage, LayoutPage, LayoutResult } from "../layout";
 import {
-  FRONT_SHEET_LABEL,
+  frontSheetLabel,
   defaultFrontSheets,
   formatPageRange,
   frontKindsOf,
@@ -489,15 +489,18 @@ export function ExportPanel(props: ExportPanelProps) {
                 </span>
                 {available.map((kind) => {
                   const sheets = frontPages.filter((page) => page.kind === kind).length;
+                  const { label } = frontSheetLabel(
+                    frontPages.find((page) => page.kind === kind) ?? { kind },
+                  );
                   return (
                     <label className="exportpanel__check" key={kind}>
                       <Checkbox
                         on={frontKinds.includes(kind)}
-                        label={FRONT_SHEET_LABEL[kind]}
+                        label={label}
                         onChange={() => toggleFront(kind)}
                       />
                       <span>
-                        {FRONT_SHEET_LABEL[kind]}
+                        {label}
                         {sheets > 1 && (
                           <span className="exportpanel__hint"> ({sheets} sheets)</span>
                         )}

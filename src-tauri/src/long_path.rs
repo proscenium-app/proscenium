@@ -81,7 +81,8 @@ pub fn verbatim(path: &Path) -> PathBuf {
     }
 }
 
-#[cfg(not(windows))]
+/// Only the desktop's watcher asks for one.
+#[cfg(all(not(windows), desktop))]
 pub fn verbatim(path: &Path) -> PathBuf {
     path.to_path_buf()
 }

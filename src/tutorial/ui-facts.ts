@@ -51,9 +51,7 @@ export function readUi(): UiFacts {
     ? null
     : top.querySelector('[data-tutorial="export-range"]')
       ? "export"
-      : top.querySelector('[data-tutorial="opening-notes"]')
-        ? "opening-pages"
-        : "other";
+      : "other";
   const active =
     document.activeElement instanceof HTMLElement && document.activeElement !== document.body
       ? document.activeElement

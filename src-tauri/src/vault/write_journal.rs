@@ -5,8 +5,8 @@
 //! intent makes every exchange recoverable; unexpected bytes are immutable
 //! app-data copies, exposed in Changes, before any rollback or cleanup.
 use super::atomic_file::{
-    create_dir_durable, create_temp, exchange, finish_exchange, rename_exclusive, sync_dir, unhide,
-    write_new, FileLock,
+    create_dir_durable, create_temp, exchange, finish_exchange, read_retiring, rename_exclusive,
+    sync_dir, unhide, write_new, FileLock,
 };
 use super::{resolve_under, sha256_hex, tmp_stem, tmp_token, FileIdentity};
 use serde::{Deserialize, Serialize};
@@ -41,12 +41,17 @@ fn valid_id(id: &str) -> bool {
     !id.is_empty() && id.len() <= 160 && id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-')
 }
 
-fn read_optional(path: &Path) -> io::Result<Option<Vec<u8>>> {
-    match std::fs::read(path) {
-        Ok(bytes) => Ok(Some(bytes)),
+/// What a look at a file found, or None where nothing is at its name.
+fn present<T>(found: io::Result<T>) -> io::Result<Option<T>> {
+    match found {
+        Ok(found) => Ok(Some(found)),
         Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
         Err(error) => Err(error),
     }
+}
+
+fn read_optional(path: &Path) -> io::Result<Option<Vec<u8>>> {
+    present(std::fs::read(path))
 }
 
 fn same_inode(path: &Path, identity: &FileIdentity) -> bool {
@@ -101,12 +106,24 @@ impl WriteJournal {
             if entry.path().extension().map_or(true, |ext| ext != "json") {
                 continue;
             }
-            if !entry.file_type()?.is_file() || entry.metadata()?.len() > 65_536 {
+            // Every save in the play keeps its record here, and a save of
+            // another file retires its own the moment it lands. A record listed
+            // and gone by the time it is read is a save that finished: nothing
+            // to recover or wait for. Read as an error, it refused this save.
+            // On Windows a record being removed refuses a read with Access
+            // Denied until it is gone, which read_retiring waits out.
+            let Some(meta) = present(read_retiring(|| entry.metadata()))? else {
+                continue;
+            };
+            if !meta.is_file() || meta.len() > 65_536 {
                 return Err(io::Error::other(
                     "The unfinished save record could not be read safely.",
                 ));
             }
-            let intent: Intent = serde_json::from_slice(&std::fs::read(entry.path())?)?;
+            let Some(bytes) = present(read_retiring(|| std::fs::read(entry.path())))? else {
+                continue;
+            };
+            let intent: Intent = serde_json::from_slice(&bytes)?;
             if self.record(&intent.id)? != entry.path() {
                 return Err(io::Error::other(
                     "The unfinished save has a different identity.",
@@ -515,6 +532,51 @@ mod tests {
             std::fs::read(root.join("A.fountain")).unwrap(),
             b"EXTERNAL B"
         );
+    }
+
+    /// Every save in a play keeps its record in the one folder, and a save of
+    /// another file retires its own the moment it lands. A record listed and
+    /// gone by the time it is read is a save that finished, and holds nothing
+    /// up. Read as an error, it refused the play file's save with "No such
+    /// file or directory (os error 2)" while the writer typed in a note.
+    #[test]
+    fn a_record_retired_while_the_folder_is_read_is_a_save_that_finished() {
+        let base = tempfile::tempdir().unwrap();
+        let journal = WriteJournal::new(base.path().to_path_buf());
+        std::fs::create_dir_all(journal.records()).unwrap();
+        std::fs::write(base.path().join("staged"), b"x").unwrap();
+        let staged = FileIdentity::read(&base.path().join("staged")).unwrap();
+        let records: Vec<PathBuf> = (0..2000u32)
+            .map(|n| {
+                let intent = Intent {
+                    id: format!("{n:x}"),
+                    rel: format!("Notes/{n}.md"),
+                    temporary: format!("Notes/.{n}.md.0.tmp"),
+                    staged: staged.clone(),
+                    baseline: None,
+                    new_hash: sha256_hex(b"x"),
+                    created_ms: 1,
+                };
+                let path = journal.record(&intent.id).unwrap();
+                std::fs::write(&path, serde_json::to_vec(&intent).unwrap()).unwrap();
+                path
+            })
+            .collect();
+        let retiring = std::thread::spawn(move || {
+            for path in records {
+                std::fs::remove_file(path).unwrap();
+            }
+        });
+        let mut reads = 0;
+        while !retiring.is_finished() {
+            match journal.has_pending("The Play.proscenium") {
+                Ok(pending) => assert!(!pending),
+                Err(error) => panic!("after {reads} reads of the folder: {error}"),
+            }
+            reads += 1;
+        }
+        retiring.join().unwrap();
+        assert!(!journal.has_pending("The Play.proscenium").unwrap());
     }
 
     #[test]

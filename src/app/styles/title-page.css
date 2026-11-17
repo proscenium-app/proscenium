@@ -13,11 +13,18 @@
   border-radius: var(--r-control);
   background: var(--paper);
 }
+/* The whole box is the page's text, as the material page's is (materials.css):
+   the editor fills it and holds the padding itself. With the padding on the
+   host and the editor as tall as its words, a click below an empty page's
+   first line took no caret, and what was typed next went nowhere. */
 .frontpage-editor .prose-host {
-  padding: var(--s-6);
   min-height: 160px;
+  display: flex;
+  flex-direction: column;
 }
 .frontpage-editor .prose {
+  flex: 1 0 auto;
+  padding: var(--s-6);
   outline: none;
 }
 .frontpage-editor .fmt {
@@ -39,4 +46,49 @@
 
 .card__footspacer {
   flex: 1;
+}
+
+/* A page before the script edited where it stands (FrontSheetEditor.tsx,
+   docs/app/formatting/formats-and-layout.md#FMT-165): the app's own controls on
+   the sheet, the page's words in the prose editor under them. */
+.frontedit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  color: var(--ink);
+  white-space: normal;
+  cursor: auto;
+}
+.frontedit__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+.frontedit__title {
+  font-size: var(--t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.frontedit__note {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+/* The page's formatting bar, at the top of the script where the element bar
+   stands (PlayEditor.tsx): the strip is the element bar's, so the bar's own
+   sticking, padding and desk give way to it. Its controls keep a finger's
+   full size: none shorter than 24px. */
+.frontedit-bar .fmt {
+  position: static;
+  flex: 1;
+  padding: var(--s-2) 0;
+  background: none;
+}
+.frontedit-bar .fmt button {
+  min-height: 24px;
 }

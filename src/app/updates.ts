@@ -146,8 +146,23 @@ export function useUpdateNotices(settle: typeof settleEdits, confirm: typeof con
   }, [state, toast]);
 }
 
-/** What the state means, in a sentence for Settings › Updates. */
-export function describeUpdates(state: UpdateState, version: string | null): string {
+/**
+ * Where a copy with no updater gets its updates: TestFlight, for a copy
+ * TestFlight installed (an iPad's test version), or else its store.
+ */
+export function updateSource(info: { testflight?: boolean } | null | undefined): string {
+  return info?.testflight ? "TestFlight" : storeName();
+}
+
+/**
+ * What the state means, in a sentence for Settings › Updates. `source` is
+ * where a copy with no updater gets its updates (`updateSource`).
+ */
+export function describeUpdates(
+  state: UpdateState,
+  version: string | null,
+  source: string = storeName(),
+): string {
   const self = version ? `Proscenium ${version}` : "This version";
   const when = (ms: number) =>
     new Date(ms).toLocaleString(undefined, { weekday: "long", hour: "numeric", minute: "2-digit" });
@@ -157,7 +172,7 @@ export function describeUpdates(state: UpdateState, version: string | null): str
     case "unconfigured":
       return `${self}. This copy can’t check for updates.`;
     case "unavailable":
-      return `${self}. Updates for this copy come from ${storeName()}.`;
+      return `${self}. Updates for this copy come from ${source}.`;
     case "checking":
       return "Checking for updates…";
     case "upToDate":
@@ -238,7 +253,11 @@ export function slowerTrackNote(track: UpdateTrack, version: string | null): str
 }
 
 /** Speak a check's outcome: it changes a line the writer is not focused on. */
-export function announceUpdates(state: UpdateState, version: string | null): void {
+export function announceUpdates(
+  state: UpdateState,
+  version: string | null,
+  source: string = storeName(),
+): void {
   if (state.kind === "checking" || state.kind === "idle" || state.kind === "downloading") return;
-  announce(describeUpdates(state, version));
+  announce(describeUpdates(state, version, source));
 }

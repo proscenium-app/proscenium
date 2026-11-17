@@ -12,6 +12,17 @@ body,
   margin: 0;
 }
 
+/* The app's type is its own, never the system's to resize
+   (docs/app/writing/editor-ux.md#EDIT-196): `none` is the one value under
+   which iPadOS's text autosizing leaves an element alone (a percentage still
+   resets its type). Under an ancestor's CSS `zoom` it gave any element that
+   sets its own type, and an editable one even when it inherits, its unzoomed
+   size back whatever this says, so no page in the app is zoomed: each scales
+   its own lengths and type (formatToCss, materials.css). */
+html {
+  -webkit-text-size-adjust: none;
+}
+
 body {
   background: var(--cream);
   color: var(--ink);
