@@ -2,10 +2,10 @@
   - button "Hide the binder" [pressed]
   - button "The Weight of Water"
   - tablist "What this pane shows":
-    - tab "Script" [selected]
+    - tab "Script"
     - tab "Board"
     - tab "Outline"
-    - tab "Cast"
+    - tab "Cast & Pages" [selected]
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -22,9 +22,13 @@
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
     - group "Scenes in The Weight of Water":
-      - treeitem "SCENE 1 1" [level=2]
-      - treeitem "SCENE 2 1–2" [level=2]
-      - treeitem "SCENE 1 2" [level=2] [selected]
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3] [selected]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]
@@ -43,17 +47,133 @@
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
-  - 'button "What this line is: Action"': Action
-  - button "Bold": ⌘B
-  - button "Italic": ⌘I
-  - button "Underline": ⌘U
-  - button "Line Break ⇧⏎"
-  - button "Page Break ⌘⏎"
-  - button "+ Comment ⌘⌥M"
-  - button "Comments ⌘⇧C"
-  - text: Page 2 of 2
-  - textbox "Script"
-  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+  - heading "Cast & Pages" [level=1]
+  - paragraph: Every page before the script, in the order they print, and the cast.
+  - navigation "Pages before the script":
+    - button "Title Page"
+    - button "Characters"
+    - button "Opening Notes"
+    - button "Production Notes"
+    - button "Cast"
+  - region "Title Page":
+    - heading "Title Page" [level=2]
+    - text: Title
+    - textbox "Title"
+    - text: Credit
+    - textbox "Credit"
+    - text: Authors
+    - textbox "Authors"
+    - text: Contact
+    - textbox "Contact"
+    - text: Draft date
+    - textbox "Draft date"
+    - text: Write the title page freely
+    - switch "Write the title page freely"
+  - heading "Characters Page" [level=2]
+  - paragraph: The page your readers will see. A name in bold starts a character’s line, and the cast list below follows it, as it follows the list.
+  - group "Printed characters page":
+    - toolbar "Formatting":
+      - 'button "Paragraph style: Heading 1"': Heading 1
+      - button "Bold"
+      - button "Italic"
+      - 'button "Text alignment: Align Left"': Align Left
+      - button "Bulleted list":
+        - img
+      - button "Numbered list":
+        - img
+    - heading "Characters" [level=1]
+    - paragraph:
+      - strong: MARA
+      - text: — a hydrologist, 40s
+    - paragraph:
+      - strong: JONAH
+      - text: — her brother, 30s
+  - group: Page Options
+  - region "Opening Notes":
+    - heading "Opening Notes" [level=2]
+    - switch "Include opening notes" [checked]
+    - paragraph: An optional page for setting, time, place, a dedication or other notes, with headings of your own.
+    - group "Opening notes text":
+      - toolbar "Formatting":
+        - 'button "Paragraph style: Heading 2"': Heading 2
+        - button "Bold"
+        - button "Italic"
+        - 'button "Text alignment: Align Left"': Align Left
+        - button "Bulleted list":
+          - img
+        - button "Numbered list":
+          - img
+      - heading "Setting" [level=2]
+      - paragraph: A coastal kitchen, and the rooms of memory around it.
+      - heading "Time" [level=2]
+      - paragraph: The last night of winter.
+    - text: Place opening notes
+    - 'button "Place opening notes: After Characters"': After Characters
+  - region "Production Notes":
+    - heading "Production Notes" [level=2]
+    - switch "Include production notes"
+    - paragraph: "An optional page for whoever stages the play: casting and doubling, the set, music, or how the text marks overlapping lines. It prints under the heading PRODUCTION NOTES, just before the script."
+  - heading "Cast Tools" [level=2]
+  - paragraph: Names, private notes, appearances and sides.
+  - group "MARA":
+    - text: MARA
+    - textbox "Name — MARA"
+    - textbox "Description — MARA"
+    - button "Remove MARA"
+    - button "Move MARA up" [disabled]
+    - button "Move MARA down"
+    - text: 3 lines · 2 scenes Appears in ACT ONE · SCENE 1, ACT TWO · SCENE 1
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - group "JONAH":
+    - text: JONAH
+    - textbox "Name — JONAH"
+    - textbox "Description — JONAH"
+    - button "Remove JONAH"
+    - button "Move JONAH up"
+    - button "Move JONAH down" [disabled]
+    - text: 2 lines · 2 scenes Appears in ACT ONE · SCENE 1, ACT ONE · SCENE 2
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - button "Add Character"
+  - heading "Who’s on stage" [level=3]
+  - paragraph: A mark where a character speaks. Read across for a part’s shape, down for how full a scene is.
+  - table:
+    - rowgroup:
+      - row "Act ACT ONE ACT TWO Total":
+        - columnheader "Act"
+        - columnheader "ACT ONE"
+        - columnheader "ACT TWO"
+        - columnheader "Total"
+      - row "Character SCENE 1 SCENE 2 SCENE 1 Scenes":
+        - columnheader "Character"
+        - columnheader "SCENE 1":
+          - button "SCENE 1"
+        - columnheader "SCENE 2":
+          - button "SCENE 2"
+        - columnheader "SCENE 1":
+          - button "SCENE 1"
+        - columnheader "Scenes"
+    - rowgroup:
+      - row "JONAH speaks speaks silent 2":
+        - rowheader "JONAH"
+        - cell "speaks"
+        - cell "speaks"
+        - cell "silent"
+        - cell "2"
+      - row "MARA speaks silent, between entrances speaks 2":
+        - rowheader "MARA"
+        - cell "speaks"
+        - cell "silent, between entrances"
+        - cell "speaks"
+        - cell "2"
+    - rowgroup:
+      - row "On stage 2 1 1":
+        - rowheader "On stage"
+        - cell "2"
+        - cell "1"
+        - cell "1"
+        - cell
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]
@@ -86,43 +206,6 @@
   - button "Zoom in"
 - status
 - alert
-- dialog "Opening Pages":
-  - heading "Opening Pages" [level=2]
-  - text: Title page, Characters page, then optional opening notes. You choose the content. Title
-  - textbox "Title"
-  - text: Credit
-  - textbox "Credit"
-  - text: Authors
-  - textbox "Authors"
-  - text: Contact
-  - textbox "Contact"
-  - text: Draft date
-  - textbox "Draft date"
-  - text: Write the title page freely
-  - checkbox "Write the title page freely"
-  - heading "Opening Notes" [level=2]
-  - paragraph: An optional page for setting, time, place, a dedication or other notes. Write your own headings, or leave it empty to omit the page.
-  - group "Opening notes text":
-    - toolbar "Formatting":
-      - 'button "Paragraph style: Heading 2"': Heading 2
-      - button "Bold"
-      - button "Italic"
-      - 'button "Text alignment: Align Left"': Align Left
-      - button "Bulleted list":
-        - img
-      - button "Numbered list":
-        - img
-    - heading "Setting" [level=2]
-    - paragraph: A coastal kitchen, and the rooms of memory around it.
-    - heading "Time" [level=2]
-    - paragraph: The last night of winter.
-  - text: Place opening notes
-  - 'button "Place opening notes: After Characters"': After Characters
-  - paragraph: Edit the Characters page in Cast. Export lets you choose which opening pages to include.
-  - button "Cancel"
-  - button "Save"
-  - status
-  - alert
 - dialog "Saving and installing the update…":
   - heading "Saving and installing the update…" [level=2]
   - paragraph: Proscenium will reopen when the update is installed.

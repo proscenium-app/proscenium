@@ -1,23 +1,25 @@
 # Privacy
 
-Your plays and files stay on your Mac or PC. Proscenium never collects your writing:
+Your plays and files stay on your Mac, PC or iPad. Proscenium never collects your writing:
 no play text, titles, character names, filenames or paths. Usage counts record
 which features are used, never what you write with them. Send Feedback sends
-only the words you choose to put in its form. Exporting, copying and sharing a
+only the words you choose to put in its form, and TestFlight, Apple's app for
+testing Proscenium for iPad before its release, only the screenshot or crash
+report you choose to send from it. Exporting, copying and sharing a
 file do what you ask them to do. A Plays folder in a sync service and the
 system's own features, such as Writing Tools, Services and Universal Clipboard
 on a Mac, follow their own settings.
 
 **Everything Proscenium collects, and why.** The table below is the complete
-list of data that may leave your Mac or PC; anything not in it is not collected. No
+list of data that may leave your Mac, PC or iPad; anything not in it is not collected. No
 reason, no field. A test holds the table to the app's list of events and to our
 service's, so neither can send something this page does not list.
 
 | What is sent | Fields and allowed values | Why |
 |---|---|---|
-| Update check | platform `darwin` or `windows`; chip `aarch64` or `x86_64`; current app version; in `Proscenium-OS`, macOS major/minor, or Windows' version and build (`10.0.<build>`) | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. |
+| Update check | platform `darwin` or `windows`; chip `aarch64` or `x86_64`; current app version; in `Proscenium-OS`, macOS major/minor, or Windows' version and build (`10.0.<build>`). An iPad sends none: the App Store, or TestFlight, updates it | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. |
 | Release download | release version and one of its own DMG, Windows installer, signed archive or signature filenames | Deliver the chosen release and count it by version, system and chip, and as a download from our website or Homebrew, an update, or a signature, so downloads and updates are never one number. The route asked, and the name your browser or Homebrew sends with any request, choose which; neither is kept. These are our release filenames, never yours. |
-| Every usage batch | `version`, `platform`, `arch`, `os`, `channel` (`developer-id` or `app-store` on a Mac; `download` or `microsoft-store` on Windows) | See which releases, systems and delivery channels need support. |
+| Every usage batch | `version`, `platform` (`darwin` on a Mac, `windows` on Windows, `ios` on an iPad), `arch`, `os` (macOS's or iPadOS's major/minor, or Windows' version and build), `channel` (`developer-id` or `app-store` on a Mac; `download` or `microsoft-store` on Windows; `app-store` on an iPad, from the App Store or TestFlight) | See which releases, systems and delivery channels need support. |
 | Usage batch shape | `events`: up to 25 items, each with `name` and `props` from the rows below | Group counts into fewer requests without identifying a session. |
 | `app_launched` | no extra properties | Count how often the app opens each day. |
 | `play_opened` | `plays`: `1`, `2-5`, `6-20`, `21+` | Guide work on the Plays screen without an exact play count. |
@@ -31,7 +33,7 @@ service's, so neither can send something this page does not list.
 | `lesson_progress` | `lesson`: `first-exchange`, `format`, `scene-cards`, `characters`, `files`, `export`; `moment`: `started`, `continued`, `finished`, `finished-with-skips` | See which lessons writers start, come back to and finish. Nothing you write in a lesson is sent. |
 | `lesson_stopped` | `lesson`: `first-exchange`, `format`, `scene-cards`, `characters`, `files`, `export`; `step`: `speaker`, `line`, `speaker-two`, `reply`, `saved`, `emphasis`, `line-break`, `page-break`, `format`, `board`, `scene`, `summary`, `move-scene`, `outline`, `cast`, `characters-page`, `add-character`, `opening-notes`, `document`, `note`, `tags`, `rename`, `export`, `export-range`, `export-opening`, `export-preview` | See which step of a lesson writers leave at, so that step can be made clearer. Sent when you stop a lesson before its end, or open another play during one. |
 | One crash | `event_id`: a random UUID for that crash, repeated in the envelope | Let Sentry recognize a retry of the same crash. It does not identify a writer, device or session. |
-| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip, and macOS major/minor or Windows' `10.0.<build>`; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves your computer. |
+| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip, and macOS's or iPadOS's major/minor, or Windows' `10.0.<build>`; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves your computer or iPad. |
 | Crash failure | `level`: fatal; one `exception` with a kind from the closed list and a `stacktrace` | Group failures by where execution stopped. No exception message or value is allowed. |
 | Each stack frame | `module`: native or webview; optional compiled `function`, `lineno`, `colno` | Locate the failing code. No filename, path, source line, memory address or local variable is sent. |
 | Crash envelope | item `type`: event; byte `length`; event id | Give Sentry the format and size of its single crash event. No other item type is allowed. |
@@ -40,6 +42,7 @@ service's, so neither can send something this page does not list.
 | Optional feedback details | The exact text under View Details, only when Include technical details is checked | Help understand the problem you are reporting. |
 | Included diagnostic facts | app version/channel, chip, the system's version, accent, built-in format ids or `user`, default format, preference switches, sync-provider kind | Reproduce the setup that matters to your feedback. No play, user-format name, learned word or path appears. |
 | Included diagnostic history | last 20 error codes with their local times/repeat counts; safe local crash summaries | Understand the failures you chose to show us. These precise local times appear only in details you inspect and include. |
+| What you send through TestFlight | a screenshot you send, with what you write beside it, or a crash report you choose to share; the build, the iPad's model and its iPadOS version. Never your name or email address | Hear what testers of Proscenium for iPad find before its release. It comes to us through Apple, and nothing is sent unless you send it; Apple's own terms cover what TestFlight keeps. |
 | A browser link you choose | releases, one release version, license, support or privacy | Open the page you requested. These links are not usage events. |
 
 The failure kinds are `RustPanic` for a native panic and `Error`, `TypeError`, `RangeError`, `SyntaxError`, `ReferenceError`, `EvalError`, `URIError`, `AggregateError`, `InternalError`, `UnhandledRejection`, `PageError`, `AbortError`, `DataCloneError`, `InvalidStateError`, `NotFoundError`, `NotAllowedError`, `NotSupportedError`, `SecurityError`, `QuotaExceededError`, `NetworkError`, `TimeoutError`, `InvalidCharacterError`, `HierarchyRequestError`, `IndexSizeError` for a page failure. An unrecognized page failure uses `Error`.
@@ -62,14 +65,15 @@ Our service runs on Cloudflare, and crash reports are stored with Sentry.
 Both handle this data only on our behalf. Update checks, downloads and usage
 counts are kept only as daily totals, for two years, with no record of any
 single request. Crash reports are kept for 30 days, and our service keeps no
-copy of them. On your Mac, unsent usage counts wait only in memory, for up to
+copy of them. On your Mac, PC or iPad, unsent usage counts wait only in memory, for up to
 seven days, and at most 20 crash records wait until they are sent or replaced
-by newer ones. The app also keeps on your computer, and never sends, the day
+by newer ones. The app also keeps there, and never sends, the day
 it first ran and the last day, week and month it counted itself as in use.
 
 Feedback is held privately and securely by the Proscenium team, and every
 copy is deleted after one year. Only the team reads it, and it is never
-forwarded or shared. Your address is used only to reply to you. The app keeps one unsent
+forwarded or shared. What you send through TestFlight is held the same way.
+Your address is used only to reply to you. The app keeps one unsent
 draft outside the Plays folder until a confirmed send or Discard Draft. It is
 never sent in the background. Technical details are gathered fresh and are not
 saved in the draft.

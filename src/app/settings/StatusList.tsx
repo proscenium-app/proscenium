@@ -22,6 +22,7 @@ import { ariaKeys, pressed } from "../../ui/keys";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDownIcon, ArrowUpIcon, Button, IconButton, TrashIcon, announce } from "../../ui";
 import { MAX_STATUSES, MAX_STATUS_CHARS } from "../../storage/settings-model";
+import { AS_TYPED } from "../../ui/as-typed";
 
 type Part = "name" | "up" | "down";
 /** Where focus goes once a change has rendered: a row can remount under a new name. */
@@ -170,6 +171,7 @@ export function StatusList({
         <div className="statuslist__add">
           <input
             ref={addRef}
+            {...AS_TYPED}
             className="field statuslist__field"
             value={adding}
             maxLength={MAX_STATUS_CHARS}
@@ -276,6 +278,7 @@ function StatusRow({
         </svg>
       </span>
       <input
+        {...AS_TYPED}
         className="field statuslist__field"
         data-part="name"
         value={draft}

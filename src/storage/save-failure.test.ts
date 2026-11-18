@@ -4,7 +4,7 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { ERROR_CODES, workspaceErrorCode } from "../diagnostics/error-codes";
-import { setPCWords } from "./pc-words";
+import { setStorageSystem } from "./storage-system";
 import {
   saveProblem,
   saveRefusal,
@@ -219,15 +219,48 @@ describe("on Windows", () => {
 
   it("says Windows' Read-only, File Explorer and Windows Security", () => {
     const subject = { kind: "script" as const, name: "Draft", folder: "The Tide" };
-    setPCWords(true);
+    setStorageSystem("pc");
     try {
       expect(saveProblem("locked", subject).title).toBe("“Draft” is marked Read-only.");
       expect(saveProblem("no-permission", subject).detail).toContain("Controlled folder access");
       expect(saveProblem("in-use", subject).title).toBe("“Draft” is open in another program.");
       expect(saveProblem("locked", subject).code).toBe("E-SAVE-LOCKED");
     } finally {
-      setPCWords(false);
+      setStorageSystem("mac");
     }
     expect(saveProblem("locked", subject).title).toBe("“Draft” is locked in Finder.");
+  });
+});
+
+describe("on an iPad", () => {
+  const subject = { kind: "script" as const, name: "Draft", folder: "The Tide" };
+
+  it("says iPadOS, and sends a lock to the Mac that can undo it, never to Get Info in Files", () => {
+    setStorageSystem("ipad");
+    try {
+      expect(saveProblem("locked", subject)).toEqual({
+        title: "“Draft” is locked.",
+        detail:
+          "Your words are still here, and a copy is being kept. It will save once it's unlocked, in Finder's Get Info window on a Mac.",
+        code: "E-SAVE-LOCKED",
+      });
+      expect(saveProblem("folder-locked", subject).title).toBe("The folder “The Tide” is locked.");
+      expect(saveProblem("not-allowed", subject).title).toBe(
+        "iPadOS isn't letting Proscenium save “Draft”.",
+      );
+      expect(saveProblem("no-permission", subject).detail).toContain("its owner can allow that");
+      for (const refusal of REFUSALS) {
+        for (const what of ["saving", "change", "quitting"] as const) {
+          const { title, detail } = saveProblem(refusal, subject, what);
+          // Files has no Get Info, and the system is not macOS.
+          expect(`${title} ${detail}`).not.toMatch(/macOS|Sharing & Permissions|locked in Finder/);
+          expect(`${title} ${detail}`).not.toMatch(/\s\s|\.\./);
+        }
+      }
+      // Each refusal still has a sentence of its own.
+      expect(new Set(REFUSALS.map((r) => saveProblem(r, mara).title)).size).toBe(REFUSALS.length);
+    } finally {
+      setStorageSystem("mac");
+    }
   });
 });

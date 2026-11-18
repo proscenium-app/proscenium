@@ -14,11 +14,16 @@ export function Appearance() {
   // Follow Mac's swatch is the Mac's own colour, where there is a Mac to ask.
   const macAccent = useSystemAccent();
   const swatches = useRef<(HTMLButtonElement | null)[]>([]);
+  /* A system with no accent of its own (an iPad) is not offered one to
+     follow, unless it is the accent chosen already, so the writer can leave
+     it. Light and dark still follow it. */
+  const followable = accentSettings();
+  const accents = ACCENTS.filter((a) => a.id !== "system" || followable || a.id === accent);
   const at = Math.max(
     0,
-    ACCENTS.findIndex((a) => a.id === accent),
+    accents.findIndex((a) => a.id === accent),
   );
-  const picked = ACCENTS[at];
+  const picked = accents[at];
 
   /* A radio group is ONE Tab stop with arrows inside it (docs/engineering/design-system.md#UI-D100
      docs/app/preferences-and-help/accessibility.md#UI-D108) — the swatches used to be five Tab stops that arrows did
@@ -26,7 +31,7 @@ export function Appearance() {
      trying an accent is the point of the control, and it is undone the same
      way. */
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    const n = ACCENTS.length;
+    const n = accents.length;
     const step: Record<string, number> = {
       ArrowRight: 1,
       ArrowDown: 1,
@@ -39,7 +44,7 @@ export function Appearance() {
     else if (e.key === "End") to = n - 1;
     else return;
     e.preventDefault();
-    updateSettings({ accent: ACCENTS[to].id });
+    updateSettings({ accent: accents[to].id });
     swatches.current[to]?.focus();
   };
 
@@ -86,7 +91,7 @@ export function Appearance() {
           aria-describedby="accent-note"
           onKeyDown={onKeyDown}
         >
-          {ACCENTS.map((a, i) => {
+          {accents.map((a, i) => {
             const on = a.id === accent;
             return (
               <button
@@ -116,7 +121,8 @@ export function Appearance() {
         <Note id="accent-note">
           Used for selections, switches, links and the text cursor.
           {picked.id === "system" &&
-            ` ${followSystem()} uses the accent color from ${accentSettings()}, adjusted where needed so text stays readable.`}
+            followable &&
+            ` ${followSystem()} uses the accent color from ${followable}, adjusted where needed so text stays readable.`}
         </Note>
       </Group>
 

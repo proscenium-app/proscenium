@@ -2,10 +2,10 @@
   - button "Hide the binder" [pressed]
   - button "Practice Play"
   - tablist "What this pane shows":
-    - tab "Script"
+    - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
-    - tab "Cast" [selected]
+    - tab "Cast & Pages"
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -17,13 +17,11 @@
   - button "Collapse all folders"
   - searchbox "Filter the binder"
   - tree "Binder items":
-    - treeitem "Practice Play Rename “Practice Play” Actions for “Practice Play”" [level=1] [selected]:
-      - text: Practice Play
-      - button "Rename “Practice Play”"
-      - button "Actions for “Practice Play”"
-    - group "Scenes in Practice Play":
-      - treeitem "SCENE 2 1" [level=2]
-      - treeitem "SCENE 1 1–2" [level=2] [selected]
+    - treeitem "Practice Play" [level=1]
+    - treeitem "Rehearsal Notes Rename “Rehearsal Notes” Actions for “Rehearsal Notes”" [level=1] [selected]:
+      - text: Rehearsal Notes
+      - button "Rename “Rehearsal Notes”"
+      - button "Actions for “Rehearsal Notes”"
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters": Empty
     - treeitem "Notes" [expanded] [level=1]
@@ -31,89 +29,19 @@
   - button "New"
   - text: at the top level
 - main "Play":
-  - heading "Characters Page" [level=1]
-  - paragraph: Edit the page your readers will see. Cast tools and private notes are below.
-  - group "Printed characters page":
-    - toolbar "Formatting":
-      - 'button "Paragraph style: Body Text"': Body Text
-      - button "Bold"
-      - button "Italic"
-      - 'button "Text alignment: Align Left"': Align Left
-      - button "Bulleted list":
-        - img
-      - button "Numbered list":
-        - img
-    - heading "Characters" [level=1]
-    - paragraph:
-      - strong: SOREL
-    - paragraph:
-      - strong: SIMON Brother and sister.
-  - group: Page Options
-  - heading "Cast Tools" [level=2]
-  - paragraph: Names, private notes, appearances and sides.
-  - group "SOREL":
-    - text: SOREL
-    - textbox "Name — SOREL"
-    - textbox "Description — SOREL"
-    - button "Remove SOREL"
-    - button "Move SOREL up" [disabled]
-    - button "Move SOREL down"
-    - text: 1 line · 1 scene Appears in SCENE 1
-    - button "Sides (PDF) ↗"
-    - button "Add Notes"
-  - group "SIMON":
-    - text: SIMON
-    - textbox "Name — SIMON"
-    - textbox "Description — SIMON"
-    - button "Remove SIMON"
-    - button "Move SIMON up"
-    - button "Move SIMON down"
-    - text: 1 line · 1 scene Appears in SCENE 1
-    - button "Sides (PDF) ↗"
-    - button "Add Notes"
-  - group "JUDITH":
-    - text: JUDITH
-    - textbox "Name — JUDITH"
-    - textbox "Description — JUDITH"
-    - button "Remove JUDITH"
-    - button "Move JUDITH up"
-    - button "Move JUDITH down" [disabled]
-    - text: Not in the script yet
-    - button "Add Notes"
-  - button "Add Character"
-  - heading "Who’s on stage" [level=3]
-  - paragraph: A mark where a character speaks. Read across for a part’s shape, down for how full a scene is.
-  - table:
-    - rowgroup:
-      - row "Character SCENE 2 SCENE 1 Scenes":
-        - columnheader "Character"
-        - columnheader "SCENE 2":
-          - button "SCENE 2"
-        - columnheader "SCENE 1":
-          - button "SCENE 1"
-        - columnheader "Scenes"
-    - rowgroup:
-      - row "JUDITH silent silent never speaks":
-        - rowheader "JUDITH"
-        - cell "silent"
-        - cell "silent"
-        - cell "never speaks"
-      - row "SIMON silent speaks 1":
-        - rowheader "SIMON"
-        - cell "silent"
-        - cell "speaks"
-        - cell "1"
-      - row "SOREL silent speaks 1":
-        - rowheader "SOREL"
-        - cell "silent"
-        - cell "speaks"
-        - cell "1"
-    - rowgroup:
-      - row "On stage 0 2":
-        - rowheader "On stage"
-        - cell "0"
-        - cell "2"
-        - cell
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - 'button "What this line is: Dialogue"': Dialogue
+  - button "Bold": Ctrl+B
+  - button "Italic": Ctrl+I
+  - button "Underline": Ctrl+U
+  - button "Line Break Shift+Enter"
+  - button "Page Break Ctrl+Enter"
+  - button "+ Comment Ctrl+M"
+  - button "Comments Ctrl+Shift+M"
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]
@@ -146,45 +74,62 @@
   - button "Zoom in"
 - status
 - alert
-- dialog "Opening Pages":
-  - heading "Opening Pages" [level=2]
-  - text: Title page, Characters page, then optional opening notes. You choose the content. Title
-  - textbox "Title"
-  - text: Credit
-  - textbox "Credit"
-  - text: Authors
-  - textbox "Authors"
-  - text: Contact
-  - textbox "Contact"
-  - text: Draft date
-  - textbox "Draft date"
-  - text: Write the title page freely
-  - checkbox "Write the title page freely"
-  - heading "Opening Notes" [level=2]
-  - paragraph: An optional page for setting, time, place, a dedication or other notes. Write your own headings, or leave it empty to omit the page.
-  - group "Opening notes text":
-    - toolbar "Formatting":
-      - 'button "Paragraph style: Body Text"': Body Text
-      - button "Bold"
-      - button "Italic"
-      - 'button "Text alignment: Align Left"': Align Left
-      - button "Bulleted list":
-        - img
-      - button "Numbered list":
-        - img
-    - paragraph
-  - text: Place opening notes
-  - 'button "Place opening notes: After Characters"': After Characters
-  - paragraph: Edit the Characters page in Cast. Export lets you choose which opening pages to include.
+- dialog "Export PDF":
+  - heading "Export PDF" [level=2]
+  - text: Practice Play File type
+  - 'button "File type — what the export writes: PDF"': PDF
+  - text: Part
+  - 'button "Part — what to export: Whole Script"': Whole Script
+  - text: Pages
+  - textbox "Pages to export"
+  - text: The whole script — 2 pages
+  - list "Pages":
+    - listitem:
+      - button "Title page": PRACTICE PLAY
+      - checkbox "Include title page" [checked]
+      - text: Title
+    - listitem:
+      - button "Characters page": Characters SOREL SIMON Brother and sister. JUDITH
+      - checkbox "Include characters page" [checked]
+      - text: Characters
+    - listitem:
+      - button "Opening notes": The hall at Cookham, in June.
+      - checkbox "Include opening notes" [checked]
+      - text: Notes
+    - listitem:
+      - button "Page 1": SCENE 2 SCENE 1 SOREL I wish she hadn't sent me the beastly book.
+      - checkbox "Include page 1" [checked]
+      - text: "1"
+    - listitem:
+      - button "Page 2": 2. SIMON Only by a minute.
+      - checkbox "Include page 2" [checked]
+      - text: "2"
+  - region "Preview of what will export": PRACTICE PLAY Characters SOREL SIMON Brother and sister. JUDITH The hall at Cookham, in June. SCENE 2 SCENE 1 SOREL I wish she hadn't sent me the beastly book.
+  - button "Previous page" [disabled]: ◀
+  - text: Title page · sheet 1 of 5
+  - button "Next page": ▶
+  - group "Include":
+    - text: Include
+    - checkbox "Title page" [checked]
+    - text: Title page
+    - checkbox "Characters page" [checked]
+    - text: Characters page
+    - checkbox "Opening notes" [checked]
+    - text: Opening notes
+  - checkbox "Anonymous copy"
+  - text: "Anonymous copy For a blind reading: no name or contact details. Language"
+  - textbox "Play language"
+  - text: American spelling, screen readers and PDFs. Saved for this play. Pages keep their own numbers — 7–10 prints as 7–10.
   - button "Cancel"
-  - button "Save"
+  - button "Print…"
+  - button "Export PDF…"
   - status
   - alert
   - complementary "Tutorial":
     - text: Practice
-    - button "Characters and Opening Pages, step 4 of 4. Choose a step": Characters and Opening Pages 4 of 4
+    - button "Prepare a PDF or Print, step 2 of 4. Choose a step": Prepare a PDF or Print 2 of 4
     - button "Stop Tutorial"
-    - paragraph: Write a line here — a place, a time, a dedication.
+    - paragraph: Type 1 in Pages.
     - button "Show Me"
     - button "Skip Step"
     - button "More Help"

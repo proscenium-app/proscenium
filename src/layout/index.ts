@@ -13,8 +13,10 @@ export {
   paginateDoc,
   paginateFrontMatter,
   printOffsetToSrc,
+  PRODUCTION_NOTES_HEADING,
   wrapText,
 } from "./engine";
+export { openingParagraphs } from "./opening-prose";
 export {
   pageCountLabel,
   pageRangeLabel,

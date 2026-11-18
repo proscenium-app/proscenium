@@ -36,6 +36,7 @@ import {
   ChevronRightIcon,
   Button,
   DocIcon,
+  EllipsisIcon,
   IconButton,
   Menu,
   PlusIcon,
@@ -51,7 +52,9 @@ import {
 import type { Surface } from "./panes";
 import type { RedlineSteps } from "./use-redline-steps";
 import { keys } from "../ui/keys";
+import { dragRegion, menuBar } from "../ui/system-traits";
 import { systemWords } from "../ui/system-words";
+import { COARSE, useMedia, useToolbarFold } from "../ui/use-media";
 
 export type ViewId = "script" | "corkboard" | "outliner" | "cast" | "changes";
 
@@ -65,7 +68,12 @@ const viewsWithKeys = (): SegmentedOption<ViewId>[] => [
     label: "Outline",
     title: `Show the outline in the focused pane (${keys("⌘3")})`,
   },
-  { id: "cast", label: "Cast", title: `Show the cast in the focused pane (${keys("⌘4")})` },
+  // Every page before the script, and the cast (docs/app/formatting/formats-and-layout.md#FMT-167).
+  {
+    id: "cast",
+    label: "Cast & Pages",
+    title: `Show the title page, the Characters page, the notes pages and the cast in the focused pane (${keys("⌘4")})`,
+  },
   {
     id: "changes",
     label: "Changes",
@@ -86,6 +94,8 @@ export interface DocumentMenuActions {
   spellcheck: boolean;
   onSetSpellcheck: (on: boolean) => void;
   onEditTitlePage: () => void;
+  /** Capitalize Character Names in Directions… (docs/app/writing/editor-ux.md#EDIT-208). */
+  onCapitalizeNames: () => void;
   onShowHistory: () => void;
   onExport: () => void;
   /** The same dialog, on a word processor's file (docs/app/formatting/formats-and-layout.md#FMT-145). */
@@ -96,6 +106,40 @@ export interface DocumentMenuActions {
   onSettings: () => void;
   /** The format designer, on the format this play uses. */
   onEditFormats: () => void;
+  /**
+   * Runs a menu bar item's id (menu-actions.ts). Where no menu bar carries
+   * the Play and View menus (an iPad), this menu does, and a finger reaches
+   * find, the scenes and focus from it.
+   */
+  onCommand?: (id: string) => void;
+  /** Focus is on, for its row's check. */
+  focusMode?: boolean;
+}
+
+/**
+ * The commands a menu bar's Play and View menus carry, for a window with no
+ * menu bar, where their chords were the only way in and a finger had none
+ * (an iPad). The names are the menu bar's (src-tauri/src/menu.rs), and each
+ * row sends the same id its item does.
+ */
+function playCommands(a: DocumentMenuActions): MenuEntry[] {
+  const run = a.onCommand;
+  if (menuBar() || !run) return [];
+  return [
+    { kind: "sep" },
+    { label: "Find…", shortcut: "⌘F", onSelect: () => run("find") },
+    { label: "Find and Replace…", shortcut: "⌘⌥F", onSelect: () => run("find-replace") },
+    { label: "Go to Scene…", shortcut: "⌘⇧J", onSelect: () => run("goto-scene") },
+    { label: "Previous Scene", shortcut: "⌥⌘↑", onSelect: () => run("scene-prev") },
+    { label: "Next Scene", shortcut: "⌥⌘↓", onSelect: () => run("scene-next") },
+    {
+      label: "Next Misspelling",
+      shortcut: "⌘;",
+      disabled: !a.spellcheck,
+      onSelect: () => run("spelling-next"),
+    },
+    { label: "Focus", shortcut: "⌃⌘F", checked: !!a.focusMode, onSelect: () => run("focus") },
+  ];
 }
 
 /** docs/engineering/design-system.md#UI-D107's document menu, in its documented order. */
@@ -107,6 +151,7 @@ export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => v
       disabled: !a.onReveal,
       onSelect: a.onReveal,
     },
+    ...playCommands(a),
     { kind: "sep" },
     { kind: "section", label: "Script format" },
     ...a.formats.slice(0, 3).map((f) => ({
@@ -143,6 +188,11 @@ export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => v
     },
     { kind: "sep" },
     { id: "opening-pages", label: "Edit Opening Pages…", onSelect: a.onEditTitlePage },
+    {
+      id: "cast-names",
+      label: "Capitalize Character Names in Directions…",
+      onSelect: a.onCapitalizeNames,
+    },
     { label: "Versions…", onSelect: a.onShowHistory },
     { kind: "sep" },
     { label: "Settings…", shortcut: "⌘,", onSelect: a.onSettings },
@@ -225,17 +275,81 @@ export function Toolbar({
   };
   const [languageOpen, setLanguageOpen] = useState(false);
   const addMenu = useMenu();
+  const viewMenu = useMenu();
+  const viewRef = useRef<HTMLButtonElement | null>(null);
+  const moreMenu = useMenu();
+  const moreRef = useRef<HTMLButtonElement | null>(null);
+  const splitMenu = useMenu();
+  const splitRef = useRef<HTMLButtonElement | null>(null);
+  // How much of the bar folds into More and the view pop-up (ui/use-media.ts),
+  // and whether a finger is the pointer, which has no ⌥ to click with.
+  const fold = useToolbarFold();
+  const finger = useMedia(COARSE);
 
   const views = viewsWithKeys().map((v) =>
     v.id === "changes" && pendingChanges > 0 ? { ...v, badge: pendingChanges } : v,
   );
+  const shown = views.find((v) => v.id === view);
+
+  /** Split Side by Side and Split Top and Bottom, as the View menu names them. */
+  const splits: MenuEntry[] = [
+    { label: "Split Side by Side", onSelect: () => onSplit("row") },
+    { label: "Split Top and Bottom", onSelect: () => onSplit("col") },
+  ];
+  /* What folds into More (ui/use-media.ts): on a finger below 1000 points the
+     words Help, Feedback and Settings and the changes switch, and below 700
+     the split and the inspector as well. Each is the same command its button
+     runs where there is room for it. */
+  const more: MenuEntry[] = [];
+  if (fold !== "wide") {
+    if (scriptOpen && hasTrackedChanges) {
+      more.push({
+        label: "Changes in Text",
+        checked: showTracked,
+        onSelect: () => onSetShowTracked(!showTracked),
+      });
+      if (showTracked && trackedSteps.count > 0)
+        more.push(
+          {
+            label: "Previous Change",
+            disabled: trackedSteps.index <= 0,
+            onSelect: () => trackedSteps.go(-1),
+          },
+          {
+            label: "Next Change",
+            disabled: trackedSteps.index >= trackedSteps.count - 1,
+            onSelect: () => trackedSteps.go(1),
+          },
+        );
+      more.push({ kind: "sep" });
+    }
+    if (fold === "compact" && scriptOpen)
+      more.push(
+        {
+          label: inspectorOpen ? "Hide the Inspector" : "Show the Inspector",
+          shortcut: "⌘⌥I",
+          onSelect: onToggleInspector,
+        },
+        ...splits,
+        { kind: "sep" },
+      );
+    more.push(
+      { label: "Help & Tutorials", onSelect: openHelp },
+      { label: "Feedback…", onSelect: () => openFeedback() },
+    );
+    if (!doc && !menuBar())
+      more.push({ label: "Settings…", shortcut: "⌘,", onSelect: () => openSettings() });
+  }
 
   return (
     /* "deep": the bar's empty space anywhere drags the window, controls stay
        controls. A bare attribute only drags from the header's own pixels in
        Tauri 2 — and without `core:window:allow-start-dragging` it dragged
        from nowhere, so the window could not be moved at all. */
-    <header className="toolbar" data-tauri-drag-region="deep">
+    <header
+      className={`toolbar${fold === "wide" ? "" : ` toolbar--${fold}`}`}
+      {...dragRegion(true)}
+    >
       <div className="toolbar__left">
         {scriptOpen && (
           <IconButton
@@ -286,7 +400,52 @@ export function Toolbar({
             onClose={() => setLanguageOpen(false)}
           />
         )}
-        {scriptOpen && (
+        {scriptOpen && fold === "compact" && (
+          /* Too narrow for five segments: the view this pane shows, as a
+             pull-down holding the five and the surfaces "+" would add. */
+          <div className="viewswitch" data-tutorial="views">
+            <Button
+              ref={viewRef}
+              size="small"
+              className="viewswitch__pull"
+              aria-haspopup="menu"
+              aria-expanded={viewMenu.open}
+              aria-label={`What this pane shows: ${shown?.label ?? "something else"}`}
+              onClick={() => viewMenu.openFrom(viewRef.current)}
+            >
+              {shown?.label ?? "Views"}
+              <ChevronDownIcon size={9} />
+            </Button>
+            {viewMenu.anchor && (
+              <Menu
+                anchor={viewMenu.anchor}
+                onClose={viewMenu.close}
+                width={220}
+                label="What this pane shows"
+                entries={[
+                  ...views.map((v) => ({
+                    label: v.badge ? `${v.label} (${v.badge})` : String(v.label),
+                    checked: v.id === view,
+                    radio: true,
+                    shortcut: `⌘${["script", "corkboard", "outliner", "cast", "changes"].indexOf(v.id) + 1}`,
+                    onSelect: () => onSetView(v.id),
+                  })),
+                  ...(addable.length
+                    ? ([
+                        { kind: "sep" },
+                        { kind: "section", label: "Open in this pane, as a tab" },
+                        ...addable.map((o) => ({
+                          label: o.label,
+                          onSelect: () => onAddSurface(o.surface),
+                        })),
+                      ] as MenuEntry[])
+                    : []),
+                ]}
+              />
+            )}
+          </div>
+        )}
+        {scriptOpen && fold !== "compact" && (
           <div className="viewswitch" data-tutorial="views">
             <Segmented
               options={views}
@@ -328,17 +487,30 @@ export function Toolbar({
       </div>
 
       <div className="toolbar__right">
-        <Button size="small" treatment="borderless" data-tutorial="help" onClick={openHelp}>
-          Help & Tutorials
-        </Button>
-        <Button size="small" treatment="borderless" onClick={() => openFeedback()}>
-          Feedback
-        </Button>
+        {fold === "wide" && (
+          <>
+            <Button size="small" treatment="borderless" data-tutorial="help" onClick={openHelp}>
+              Help & Tutorials
+            </Button>
+            <Button size="small" treatment="borderless" onClick={() => openFeedback()}>
+              Feedback
+            </Button>
+          </>
+        )}
+        {/* Settings is the menu bar's, the play's document menu's, and ⌘,
+            everywhere. With no menu bar to carry it (an iPad) and no play's
+            menu here (the Plays screen, Welcome), this is the way to it a
+            finger has. */}
+        {fold === "wide" && !doc && !menuBar() && (
+          <Button size="small" treatment="borderless" onClick={() => openSettings()}>
+            Settings
+          </Button>
+        )}
         {/* The newest changes from outside, drawn on the script. Only
             offered when there is something new to show — a dead toggle
             teaches nothing — and, while it is on, the way from one change to
             the next. */}
-        {scriptOpen && hasTrackedChanges && (
+        {fold === "wide" && scriptOpen && hasTrackedChanges && (
           <span className="trackedswitch">
             <label className="trackedswitch__toggle">
               <span className="trackedswitch__label">Changes in text</span>
@@ -378,15 +550,40 @@ export function Toolbar({
             )}
           </span>
         )}
-        {scriptOpen && (
+        {scriptOpen && fold !== "compact" && (
           <>
-            <IconButton
-              label="Split side by side"
-              title={`Split the focused pane side by side (${keys("⌥")}-click for top and bottom)`}
-              onClick={(e) => onSplit(e.altKey ? "col" : "row")}
-            >
-              <SplitIcon size={16} />
-            </IconButton>
+            {/* A pointer splits side by side, and ⌥-clicks for top and
+                bottom. A finger has no ⌥, so the button asks which. */}
+            {finger ? (
+              <>
+                <IconButton
+                  ref={splitRef}
+                  label="Split the focused pane"
+                  aria-haspopup="menu"
+                  aria-expanded={splitMenu.open}
+                  onClick={() => splitMenu.openFrom(splitRef.current, "end")}
+                >
+                  <SplitIcon size={16} />
+                </IconButton>
+                {splitMenu.anchor && (
+                  <Menu
+                    anchor={splitMenu.anchor}
+                    onClose={splitMenu.close}
+                    width={220}
+                    label="Split the focused pane"
+                    entries={splits}
+                  />
+                )}
+              </>
+            ) : (
+              <IconButton
+                label="Split side by side"
+                title={`Split the focused pane side by side (${keys("⌥")}-click for top and bottom)`}
+                onClick={(e) => onSplit(e.altKey ? "col" : "row")}
+              >
+                <SplitIcon size={16} />
+              </IconButton>
+            )}
             <IconButton
               label={inspectorOpen ? "Hide the inspector" : "Show the inspector"}
               title={`${inspectorOpen ? "Hide" : "Show"} the inspector (${keys("⌘⌥I")})`}
@@ -396,6 +593,29 @@ export function Toolbar({
             >
               <SidebarRightIcon size={17} />
             </IconButton>
+          </>
+        )}
+        {more.length > 0 && (
+          <>
+            <IconButton
+              ref={moreRef}
+              label="More"
+              aria-haspopup="menu"
+              aria-expanded={moreMenu.open}
+              data-tutorial="help"
+              onClick={() => moreMenu.openFrom(moreRef.current, "end")}
+            >
+              <EllipsisIcon size={16} />
+            </IconButton>
+            {moreMenu.anchor && (
+              <Menu
+                anchor={moreMenu.anchor}
+                onClose={moreMenu.close}
+                width={232}
+                label="More"
+                entries={more}
+              />
+            )}
           </>
         )}
       </div>

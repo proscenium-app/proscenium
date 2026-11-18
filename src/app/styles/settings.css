@@ -60,6 +60,25 @@
   min-height: 0;
   overflow-y: auto;
 }
+/* A window too narrow for the sections beside what they hold (a third of a
+   Split View, a small Stage Manager window): they run across the top, and
+   scroll sideways, above the section shown (SettingsSheet.tsx). */
+@media (max-width: 699px) {
+  .prefs {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .prefs__nav {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 0.5px solid var(--rule);
+  }
+  .prefs__tab {
+    white-space: nowrap;
+  }
+}
 /* Focusable only while it holds nothing to operate (SettingsSheet.tsx). */
 .prefs__panel:focus-visible {
   outline: none;
@@ -136,6 +155,9 @@
 }
 label.settings__row {
   cursor: pointer;
+}
+label.settings__row.is-disabled {
+  cursor: default;
 }
 .settings__rowlabel {
   font-size: var(--t-body);

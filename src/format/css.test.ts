@@ -34,9 +34,24 @@ describe("formatToCss (dg-modern)", () => {
       "padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom) var(--fmt-margin-left);",
     );
     expect(css).toContain("--fmt-margin-left: 1.5in;");
-    expect(page).toContain("font-size: 12pt;");
+    expect(page).toContain("font-size: calc(12pt * var(--page-scale, 1));");
     expect(page).toContain("line-height: 1.2;");
     expect(css).toContain("--fmt-line: 14.4pt;");
+  });
+
+  // docs/app/writing/editor-ux.md#EDIT-196: the page scales its own lengths and
+  // type by the zoom, so an iPad, which keeps a CSS-zoomed contenteditable's
+  // type at its unzoomed size, draws the words at the page's size.
+  it("scales the page's own lengths and type by the zoom, never by CSS zoom", () => {
+    const page = block(css, ".play-page");
+    for (const v of ["--fmt-page-width", "--fmt-page-height", "--fmt-margin-top", "--fmt-line"])
+      expect(page).toMatch(
+        new RegExp(`${v}: calc\\([0-9.]+(in|pt) \\* var\\(--page-scale, 1\\)\\);`),
+      );
+    expect(page).not.toMatch(/(^|[;\s])zoom:/);
+    // Outside the page, the format's lengths stay as they print: the element
+    // bar and the find bar take their width from the sheet at 100%.
+    expect(block(css, ".editor-surface")).toContain("--fmt-page-width: 8.5in;");
   });
 
   it("emits element columns on the character grid (ch units)", () => {
@@ -67,6 +82,26 @@ describe("formatToCss (dg-modern)", () => {
   it("keeps an empty parenthetical's parens on one line", () => {
     expect(css).toContain(
       ".play-page .pl-parenthetical > br.ProseMirror-trailingBreak:only-child { display: none; }",
+    );
+  });
+
+  /** docs/app/writing/comments.md#COMM-77 */
+  it("draws a commented line's closing paren at the comments' line-end widget", () => {
+    expect(css).toContain(
+      ".play-page .pl-parenthetical.pl-ends-in-comment::after { content: none; }",
+    );
+    expect(css).toContain(`.play-page .pl-parenthetical > .pl-line-end::after { content: ")"; }`);
+    // An element with nothing after its text gets neither rule.
+    expect(css).not.toContain(".play-page .pl-action > .pl-line-end");
+  });
+
+  it("carries a suffix to the line-end widget, after the paren", () => {
+    const raw = structuredClone(dgModernRaw) as {
+      elements: { parenthetical: Record<string, unknown> };
+    };
+    raw.elements.parenthetical.suffix = ";";
+    expect(formatToCss(spec(raw))).toContain(
+      `.play-page .pl-parenthetical > .pl-line-end::after { content: ");"; }`,
     );
   });
 

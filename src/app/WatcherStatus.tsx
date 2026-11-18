@@ -69,6 +69,7 @@ export function WatcherStatus({ root }: { root: string | null }) {
         <Chip
           kind="warn"
           tiny
+          news
           title="Proscenium is reconnecting to this folder. It also checks open files when you return to the app."
         >
           <WarnIcon size={10} />

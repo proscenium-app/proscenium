@@ -15,7 +15,16 @@
  * likely chosen one level too high (docs/app/keeping-work/storage-and-file-format.md#STOR-D12). The screen says so, offers
  * those folders, and offers the sample play only once that is answered: the
  * sample play went into such a folder on 2026-09-13, from this screen.
+ *
+ * A Plays folder still coming down from iCloud is not an empty one
+ * (docs/engineering/cross-platform.md#PLAT-69). On an iPad that had not
+ * downloaded it, this screen said "No plays here yet" over a folder of plays,
+ * and offered the sample play into it. While the app's own download passes
+ * find anything still on its way, the screen says it is downloading, each play
+ * joins the list as it arrives, and nothing is offered until it is all down.
  */
+import type { CloudState } from "../workspace/cloud-download";
+import { dragRegion } from "../ui/system-traits";
 import { systemWords } from "../ui/system-words";
 import { keys } from "../ui/keys";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +35,11 @@ import { useAnnouncedStatus } from "../ui/use-announced-status";
 import { announce, Button, PopupButton, PullDownButton, SearchIcon, type PopupOption } from "../ui";
 import { useSettings } from "./settings";
 import { usePlayPages } from "./use-play-pages";
+import { ownTrashDays } from "../storage/own-trash";
+import type { TrashEntry } from "../storage/ipc";
+import type { PutBackOutcome } from "../workspace/trash";
+import { TrashSheet } from "./TrashSheet";
+import { AS_TYPED } from "../ui/as-typed";
 
 export interface VaultScreenProps {
   tutorialInvitation?: React.ReactNode;
@@ -37,6 +51,12 @@ export interface VaultScreenProps {
   hint: PlaysFolderHint | null;
   /** Still finding out whether to ask; the sample play is not offered meanwhile. */
   lookingBelow: boolean;
+  /**
+   * What is still coming down from iCloud into the Plays folder
+   * (docs/engineering/cross-platform.md#PLAT-69): said on the screen, and
+   * nothing is offered meanwhile.
+   */
+  cloud?: CloudState;
   /** Make a folder inside this one the Plays folder; resolves to whether it opened. */
   onUseFolder: (dir: string) => Promise<boolean>;
   /** Keep this folder as the Plays folder, plays or not. */
@@ -51,6 +71,11 @@ export interface VaultScreenProps {
   onImport: (files?: File[]) => void;
   /** Counts File › New Play… (⌘N) from the shell: each new count names a blank play, as the New Play button does. */
   newPlayAsk?: number;
+  /**
+   * Put one thing back from Proscenium’s Trash, which this screen opens where
+   * the system keeps no trash of its own (docs/engineering/cross-platform.md#PLAT-16).
+   */
+  onPutBack?: (entry: TrashEntry) => Promise<PutBackOutcome>;
 }
 
 /**
@@ -83,7 +108,14 @@ function PagesCell({ pages }: { pages: PlayPages | undefined }) {
       : "Not counted";
   return (
     <>
-      <span aria-hidden="true" title={pages ? why : undefined}>
+      {/* Why, for a pointer's rest and a finger's tap (TouchTip); said to a
+          screen reader beside it. */}
+      <span
+        className="playrow__why"
+        aria-hidden="true"
+        title={pages ? why : undefined}
+        data-news={pages ? true : undefined}
+      >
         —
       </span>
       <span className="sr-only">{why}</span>
@@ -208,6 +240,7 @@ export function VaultScreen({
   plays,
   hint,
   lookingBelow,
+  cloud,
   onUseFolder,
   onKeepFolder,
   onOpen,
@@ -216,6 +249,7 @@ export function VaultScreen({
   onImport,
   tutorialInvitation,
   newPlayAsk = 0,
+  onPutBack,
 }: VaultScreenProps) {
   const { playStatuses, showProgress } = useSettings();
   // Nothing is counted while Progress is off.
@@ -225,13 +259,39 @@ export function VaultScreen({
   const [naming, setNaming] = useState<null | "blank">(null);
   const [title, setTitle] = useState("");
   const [dropping, setDropping] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
 
-  const asking = plays.length === 0 && hint !== null;
+  const downloading = cloud?.downloading === true;
+  const asking = plays.length === 0 && hint !== null && !downloading;
+  const counted = `${plays.length} play${plays.length === 1 ? "" : "s"} · ${vaultName(vaultRoot)}`;
+  // Still coming down is never "no plays here".
+  const cloudSentence = !downloading
+    ? null
+    : plays.length === 0
+      ? cloud?.slow
+        ? "Still downloading your plays from iCloud Drive. Each one appears here as it arrives."
+        : "Downloading your plays from iCloud Drive…"
+      : cloud?.slow
+        ? "Still downloading more plays from iCloud Drive."
+        : "Downloading more plays from iCloud Drive…";
   const summary =
     plays.length === 0
-      ? "No plays here yet — start one, or drop a draft you already have."
-      : `${plays.length} play${plays.length === 1 ? "" : "s"} · ${vaultName(vaultRoot)}`;
+      ? (cloudSentence ?? "No plays here yet — start one, or drop a draft you already have.")
+      : counted;
+
+  // A download nothing focuses is said, and so is its end. The end names no
+  // count: the last plays are still being listed at that moment.
+  const [downloaded, setDownloaded] = useState(false);
+  const wasDownloading = useRef(false);
+  useEffect(() => {
+    if (wasDownloading.current && !downloading) setDownloaded(true);
+    if (downloading) setDownloaded(false);
+    wasDownloading.current = downloading;
+  }, [downloading]);
+  useAnnouncedStatus(
+    cloudSentence ?? (downloaded ? "Your plays have downloaded from iCloud Drive." : null),
+  );
 
   // The question arrives with the screen, which nothing focuses, so it is said.
   useEffect(() => {
@@ -262,8 +322,9 @@ export function VaultScreen({
     if (!asking) announce(summary);
   }, [asking, lookingBelow, summary]);
 
-  // The sample play waits for the question too, here as on the empty screen.
-  const sampleWaits = asking || lookingBelow;
+  // The sample play waits for the question too, here as on the empty screen,
+  // and for plays still coming down from iCloud, or not yet known not to be.
+  const sampleWaits = asking || lookingBelow || downloading || cloud?.looking === true;
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -337,12 +398,13 @@ export function VaultScreen({
         onImport(Array.from(e.dataTransfer.files));
       }}
     >
-      <header className="vault-screen__bar" data-tauri-drag-region="deep">
+      <header className="vault-screen__bar" {...dragRegion(true)}>
         <h1 className="vault-screen__vault">{vaultName(vaultRoot)}</h1>
         <span className="vault-screen__spacer" />
         <label className="field field--search vault-screen__search">
           <SearchIcon size={12} />
           <input
+            {...AS_TYPED}
             value={query}
             placeholder="Search plays"
             aria-label="Search plays"
@@ -372,7 +434,10 @@ export function VaultScreen({
             },
           ]}
         />
-        <Button onClick={() => onImport()}>Import a Draft…</Button>
+        {/* New Play's menu offers it too, which is all a narrow window keeps. */}
+        <Button className="vault-screen__import" onClick={() => onImport()}>
+          Import a Draft…
+        </Button>
       </header>
 
       <div className="vault-screen__inner">
@@ -403,6 +468,9 @@ export function VaultScreen({
             </div>
           ) : (
             <p className="vault-screen__sub">{summary}</p>
+          )}
+          {cloudSentence && plays.length > 0 && (
+            <p className="vault-screen__cloud">{cloudSentence}</p>
           )}
           {/* The sentence that must exist when it is the last one: plays on
               this Mac alone should never be learned about from a backup the
@@ -475,7 +543,21 @@ export function VaultScreen({
             <span className="sheet__hint">Scenes from Noël Coward's Hay Fever, in two acts.</span>
           </div>
         )}
+
+        {/* Where the system keeps no trash of its own (an iPad), what is
+            deleted on this device is kept in Proscenium’s Trash, and this is
+            its door: the one screen whose folder every play is in, so anything
+            in it can go back where it was (TrashSheet.tsx). */}
+        {onPutBack && ownTrashDays() !== null && (
+          <div className="vault-screen__trash">
+            <Button onClick={() => setTrashOpen(true)}>{systemWords().trash}</Button>
+          </div>
+        )}
       </div>
+
+      {trashOpen && onPutBack && (
+        <TrashSheet plays={plays} onPutBack={onPutBack} onClose={() => setTrashOpen(false)} />
+      )}
 
       {dropping && (
         <div className="vault-screen__dropnote">Drop your draft to review and import it</div>

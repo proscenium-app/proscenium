@@ -239,6 +239,32 @@
 .vault-screen__search input:focus {
   outline: none;
 }
+/* A window too narrow for the whole bar (a third of a Split View, a small
+   Stage Manager window): the folder's name gives way, the search takes what
+   is left, and Import a Draft… is New Play's menu's alone. */
+@media (max-width: 699px) {
+  .vault-screen__bar {
+    gap: var(--s-4);
+    padding: 0 var(--s-4);
+  }
+  .vault-screen__vault {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .vault-screen__spacer {
+    display: none;
+  }
+  .vault-screen__search {
+    width: auto;
+    flex: 1 1 0;
+    min-width: 110px;
+  }
+  .vault-screen__import {
+    display: none;
+  }
+}
 .vault-screen__search input::placeholder {
   color: var(--placeholder);
 }
@@ -300,6 +326,13 @@
   margin: var(--s-2) 0 0;
   font-size: var(--t-mini);
   color: var(--ash);
+}
+/* More plays still coming down from iCloud (docs/engineering/cross-platform.md#PLAT-69):
+   under the count, as the count's own words are. */
+.vault-screen__cloud {
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-small);
+  color: var(--ink-2);
 }
 .vault-list {
   background: var(--paper);

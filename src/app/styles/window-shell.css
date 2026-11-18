@@ -54,6 +54,43 @@
 .is-macos .toolbar__left {
   --traffic: 70px;
 }
+/* Compact (src/ui/use-media.ts): the play's title takes what is left, beside
+   the view pull-down and More, rather than a third of a window too narrow to
+   centre anything in. */
+.toolbar--compact {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--s-4);
+  padding: 0 var(--s-4);
+}
+.viewswitch__pull {
+  gap: var(--s-3);
+}
+/* A window too narrow for a rail beside the page (a third of a Split View, a
+   small Stage Manager window): the one rail shown lies over the page, a
+   drawer, and the page keeps the window's width. Beside it, at 320 points,
+   the binder left the page 74 and pushed the window's content 400 past its
+   edge. */
+@media (max-width: 699px) {
+  .workspace-body {
+    position: relative;
+  }
+  .workspace-body > .binder,
+  .workspace-body > .inspector {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    /* Above the page's own sticky bars (the element bar's 5). */
+    z-index: 20;
+    max-width: calc(100% - 44px);
+    box-shadow: var(--sh-menu);
+  }
+  .workspace-body > .binder {
+    left: 0;
+  }
+  .workspace-body > .inspector {
+    right: 0;
+  }
+}
 
 /* The play title, which is also the document menu. */
 .doctitle {
@@ -146,8 +183,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A window too narrow for the status bar's one row: it takes two. */
+@media (max-width: 699px) {
+  .statusbar {
+    flex-wrap: wrap;
+  }
+}
 .statusbar__path:hover {
   color: var(--ink-2);
+}
+/* Where the system has no file manager to show the folder in, the path is
+   only said: nothing to press, nothing that lights up. */
+span.statusbar__path {
+  cursor: default;
+}
+span.statusbar__path:hover {
+  color: var(--ash);
 }
 .statusbar__spacer {
   flex: 1;

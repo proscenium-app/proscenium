@@ -5,7 +5,7 @@
     - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
-    - tab "Cast"
+    - tab "Cast & Pages"
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -22,8 +22,10 @@
       - button "Rename “The Lighthouse”"
       - button "Actions for “The Lighthouse”"
     - group "Scenes in The Lighthouse":
-      - treeitem "THE LAMP ROOM 1" [level=2]
-      - treeitem "THE LEDGER 1" [level=2] [selected]
+      - treeitem "ACT ONE 1" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "THE LAMP ROOM 1" [level=3]
+        - treeitem "THE LEDGER 1" [level=3] [selected]
     - treeitem "Notes" [expanded] [level=1]
     - group "Notes":
       - treeitem "Ideas" [level=2]

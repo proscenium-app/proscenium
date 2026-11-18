@@ -264,14 +264,6 @@ export const CommentAddIcon = ({ size }: P) => (
   </Icon>
 );
 
-/** `arrowshape.turn.up.left` — answer a comment. */
-export const ReplyIcon = ({ size }: P) => (
-  <Icon size={size}>
-    <path d="M6.4 3.6 2.8 7.2l3.6 3.6" />
-    <path d="M2.8 7.2h6.4a4 4 0 0 1 4 4v1.2" />
-  </Icon>
-);
-
 /** `scope` — show where in the script this is. */
 export const ShowInScriptIcon = ({ size }: P) => (
   <Icon size={size}>

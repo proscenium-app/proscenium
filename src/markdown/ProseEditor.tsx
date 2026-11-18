@@ -19,17 +19,23 @@
  *  2. **Never re-seed a dirty buffer.** An external change arriving mid-sentence
  *     is the watcher's decision to make, not this one's.
  */
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { Editor } from "@tiptap/core";
 import { Extension, Node as TipTapNode } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { CaretOnFocus } from "../ui/caret-on-focus";
+import { PendingSelection } from "../ui/pending-selection";
+import { FormatInput } from "../ui/format-input";
+import { BarPress } from "./bar-press";
 import { DocumentCaret } from "./caret";
 import { toDoc, toMarkdown, type Node } from "./doc";
 import { DocumentLists } from "./lists";
 import { paperClick } from "./paper-click";
+import { ProseCheckerContext } from "./prose-checker";
 import { emit, loaded, proseSync, propArrived } from "./prose-sync";
+import { systemSpelling } from "../ui/system-traits";
 
 /**
  * Column alignment is part of the table, so the cells have to carry it: the
@@ -105,10 +111,26 @@ export const PROSE_EXTENSIONS = [
   }),
   DocumentLists,
   DocumentCaret,
+  CaretOnFocus,
+  // A finger's press on the format bar leaves the caret where it was.
+  BarPress,
+  // An iPad's ⌘B and ⌘I, and its screen keyboard's B and I, as the format
+  // bar's; its ⌘U and U have nothing to run, as the file has no underline. The
+  // keys are taken here too, so a press that also comes as the menu's item or
+  // the system's format runs once.
+  FormatInput(
+    {
+      bold: (ed) => ed.chain().focus().toggleBold().run(),
+      italic: (ed) => ed.chain().focus().toggleItalic().run(),
+    },
+    { keys: true },
+  ),
   Table.configure({ resizable: false }),
   TableRow,
   aligned(TableHeader),
   aligned(TableCell),
+  // A click is never undone by an update arriving with it (docs/app/writing/editor-ux.md#EDIT-211).
+  PendingSelection,
 ];
 
 export interface ProseEditorProps {
@@ -172,14 +194,40 @@ export function ProseEditor({
     return false;
   };
 
+  /**
+   * The app's own spell checker, where the system's may not run in a document
+   * (prose-checker.ts): its extensions join the page's as the editor is made,
+   * and what it draws goes beside the page. Nothing is handed over on a Mac or
+   * a PC, and the editor is the one it always was.
+   */
+  const checker = useContext(ProseCheckerContext);
+  const checking = checker?.extensions;
+  const extensions = useMemo(
+    () => (checking ? [...PROSE_EXTENSIONS, ...checking] : PROSE_EXTENSIONS),
+    [checking],
+  );
+
   const editor = useEditor({
-    extensions: PROSE_EXTENSIONS,
+    extensions,
     editable,
     content: toDoc(markdown) as never,
     editorProps: {
       attributes: {
         class: "prose",
-        spellcheck: "true",
+        /* The system checks a document's spelling where it may. Where it may
+           not (an iPad), spell checking is off, because WebKit turns smart
+           quotes and dashes off only there, and the system's Smart
+           Punctuation would otherwise rewrite what the writer typed in the
+           file's bytes (ui/system-traits.ts). The app's own checker marks the
+           words there instead (prose-checker.ts). */
+        spellcheck: systemSpelling() ? "true" : "false",
+        /* Where the app's own checker marks the words, the system's
+           autocorrection is off too, as it is in the script: on an iPad it put
+           its own guess in place of an underlined word as the tap on it moved
+           the caret away, so the app's corrections never opened, and it knows
+           nothing of the cast a character's sheet names. The system's sentence
+           capitals stay (docs/app/writing/editor-ux.md#EDIT-194). */
+        ...(systemSpelling() ? {} : { autocorrect: "off" }),
         /* macOS's writing suggestions (inline predictive text, on by default)
            deleted letters typed here. In the native self-test's outline notes,
            " Tide turns at the stair." kept "Tide ns at the stair.": at the key
@@ -245,5 +293,10 @@ export function ProseEditor({
     editor?.setEditable(editable, false);
   }, [editor, editable]);
 
-  return <EditorContent editor={editor} className="prose-host" />;
+  return (
+    <>
+      <EditorContent editor={editor} className="prose-host" />
+      {editor && checker?.beside(editor)}
+    </>
+  );
 }

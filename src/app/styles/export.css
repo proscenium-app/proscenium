@@ -325,6 +325,12 @@
 .exportpanel__foothint {
   text-align: right;
 }
+/* A narrow window keeps Export's buttons and leaves out the hint beside them. */
+@media (max-width: 699px) {
+  .exportpanel__foothint {
+    display: none;
+  }
+}
 .exportpanel__check input {
   margin: 0.15rem 0 0;
   accent-color: var(--accent);

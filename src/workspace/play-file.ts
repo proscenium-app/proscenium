@@ -106,6 +106,14 @@ export interface ScriptData {
    * auto-add would undo every removal the moment it was made.
    */
   castHidden?: string[];
+  /**
+   * Character names in the directions the writer kept in their own case when
+   * Capitalize Character Names in Directions… offered them, so it does not
+   * offer them again (docs/app/keeping-work/storage-and-file-format.md#STOR-194).
+   * Each names one occurrence: the name in capitals, its line's key, and which
+   * appearance of the name on that line. Only the command reads and writes it.
+   */
+  castKept?: { name: string; line: string; nth: number }[];
   [k: string]: unknown;
 }
 
@@ -288,7 +296,24 @@ export function validPlayShape(value: unknown): value is PlayFile {
       script.scenes.every(scene) &&
       Array.isArray(script.orphans) &&
       script.orphans.every(scene) &&
-      (script.castHidden === undefined || strings(script.castHidden)),
+      (script.castHidden === undefined || strings(script.castHidden)) &&
+      (script.castKept === undefined || keptNames(script.castKept)),
+  );
+}
+
+/** `castKept`: each a name, a line's key and a count, nothing else in any of them. */
+function keptNames(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (k) =>
+        !!k &&
+        typeof k === "object" &&
+        typeof (k as { name?: unknown }).name === "string" &&
+        /^[0-9a-f]{8}$/.test(String((k as { line?: unknown }).line)) &&
+        Number.isInteger((k as { nth?: unknown }).nth) &&
+        ((k as { nth: number }).nth ?? -1) >= 0,
+    )
   );
 }
 
@@ -391,6 +416,11 @@ export async function commitPlay(
     // there may be from a newer app (docs/app/keeping-work/storage-and-file-format.md#STOR-57).
     if (isReadOnly(priorData?.schemaVersion)) return { status: "read-only" };
     const next = build(priorData);
+    // A play's file is never written in a shape its own reader refuses: every
+    // copy, on every device, would then refuse the play. A binder that names a
+    // file by an absolute path is one such shape. Nothing is written, and the
+    // file on disk stays one that every copy can open.
+    if (!validPlayShape(next)) return { status: "stale", data: priorData, hash: priorHash };
     if (priorData && sameIgnoringModified(priorData, next)) {
       // Nothing this file owns actually changed. Writing would only move
       // `modified` and produce a file event in a watched, synced tree.

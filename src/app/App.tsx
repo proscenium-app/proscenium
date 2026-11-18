@@ -1,12 +1,19 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { theTrash, trashPlace } from "../ui/system-words";
+import { theTrash, trashedDetail } from "../ui/system-words";
+import { keyStyle, pressed } from "../ui/keys";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CommentsFeed } from "../comments";
 import { errorShown, playOpened, surfaceShown, workspaceErrorCode } from "../diagnostics";
 import { FeedbackSheet } from "../feedback/FeedbackSheet";
-import { PlayEditor, RedlineScript } from "../editor";
+import { PlayEditor, RedlineScript, type FrontEditKind, type NotesSheetKind } from "../editor";
+import { FrontSheetEditor, frontPageText } from "./FrontSheetEditor";
+import { printsProse } from "./FrontPageEditor";
+import type { PagesSection } from "./CastView";
+
+/** No notes page turned on: one set, so the script's page does not lay out again for nothing. */
+const NO_PAGES: ReadonlySet<NotesSheetKind> = new Set();
 import { useCaretScene } from "../editor/caret-scene";
 import {
   ChangesView,
@@ -22,15 +29,18 @@ import { useRedlineSteps } from "./use-redline-steps";
 import { settings, vault } from "../storage";
 import type { Surface as ReportedSurface } from "../storage/ipc";
 import { Button, ToastHost, useToast } from "../ui";
+import { TouchTip } from "../ui/TouchTip";
 import { isCastSheet } from "../materials";
 import { titleOf } from "../workspace";
 import { Binder } from "../workspace/BinderView";
 import { CorkboardView } from "../workspace/CorkboardView";
 import { MaterialEditor } from "../workspace/MaterialEditor";
 import { OutlinerView } from "../workspace/OutlinerView";
+import { ProseCheckerContext } from "../markdown/prose-checker";
 import { AppDialogs } from "./AppDialogs";
 import { BannerActions } from "./BannerActions";
 import { CastView } from "./CastView";
+import { useDocumentSpelling } from "./document-spelling";
 import type { ExportRequest } from "./ExportDialog";
 import { Inspector, type InspectorTab } from "./Inspector";
 import { PaneTree } from "./PaneTree";
@@ -46,7 +56,7 @@ import { ZoomControl } from "./ZoomControl";
 import { openFormatDesigner, useFormatDesignerRequest } from "./formats/open";
 import { findLeaf, hasSurface, type Surface } from "./panes";
 import { usePrivacyNotice } from "./privacy-notice";
-import { useQuitGate } from "./quit";
+import { useLeavingSettle, useQuitGate } from "./quit";
 import { playLanding } from "./regions";
 import { useSceneComments } from "./scene-comments";
 import {
@@ -64,7 +74,8 @@ import { useKeyboardInset } from "./use-keyboard-inset";
 import { useNarrowLayout } from "./use-narrow-layout";
 import { useShellCommands, VIEW_TO_SURFACE } from "./use-shell-commands";
 import { findBinderItem, useWorkspacePanes } from "./use-workspace-panes";
-import { findFitTarget, useZoom } from "./use-zoom";
+import { clampZoom, findFitTarget, useZoom } from "./use-zoom";
+import { COARSE, useMedia } from "../ui/use-media";
 import { useFinderOpens } from "./useFinderOpens";
 import { useWorkspace } from "./useWorkspace";
 import { useTutorial } from "../tutorial/useTutorial";
@@ -96,6 +107,9 @@ const REPORTED_SURFACE: Record<ViewId, ReportedSurface> = {
 const BINDER_OPEN_KEY = "proscenium:binderOpen";
 const INSPECTOR_OPEN_KEY = "proscenium:inspectorOpen";
 const INSPECTOR_TAB_KEY = "proscenium:inspectorTab";
+/** How long after a finger lifts Focus waits for the tap's click before its
+ * chrome comes back anyway: a click comes well inside it. */
+const TAP_CLICK_WAIT_MS = 400;
 
 /* Multi-pane, so the script and its board or outline can be open at once: an arbitrary split tree of tab groups.
    The model is panes.ts, the state shell use-panes.ts, the renderer
@@ -111,6 +125,8 @@ export function App() {
       <AppShell />
       <FeedbackSheet />
       <UpdateInstallSheet />
+      {/* A badge's tooltip, read by a finger's tap. */}
+      <TouchTip />
     </ToastHost>
   );
 }
@@ -125,12 +141,23 @@ function AppShell() {
   /* Every quit — ⌘Q, the Dock, logging out, the window's close button — asks
      here first, and waits while the play keeps its words (quit.ts). */
   const quitGate = useQuitGate(ws.settleForQuit);
+  // Leaving the front keeps the words as a quit does, and leaves no note (quit.ts).
+  useLeavingSettle(ws.settleForQuit);
   const toast = useToast();
   /* Every preference, from the one store the Settings sheet writes to — so the
      document menu's Check Spelling as You Type and Settings › Writing cannot
      disagree. */
   const prefs = useSettings();
-  const privacyNoticeDue = usePrivacyNotice(ws.booted, !!ws.root);
+  /* The documents' spelling where the system's may not run in them (an
+     iPad): the script's own checker, on the script's switch and words. */
+  const proseChecker = useDocumentSpelling({
+    spellcheck: prefs.spellcheck,
+    language: ws.playLanguage,
+    cast: ws.cast,
+    learnedWords: prefs.learnedWords,
+    onLearnWord: learnWord,
+  });
+  const privacy = usePrivacyNotice(ws.booted, !!ws.root);
   const settingsSheet = useSettingsSheet();
   const designer = useFormatDesignerRequest();
   /* Plays, scripts and .fdx files opened from Finder (docs/app/keeping-work/storage-and-file-format.md#STOR-D5). */
@@ -203,7 +230,9 @@ function AppShell() {
   const [focusMode, setFocusMode] = useState(false);
   /** In focus mode the chrome comes back while the pointer is moving. */
   const [peeking, setPeeking] = useState(false);
-  const [showTitlePage, setShowTitlePage] = useState(false);
+  /** Capitalize Character Names in Directions… (docs/app/writing/editor-ux.md#EDIT-208). */
+  const [showCastNames, setShowCastNames] = useState(false);
+  const openCastNames = useCallback(() => setShowCastNames(true), []);
   /** Latest feed toggle, so the ⌘⇧C listener isn't rebound on every layout. */
   const toggleCommentsRef = useRef<() => void>(() => {});
 
@@ -247,7 +276,6 @@ function AppShell() {
   // The soft keyboard's inset (iOS); a no-op wherever there isn't one.
   useKeyboardInset();
 
-  const openTitlePage = useCallback(() => setShowTitlePage(true), []);
   /**
    * Versions… opens Changes on the writer's own versions of what was in front:
    * the script, or the sheet or outline note being written in (docs/app/keeping-work/storage-and-file-format.md#STOR-119).
@@ -364,22 +392,74 @@ function AppShell() {
     [ws],
   );
 
-  /** A double-click on the Characters sheet: open Cast at the line hit (docs/app/formatting/formats-and-layout.md#FMT-59). */
-  const [castFocus, setCastFocus] = useState<{ paragraphId: string | null } | null>(null);
   const panesRef = useRef(panes);
   panesRef.current = panes;
-  const editCharactersPage = useCallback((paragraphId: string | null) => {
-    setCastFocus({ paragraphId });
+
+  /** Cast & Pages opened at one of its pages (docs/app/formatting/formats-and-layout.md#FMT-167). */
+  const [pagesSection, setPagesSection] = useState<{ section: PagesSection } | null>(null);
+  const clearPagesSection = useCallback(() => setPagesSection(null), []);
+  /** Edit Opening Pages… and a click on the title sheet: Cast & Pages, at the title page. */
+  const openTitlePage = useCallback(() => {
+    setPagesSection({ section: "title" });
     panesRef.current.open({ kind: "cast" });
   }, []);
-  const clearCastFocus = useCallback(() => setCastFocus(null), []);
+
+  /* A notes page turned on in Cast & Pages and not written yet: the page has
+     no words to say it is there, so the session does, for the script open. */
+  const [pagesOn, setPagesOn] = useState<{
+    key: string | null;
+    kinds: ReadonlySet<NotesSheetKind>;
+  }>({ key: null, kinds: new Set() });
+  const scriptKeyNow = ws.openScriptKey;
+  const pagesOnNow = pagesOn.key === scriptKeyNow ? pagesOn.kinds : NO_PAGES;
+  const setPageOn = useCallback(
+    (kind: NotesSheetKind, on: boolean) =>
+      setPagesOn((prev) => {
+        const next = new Set(prev.key === scriptKeyNow ? prev.kinds : []);
+        if (on) next.add(kind);
+        else next.delete(kind);
+        return { key: scriptKeyNow, kinds: next };
+      }),
+    [scriptKeyNow],
+  );
+  const emptyPages = useMemo(
+    () => [...pagesOnNow].filter((kind) => !printsProse(frontPageText(kind, ws.frontMatter))),
+    [pagesOnNow, ws.frontMatter],
+  );
+  /* The Characters page and the notes pages, edited where they stand in the
+     script's page view (docs/app/formatting/formats-and-layout.md#FMT-165). */
+  const { frontMatter, patchFrontMatter, saveCharactersPage, openScriptKey } = ws;
+  const renderFrontPage = useCallback(
+    (kind: FrontEditKind, at: string | null, done: () => void, bar: HTMLElement | null) => (
+      <FrontSheetEditor
+        bar={bar}
+        kind={kind}
+        at={at}
+        frontMatter={frontMatter}
+        onPatch={(patch) =>
+          // The Characters page keeps the cast list in step (docs/app/formatting/formats-and-layout.md#FMT-166).
+          "charactersPage" in patch
+            ? saveCharactersPage(patch.charactersPage, openScriptKey)
+            : patchFrontMatter(patch, openScriptKey)
+        }
+        onDone={done}
+      />
+    ),
+    [frontMatter, patchFrontMatter, saveCharactersPage, openScriptKey],
+  );
 
   const castSurface = useCallback(
     () => (
       <CastView
         characters={ws.frontMatter.characters ?? []}
         printedPage={ws.frontMatter.charactersPage}
-        onSavePage={(charactersPage) => ws.patchFrontMatter({ charactersPage }, ws.openScriptKey)}
+        onSavePage={(charactersPage) => ws.saveCharactersPage(charactersPage, ws.openScriptKey)}
+        frontMatter={ws.frontMatter}
+        onPatchFrontMatter={(patch) => ws.patchFrontMatter(patch, ws.openScriptKey)}
+        pagesOn={pagesOnNow}
+        onPageOn={setPageOn}
+        sectionRequest={pagesSection}
+        onSectionHandled={clearPagesSection}
         appearances={ws.castAppearances()}
         weights={ws.castWeights}
         sceneCount={ws.sceneCount}
@@ -396,11 +476,9 @@ function AppShell() {
         cards={ws.cards}
         onOpenScene={ws.openScene}
         onExportSides={(name) => setShowExport({ sidesFor: name })}
-        focusRequest={castFocus}
-        onFocusHandled={clearCastFocus}
       />
     ),
-    [ws, openMaterialTab, castFocus, clearCastFocus],
+    [ws, openMaterialTab, pagesOnNow, setPageOn, pagesSection, clearPagesSection],
   );
 
   const [binderOpen, setBinderOpenState] = useState<boolean>(() => {
@@ -421,6 +499,13 @@ function AppShell() {
   };
 
   const binderVisible = binderOpen && (!narrow || narrowRail === "binder");
+  /* Below 700 points the binder lies over the page, a drawer (window-shell.css):
+     choosing something in it shows that thing, so the drawer closes, rather
+     than leave the writer looking at the binder over what they opened. */
+  const binderOverPage = useMedia("(max-width: 699px)");
+  const shownFromBinder = () => {
+    if (binderOverPage) setBinderOpen(false);
+  };
 
   /* Zoom (use-zoom.ts): still a pure view transform, so
      the engine's geometry and every page break are identical at every level.
@@ -435,6 +520,8 @@ function AppShell() {
     target: () => findFitTarget(scriptScrollerRef.current, paneRootRef.current),
     format: ws.format,
     active: ws.mode === "workspace" && !!ws.scriptTitle,
+    // The floor that keeps the script's type legible holds while its page shows.
+    scriptShown: scriptVisible,
     // The EFFECTIVE layout, not the intent — a rail suppressed by a narrow
     // layout changes the pane's width just as closing it would, and a fit that
     // solved against the wrong width is the bug this token exists to prevent.
@@ -445,6 +532,49 @@ function AppShell() {
     layout: `${binderVisible}:${panes.focusedLeaf}:${JSON.stringify(paneTree)}:${[...hiddenPanes].join()}`,
   });
   const { zoom, zoomBy, refit } = zoomCtl;
+
+  /* A pinch on the page zooms the page, through the app's own zoom: a view
+     of the page that moves no page break, never WebKit's zoom of the whole
+     window, which scaled the toolbar and the sheets with it. WebKit tells the
+     page of a pinch on a touch screen as `gesturestart` and `gesturechange`,
+     with its scale from the pinch's start: taken anywhere, so the window
+     never zooms (touch-controls.css stops it too), and on the page while a
+     script is open, the page's zoom. (A viewport tag that refused to scale
+     would stop it as well, and fails every audit: WCAG 1.4.4.) A pointer
+     keeps the keys and the zoom control, as on a Mac. */
+  const zoomNow = useRef(zoom);
+  zoomNow.current = zoom;
+  const pinchesPage = useRef(false);
+  pinchesPage.current = ws.mode === "workspace" && !!ws.scriptTitle;
+  const setZoomMode = zoomCtl.setMode;
+  useEffect(() => {
+    if (!window.matchMedia(COARSE).matches) return;
+    let from: number | null = null;
+    const onPage = (e: Event) =>
+      pinchesPage.current && !!mainRef.current?.contains(e.target as Node);
+    const start = (e: Event) => {
+      e.preventDefault();
+      from = onPage(e) ? zoomNow.current : null;
+    };
+    const change = (e: Event) => {
+      e.preventDefault();
+      const scale = (e as Event & { scale?: number }).scale;
+      if (from !== null && typeof scale === "number" && scale > 0)
+        setZoomMode({ kind: "manual", level: clampZoom(from * scale) });
+    };
+    const end = (e: Event) => {
+      e.preventDefault();
+      from = null;
+    };
+    document.addEventListener("gesturestart", start, { passive: false });
+    document.addEventListener("gesturechange", change, { passive: false });
+    document.addEventListener("gestureend", end, { passive: false });
+    return () => {
+      document.removeEventListener("gesturestart", start);
+      document.removeEventListener("gesturechange", change);
+      document.removeEventListener("gestureend", end);
+    };
+  }, [setZoomMode]);
   const zoomReset = zoomCtl.reset;
 
   const clearChangesFocus = useCallback(() => setChangesFocus(null), []);
@@ -737,6 +867,7 @@ function AppShell() {
             ordinal: c.anchor.ordinal,
             label: c.heading || `Scene ${c.anchor.ordinal + 1}`,
             color: c.card.color,
+            ...(c.act ? { act: c.act } : {}),
             pages: pages
               ? pages.firstPage === pages.lastPage
                 ? `${pages.firstPage}`
@@ -745,6 +876,16 @@ function AppShell() {
           };
         }),
     [ws.cards, ws.scenePages],
+  );
+
+  /** The open script's acts, for the rail's act rows (docs/app/organizing/workspace-model.md#WORK-89). */
+  const binderActs = useMemo(
+    () =>
+      ws.scenePages.acts.map((a) => ({
+        label: a.act,
+        pages: a.firstPage === a.lastPage ? `${a.firstPage}` : `${a.firstPage}–${a.lastPage}`,
+      })),
+    [ws.scenePages],
   );
 
   /** The material the focused pane holds, if it holds one — the Sheet tab. */
@@ -839,15 +980,57 @@ function AppShell() {
       return;
     }
     let timer = 0;
-    const onMove = () => {
+    const onMove = (hold = 2000) => {
       setPeeking(true);
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => setPeeking(false), 2000);
+      timer = window.setTimeout(() => setPeeking(false), hold);
     };
-    window.addEventListener("mousemove", onMove);
+    /* A finger never moves a pointer: a tap brings the chrome back, for
+       longer, since the next tap is the one that reaches it (the document
+       menu's Focus, which leaves). It comes back once the tap's click has
+       landed: brought back at the touch, the bars came in under the finger,
+       an iPad held the tap back from its click, and the first tap on the
+       page in Focus put no caret there (docs/engineering/cross-platform.md#PLAT-70).
+       A tap that gets no click comes back a moment after the finger lifts;
+       a finger that scrolls brings nothing back, as a trackpad's scroll does
+       not. The mouse move WebKit sends after a tap is the tap's, and leaves
+       the longer wait alone. */
+    let touchedAt = 0;
+    let lifted = 0;
+    const mouse = () => {
+      if (Date.now() - touchedAt > 1000) onMove();
+    };
+    const byFinger = (e: PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen";
+    const back = (wait: number) => {
+      window.clearTimeout(lifted);
+      lifted = window.setTimeout(() => {
+        lifted = 0;
+        onMove(5000);
+      }, wait);
+    };
+    const touch = (e: PointerEvent) => {
+      if (byFinger(e)) touchedAt = Date.now();
+    };
+    const lift = (e: PointerEvent) => {
+      if (!byFinger(e)) return;
+      touchedAt = Date.now();
+      back(TAP_CLICK_WAIT_MS);
+    };
+    // After the click's own handlers, so nothing moves under it.
+    const clicked = () => {
+      if (lifted) back(0);
+    };
+    window.addEventListener("mousemove", mouse);
+    window.addEventListener("pointerdown", touch, true);
+    window.addEventListener("pointerup", lift, true);
+    window.addEventListener("click", clicked, true);
     return () => {
-      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mousemove", mouse);
+      window.removeEventListener("pointerdown", touch, true);
+      window.removeEventListener("pointerup", lift, true);
+      window.removeEventListener("click", clicked, true);
       window.clearTimeout(timer);
+      window.clearTimeout(lifted);
     };
   }, [focusMode]);
 
@@ -875,11 +1058,15 @@ function AppShell() {
   }, [focusMode, peeking, binderVisible]);
 
   /* Esc is the way out of focus mode; ⌃⌘F is the way in and out. Separate from
-     the keymap above because it must fire without a modifier, and only then. */
+     the keymap above because it must fire without a modifier, and only then.
+     ⌘. is Esc too, as everywhere on an iPad, some of whose keyboards have no
+     Esc key, and on a Mac; not in a PC's keys, which have no such chord. */
   useEffect(() => {
     if (!focusMode) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const escape = e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey;
+      if (escape || (keyStyle() !== "pc" && pressed(e, "⌘."))) {
+        if (!escape) e.preventDefault();
         setFocusMode(false);
       }
     };
@@ -888,7 +1075,7 @@ function AppShell() {
   }, [focusMode]);
 
   const guide = useTutorial(ws, {
-    welcomeReady: !privacyNoticeDue,
+    welcomeReady: !privacy.waiting,
     show: panes.show,
     view: switcherView,
     revealBinder: () => {
@@ -898,7 +1085,7 @@ function AppShell() {
     openExport: () => setShowExport({ sidesFor: null }),
     closeDialogs: () => {
       setShowExport(null);
-      setShowTitlePage(false);
+      setShowCastNames(false);
     },
     // Asked one place at a time, not as one selector list: a list answers with its
     // first match in the page, and the toolbar's Help & Tutorials comes before any
@@ -923,7 +1110,7 @@ function AppShell() {
   /** File › New Play… (⌘N): the Plays screen names a blank play for each new count. */
   const [newPlayAsk, setNewPlayAsk] = useState(0);
   const askNewPlay = useCallback(() => setNewPlayAsk((n) => n + 1), []);
-  useShellCommands(ws, {
+  const { runMenuCommand } = useShellCommands(ws, {
     panes,
     binderVisible,
     inspectorVisible,
@@ -936,6 +1123,7 @@ function AppShell() {
     zoomReset,
     zoomCtl,
     openTitlePage,
+    openCastNames,
     openHistory,
     askNewPlay,
     toast,
@@ -949,7 +1137,7 @@ function AppShell() {
   });
 
   return (
-    <>
+    <ProseCheckerContext.Provider value={proseChecker}>
       <div
         className={`app-shell${focusMode ? " is-focus" : ""}${
           focusMode && peeking ? " is-peeking" : ""
@@ -988,6 +1176,7 @@ function AppShell() {
                   spellcheck: prefs.spellcheck,
                   onSetSpellcheck: (on) => updateSettings({ spellcheck: on }),
                   onEditTitlePage: openTitlePage,
+                  onCapitalizeNames: openCastNames,
                   onShowHistory: () => openHistory(),
                   onExport: () => setShowExport({ sidesFor: null }),
                   onExportAs: (type) => setShowExport({ sidesFor: null, type }),
@@ -995,6 +1184,8 @@ function AppShell() {
                   exporting: ws.exporting,
                   onSettings: () => openSettings(),
                   onEditFormats: () => openFormatDesigner({ kind: "edit", formatId: ws.format.id }),
+                  onCommand: runMenuCommand,
+                  focusMode,
                 }
               : null
           }
@@ -1052,7 +1243,10 @@ function AppShell() {
               readOnly={ws.readOnly}
               justCreated={ws.justCreated}
               onConsumeCreated={ws.consumeCreated}
-              onSelect={onSelectBinderItem}
+              onSelect={(item) => {
+                onSelectBinderItem(item);
+                shownFromBinder();
+              }}
               onOpenInNewPane={(item) => {
                 ws.selectItem(item);
                 panes.openBeside(
@@ -1073,7 +1267,7 @@ function AppShell() {
                   toast({
                     kind: "trash",
                     title: `“${res.title}” moved to ${theTrash()}`,
-                    detail: `It's in ${trashPlace()} if you need it later.`,
+                    detail: trashedDetail(),
                     action: res.undo ? { label: "Undo", run: () => void res.undo?.() } : undefined,
                   });
                 });
@@ -1097,8 +1291,12 @@ function AppShell() {
               missingIds={missingIds}
               onAcknowledgeFiled={ws.acknowledgeFiled}
               scenes={binderScenes}
+              acts={binderActs}
               caretScene={caretOrdinal}
-              onOpenScene={ws.openScene}
+              onOpenScene={(ordinal) => {
+                ws.openScene(ordinal);
+                shownFromBinder();
+              }}
               onSetSceneColor={ws.readOnly ? undefined : (id, color) => ws.setCard(id, { color })}
             />
           )}
@@ -1106,8 +1304,17 @@ function AppShell() {
             /* The one `main` landmark: VoiceOver's rotor jumps binder →
              panes → inspector, and with a play open the panes were a div,
              so the rotor listed a navigation and a complementary and no
-             place to write. */
-            <main ref={setPaneRoot} className="paneroot" aria-label="Play">
+             place to write.
+
+             `data-settled`: the open has laid the script out at the
+             writer's place, so what moves the page after it is the writer's
+             own doing. Nothing on screen says it; a check waits on it. */
+            <main
+              ref={setPaneRoot}
+              className="paneroot"
+              aria-label="Play"
+              data-settled={ws.playSettled ? "" : undefined}
+            >
               <PaneTree
                 node={paneTree}
                 activeLeafId={panes.focusedLeaf}
@@ -1135,6 +1342,7 @@ function AppShell() {
                   plays={ws.plays}
                   hint={ws.playsFolderHint}
                   lookingBelow={ws.lookingBelow}
+                  cloud={ws.cloudDownload}
                   onUseFolder={ws.openFolderBelow}
                   onKeepFolder={ws.keepPlaysFolder}
                   onOpen={ws.enterPlay}
@@ -1144,6 +1352,7 @@ function AppShell() {
                     void beginImport(files?.map((file) => ({ file })));
                   }}
                   newPlayAsk={newPlayAsk}
+                  onPutBack={ws.putBackFromTrash}
                 />
               )}
               {!launching && !ws.root && (
@@ -1155,7 +1364,7 @@ function AppShell() {
                   onChooseDocuments={ws.openDocumentsFolder}
                   onChooseFolder={ws.openFolder}
                   onReopenLast={ws.openFolder}
-                  privacyNotice={privacyNoticeDue}
+                  privacyNotice={privacy.notice}
                   onPrivacyNoticeSeen={() => updateSettings({ privacyNoticeSeen: true })}
                   onPrivacySettings={() => openSettings("privacy")}
                 />
@@ -1242,25 +1451,30 @@ function AppShell() {
               layoutMeta={ws.layoutMeta}
               frontMatter={ws.frontMatter}
               onEditTitlePage={openTitlePage}
-              onEditCharactersPage={editCharactersPage}
+              renderFrontPage={renderFrontPage}
+              emptyPages={emptyPages}
+              scriptKey={ws.openScriptKey}
               redline={ws.trackedRedline}
               zoom={zoom}
               commentsOpen={commentsOpen}
               onToggleComments={toggleComments}
               onShowComments={showComments}
               spellcheck={prefs.spellcheck}
+              autoCaps={prefs.autoCaps}
               learnedWords={prefs.learnedWords}
               onLearnWord={learnWord}
               cards={ws.cards}
               scenePages={ws.scenePages}
               onJumpToScene={ws.openScene}
               showRunningTime={prefs.runningTimeStrip}
+              showScenePlace={prefs.scenePlaceMarker}
             />
           </div>
         </div>
 
         <StatusBar
           root={ws.root}
+          onReveal={ws.canReveal ? () => void vault.reveal() : undefined}
           status={ws.status}
           savedTime={savedTime}
           formatWarnings={ws.formatWarnings}
@@ -1298,8 +1512,8 @@ function AppShell() {
         )}
         <AppDialogs
           ws={ws}
-          showTitlePage={showTitlePage}
-          setShowTitlePage={setShowTitlePage}
+          showCastNames={showCastNames}
+          setShowCastNames={setShowCastNames}
           showExport={showExport}
           setShowExport={setShowExport}
           showShortcuts={showShortcuts}
@@ -1317,7 +1531,7 @@ function AppShell() {
       </div>
       <Catalogue guide={guide} practicing={ws.practicing} />
       <CueCard guide={guide} editor={ws.editor} />
-    </>
+    </ProseCheckerContext.Provider>
   );
 }
 

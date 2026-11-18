@@ -5,7 +5,7 @@
     - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
-    - tab "Cast"
+    - tab "Cast & Pages"
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -90,7 +90,7 @@
       - checkbox "Include title page" [checked]
       - text: Title
     - listitem:
-      - button "Characters page": Characters JUNIPER SIMON The Blisses, and the guests they asked for the weekend.
+      - button "Characters page": Characters JUNIPER SIMON JUDITH The Blisses, and the guests they asked for the weekend.
       - checkbox "Include characters page" [checked]
       - text: Characters
     - listitem:
@@ -105,7 +105,7 @@
       - button "Page 2": "2."
       - checkbox "Include page 2"
       - text: "2"
-  - region "Preview of what will export": PRACTICE PLAY Characters JUNIPER SIMON The Blisses, and the guests they asked for the weekend. The hall of the Blisses' house at Cookham, in June. SCENE 2 SCENE 1 JUNIPER I wish she hadn't sent me the beastly book. I must say something nice about it. SIMON The binding's very dashing.
+  - region "Preview of what will export": PRACTICE PLAY Characters JUNIPER SIMON JUDITH The Blisses, and the guests they asked for the weekend. The hall of the Blisses' house at Cookham, in June. SCENE 2 SCENE 1 JUNIPER I wish she hadn't sent me the beastly book. I must say something nice about it. SIMON The binding's very dashing.
   - button "Previous page" [disabled]: ◀
   - text: Title page · sheet 1 of 4
   - button "Next page": ▶

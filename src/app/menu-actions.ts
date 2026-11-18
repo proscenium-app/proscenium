@@ -20,6 +20,7 @@ import type { Editor } from "@tiptap/core";
 import { isTauri } from "@tauri-apps/api/core";
 import { insertLineBreak, insertPageBreak, toggleEmphasis } from "../editor/breaks";
 import { listen } from "../storage/ipc";
+import { formatOnce, formatterWithFocus, markFormat } from "../ui/format-input";
 import { anyLayerOpen } from "../ui/layers";
 import { updateIsInstalling } from "./update-lock";
 
@@ -44,8 +45,20 @@ function handleEditorAction(editor: Editor | null, id: string): boolean {
     return true;
   }
   if (id.startsWith("mark-")) {
-    editor.commands.focus();
-    toggleEmphasis(editor, id.slice(5));
+    const mark = id.slice(5);
+    const format = markFormat(mark);
+    // The editor with the focus formats its own words, a document's as a
+    // document does; with none, the script. A press that reached it as its
+    // own key or the system's format too runs once (src/ui/format-input.ts).
+    const focused = format ? formatterWithFocus() : null;
+    if (format && focused) {
+      if (formatOnce(focused.editor, format, "menu")) focused.formats[format]?.(focused.editor);
+      return true;
+    }
+    if (!format || formatOnce(editor, format, "menu")) {
+      editor.commands.focus();
+      toggleEmphasis(editor, mark);
+    }
     return true;
   }
   if (id === "line-break") {
@@ -68,6 +81,18 @@ function handleEditorAction(editor: Editor | null, id: string): boolean {
     return true;
   }
   return false;
+}
+
+/**
+ * Runs a menu item's id as the menu bar's item does: the script's own
+ * commands first, then the window's. A menu in the page that carries the
+ * menu bar's commands where there is no menu bar (an iPad's document menu)
+ * sends its ids here, so each runs the one command the Mac's item runs.
+ */
+export function runMenuItem(editor: Editor | null, run: (id: string) => void, id: string): void {
+  if (updateIsInstalling()) return;
+  if (handleEditorAction(editor, id)) return;
+  run(id);
 }
 
 export function useMenuActions({ editor, run, allowWhileLayer }: MenuHandlers): void {

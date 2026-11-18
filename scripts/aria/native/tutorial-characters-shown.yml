@@ -5,7 +5,7 @@
     - tab "Script"
     - tab "Board"
     - tab "Outline"
-    - tab "Cast" [selected]
+    - tab "Cast & Pages" [selected]
     - tab "Changes"
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
@@ -28,7 +28,30 @@
     - button "New" [haspopup]
 - main "Play"
   - sectionheader
-    - heading "Characters Page" [level=1]
+    - heading "Cast & Pages" [level=1]
+    - paragraph
+  - navigation "Pages before the script"
+    - button "Title Page"
+    - button "Characters"
+    - button "Opening Notes"
+    - button "Production Notes"
+    - button "Cast"
+  - region "Title Page"
+    - heading "Title Page" [level=2]
+    - none
+    - textbox "Title"
+    - none
+    - textbox "Credit"
+    - none
+    - textbox "Authors"
+    - none
+    - textbox "Contact"
+    - none
+    - textbox "Draft date"
+    - none
+      - switch "Write the title page freely"
+  - sectionheader
+    - heading "Characters Page" [level=2]
     - paragraph
   - group "Printed characters page"
     - toolbar "Formatting"
@@ -41,6 +64,14 @@
     - textbox
   - group
     - none "Page Options"
+  - region "Opening Notes"
+    - heading "Opening Notes" [level=2]
+    - switch "Include opening notes"
+    - paragraph
+  - region "Production Notes"
+    - heading "Production Notes" [level=2]
+    - switch "Include production notes"
+    - paragraph
   - sectionheader
     - heading "Cast Tools" [level=2]
     - paragraph

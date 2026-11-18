@@ -46,6 +46,7 @@ import {
   restoreSubtree,
 } from "./binder-rebase";
 import { applyRelocation, type BinderRelocation } from "./binder-relocation";
+import { rowNote } from "./trash";
 
 // --- path helpers ---
 function dirname(p: string): string {
@@ -502,7 +503,10 @@ export async function deleteItem(ctx: BinderContext, id: string): Promise<ApplyR
   const item = loc.item;
   try {
     if (await vault.exists(item.path)) {
-      await vault.trash(item.path); // a folder trashes its whole subtree
+      // A folder trashes its whole subtree. Where the delete goes to
+      // Proscenium’s Trash, the row goes with it, so Put Back can return it
+      // where it stood (src/workspace/trash.ts).
+      await vault.trash(item.path, rowNote(ctx.play, ctx.playPath, id));
     }
   } catch (e) {
     // Trash backend unavailable → do NOT orphan: keep the entry, report.

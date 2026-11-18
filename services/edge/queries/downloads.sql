@@ -1,7 +1,8 @@
 -- SPDX-FileCopyrightText: 2026 Habiby LLC
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 -- Bind ?1=start UTC day inclusive, ?2=end UTC day exclusive.
--- Downloads by people: from the website and Homebrew (docs/engineering/services-and-feedback.md#SERV-286).
+-- Downloads by people: from the website and Homebrew (docs/engineering/services-and-feedback.md#SERV-286),
+-- never a program's, which is `crawler` (docs/engineering/services-and-feedback.md#SERV-290).
 -- Requests, not completed installations. Before that, every file was counted
 -- as `download`, updates and signatures among them; those rows are included as
 -- they were, and `file-requests.sql` tells them apart.

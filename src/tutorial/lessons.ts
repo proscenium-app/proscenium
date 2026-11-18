@@ -243,24 +243,24 @@ export const LESSONS: Lesson[] = [
   },
   {
     id: "characters",
-    revision: 2,
+    revision: 3,
     minutes: 3,
     needsExchange: true,
     title: "Characters and Opening Pages",
     outcome:
-      "Make the printed Characters page your own, add someone to the cast and write opening notes.",
+      "Make the printed Characters page your own, add someone to the cast and write opening notes, all in Cast & Pages.",
     steps: [
       step(
         "cast",
-        "Open Cast",
+        "Open Cast & Pages",
         "cast",
-        "Cast has the printed Characters page at the top and the cast tools below it.",
+        "Cast & Pages holds every page before the script, in the order they print: the title page, the Characters page, opening notes and production notes, then the cast tools.",
       ),
       step(
         "characters-page",
         "Make the printed page yours",
         "cast",
-        "You can change the page's words, order and emphasis. Once you have, changes to the cast list no longer replace your wording.",
+        "You can change the page's words, order and emphasis. A name in bold starts a character's line, and the cast list follows it, as the page follows the list.",
       ),
       step(
         "add-character",
@@ -271,8 +271,8 @@ export const LESSONS: Lesson[] = [
       step(
         "opening-notes",
         "Write opening notes",
-        "script",
-        "Opening notes hold the setting, a time, a place or a dedication. You choose whether they print before or after the Characters page. Cancel closes the window without saving.",
+        "cast",
+        "Opening notes hold the setting, a time, a place or a dedication. Turn them on, then write; you choose whether they print before or after the Characters page.",
       ),
     ],
   },

@@ -57,6 +57,12 @@ export interface ElementFormat {
   tightStack: boolean;
   /** When false the element never reaches pagination or print (synopsis). */
   print: boolean;
+  /**
+   * Action only: a cast name typed in a stage direction or a parenthetical
+   * goes to capitals as the writer types it (docs/app/writing/editor-ux.md#EDIT-202).
+   * Typing, not printing: the script holds the capitals.
+   */
+  capitalizeCastNames: boolean;
 }
 
 export interface PageMargins {

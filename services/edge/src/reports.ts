@@ -9,7 +9,6 @@ import {
   TRACK_VERSION,
   VERSION,
   type Source,
-  type System,
 } from "./updates";
 export const REPORTS = "https://reports.proscenium.ink";
 export const MAX_EVENTS_BODY = 16 * 1024;
@@ -41,23 +40,43 @@ export function keys(
 export const buildVersion = (v: unknown): v is string =>
   typeof v === "string" && (VERSION.test(v) || TRACK_VERSION.test(v));
 /**
+ * The systems a report may come from (docs/engineering/services-and-feedback.md#SERV-282):
+ * the two an update check names, and the iPad (`ios`), which never checks for
+ * updates, since TestFlight and the App Store update it, and so is a system of
+ * the reports alone.
+ */
+export const REPORTING_SYSTEMS = ["darwin", "windows", "ios"] as const;
+export type ReportingSystem = (typeof REPORTING_SYSTEMS)[number];
+/**
+ * An iPad's version as a report names it: iPadOS's `<major>.<minor>`, from
+ * iPadOS 17, the floor it is built for, such as `26.5`; its patch is not sent,
+ * as a Mac's is not.
+ */
+const IPADOS_VERSION = /^(1[7-9]|[2-9]\d)\.(0|[1-9]\d?)$/;
+/**
  * The system a report says it came from: a Mac's or Windows', either chip,
- * and that system's version as an update check names it
+ * and that system's version as an update check names it; or an iPad's, Apple
+ * silicon alone, with iPadOS's version
  * (docs/engineering/services-and-feedback.md#SERV-282).
  */
 export function system(platform: unknown, arch: unknown, os: unknown): boolean {
+  if (platform === "ios")
+    return arch === "aarch64" && typeof os === "string" && IPADOS_VERSION.test(os);
   return supported(platform, arch, os);
 }
 /**
  * Where each system's copies come from, as a usage batch names it
  * (docs/engineering/services-and-feedback.md#SERV-282): a Mac's download,
  * signed with the Developer ID, or the Mac App Store's; Windows' download (its
- * installer, from the site, GitHub or winget) or the Microsoft Store's. A
- * channel is its own system's or the batch is refused.
+ * installer, from the site, GitHub or winget) or the Microsoft Store's; an
+ * iPad's from Apple alone, the App Store's or TestFlight's, both `app-store`,
+ * told apart by their whole version as a Mac's tracks are. A channel is its
+ * own system's or the batch is refused.
  */
-const CHANNELS: Record<System, readonly string[]> = {
+const CHANNELS: Record<ReportingSystem, readonly string[]> = {
   darwin: ["developer-id", "app-store"],
   windows: ["download", "microsoft-store"],
+  ios: ["app-store"],
 };
 interface Batch {
   version: string;
@@ -80,7 +99,7 @@ export function parseBatch(v: unknown): Batch {
     !keys(v, ["version", "platform", "arch", "os", "channel", "events"]) ||
     !buildVersion(v.version) ||
     !system(v.platform, v.arch, v.os) ||
-    !CHANNELS[v.platform as System].includes(v.channel as string) ||
+    !CHANNELS[v.platform as ReportingSystem].includes(v.channel as string) ||
     !Array.isArray(v.events) ||
     v.events.length < 1 ||
     v.events.length > 25

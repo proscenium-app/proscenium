@@ -27,6 +27,7 @@ export { onOwnWrite } from "./own-writes";
 export type { OwnWrite } from "./own-writes";
 export type {
   Capabilities,
+  CloudDownload,
   VaultEntry,
   OpenResult,
   ReadResult,

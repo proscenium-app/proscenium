@@ -75,7 +75,7 @@ export const SHORTCUTS: Shortcut[] = [
   { keys: "⌘1", what: "Script", group: "Views and panels", owner: "app" },
   { keys: "⌘2", what: "Board", group: "Views and panels", owner: "app" },
   { keys: "⌘3", what: "Outline", group: "Views and panels", owner: "app" },
-  { keys: "⌘4", what: "Cast", group: "Views and panels", owner: "app" },
+  { keys: "⌘4", what: "Cast & Pages", group: "Views and panels", owner: "app" },
   { keys: "⌘5", what: "Changes", group: "Views and panels", owner: "app" },
   { keys: "⌘⌥B", what: "Show or hide the binder", group: "Views and panels", owner: "app" },
   { keys: "⌘⌥I", what: "Show or hide the inspector", group: "Views and panels", owner: "app" },

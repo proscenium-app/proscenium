@@ -278,6 +278,33 @@ export const CommentRangeEnd = Mark.create({
   },
 });
 
+/**
+ * A character's name in a direction, and whose case it is in
+ * (names-in-directions.ts, docs/app/writing/editor-ux.md#EDIT-205): `castCaps`
+ * on capitals the editor made as the writer typed, `castKept` on an occurrence
+ * the writer kept in their own case. They paint nothing and are never written
+ * to the script (fountain/inline.ts drops them). Neither reaches past its
+ * letters: text typed after a name carries neither, so the next name typed is
+ * capitalized as the first was. On the clipboard as a bare `data-*`, so a cut
+ * and a paste keeps them (docs/app/writing/editor-ux.md#EDIT-177).
+ */
+function caseMark(name: string, dataName: string) {
+  return Mark.create({
+    name,
+    group: "castCase",
+    excludes: "castCase",
+    inclusive: false,
+    parseHTML() {
+      return [{ tag: `span[${dataName}]` }];
+    },
+    renderHTML() {
+      return ["span", { [dataName]: "" }, 0];
+    },
+  });
+}
+export const CastCaps = caseMark("castCaps", "data-cast-caps");
+export const CastKept = caseMark("castKept", "data-cast-kept");
+
 /** The element type names that carry inline content, in keymap-ring order. */
 export const BODY_ELEMENTS = [
   "action",
@@ -324,6 +351,8 @@ export const playExtensions = [
   Underline,
   CommentRange,
   CommentRangeEnd,
+  CastCaps,
+  CastKept,
 ];
 
 /** The same set plus editor behavior (undo/redo). Used by the live editor. */

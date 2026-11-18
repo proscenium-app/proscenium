@@ -19,7 +19,7 @@
  * lesson opened first needs) go only to the practice play, add or convert,
  * and never remove the writer's words (perform.ts).
  */
-import { onMacWords } from "../ui/system-words";
+import { movedToTrash } from "../ui/system-words";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import type { Workspace } from "../app/useWorkspace";
@@ -31,6 +31,7 @@ import type { Doc } from "../fountain";
 import { useSettingsLoaded } from "../ui/settings-store";
 import { tutorials } from "../storage/ipc";
 import { flatten, titleOf } from "../workspace/binder";
+import { practiceNote } from "../workspace/trash";
 import { split, reconstruct, parseTags } from "../workspace/front-matter";
 import { announce, anyLayerOpen } from "../ui";
 import { tutorialUse } from "../diagnostics";
@@ -1237,14 +1238,14 @@ export function useTutorial(ws: Workspace, controls: Controls) {
     });
   const trashPractice = (session: string) =>
     run(async () => {
-      await tutorials.trash(session);
+      await tutorials.trash(session, practiceNote());
       checkpoint((p) => ({
         ...p,
         course: p.course?.session === session ? null : p.course,
         attempts: p.attempts.filter((a) => a.session !== session),
       }));
       await refreshSessions();
-      announce(onMacWords() ? "Practice moved to Trash." : "Practice moved to the Recycle Bin.");
+      announce(movedToTrash("Practice"));
     });
   const keepPractice = (title: string) =>
     run(async () => {

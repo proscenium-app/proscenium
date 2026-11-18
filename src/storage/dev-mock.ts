@@ -31,6 +31,7 @@ import learFountain from "../../sample-outside/elsewhere/Lear/Lear.fountain?raw"
 import { version as APP_VERSION } from "../../package.json";
 import type {
   AppInfo,
+  CloudDownload,
   ConflictCopyEvent,
   ExternalChangeEvent,
   FolderAccessIssue,
@@ -47,6 +48,9 @@ import type {
   WriteOutcome,
   WatchHealth,
   PendingMove,
+  PutBackResult,
+  TrashEntry,
+  TrashRing,
   MoveStart,
   SavedCopy,
   RecoveryFile,
@@ -396,6 +400,27 @@ const openedListeners = new Set<Box<void>>();
 /** The folder the next folder panel answers with, once; the sample Plays folder otherwise. */
 let nextPick: string | null = null;
 
+/*
+ * The sample Plays folder as iCloud Drive keeps it on an iPad that has not
+ * downloaded it (docs/engineering/cross-platform.md#PLAT-69): each folder named
+ * here is known by its name alone, so it lists as empty and nothing in it can
+ * be read, until a download pass brings it down. Each pass brings one.
+ */
+const inCloud: string[] = [];
+/** Whether the open Plays folder is one iCloud Drive keeps: once staged, for the visit. */
+let cloudKept = false;
+/** Whether a pass has asked for what is still in iCloud, so that the next pass finds one of them down. */
+let cloudAsked = false;
+/** iCloud is slow today: passes ask, and nothing comes down until a check lets it. */
+let cloudHeld = false;
+/** What another device changed that iCloud has not brought down yet, by store key. */
+const changedInCloud = new Map<string, string>();
+
+/** The folder still in iCloud that holds `key`, a root-relative key, if any. */
+function stillInCloud(key: string): string | null {
+  return inCloud.find((dir) => key === dir || key.startsWith(dir + "/")) ?? null;
+}
+
 /** Facts for a mock path — the in-memory vault for ROOT, OUTSIDE for the rest. */
 function mockFacts(path: string): OpenedFacts {
   const inVault = path === ROOT || path.startsWith(ROOT + "/");
@@ -473,6 +498,71 @@ function subscribe<T>(set: Set<Box<T>>, cb: (e: T) => void): Promise<() => void>
   });
 }
 
+/*
+ * Proscenium’s Trash (src-tauri/src/vault/ring.rs), as an iPad keeps it: a
+ * page given the iPad's record (`__PROSCENIUM_FIXTURE_IPAD__`) has no system
+ * trash, so a delete is kept here, in "app data", with where it came from and
+ * the page's note, and Put Back returns it, never over anything. A Mac's page
+ * deletes as it always has. Like the rest of app data, it lasts the page.
+ */
+const ipadRecord = () =>
+  (globalThis as { __PROSCENIUM_FIXTURE_IPAD__?: boolean }).__PROSCENIUM_FIXTURE_IPAD__ === true;
+/** The id of the play open, for its ring; null with the Plays folder open. */
+let openPlayId: string | null = null;
+const TRASH_DAY_MS = 24 * 3600_000;
+const TRASH_DAYS = 30;
+interface MockKept extends TrashEntry {
+  /** The entry's bytes: "" is a file's own, anything else a path inside a folder. */
+  files: Map<string, string>;
+  /** Its folders, empty ones too, by path inside it. */
+  folders: string[];
+}
+const kept: MockKept[] = [];
+const ringKey = (ring: TrashRing) => (ring.kind === "play" ? `play:${ring.playId}` : ring.kind);
+/** A delete's time, as an entry's name begins: local time, as Rust writes it. */
+function trashStamp(ms: number): string {
+  const d = new Date(ms);
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${two(d.getMonth() + 1)}${two(d.getDate())}-${two(d.getHours())}${two(d.getMinutes())}${two(d.getSeconds())}`;
+}
+function keep(
+  ring: TrashRing,
+  original: string,
+  rel: string,
+  note: string | undefined,
+  files: Map<string, string>,
+  folders: string[],
+): void {
+  const now = Date.now();
+  const taken = new Set(kept.filter((k) => ringKey(k.ring) === ringKey(ring)).map((k) => k.name));
+  let name = `${trashStamp(now)}-${original}`;
+  for (let n = 1; taken.has(name); n++) name = `${trashStamp(now)}-${n}-${original}`;
+  const isDir = !files.has("");
+  kept.push({
+    ring,
+    name,
+    original,
+    rel,
+    isDir,
+    isPlay: isDir && [...files.keys()].some((f) => !f.includes("/") && f.endsWith(".proscenium")),
+    deletedMs: now,
+    expiresMs: now + TRASH_DAYS * TRASH_DAY_MS,
+    note: note ?? null,
+    files,
+    folders,
+  });
+}
+/** The name a put back tries `n`th: its own, then one that says it was put back (ring.rs). */
+function putBackName(rel: string, n: number, isDir: boolean): string {
+  if (n === 0) return rel;
+  const slash = rel.lastIndexOf("/");
+  const dir = rel.slice(0, slash + 1);
+  const leaf = rel.slice(slash + 1);
+  const dot = isDir ? -1 : leaf.lastIndexOf(".");
+  const [stem, ext] = dot > 0 ? [leaf.slice(0, dot), leaf.slice(dot)] : [leaf, ""];
+  return `${dir}${stem}${n === 1 ? " (put back)" : ` (put back ${n})`}${ext}`;
+}
+
 export const devVault = {
   tutorialSession: async (id: string, create: boolean) => {
     const path = tutorialSessionRoot(id);
@@ -528,10 +618,23 @@ export const devVault = {
     if (result.status !== "ok" || (await devVault.read(destination)).content !== content)
       throw new Error("The copy could not be verified. The original practice is kept.");
   },
-  tutorialTrash: async (id: string) => {
+  tutorialTrash: async (id: string, note?: string) => {
     const path = tutorialSessionRoot(id);
     if (openAt === path || openAt.startsWith(path + "/"))
       throw new Error("Stop this practice before moving it to Trash.");
+    if (ipadRecord()) {
+      const bytes = new Map<string, string>();
+      for (const [k, v] of OUTSIDE)
+        if (k.startsWith(path + "/")) bytes.set(k.slice(path.length + 1), v);
+      const folders = [...dirs]
+        .filter((d) => d.startsWith(path + "/"))
+        .map((d) => d.slice(path.length + 1));
+      keep({ kind: "practice" }, id, id, note, bytes, folders);
+      for (const k of [...OUTSIDE.keys()]) if (k.startsWith(path + "/")) OUTSIDE.delete(k);
+      for (const d of [...dirs]) if (d === path || d.startsWith(path + "/")) dirs.delete(d);
+      persistPractice();
+      return;
+    }
     for (const [key, value] of [...OUTSIDE])
       if (key.startsWith(path + "/")) {
         OUTSIDE.set(TUTORIAL_BASE + "/trash/" + id + key.slice(path.length), value);
@@ -638,13 +741,14 @@ export const devVault = {
   // "a folder I choose" — which is also what a Mac with iCloud off shows.
   cloudRoot: () => delay<string | null>(null),
 
-  open: (path: string): Promise<OpenResult> => {
+  open: (path: string, playId?: string): Promise<OpenResult> => {
     // A folder the mock holds — the sample Plays folder, a play in it, the
     // folder above it, a folder outside it. Anything else (a stale persisted
     // path) opens the sample Plays folder.
     const dir = path.replace(/\/+$/, "");
     const facts = mockFacts(dir);
     openAt = dir === ROOT || (facts.exists && facts.isDir) ? dir : ROOT;
+    openPlayId = playId ?? null;
     return delay({
       root: openAt,
       identity: openAt,
@@ -662,6 +766,8 @@ export const devVault = {
     const key = toKey(dir);
     const inside = absoluteOf(key) + "/";
     const go = (): Promise<VaultEntry[]> => {
+      // A folder iCloud has not brought down lists as nothing is known of it.
+      if (stillInCloud(key)) return delay([]);
       const seen = new Map<string, boolean>();
       const collect = (keys: Iterable<string>, isDir: boolean) => {
         for (const k of keys) {
@@ -696,6 +802,10 @@ export const devVault = {
   read: (rel: string): Promise<ReadResult> => {
     const key = toKey(rel);
     const go = (): Promise<ReadResult> => {
+      if (stillInCloud(key))
+        return Promise.reject(
+          new Error(`${rel} is in iCloud and has not finished downloading yet`),
+        );
       const files = filesFor(key);
       const actual = matchingPath(key, files.keys()) ?? key;
       const content = files.get(actual);
@@ -746,12 +856,88 @@ export const devVault = {
 
   exists: (rel: string): Promise<boolean> => delay(existsSync(toKey(rel))),
 
-  trash: (rel: string): Promise<void> => {
+  trash: (rel: string, note?: string): Promise<void> => {
     const key = toKey(rel);
     const files = filesFor(key);
+    if (ipadRecord()) {
+      // Kept whole in the open play's ring, or the Plays folder's, first.
+      const bytes = new Map<string, string>();
+      for (const [k, v] of files)
+        if (k === key) bytes.set("", v);
+        else if (k.startsWith(key + "/")) bytes.set(k.slice(key.length + 1), v);
+      const folders = [...dirs]
+        .filter((d) => d.startsWith(key + "/"))
+        .map((d) => d.slice(key.length + 1));
+      const ring: TrashRing = openPlayId ? { kind: "play", playId: openPlayId } : { kind: "plays" };
+      keep(ring, rel.slice(rel.lastIndexOf("/") + 1), rel, note, bytes, folders);
+      for (const d of [...dirs]) if (d === key || d.startsWith(key + "/")) dirs.delete(d);
+    }
     for (const k of [...files.keys()]) if (k === key || k.startsWith(key + "/")) files.delete(k);
     if (key.startsWith(TUTORIAL_BASE + "/")) persistPractice();
     return delay(undefined);
+  },
+
+  /** What Proscenium’s Trash keeps, newest first, once what has had its span is gone (trash.rs). */
+  trashList: (): Promise<TrashEntry[]> => {
+    const now = Date.now();
+    for (let i = kept.length - 1; i >= 0; i--) if (kept[i].expiresMs <= now) kept.splice(i, 1);
+    return delay(
+      [...kept]
+        .sort((a, b) => b.deletedMs - a.deletedMs)
+        .map(({ files: _files, folders: _folders, ...entry }) => entry),
+    );
+  },
+
+  /**
+   * Put one entry back, as trash.rs does: a play's or the Plays folder's at
+   * `into`, under the folder open; practice and formats where they belong.
+   * Never over anything: a taken name gives way to one that says so.
+   */
+  trashPutBack: (ring: TrashRing, name: string, into: string | null): Promise<PutBackResult> => {
+    const at = kept.findIndex((k) => ringKey(k.ring) === ringKey(ring) && k.name === name);
+    if (at === -1) return Promise.reject(new Error("It is no longer in Proscenium’s Trash."));
+    const entry = kept[at];
+    const done = (rel: string, wanted: string) => {
+      kept.splice(at, 1);
+      return delay({ rel, renamed: rel !== wanted, note: entry.note });
+    };
+    if (ring.kind === "practice") {
+      const path = tutorialSessionRoot(entry.original);
+      if (existsSync(path))
+        return Promise.reject(new Error("That practice is already in Help & Tutorials."));
+      dirs.add(path);
+      for (const f of entry.folders) dirs.add(`${path}/${f}`);
+      for (const [f, v] of entry.files) OUTSIDE.set(`${path}/${f}`, v);
+      persistPractice();
+      return done(entry.original, entry.original);
+    }
+    if (ring.kind === "formats") {
+      const all = readUserFormats();
+      let n = 0;
+      while (putBackName(entry.original, n, false) in all) n++;
+      const fileName = putBackName(entry.original, n, false);
+      all[fileName] = entry.files.get("") ?? "";
+      writeUserFormats(all);
+      return done(fileName, entry.original);
+    }
+    if (into === null)
+      return Promise.reject(
+        new Error("Where it goes back to was not said, so nothing was put back."),
+      );
+    let n = 0;
+    while (existsSync(toKey(putBackName(into, n, entry.isDir)))) n++;
+    const rel = putBackName(into, n, entry.isDir);
+    const key = toKey(rel);
+    const files = filesFor(key);
+    const now = Date.now();
+    if (entry.isDir) dirs.add(key);
+    for (const f of entry.folders) dirs.add(`${key}/${f}`);
+    for (const [f, v] of entry.files) {
+      const where = f === "" ? key : `${key}/${f}`;
+      files.set(where, v);
+      mtimes.set(where, now);
+    }
+    return done(rel, into);
   },
 
   rename: (from: string, to: string): Promise<void> => {
@@ -1167,6 +1353,7 @@ export const devVault = {
       arch: "browser",
       channel: "browser",
       tracks: ["stable", "beta", "alpha"],
+      testflight: false,
     }),
   /** No Mac here: the stand-in blue, unless a check chooses a colour. */
   systemAccent: (): Promise<string | null> => delay(mockAccent),
@@ -1201,7 +1388,9 @@ export const devVault = {
       path: dir,
       isPlay: facts.playDirs[0]?.dir === dir,
       insidePlay: facts.playDirs.find((d) => d.dir !== dir)?.dir ?? null,
-      providers: [],
+      // Once staged as iCloud Drive's (`mockInCloud`), the sample Plays folder
+      // says so, as an iPad's iCloud folder does.
+      providers: cloudKept && (dir === ROOT || dir.startsWith(ROOT + "/")) ? ["icloud"] : [],
       listable: facts.exists,
     });
   },
@@ -1253,6 +1442,52 @@ export const devVault = {
     nextPick = path;
   },
   /**
+   * One download pass over the open folder (docs/engineering/cross-platform.md#PLAT-69).
+   * A pass asks for what is still in iCloud; by the next, the folder asked for
+   * first has come down, and the rest are still waiting. Nothing waits in a
+   * folder iCloud Drive does not keep.
+   */
+  downloadCloud: (): Promise<CloudDownload> => {
+    // The sample Plays folder, or a play open inside it.
+    const kept = cloudKept && (openAt === ROOT || openAt.startsWith(ROOT + "/"));
+    if (!kept) return delay({ ubiquitous: false, waiting: 0 });
+    if (cloudAsked && !cloudHeld) {
+      inCloud.shift();
+      // What another device changed, asked for by the last pass, is here now,
+      // with no event: an iPad has no watcher.
+      for (const [key, content] of changedInCloud) {
+        store.set(key, content);
+        mtimes.set(key, Date.now());
+      }
+      changedInCloud.clear();
+    }
+    const waiting = inCloud.length + changedInCloud.size;
+    cloudAsked = waiting > 0;
+    return delay({ ubiquitous: true, waiting });
+  },
+  /**
+   * Dev-only: another device changed the file at store key `key` (root-relative)
+   * to `content`, and iCloud has not brought it down yet: it reads as it was,
+   * until a download pass asks for it and the next one finds it here. Also on
+   * `window.__prosceniumChangedInCloud`.
+   */
+  mockChangedInCloud: (key: string, content: string): void => {
+    cloudKept = true;
+    changedInCloud.set(key, content);
+  },
+  /**
+   * Dev-only: the sample Plays folder is in iCloud Drive, and the plays in
+   * `dirs` have not come down to this device yet: each lists as empty and
+   * reads as not finished downloading, until download passes bring it down,
+   * one a pass. `held`: iCloud brings nothing down until this is called again
+   * without it, though the passes still ask. Also on `window.__prosceniumInCloud`.
+   */
+  mockInCloud: (dirs: string[], held = false): void => {
+    cloudKept = true;
+    cloudHeld = held;
+    inCloud.splice(0, inCloud.length, ...dirs);
+  },
+  /**
    * Dev-only: what one of this mock's paths is where the checks run. Here, the
    * path itself; a test build answers its own (scripts/selftest/fixture.mjs).
    * Also on `window.__prosceniumWhere`.
@@ -1286,8 +1521,11 @@ export const devVault = {
     writeUserFormats({ ...readUserFormats(), [fileName]: content });
     return delay(undefined);
   },
-  trashUserFormat: (fileName: string): Promise<void> => {
+  trashUserFormat: (fileName: string, note?: string): Promise<void> => {
     const all = readUserFormats();
+    const content = all[fileName];
+    if (ipadRecord() && content !== undefined)
+      keep({ kind: "formats" }, fileName, fileName, note, new Map([["", content]]), []);
     delete all[fileName];
     writeUserFormats(all);
     return delay(undefined);
@@ -1464,6 +1702,8 @@ if (typeof window !== "undefined") {
   w.__prosceniumOpenFiles = devVault.mockOpenFiles;
   w.__prosceniumOutsideFile = devVault.mockOutsideFile;
   w.__prosceniumNextPick = devVault.mockNextPick;
+  w.__prosceniumInCloud = devVault.mockInCloud;
+  w.__prosceniumChangedInCloud = devVault.mockChangedInCloud;
   w.__prosceniumWhere = devVault.mockWhere;
   w.__prosceniumGate = devVault.mockGate;
   w.__prosceniumHeld = devVault.mockHeld;

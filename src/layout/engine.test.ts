@@ -272,6 +272,29 @@ describe("structure and chrome", () => {
     expect(pages[1].breakBefore?.contd).toBeNull(); // no CONT'D for action
   });
 
+  it("splits a block whole lines at a time when spacing is part of a line", () => {
+    for (const spacing of [0.25, 0.5, 1.5]) {
+      const raw = structuredClone(dgModernRaw) as {
+        elements: Record<string, { spacingBefore?: number }>;
+      };
+      for (const el of Object.values(raw.elements)) el.spacingBefore = spacing;
+      const quarter = spec(raw);
+      quarter.type.lineHeight = 1;
+      for (let lead = 1; lead < 60; lead++) {
+        const d = doc(
+          b("action", multiline(lead, "lead")),
+          b("action", multiline(20)),
+          b("character", "ANNA"),
+          b("dialogue", multiline(20, "speech")),
+        );
+        const { pages } = paginateDoc(d, quarter);
+        const said = pages.flatMap((p) => p.lines.map((l) => l.text));
+        expect(said.filter((t) => t.startsWith("line "))).toHaveLength(20);
+        expect(said.filter((t) => t.startsWith("speech "))).toHaveLength(20);
+      }
+    }
+  });
+
   it("resolves header tokens from the page-start state", () => {
     const raw = structuredClone(dgModernRaw) as Record<string, unknown>;
     (raw.header as Record<string, unknown>).content = {
@@ -631,5 +654,136 @@ describe("comments are print-invisible in full (docs/app/writing/comments.md#COM
     const e = paginateDoc(empty, DG);
     const f = paginateDoc(flat, DG);
     expect(e.pages[0].lines.length).toBeGreaterThan(f.pages[0].lines.length);
+  });
+});
+
+/**
+ * The format's minimum lines on either side of a break hold for the paragraph
+ * the break falls in, so a speech or a stage direction never leaves the
+ * opening word of a paragraph alone at the foot of a page
+ * (docs/app/formatting/formats-and-layout.md#FMT-158).
+ */
+describe("a split keeps each paragraph's minimum lines", () => {
+  type Pages = ReturnType<typeof paginateDoc>["pages"];
+  const SPEECH = [
+    "The first ones had a warmth to them, clumsy and strange, and these feel like a hotel lobby at noon.",
+    "",
+    "I want to win this one.",
+    "",
+    "So",
+    "I am going to walk in there and let it do the whole routine, the soup and the story about my uncle. Then I will stand up and leave.",
+  ].join("\n");
+
+  function filler(n: number): BlockNode {
+    return b("action", Array.from({ length: n }, (_, i) => `Filler ${i + 1}.`).join("\n"));
+  }
+
+  function linesOf(pages: Pages, type: BlockNode["type"]) {
+    return pages.map((p) => p.lines.filter((l) => l.type === type && l.kind === "text"));
+  }
+
+  function words(pages: Pages, type: BlockNode["type"]): string {
+    return linesOf(pages, type)
+      .flat()
+      .map((l) => l.text)
+      .join("")
+      .replace(/\s+/g, "");
+  }
+
+  /** Every break inside a block: the lines of its paragraph on each side, 0 when it falls between two. */
+  function paragraphSides(pages: Pages, type: BlockNode["type"]): [number, number][] {
+    const each = linesOf(pages, type);
+    const sides: [number, number][] = [];
+    for (let i = 0; i + 1 < each.length; i++) {
+      const here = each[i];
+      const there = each[i + 1];
+      if (
+        !here.length ||
+        !there.length ||
+        here[here.length - 1].sourceIndex !== there[0].sourceIndex
+      )
+        continue;
+      let before = 0;
+      for (let k = here.length - 1; k >= 0 && here[k].text.trim(); k--) before++;
+      let after = 0;
+      for (let k = 0; k < there.length && there[k].text.trim(); k++) after++;
+      sides.push(before && after ? [before, after] : [0, 0]);
+    }
+    return sides;
+  }
+
+  it("leaves no lone opening line at the foot of a page, wherever the page falls", () => {
+    let splits = 0;
+    for (let n = 1; n <= 60; n++) {
+      const { pages } = paginateDoc(
+        doc(filler(n), b("character", "MARA"), b("dialogue", SPEECH)),
+        DG,
+      );
+      for (const [before, after] of paragraphSides(pages, "dialogue")) {
+        splits++;
+        if (before || after) {
+          expect(before).toBeGreaterThanOrEqual(2);
+          expect(after).toBeGreaterThanOrEqual(2);
+        }
+      }
+      for (const page of linesOf(pages, "dialogue"))
+        expect(page[page.length - 1]?.text.trim()).not.toBe("So");
+      expect(words(pages, "dialogue")).toBe(SPEECH.replace(/\s+/g, ""));
+    }
+    expect(splits).toBeGreaterThan(5);
+  });
+
+  it("carries a one-line opener over with the paragraph it opens", () => {
+    const opensNext = (k: number) =>
+      linesOf(
+        paginateDoc(doc(filler(k), b("character", "MARA"), b("dialogue", SPEECH)), DG).pages,
+        "dialogue",
+      )[1]?.[0]?.text === "So";
+    const n = Array.from({ length: 60 }, (_, i) => i + 1).find(opensNext);
+    expect(n).toBeDefined();
+    const { pages } = paginateDoc(
+      doc(filler(n ?? 0), b("character", "MARA"), b("dialogue", SPEECH)),
+      DG,
+    );
+    const foot = pages[0].lines.filter((l) => l.type === "dialogue");
+    expect(foot[foot.length - 1]?.text).toBe("");
+    expect(foot[foot.length - 2]?.text).toBe("I want to win this one.");
+    expect(pages[1].lines[0].text).toBe("MARA (CONT'D)");
+    expect(pages[1].lines[1].text).toBe("So");
+  });
+
+  it("holds a stage direction's paragraphs to the same minimums", () => {
+    const direction = [
+      "The lights come up slowly on an empty kitchen, a kettle ticking as it cools on the stove.",
+      "",
+      "Then",
+      "the back door opens and a figure stands in it for a long moment, not coming in, not leaving, and the kettle goes quiet.",
+    ].join("\n");
+    let splits = 0;
+    for (let n = 1; n <= 60; n++) {
+      const { pages } = paginateDoc(doc(filler(n), b("action", direction)), DG);
+      for (const [before, after] of paragraphSides(pages, "action")) {
+        splits++;
+        if (before || after) {
+          expect(before).toBeGreaterThanOrEqual(2);
+          expect(after).toBeGreaterThanOrEqual(2);
+        }
+      }
+      expect(words(pages, "action")).toContain(direction.replace(/\s+/g, ""));
+    }
+    expect(splits).toBeGreaterThan(0);
+  });
+
+  it("still splits a paragraph longer than the page", () => {
+    const endless = Array.from({ length: 900 }, (_, i) => `word${i}`).join(" ");
+    const { pages } = paginateDoc(doc(b("character", "EVA"), b("dialogue", endless)), DG);
+    expect(pages.length).toBeGreaterThan(1);
+    expect(words(pages, "dialogue")).toBe(endless.replace(/\s+/g, ""));
+  });
+
+  it("ends a song at any line", () => {
+    const song = Array.from({ length: 80 }, (_, i) => `la la ${i}`).join("\n");
+    const { pages } = paginateDoc(doc(filler(30), b("character", "EVA"), b("lyric", song)), DG);
+    expect(linesOf(pages, "lyric").flat()).toHaveLength(80);
   });
 });

@@ -26,9 +26,13 @@
  *   node scripts/release-app-store.mjs submit --version X.Y.Z --n N [--dry-run] [--out <dir>]
  *        upload N's build submitted for App Review with the release's What's New, the
  *        listing and the screenshots (scripts/app-store-connect.mjs); --dry-run, a
- *        stand-in's, makes all of it and sends none
+ *        stand-in's, makes all of it and sends none. An earlier version waiting for
+ *        review, in review, or approved and on its way to sale is waited for, never
+ *        cancelled: nothing is sent, and the release machine sends it once that is on sale
  *   node scripts/release-app-store.mjs review --version X.Y.Z
  *        App Review's answer, as JSON, for the release machine's watch
+ *   node scripts/release-app-store.mjs blocking --version X.Y.Z
+ *        whether another version is in the way of X.Y.Z's submission, as JSON
  *   node scripts/release-app-store.mjs material
  *        what the build host has of the store's material, by name, never a value
  *
@@ -85,6 +89,7 @@ import { fileURLToPath } from "node:url";
 import {
   apiOf,
   appOf,
+  inTheWay,
   makeProfile,
   profileDue,
   putOf,
@@ -878,7 +883,10 @@ async function submit() {
     // the release machine refused it as another version's, 2026-10-23).
     `${JSON.stringify({ ...done, versionId: done.version, buildId: done.build, version, build: number }, null, 2)}\n`,
   );
-  console.log(`  submission ${done.submission}: ${done.state}`);
+  // Waiting on an earlier version in review, or approved and on its way to
+  // sale: nothing was sent, and the release machine tries again once it is.
+  if (done.waiting) console.log(`  waiting: ${done.waiting.version} is ${done.waiting.appState}`);
+  else console.log(`  submission ${done.submission}: ${done.state}`);
 }
 
 /** App Review's answer for `--version`, as JSON on standard output, for the release machine. */
@@ -892,6 +900,31 @@ async function review() {
     version: opt("--version"),
   });
   console.log(JSON.stringify(said));
+}
+
+/**
+ * Whether another version is in App Store Connect's way of `--version`'s
+ * submission, as JSON on standard output (`{ blocking }`, null when the way
+ * is clear), for the release machine's watch, which sends a release that
+ * waited once the way is clear: the earlier version on sale, or rejected.
+ */
+async function blocking() {
+  const key = apiKey();
+  if (!key) fail("the release keychain has no App Store Connect API key");
+  const conf = JSON.parse(readFileSync(join(ROOT, "src-tauri/tauri.conf.json"), "utf8"));
+  const api = apiOf(key);
+  const app = await appOf(api, conf.identifier);
+  const r = await api(
+    "GET",
+    `/v1/apps/${encodeURIComponent(app.id)}/appStoreVersions?filter[platform]=MAC_OS&limit=200`,
+  );
+  if (r.status !== 200) fail(`App Store Connect answered ${r.status} for the versions`);
+  const way = inTheWay(r.json?.data ?? [], opt("--version"));
+  console.log(
+    JSON.stringify({
+      blocking: way?.wait ? { version: way.wait.version, appState: way.wait.appState } : null,
+    }),
+  );
 }
 
 async function material() {
@@ -915,12 +948,13 @@ async function material() {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const command = args[0];
-  const commands = { build, submit, review, material };
+  const commands = { build, submit, review, blocking, material };
   if (!commands[command]) {
     console.error(
       "usage: node scripts/release-app-store.mjs build --version X.Y.Z --n N [--upload | --stand-in] [--out <dir>]\n" +
         "       node scripts/release-app-store.mjs submit --version X.Y.Z --n N [--dry-run] [--out <dir>]\n" +
         "       node scripts/release-app-store.mjs review --version X.Y.Z\n" +
+        "       node scripts/release-app-store.mjs blocking --version X.Y.Z\n" +
         "       node scripts/release-app-store.mjs material",
     );
     process.exit(2);

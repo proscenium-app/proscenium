@@ -1,4 +1,5 @@
 - dialog "Settings"
+  - button "Close"
   - heading "Settings" [level=2]
   - tablist "Settings sections"
     - tab "General" [selected]
@@ -69,6 +70,5 @@
     - textbox "New status"
     - button "Add Status" [disabled]
     - paragraph [live=polite]
-  - button "Done"
   - status [live=polite]
   - alert [live=assertive]

@@ -33,7 +33,8 @@
    is at least 260px — at 210 a summary of two sentences was most of the card. */
 .board__cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* Never wider than the board: a third of a Split View is narrower than a card. */
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
   gap: var(--s-6);
 }
 /* Down: an act is a column, its scenes one under another, the acts side by
@@ -244,9 +245,14 @@
   opacity: 0;
   transition: opacity var(--motion);
 }
-.card:hover .card__addnote,
 .card__addnote:focus {
   opacity: 1;
+}
+/* A finger sees it at once (touch-controls.css). */
+@media (hover: hover) {
+  .card:hover .card__addnote {
+    opacity: 1;
+  }
 }
 .card__addnote:hover {
   color: var(--accent-text);

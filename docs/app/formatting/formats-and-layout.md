@@ -29,12 +29,12 @@ reproductions. The receiving theatre's requirements take precedence.
 
 | Built-in | Published guide and sample | Encoded treatment | Requirement |
 | --- | --- | --- | --- |
-| Dramatists Guild Modern | [Modern Play Format](https://www.dramatistsguild.com/sites/default/files/2019-12/modernformat-New.pdf) | Letter, binding margin 1.5, other margins 1; cue and upright block directions at 4, parentheticals at 3.5, full-width dialogue. Courier 12/14.4 substitutes for the sample's proportional type. | <a id="FMT-3"></a>FMT-3 |
-| UK / International (BBC) | [BBC Writersroom Stage Format, Matt Carless, 6 February 2004](https://downloads.bbc.co.uk/writersroom/scripts/stage.pdf), pp. 2–3 | A4, one-inch margins, 12-point single-spaced Courier. Cue at 1, dialogue at 2.5 on the same row, capitalized directions at 3.5. Act and scene share a row; a standalone scene returns to the left margin. New acts/scenes start sheets. Bottom-centred `-1-` page numbers include the first script page. | <a id="FMT-4"></a>FMT-4 |
-| Dramatists Guild Traditional | [Traditional Play Format](https://www.dramatistsguild.com/sites/default/files/2020-01/traditionalformat-New.pdf), annotated excerpt from *Not About Nightingales* | Letter; binding margin 1.5, other margins 1. Cue begins at 4, speech at 1.5, directions at 3, parentheticals at 3.5. Directions are roman and parenthesized. | <a id="FMT-5"></a>FMT-5 |
-| Dramatists Guild Musical | [Musical Format](https://www.dramatistsguild.com/sites/default/files/2019-12/musicalformat-New.pdf), annotated excerpt from *Applause* | Traditional speech geometry; uppercase, roman lyrics indented from dialogue. Soft line breaks preserve phrasing inside a stanza; separate lyric blocks leave a blank row. Dual cues pair sung as well as spoken passages. | <a id="FMT-6"></a>FMT-6 |
-| Samuel French / Concord Manuscript | [Samuel French Formatting Guide](https://www.dramatistsguild.com/sites/default/files/2020-01/General-SFI-Formatting-Guidelines-Complete.pdf), seven-page guide with manuscript sample | Bound submission margins, 12-point Courier, cues at 3.5, directions three indents from the left margin, indented uppercase lyrics. New scenes start sheets, a scene immediately following an act stays with it. Scene headings are underlined. Title starts halfway down; contact details sit at the lower right. Continuous script-page numbers and `(Cont.)` cues. | <a id="FMT-7"></a>FMT-7 |
-| Sketch Comedy — Sketchworks | [Sketchworks Comedy formatting sample](https://www.sketchworkscomedy.com/downloads/Sketch-Formatting-Sample.pdf) | Letter, one-inch margins, Courier 12/13.6; bold left title, byline, date, characters and setting on page one. Cues at 3.5, dialogue at 2.5 in a 3.5-inch column, italic parentheticals at 3, full-width action. Right-aligned end cues and page numbers, including page one. | <a id="FMT-8"></a>FMT-8 |
+| Dramatists Guild Modern | [Modern Play Format](https://www.dramatistsguild.com/sites/default/files/2019-12/modernformat-New.pdf) | Letter, binding margin 1.5, other margins 1; cue and upright block directions at 4, parentheticals at 3.5, full-width dialogue. Courier 12/14.4 substitutes for the sample's proportional type. Character names in directions go to capitals as typed ([FMT-163](#FMT-163)): the sample writes MRS. BRISTOL in capitals inside a direction, at her entrance (p. 16), and names no rule. | <a id="FMT-3"></a>FMT-3 |
+| UK / International (BBC) | [BBC Writersroom Stage Format, Matt Carless, 6 February 2004](https://downloads.bbc.co.uk/writersroom/scripts/stage.pdf), pp. 2–3 | A4, one-inch margins, 12-point single-spaced Courier. Cue at 1, dialogue at 2.5 on the same row, capitalized directions at 3.5. Act and scene share a row; a standalone scene returns to the left margin. New acts/scenes start sheets. Bottom-centred `-1-` page numbers include the first script page. Character names in directions are left as typed ([FMT-163](#FMT-163)): the directions print in capitals already, so capitals typed would change only the script's text. | <a id="FMT-4"></a>FMT-4 |
+| Dramatists Guild Traditional | [Traditional Play Format](https://www.dramatistsguild.com/sites/default/files/2020-01/traditionalformat-New.pdf), annotated excerpt from *Not About Nightingales* | Letter; binding margin 1.5, other margins 1. Cue begins at 4, speech at 1.5, directions at 3, parentheticals at 3.5. Directions are roman and parenthesized. Character names in directions go to capitals as typed ([FMT-163](#FMT-163)), as in the Guild's other American formats and the Samuel French guide it links. The excerpt itself leaves a name in its own case, in “(Jim takes two.)” (p. 16), and names no rule. | <a id="FMT-5"></a>FMT-5 |
+| Dramatists Guild Musical | [Musical Format](https://www.dramatistsguild.com/sites/default/files/2019-12/musicalformat-New.pdf), annotated excerpt from *Applause* | Traditional speech geometry; uppercase, roman lyrics indented from dialogue. Soft line breaks preserve phrasing inside a stanza; separate lyric blocks leave a blank row. Dual cues pair sung as well as spoken passages. Character names in directions go to capitals as typed ([FMT-163](#FMT-163)), as for Traditional. The excerpt itself leaves names in their own case in its parentheticals, “(to Margo)” (p. 56), and names no rule. | <a id="FMT-6"></a>FMT-6 |
+| Samuel French / Concord Manuscript | [Samuel French Formatting Guide](https://www.dramatistsguild.com/sites/default/files/2020-01/General-SFI-Formatting-Guidelines-Complete.pdf), seven-page guide with manuscript sample | Bound submission margins, 12-point Courier, cues at 3.5, directions three indents from the left margin, indented uppercase lyrics. New scenes start sheets, a scene immediately following an act stays with it. Scene headings are underlined. Title starts halfway down; contact details sit at the lower right. Continuous script-page numbers and `(Cont.)` cues. Character names in directions go to capitals as typed ([FMT-163](#FMT-163)): the guide says “characters' names in directions are in ALL CAPS” (p. 2), and its sample writes “(Exit JOHN, left.)” after John has spoken (p. 7). Its At Rise placeholder is the one exception. | <a id="FMT-7"></a>FMT-7 |
+| Sketch Comedy — Sketchworks | [Sketchworks Comedy formatting sample](https://www.sketchworkscomedy.com/downloads/Sketch-Formatting-Sample.pdf) | Letter, one-inch margins, Courier 12/13.6; bold left title, byline, date, characters and setting on page one. Cues at 3.5, dialogue at 2.5 in a 3.5-inch column, italic parentheticals at 3, full-width action. Right-aligned end cues and page numbers, including page one. Character names in directions go to capitals as typed ([FMT-163](#FMT-163)): the sample's one action line with a name writes CHARACTER 1 in capitals after that character has spoken, and names no rule. | <a id="FMT-8"></a>FMT-8 |
 
 <a id="FMT-9"></a>
 
@@ -167,6 +167,22 @@ not collapse margins like paragraphs. The engine, export preview and PDF
 consume the same positions. Continuations retain source positions, and cues
 travel with speech at a page boundary. Act/scene headings stay together.
 
+<a id="FMT-158"></a>
+
+**FMT-158** The format's minimum lines on either side of a page break hold
+for the paragraph the break falls in, as well as for the speech or stage
+direction. A paragraph is a run of lines with no empty line in it, and a
+break between two paragraphs keeps every minimum. So a speech whose last
+paragraph opens with a short line, `And` over the rest, never leaves that
+word alone at the foot of a page under the paragraphs above it: the page ends
+at the empty line before it, and the paragraph opens the next page under the
+continued cue. Of the breaks that keep the minimums, the engine takes the
+lowest that puts words on the next page's first line, then the lowest that
+opens it with an empty line. Where none is on the page the block moves to the
+next page whole, as a speech too short to split always has. A paragraph
+taller than a fresh page splits where the page ends. A song keeps the rule
+it had: a lyric may end a page at any line.
+
 <a id="FMT-30"></a>
 
 **FMT-30** `suffix` adds printed punctuation, `underline` sets element-level underlining,
@@ -247,6 +263,7 @@ plays keep their id and reflow with the revised preset.
 | Transition | Right-aligned, ALL CAPS | <a id="FMT-51"></a>FMT-51 |
 | Lyrics | Uppercase, inset half an inch; blank row between stanzas | <a id="FMT-52"></a>FMT-52 |
 | Page numbers | Top right on every script page | <a id="FMT-53"></a>FMT-53 |
+| Names in directions | Capitals as typed ([FMT-163](#FMT-163)): an American stage style, which capitalizes a character's name in a direction every time, as the Samuel French guide does ([FMT-7](#FMT-7)) | <a id="FMT-164"></a>FMT-164 |
 
 <a id="EDIT-D103"></a>
 
@@ -259,11 +276,12 @@ plays keep their id and reflow with the revised preset.
 1. <a id="FMT-55"></a> **FMT-55** **Title page** — Title (centered), author/credit, contact + draft date (lower left).
 2. <a id="FMT-56"></a> **FMT-56** **Character page** — heading **CHARACTERS** (or "CAST OF CHARACTERS"); the cast list with brief descriptions.
 3. <a id="FMT-57"></a> **FMT-57** **Opening notes** — optional prose for setting, time, place, dedication or other introductory text. Writers can put it before or after Characters.
-4. <a id="FMT-58"></a> **FMT-58** **AT RISE** — at the top of the first scene, a stage direction beginning "AT RISE:" describing what the audience sees as the lights come up.
+4. <a id="FMT-160"></a> **FMT-160** **Production notes** — optional notes for whoever stages the play, on a sheet of their own after every other opening page, so they are the last thing read before the script. The sheet is headed **PRODUCTION NOTES**, centered in the format's heading style, with the writer's notes under it at the format's heading and field gaps. Notes with no word to print make no page and no lone heading. Long notes continue on more unnumbered sheets, and a heading in them travels with the line under it. A format with an inline opening ends the opening with them, the heading at the left. [Why, and how they are edited and exported](#FMT-D110).
+5. <a id="FMT-58"></a> **FMT-58** **AT RISE** — at the top of the first scene, a stage direction beginning "AT RISE:" describing what the audience sees as the lights come up.
 
 <a id="FMT-59"></a>
 
-**FMT-59** The title and notes are edited through **Edit Opening Pages**. The title can use structured fields or custom prose. The editable **Characters Page** sits above **Cast Tools**, and becomes independent of cast management after a writer edits it. In page view, a double-click on the Characters sheet opens Cast with the cursor where that line is edited: the description of the character double-clicked, or, on a page the writer has edited, that paragraph of it. A single click does nothing there, so a stray click on the way to the first scene stays in the script. Writers can return to an automatically generated page. Prose supports headings, bold, italic, lists and paragraph alignment. These values remain in the Fountain title page, using the extension fields documented in docs/app/keeping-work/storage-and-file-format.md#STOR-D6, with AT RISE as the opening stage direction. Exact serialization in [`fountain-data-model.md`](../../engineering/fountain-model.md#FOUN-D107). Because all of this is Fountain-expressible, it is canonical in the `.fountain` file, not a sidecar (storage rule 3).
+**FMT-59** The title page and the notes are edited in **Cast & Pages** ([FMT-167](#FMT-167)), and the Characters page and the notes pages on their own sheets in page view too ([FMT-165](#FMT-165)). The title can use structured fields or custom prose. The editable **Characters Page** comes before the notes pages and **Cast Tools**, and its character lines and the cast list are one list, kept in step both ways ([FMT-166](#FMT-166)). In page view, a double-click on the Characters sheet edits it on the page, with the cursor in the line double-clicked: that character's line of a page made from the cast list, or, on a page the writer has edited, that paragraph of it ([FMT-165](#FMT-165)). A single click does nothing there, so a stray click on the way to the first scene stays in the script. Writers can return to an automatically generated page. Prose supports headings, bold, italic, lists and paragraph alignment. These values remain in the Fountain title page, using the extension fields documented in docs/app/keeping-work/storage-and-file-format.md#STOR-D6, with AT RISE as the opening stage direction. Exact serialization in [`fountain-data-model.md`](../../engineering/fountain-model.md#FOUN-D107). Because all of this is Fountain-expressible, it is canonical in the `.fountain` file, not a sidecar (storage rule 3).
 
 <a id="FMT-60"></a>
 
@@ -272,6 +290,144 @@ with every front-sheet line and position. Long titles, contact details, cast
 entries and setting text continue onto additional unnumbered sheets. Spacing
 and type styles come from the format's `frontMatter` fields; the export dialog
 counts the actual sheets. Short cast entries stay together when they fit.
+
+<a id="FMT-D110"></a>
+
+#### Production notes
+
+A play's production notes tell whoever stages it what the script assumes: how
+the parts double, what the set needs or can do without, the music, how the text
+marks overlapping lines. The Dramatists Guild's
+[script formats](https://www.dramatistsguild.com/script-formats) call
+themselves guidelines, not requirements, and put a page of character breakdown
+between the title page and the first page of the play. The Samuel French guide
+the Guild links from that page adds time and place notes, and any doubling,
+with the cast after the cover. Neither names a heading or a place for
+production notes. So they follow every page those guides describe, as the last
+page before the script, under the plain heading the page's purpose gives it.
+Many plays have none, so the page is optional and a play prints none until the
+writer fills it.
+
+<a id="FMT-161"></a>
+
+**FMT-161** Cast & Pages has a **Production Notes** section under
+Opening Notes ([FMT-167](#FMT-167)), with the same prose editor: headings,
+bold, italic, lists and paragraph alignment. Its note names the heading the
+page prints under. The notes are saved as they are typed, and kept only when
+they hold a word that prints. In page view a double-click on the production
+notes, or on the opening notes, edits them on the page ([FMT-165](#FMT-165)),
+with the caret in the block that printed the line hit: that paragraph, or the
+list that holds it. On the
+page's own heading, or between lines, it opens at the top of that page's text.
+A single click does nothing there, as on the Characters sheet
+([FMT-59](#FMT-59)). The notes are kept in the Fountain title page as
+`Production Notes Text`
+([docs/engineering/fountain-model.md#EDIT-199](../../engineering/fountain-model.md#EDIT-199)).
+
+<a id="FMT-165"></a>
+
+**FMT-165** **The Characters page, the opening notes and the production notes
+are edited where they stand.** In page view a double-click on one of those
+sheets turns it into an editor on the page: the prose editor and formatting
+bar that Cast & Pages uses, the editor on the sheet the page prints on, which
+grows with what is typed and is never shorter than a page, and the bar at the
+top of the script in the element bar's place, on the desk with the app's
+other tools rather than on the paper. What is typed is
+saved as it is typed, as Cast saves the Characters page; the script is not
+changed and its undo is not touched, and the page's editor has an undo of its
+own. Done, Esc, or a click into the script lays the page out again, and the
+script has the keyboard where its caret was. A Characters page still made from
+the cast list says that its names in bold are the cast list
+([FMT-166](#FMT-166)). A click on the title page opens Cast & Pages at the
+title page ([FMT-167](#FMT-167)). A format whose opening is on the first page of the script
+([FMT-114](#FMT-114)) has no sheet of its own to edit there.
+
+The editor is drawn in the page's place by the pagination plugin
+(`editingFront`, `src/editor/pagination.ts`) as one widget whose element is
+made once (`frontEditHost`), so it is the same element through every layout
+while the page is edited, and the script ignores its keys and its selection
+(`stopEvent`, `ignoreSelection`). The page's editor is mounted in it from the
+app (`src/app/FrontSheetEditor.tsx`), which keeps the editor out of the
+script's own module.
+
+<a id="FMT-166"></a>
+
+**FMT-166** **The Characters page and the cast list are one list, kept in step
+both ways.** A writer who would rather type the cast on the page than fill in
+rows can: on the Characters page, a paragraph that begins with a name in bold
+is that character's line, and what follows a dash, a colon or a comma is the
+description. Typed there, on the page in page view or in Cast & Pages, the
+lines are the cast list: its names, descriptions and order follow the page as
+it is typed. Changed in the cast rows (a description, a name, an order, a row
+added or removed) or by a speaker the play adds by themselves, the page
+follows the list: each character's line stands where a character's line
+stood, in the list's order, a new one after the last and a removed one gone,
+and a line that already says what the list says keeps its own wording and
+emphasis. Every other block on the page (headings, notes, a list of doubling)
+is the writer's prose and is never touched. A page that leads no line with a
+name in bold is prose of the writer's own, and neither side changes the
+other. A speaker whose line is taken off the page is taken off the cast list
+for good, as Cast's remove does, so the play does not put them back; one put
+back on the page is let back. **Use Cast List Automatically** and **Replace
+Page from Cast List** stay under Page Options. `castFromPage` and
+`pageWithCast` (`src/markdown/characters-page.ts`) are the two directions,
+and the workspace's `saveCharactersPage` and `saveCharacters` the one place
+each is applied.
+
+<a id="FMT-167"></a>
+
+**FMT-167** **Cast & Pages is the home of every page before the script.** The
+fourth view in the top bar (⌘4), named Cast until 2026-11, holds in the order
+they print: the **Title Page** (its fields, or the page written freely), the
+**Characters Page**, **Opening Notes** and **Production Notes**, then **Cast
+Tools** and the presence grid, with a row at the top to go to each. Each of the
+two optional pages has a switch that puts it in the play. On, its editor is
+there to write in, and until it holds a word to print it stands in the script's
+page view as a sheet that says where its words go, which a double-click edits
+on the page ([FMT-165](#FMT-165)); a page with no word to print never prints
+([FMT-160](#FMT-160)), and one turned on and left empty is off again when the
+play is opened next. Off takes the page and its words out of the play, after
+asking when it has words; Versions keeps the script as it was. Everything is
+saved as it is written: a field when it is left, a page's text as it is typed.
+**Edit Opening Pages…** in the document menu and the Script menu, and a click
+on the title sheet, open Cast & Pages at the title page; a double-click on any
+other page edits it where it stands. The Opening Pages sheet these replace is
+gone: it was found only from the document menu, and it held the pages apart
+from both the script and the cast.
+
+<a id="FMT-168"></a>
+
+**FMT-168** **Going back to the title page's fields asks first.** Turning off
+**Write the title page freely** in Cast & Pages drops the page as written, and
+the title page prints from its fields again. When the page holds words the
+fields would not print, an alert asks first, as an optional page's switch does
+([FMT-167](#FMT-167)): "Remove the title page you wrote?" Cancel keeps the
+page, Remove takes it, and Versions keeps the script as it was. A page switched
+on and not written goes back to the fields at once. Every page's editor in
+Cast & Pages fills its box, so a click anywhere in an empty page puts the caret
+in it.
+
+<a id="FMT-162"></a>
+
+**FMT-162** Export PDF, Export .docx, Export .odt and Print list **Production
+notes** among the opening pages under **Include**. Like the others, it starts
+ticked for a script that starts at page 1 and unticked for an excerpt or
+sides, and the writer can tick or untick it for any export. The preview names
+the sheet "Production notes", and a PDF viewer's page labels name it
+"Production" ([FMT-159](#FMT-159)). The PDF tags its heading and paragraphs as
+it tags the other opening pages' ([FMT-61](#FMT-61)); a .docx or .odt sets them
+in Opening Heading and Opening Text, on a page of their own
+([FMT-150](#FMT-150)). An Anonymous copy keeps the notes, and the dialog's
+search for the writer's name reads them as it reads every sheet going out
+([FMT-144](#FMT-144)).
+
+Unit tests hold the sheet's place and order under every built-in format with
+separate sheets, its heading, gaps and paragraph ids, notes that print nothing,
+long notes over several sheets, the inline opening, the export plan's names and
+page labels, the .docx and .odt model, and the block a double-clicked line
+opens at. A shared smoke check fills the section from the keyboard, finds the
+sheet in page view and in each export dialog's preview, leaves it out of an
+export, double-clicks it back into the editor, and empties it.
 
 <a id="EDIT-D104"></a>
 
@@ -303,6 +459,16 @@ verification remains a separate check. No PDF/UA conformance is claimed.
 
 **FMT-63** Structure follows [ISO 32000 logical structure](https://pdf-issues.pdfa.org/32000-2-2020/clause14.html).
 
+<a id="FMT-159"></a>
+
+**FMT-159** A PDF's page labels are the numbers the script prints, so a
+viewer's sidebar, page field and "Go to page" agree with the paper and the
+editor's "Page N of M". Script pages are labelled with their printed page
+number, an excerpt from its first page, and a gap in an excerpt starts again at
+the page after it. Front sheets carry the names the export preview gives them
+("Title", "Characters 2") and never a number, so a title page does not move
+the script's numbers on by one.
+
 <a id="FMT-D108"></a>
 
 ### Anonymous copies
@@ -319,8 +485,8 @@ the dialog opens and is never saved with the play. When it is on, the title
 page leaves out the byline, authors and contact details, `{author}` prints
 nothing in a header or footer, and the file's properties name no author. A
 title page written as prose cannot be taken apart safely, so the copy prints
-the title alone in its place. The title, draft date, cast and opening notes
-remain. The preview shows the copy, and the suggested file name ends
+the title alone in its place. The title, draft date, cast, opening notes and
+production notes remain. The preview shows the copy, and the suggested file name ends
 `(anonymous)`.
 
 <a id="FMT-144"></a>
@@ -533,7 +699,8 @@ play are exported, rendered to PDF by a word processor and checked by eye.
      `II-3-67` or `2-3-67` — as ordinary tokens the writer can still edit.
    - <a id="FMT-70"></a> **FMT-70** **Elements:** one row per element type — indent from margin, maximum
      width, alignment, capitals, style, spacing before and after. Each element
-     is named the way the element bar names it.
+     is named the way the element bar names it. The Action row also has
+     **Character names in capitals as you type** ([FMT-163](#FMT-163)).
    - <a id="FMT-71"></a> **FMT-71** **Pagination:** the continued marker, whether a cue repeats after a split,
      and the minimum dialogue and action lines on either side of a break.
    - <a id="FMT-72"></a> **FMT-72** **Dual dialogue:** the gutter.
@@ -560,7 +727,9 @@ play are exported, rendered to PDF by a word processor and checked by eye.
    - <a id="FMT-84"></a> **FMT-84** **Import…** validates a `.json` and copies it in.
    - <a id="FMT-85"></a> **FMT-85** **Export…** saves one to share with a theatre, or to contribute to
      `formats/`.
-   - <a id="FMT-86"></a> **FMT-86** **Delete** moves a user format to the Trash. A play that used it falls back
+   - <a id="FMT-86"></a> **FMT-86** **Delete** moves a user format to the Trash, or on a system with no trash
+     of its own, to Proscenium’s Trash
+     ([docs/engineering/cross-platform.md#PLAT-16](../../engineering/cross-platform.md#PLAT-16)). A play that used it falls back
      to the default, and the writer is told which play.
 6. <a id="FMT-87"></a> **FMT-87** **Accessibility.**
    - <a id="FMT-88"></a> **FMT-88** Every field has a visible label and a unit.
@@ -771,6 +940,7 @@ omitted and default to non-printing: `synopsis`, `pageBreak`, `boneyard`.
 | `startsNewPage` (false) | bool | Force a page break before this element | <a id="FMT-133"></a>FMT-133 |
 | `tightStack` (false) | bool | Zero gap between consecutive blocks of the same type (lyric stanzas) | <a id="FMT-134"></a>FMT-134 |
 | `print` (true) | bool | Excluded from pagination/print when false (synopsis, boneyard) | <a id="FMT-135"></a>FMT-135 |
+| `capitalizeCastNames` (false) | bool, `action` only | A character's name typed in a stage direction or a parenthetical goes to capitals as it is typed ([docs/app/writing/editor-ux.md#EDIT-202](../writing/editor-ux.md#EDIT-202)). A rule for typing, not printing: the script holds the capitals. Refused on any other element | <a id="FMT-163"></a>FMT-163 |
 
 <a id="FMT-136"></a>
 
@@ -802,6 +972,8 @@ to start a sheet stay with an immediately preceding act heading.
 `formats/*.json` supplies all page geometry, element metrics and pagination policy. Validation, defaults, serialization and CSS generation live in `src/format/`; the designer in `src/app/formats/` edits that same schema.
 
 `src/layout/engine.ts` is the single paginator. The editor, export preview and `src/pdf/` consume its positions, including opening pages and continuations. Font metrics come from bundled Courier Prime. The PDF exporter adds reading structure without recomputing line or page breaks.
+
+The pages before the script reach the paginator as a list of pages of blocks (`src/layout/front-pages.ts`): which pages a play prints, in order, and each paragraph with its gap, style, alignment and id already chosen from the format. One loop, `layoutFrontPages`, lays out every page: a title page from a third of the paper down, the rest from the section top, each wrapping on the script's grid, continuing onto more sheets, and a title page's contact block set at its foot. The same pages flow as the compact opening of an inline format. `frontPagesOf` reads the front matter's fields and texts into those pages, and `src/layout/front-pages.test.ts` holds the loop to the four hand-written sheets it replaced, line for line, under every built-in format.
 
 `src/wordproc/` writes the .docx and .odt files ([FMT-145](#FMT-145) to [FMT-157](#FMT-157)). `model.ts` builds one document model that both writers serialize, and it decides nothing about layout. What goes in comes from `paginateDoc`: the text lines on the chosen pages, merged back into their paragraphs, so an excerpt holds exactly the words of those PDF pages. The text itself comes from `blocksFromDoc` under the same format with capitals and element underlining left to the style. The engine's uppercase keeps every string's length, so its line offsets index the same text. Front sheets come from `paginateFrontMatter`, whose lines carry their paragraph's whole text and alignment for writers that flow text. Act and scene numbers come from `numberHeadings` in `src/layout/furniture.ts`, the function the paginator uses. Dual pairs are found by the engine's own pairing rule. `docx.ts` writes WordprocessingML: the document, styles, settings, a font table with the four faces obfuscated as ECMA-376 requires, one header and footer part per distinct set of values, and core and app properties. `odt.ts` writes ODF 1.3: `mimetype` stored first, content, styles with a master page per kind of page, meta, a manifest, and the faces under `Fonts/`. `zip.ts` uses fflate, which the importer already depends on, with fixed entry dates. Delivery reuses the PDF's `save_export`, which takes the type for the panel's title and filter. A .docx or .odt export sends no report event: counting them would add an event to the closed list in [privacy and telemetry](../keeping-work/privacy-and-telemetry.md), which is a change to the published notice.
 

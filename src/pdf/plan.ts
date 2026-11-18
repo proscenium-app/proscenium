@@ -30,21 +30,41 @@ import type { FormatSpec } from "../format";
 /* Front matter                                                         */
 /* ------------------------------------------------------------------ */
 
-export type FrontSheet = FrontSheetKind;
+/** A page's kind, which an export ticks and names its sheets by: one of the
+ * four the front matter's fields and texts print, or a page file's own. */
+export type FrontSheet = string;
 
-/** What each kind of unnumbered sheet is called where a writer chooses it. */
-export const FRONT_SHEET_LABEL: Record<FrontSheet, string> = {
+/** What each of the four kinds of unnumbered sheet is called where a writer chooses it. */
+export const FRONT_SHEET_LABEL: Record<FrontSheetKind, string> = {
   title: "Title page",
   characters: "Characters page",
   setting: "Opening notes",
+  production: "Production notes",
 };
 
 /** The same sheets, named under a thumbnail. */
-const FRONT_SHEET_SHORT: Record<FrontSheet, string> = {
+const FRONT_SHEET_SHORT: Record<FrontSheetKind, string> = {
   title: "Title",
   characters: "Characters",
   setting: "Notes",
+  production: "Production",
 };
+
+/**
+ * What a page is called where a writer chooses it, and under its thumbnail: a
+ * page file by its own name, which is both; one of the four by the names above.
+ */
+export function frontSheetLabel(page: { kind: FrontSheet; label?: string }): {
+  label: string;
+  short: string;
+} {
+  if (page.label) return { label: page.label, short: page.label };
+  const kind = page.kind as FrontSheetKind;
+  return {
+    label: FRONT_SHEET_LABEL[kind] ?? page.kind,
+    short: FRONT_SHEET_SHORT[kind] ?? page.kind,
+  };
+}
 
 /**
  * Which front-matter sheets this play has, in standard American stage order.
@@ -114,6 +134,55 @@ export interface SheetPlan {
   chosen: PlannedSheet[];
 }
 
+/** Each front sheet's names: "Title page" / "Title", and "Characters page 2" /
+ * "Characters 2" when a kind runs to more than one sheet. */
+function frontSheetNames(
+  front: readonly { kind: FrontSheet; label?: string }[],
+): { label: string; short: string }[] {
+  const perKind = new Map<FrontSheet, number>();
+  for (const page of front) perKind.set(page.kind, (perKind.get(page.kind) ?? 0) + 1);
+  const seen = new Map<FrontSheet, number>();
+  return front.map((page) => {
+    const nth = (seen.get(page.kind) ?? 0) + 1;
+    seen.set(page.kind, nth);
+    const suffix = (perKind.get(page.kind) ?? 0) > 1 ? ` ${nth}` : "";
+    const names = frontSheetLabel(page);
+    return { label: names.label + suffix, short: names.short + suffix };
+  });
+}
+
+/** One run of a PDF's page labels: from sheet `index` on, `prefix` and then,
+ * when `start` is set, a decimal number counting up from it. */
+export interface PageLabelRange {
+  index: number;
+  prefix?: string;
+  start?: number;
+}
+
+/**
+ * The page labels a PDF viewer shows in its sidebar and "Go to page", so they
+ * read what the script pages print, not each sheet's position in the file
+ * (docs/app/formatting/formats-and-layout.md#FMT-159). Without them a title
+ * page made every script page one higher in the viewer than on the paper and
+ * in the editor. Front sheets are named, never numbered; script pages carry
+ * their printed number, and a gap in an excerpt starts a new run at the page
+ * after it.
+ */
+export function pageLabelRanges(
+  front: readonly { kind: FrontSheet }[],
+  pages: readonly { pageNumber: number }[],
+): PageLabelRange[] {
+  const ranges: PageLabelRange[] = frontSheetNames(front).map((name, index) => ({
+    index,
+    prefix: name.short,
+  }));
+  pages.forEach((page, i) => {
+    if (i > 0 && page.pageNumber === pages[i - 1].pageNumber + 1) return;
+    ranges.push({ index: front.length + i, start: page.pageNumber });
+  });
+  return ranges;
+}
+
 /**
  * Lay out what an export holds as one sequence of sheets — front matter first,
  * then pages — and mark which of them are going. The preview draws `chosen`
@@ -130,21 +199,9 @@ export function planSheets(args: {
   pages: readonly number[] | null;
 }): SheetPlan {
   const all: PlannedSheet[] = [];
-  const perKind = new Map<FrontSheet, number>();
-  for (const page of args.front) perKind.set(page.kind, (perKind.get(page.kind) ?? 0) + 1);
-  const seen = new Map<FrontSheet, number>();
+  const names = frontSheetNames(args.front);
   args.front.forEach((front, i) => {
-    const nth = (seen.get(front.kind) ?? 0) + 1;
-    seen.set(front.kind, nth);
-    const suffix = (perKind.get(front.kind) ?? 0) > 1 ? ` ${nth}` : "";
-    all.push({
-      kind: "front",
-      key: `front-${i}`,
-      order: all.length,
-      front,
-      label: FRONT_SHEET_LABEL[front.kind] + suffix,
-      short: FRONT_SHEET_SHORT[front.kind] + suffix,
-    });
+    all.push({ kind: "front", key: `front-${i}`, order: all.length, front, ...names[i] });
   });
   for (const page of args.layout.pages) {
     all.push({

@@ -15,6 +15,8 @@ import {
 import {
   defaultFrontSheets,
   formatPageRange,
+  FRONT_SHEET_LABEL,
+  pageLabelRanges,
   frontKindsOf,
   frontSheetsFor,
   pageRangeLabel,
@@ -142,6 +144,34 @@ describe("frontSheetsFor", () => {
       "setting",
     ]);
     expect(frontSheetsFor(null, spec)).toEqual([]);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: production notes are the last sheet before the script, and a choice of their own", () => {
+    const fm = {
+      title: "Tideline",
+      characters: [{ name: "Mara" }],
+      setting: "A kitchen.",
+      productionNotes: "Played without an interval.",
+    };
+    expect(frontSheetsFor(fm, spec)).toEqual(["title", "characters", "setting", "production"]);
+    expect(FRONT_SHEET_LABEL.production).toBe("Production notes");
+    const front = paginateFrontMatter(fm, spec);
+    // Left out, the other sheets still go; chosen alone, it goes alone.
+    expect(selectFrontMatter(front, ["title", "characters", "setting"]).map((p) => p.kind)).toEqual(
+      ["title", "characters", "setting"],
+    );
+    expect(selectFrontMatter(front, ["production"]).map((p) => p.kind)).toEqual(["production"]);
+    const plan = planSheets({
+      front,
+      layout: layoutOf(2),
+      frontKinds: ["production"],
+      pages: [1, 2],
+    });
+    expect(plan.chosen.map((sheet) => [sheet.label, sheet.short])).toEqual([
+      ["Production notes", "Production"],
+      ["Page 1", "1"],
+      ["Page 2", "2"],
+    ]);
   });
 });
 
@@ -321,6 +351,53 @@ describe("styleSegments", () => {
     expect(segs).toEqual([
       { text: "Scene ", start: 0, bold: false, italic: false, underline: true },
       { text: "One", start: 6, bold: true, italic: true, underline: true },
+    ]);
+  });
+});
+
+describe("pageLabelRanges", () => {
+  const pages = (...numbers: number[]) => numbers.map((pageNumber) => ({ pageNumber }));
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: script pages are labelled with their printed number, front sheets by name", () => {
+    expect(pageLabelRanges([{ kind: "title" }], pages(1, 2, 3))).toEqual([
+      { index: 0, prefix: "Title" },
+      { index: 1, start: 1 },
+    ]);
+    expect(pageLabelRanges([], pages(1, 2))).toEqual([{ index: 0, start: 1 }]);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: a cast list over two sheets is Characters 1 and 2, never a number", () => {
+    expect(
+      pageLabelRanges(
+        [{ kind: "title" }, { kind: "characters" }, { kind: "characters" }],
+        pages(1),
+      ),
+    ).toEqual([
+      { index: 0, prefix: "Title" },
+      { index: 1, prefix: "Characters 1" },
+      { index: 2, prefix: "Characters 2" },
+      { index: 3, start: 1 },
+    ]);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: production notes are named in a viewer, never numbered", () => {
+    expect(
+      pageLabelRanges(
+        [{ kind: "title" }, { kind: "production" }, { kind: "production" }],
+        pages(1, 2),
+      ),
+    ).toEqual([
+      { index: 0, prefix: "Title" },
+      { index: 1, prefix: "Production 1" },
+      { index: 2, prefix: "Production 2" },
+      { index: 3, start: 1 },
+    ]);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: an excerpt keeps its page numbers, and a gap starts a new run", () => {
+    expect(pageLabelRanges([], pages(12, 13, 14, 20, 21))).toEqual([
+      { index: 0, start: 12 },
+      { index: 3, start: 20 },
     ]);
   });
 });

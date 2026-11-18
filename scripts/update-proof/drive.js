@@ -66,9 +66,12 @@
     );
   }
 
+  // Settings closes by its × (aria-label "Close") from 2026-11, and by Done
+  // in the copies before it, which a proof may start from.
   function closeSettings() {
-    const done = button("Done");
-    if (done) done.click();
+    const close =
+      button("Done") ?? document.querySelector('.sheet__head button[aria-label="Close"]');
+    if (close) close.click();
   }
 
   async function main() {
