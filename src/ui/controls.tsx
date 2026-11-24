@@ -270,11 +270,19 @@ export function PopupButton<T extends string>({
   className,
   title,
   menuId,
+  keepsCaret,
 }: {
   options: PopupOption<T>[];
   value: T;
   onChange: (v: T) => void;
   label: string;
+  /**
+   * On a bar over an editor: a press leaves the caret where it is, as the
+   * bar's own buttons do. On an iPad a press that took it put the keyboard
+   * away, the chrome it had covered came back under the finger, and iPadOS
+   * kept the tap's click: the menu never opened.
+   */
+  keepsCaret?: boolean;
   /** Names each row `<menuId>:<value>`, for the guide to point at (docs/app/preferences-and-help/tutorials.md#TUT-D9). */
   menuId?: string;
   size?: "small" | "mini";
@@ -328,6 +336,7 @@ export function PopupButton<T extends string>({
         className={`popupbtn${size === "mini" ? " popupbtn--mini" : ""}${
           flat ? " popupbtn--flat" : ""
         }${className ? ` ${className}` : ""}`}
+        onMouseDown={keepsCaret ? (e) => e.preventDefault() : undefined}
         onClick={() => menu.openFrom(ref.current)}
         onKeyDown={(e) => {
           // ↓ and ↑ open a popup, as they do a native one.
@@ -402,14 +411,20 @@ export function PullDownButton({
         }}
       >
         {label}
+        {/* The chevron half opens the menu, divider and all: it used to be the
+            divider's one point alone, so no finger, and hardly a pointer,
+            could reach the menu without ↓. */}
         <span
-          className="btn__divider"
+          className="btn__more"
           onClick={(e) => {
+            if (!onPrimary) return;
             e.stopPropagation();
             menu.openFrom(ref.current, align);
           }}
-        />
-        <ChevronDownIcon size={9} />
+        >
+          <span className="btn__divider" />
+          <ChevronDownIcon size={9} />
+        </span>
       </Button>
       {menu.anchor && (
         <Menu anchor={menu.anchor} entries={entries} onClose={menu.close} width={menuWidth} />
@@ -426,17 +441,21 @@ export function Chip({
   tiny,
   children,
   title,
+  news,
 }: {
   kind?: "warn" | "ok" | "bad";
   dot?: boolean;
   tiny?: boolean;
   children: ReactNode;
   title?: string;
+  /** Its title says more than its words, and a finger's tap shows it (TouchTip). */
+  news?: boolean;
 }) {
   return (
     <span
       className={`chip${kind ? ` chip--${kind}` : ""}${tiny ? " chip--tiny" : ""}`}
       title={title}
+      data-news={news || undefined}
     >
       {dot ? <span className="chip__dot" /> : null}
       {children}

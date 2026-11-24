@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Second Draft"
   - tablist "What this pane shows":
     - tab "Script"
@@ -37,7 +38,7 @@
       - button "Rename “Second Draft”"
       - button "Actions for “Second Draft”"
     - group "Scenes in Second Draft":
-      - treeitem "Scene 1" [level=2]
+      - treeitem "Scene 1" [level=2] [selected]
   - button "New"
   - text: at the top level
 - main "Play":
@@ -76,8 +77,27 @@
     - tab "Scene" [selected]
     - tab "Comments"
   - button "Open as a pane"
-  - paragraph: No scene here
-  - paragraph: "Put the caret in a scene, or type ## Scene in the script, and its card appears here."
+  - text: Whole play
+  - heading "Second Draft" [level=2]
+  - text: Page 1 · 1 page · 0 speeches
+  - paragraph: "No scene titles, so the play is one scene. To divide it, type ## Scene where each scene begins."
+  - text: Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: Comments here 0 in this play
+  - button "Show"
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "<plays>\\The Weight of Water"
   - text: <save status>

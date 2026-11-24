@@ -28,12 +28,15 @@
  * element and still shows each one's chord.
  */
 import { ariaKeys, keyStyle, keys } from "../ui/keys";
+import { COARSE, useMedia } from "../ui/use-media";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
+import { afterTap, tapUnderWay } from "../ui/finger";
 import { FormattingIcon } from "../ui/FormattingIcon";
 import {
   canEmphasize,
   canSoftBreak,
+  insertHorizontalRule,
   insertLineBreak,
   insertPageBreak,
   toggleEmphasis,
@@ -73,6 +76,9 @@ const ALL: ElementChoice[] = [
   { type: "lyric", label: "Lyric", hint: "⌘⌥L" },
   { type: "centered", label: "Centered Text", hint: "; >" },
   { type: "synopsis", label: "Scene Summary (Not Printed)", hint: "; =" },
+  // Inserted rather than set, as a page break is: in place of an empty line,
+  // or after the line the caret is on (docs/app/writing/editor-ux.md#EDIT-213).
+  { type: "horizontalRule", label: "Horizontal Line", hint: "; H" },
 ];
 const HAS_LABEL = new Set(ALL.map((e) => e.type));
 const LABEL_OF = new Map(ALL.map((e) => [e.type, e.label]));
@@ -117,11 +123,62 @@ function overflows(bar: HTMLElement): boolean {
   return false;
 }
 
-/** Try each fit, richest first, and keep the first that shows on one row. */
+/**
+ * Keep the richest fit that shows on one row. Each fit is tried on a hidden
+ * copy of the bar laid out where the bar is, never on the bar: trying them on
+ * it showed every group and folded them away again on each of the editor's
+ * transactions, and on an iPad a tap that met groups showing was held back
+ * from its click, WebKit taking it for a hover that showed something. The bar
+ * is written only when its fit changes.
+ */
 function fitBar(bar: HTMLElement) {
-  for (const fit of FITS) {
-    bar.dataset.fit = fit;
-    if (!overflows(bar)) return;
+  // Neither tried nor written under a finger: a fit can unfold a group of
+  // buttons into view, and the hidden copy each fit is tried on is a bar of
+  // buttons put into the page; on an iPad either cost the tap its click. It
+  // waits for the tap (ui/finger.ts).
+  if (tapUnderWay()) {
+    afterTap(refitOf(bar));
+    return;
+  }
+  const fit = bestFit(bar);
+  if (bar.dataset.fit !== fit) bar.dataset.fit = fit;
+}
+
+/** One waiting refit per bar, however often it is asked for during a tap. */
+const refits = new WeakMap<HTMLElement, () => void>();
+function refitOf(bar: HTMLElement): () => void {
+  let refit = refits.get(bar);
+  if (!refit) {
+    refit = () => {
+      if (bar.isConnected) fitBar(bar);
+    };
+    refits.set(bar, refit);
+  }
+  return refit;
+}
+
+function bestFit(bar: HTMLElement): string {
+  const host = bar.parentElement;
+  if (!host) return bar.dataset.fit ?? "";
+  const trial = bar.cloneNode(true) as HTMLElement;
+  trial.setAttribute("aria-hidden", "true");
+  trial.inert = true;
+  trial.style.position = "absolute";
+  trial.style.visibility = "hidden";
+  trial.style.pointerEvents = "none";
+  // Only its width decides a fit; where it lies, hidden, is the host's corner.
+  trial.style.left = "0";
+  trial.style.top = "0";
+  trial.style.width = `${bar.getBoundingClientRect().width}px`;
+  host.appendChild(trial);
+  try {
+    for (const fit of FITS) {
+      trial.dataset.fit = fit;
+      if (!overflows(trial)) return fit;
+    }
+    return FITS[FITS.length - 1];
+  } finally {
+    trial.remove();
   }
 }
 
@@ -146,6 +203,7 @@ export function ElementBar({
 }) {
   const [type, setType] = useState("action");
   const [revealing, setRevealing] = useState(false);
+  const finger = useMedia(COARSE);
   /** Marks live at the caret, so they're read on every selection change too. */
   const [marks, setMarks] = useState<Record<string, boolean>>({});
   const [can, setCan] = useState({ emphasis: false, lineBreak: false });
@@ -206,7 +264,7 @@ export function ElementBar({
   useEffect(() => {
     // A PC's ⌘ is Ctrl; its Windows key is Windows' own (ui/keys.ts).
     const isMod = (e: KeyboardEvent) =>
-      e.key === "Control" || (keyStyle() === "mac" && e.key === "Meta");
+      e.key === "Control" || (keyStyle() !== "pc" && e.key === "Meta");
     const down = (e: KeyboardEvent) => isMod(e) && setRevealing(true);
     const up = (e: KeyboardEvent) => isMod(e) && setRevealing(false);
     const clear = () => setRevealing(false);
@@ -247,7 +305,9 @@ export function ElementBar({
   });
 
   const setElement = (t: string, attrs?: Record<string, unknown>) =>
-    editor.chain().focus().setNode(t, attrs).run();
+    t === "horizontalRule"
+      ? insertHorizontalRule(editor)
+      : editor.chain().focus().setNode(t, attrs).run();
 
   // Both groups are shown in either mode: emphasis is the thing a
   // writer looks for and concludes the app can't do, and the breaks are the
@@ -400,7 +460,11 @@ export function ElementBar({
             menuWidth={190}
           />
         </span>
-        <span className="elementbar__hint">Tab cycles · ; menu</span>
+        {/* What the keys do, or on a touch screen what a finger does: the
+            screen's keyboard on an 11-inch iPad has no Tab. */}
+        <span className="elementbar__hint">
+          {finger ? "Tap it to change the line" : "Tab cycles · ; menu"}
+        </span>
         <span className="elementbar__divider elementbar__fold--marks" />
         {emphasisGroup}
         <span className="elementbar__divider elementbar__fold--breaks" />

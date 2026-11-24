@@ -122,6 +122,25 @@ describe("document import preserves the writing", () => {
       marks: [{ type: "strong" }],
     });
   });
+  test("docs/app/importing/document-import.md#IMPT-21: RTF reads a table cell by cell, ends a paragraph at a section break, and skips first-page headers", () => {
+    const d = readDocument(
+      "Pair.rtf",
+      strToU8(
+        String.raw`{\rtf1\ansi{\stylesheet{\s1 Character;}{\s2 Dialogue;}{\s3 Horizontal Line;}}\sectd\titlepg{\headerf\pard Page one\par}\trowd\cellx3000\cellx6000\pard\intbl\s1 MARA\par\pard\intbl\s2 Left.\cell\pard\intbl\s1 JONAH\par\pard\intbl\s2 Right.\cell\row\pard\s2 Before the break.\sect\sectd\pard\s3 \par\pard\s2 After.\par}`,
+      ),
+    );
+    expect(d.paragraphs.map((p) => [p.style, paragraphText(p)])).toEqual([
+      ["Character", "MARA"],
+      ["Dialogue", "Left."],
+      ["Character", "JONAH"],
+      ["Dialogue", "Right."],
+      ["Dialogue", "Before the break."],
+      // A horizontal line is a paragraph in its style with no words
+      // (docs/app/importing/document-import.md#IMPT-104).
+      ["Horizontal Line", ""],
+      ["Dialogue", "After."],
+    ]);
+  });
   test("FDX keeps basic emphasis, lyrics, unknown types and dual dialogue", () => {
     const d = readDocument(
       "Duet.fdx",
@@ -162,6 +181,21 @@ describe("document import preserves the writing", () => {
     expect(reviewLines(d, "directions", EMPTY_CORRECTIONS).every((p) => p.kind === "action")).toBe(
       true,
     );
+  });
+  test("a line of hyphens in a plain-text play is a horizontal line (docs/app/importing/document-import.md#IMPT-104)", () => {
+    const d = readDocument("Draft.txt", strToU8("She waits.\n\n---\n\nHe goes.\n\n--\n"));
+    const lines = reviewLines(d, "detect", EMPTY_CORRECTIONS);
+    expect(lines.map((p) => p.kind)).toEqual(["action", "horizontalRule", "action", "action"]);
+    expect(lines[1].reason).toBe("Recognized from the text");
+    expect(makeScript(d, "Tide", "detect", EMPTY_CORRECTIONS)).toContain("\n\n---\n\n");
+    // Read as directions, the hyphens are a direction's words, kept as written.
+    const kept = makeScript(d, "Tide", "directions", EMPTY_CORRECTIONS);
+    expect(parse(kept).doc.content.map((b) => b.type)).toEqual([
+      "action",
+      "action",
+      "action",
+      "action",
+    ]);
   });
   test("binary source round trip includes non-UTF8 bytes", () => {
     const bytes = new Uint8Array([0, 255, 128, 13, 10, 42]);

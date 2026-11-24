@@ -20,6 +20,19 @@
 
 use tauri::webview::Color;
 
+/// Whether this build turns WebKit's own background off through its private
+/// key, said in the binary itself for scripts/check-bundle.mjs `--app-store`,
+/// which refuses a store build that does. The key's own name is no sign: since
+/// wry 0.56 it is in every build, dormant unless a web view is transparent or
+/// given a background colour (webview_policy.rs). `#[used]` keeps the mark
+/// though nothing reads it.
+#[cfg(all(target_os = "macos", feature = "webkit-background"))]
+#[used]
+static WEBKIT_BACKGROUND_MARK: [u8; 40] = *b"proscenium-webkit-background-compiled-in";
+#[cfg(all(target_os = "macos", not(feature = "webkit-background")))]
+#[used]
+static WEBKIT_BACKGROUND_MARK: [u8; 37] = *b"proscenium-webkit-background-left-out";
+
 /// `--desk` in tokens.css, light. The tests below hold the two in step.
 pub const DESK_LIGHT: Color = Color(0xdc, 0xd2, 0xc0, 0xff);
 /// `--desk` in tokens.css, under `:root[data-theme="dark"]`.
@@ -56,6 +69,32 @@ pub fn draw_webkit_background(webview: &tauri::Webview) {
                 Some(&NSNumber::numberWithBool(true)),
                 &NSString::from_str("drawsBackground"),
             );
+        }
+    });
+}
+
+/// The store build's desk: what Tauri's background colour gives the
+/// download build, the window's background and the colour of the page's
+/// overscroll, through AppKit's and WebKit's public calls alone. WebKit keeps
+/// painting its own background over it until the page paints, as it always
+/// has in the store build (webview_policy.rs).
+#[cfg(all(target_os = "macos", not(feature = "webkit-background")))]
+pub fn paint_store_window(window: &tauri::WebviewWindow, Color(r, g, b, a): Color) {
+    let _ = window.with_webview(move |platform| {
+        use objc2_app_kit::{NSColor, NSWindow};
+        use objc2_web_kit::WKWebView;
+        let channel = |c: u8| f64::from(c) / 255.0;
+        let color = NSColor::colorWithSRGBRed_green_blue_alpha(
+            channel(r),
+            channel(g),
+            channel(b),
+            channel(a),
+        );
+        // SAFETY: on macOS the platform web view is the WKWebView and its
+        // window the NSWindow, and with_webview runs this on the main thread.
+        unsafe {
+            (*(platform.ns_window() as *const NSWindow)).setBackgroundColor(Some(&color));
+            (*(platform.inner() as *const WKWebView)).setUnderPageBackgroundColor(Some(&color));
         }
     });
 }

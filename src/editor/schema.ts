@@ -140,6 +140,32 @@ export const PageBreak = Node.create({
   },
 });
 
+/**
+ * A horizontal line across the text block (docs/app/writing/editor-ux.md#EDIT-213),
+ * Fountain's `---` on a line of its own. An atom like the page break, but one
+ * that prints: it holds a row of the page, and the format spaces it. A pasted
+ * `<hr>` is one too.
+ */
+export const HorizontalRule = Node.create({
+  name: "horizontalRule",
+  group: "block",
+  atom: true,
+  selectable: true,
+  parseHTML() {
+    return [{ tag: 'div[data-pl="horizontalRule"]' }, { tag: "hr" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, {
+        "data-pl": "horizontalRule",
+        class: "pl pl-horizontalRule",
+        role: "separator",
+      }),
+    ];
+  },
+});
+
 /** Omitted content (Fountain `/* … *\/`) — rendered collapsed, never discarded. */
 export const Boneyard = Node.create({
   name: "boneyard",
@@ -278,6 +304,33 @@ export const CommentRangeEnd = Mark.create({
   },
 });
 
+/**
+ * A character's name in a direction, and whose case it is in
+ * (names-in-directions.ts, docs/app/writing/editor-ux.md#EDIT-205): `castCaps`
+ * on capitals the editor made as the writer typed, `castKept` on an occurrence
+ * the writer kept in their own case. They paint nothing and are never written
+ * to the script (fountain/inline.ts drops them). Neither reaches past its
+ * letters: text typed after a name carries neither, so the next name typed is
+ * capitalized as the first was. On the clipboard as a bare `data-*`, so a cut
+ * and a paste keeps them (docs/app/writing/editor-ux.md#EDIT-177).
+ */
+function caseMark(name: string, dataName: string) {
+  return Mark.create({
+    name,
+    group: "castCase",
+    excludes: "castCase",
+    inclusive: false,
+    parseHTML() {
+      return [{ tag: `span[${dataName}]` }];
+    },
+    renderHTML() {
+      return ["span", { [dataName]: "" }, 0];
+    },
+  });
+}
+export const CastCaps = caseMark("castCaps", "data-cast-caps");
+export const CastKept = caseMark("castKept", "data-cast-kept");
+
 /** The element type names that carry inline content, in keymap-ring order. */
 export const BODY_ELEMENTS = [
   "action",
@@ -316,6 +369,7 @@ export const playExtensions = [
   Centered,
   Synopsis,
   PageBreak,
+  HorizontalRule,
   Boneyard,
   Note,
   LineBreak,
@@ -324,6 +378,8 @@ export const playExtensions = [
   Underline,
   CommentRange,
   CommentRangeEnd,
+  CastCaps,
+  CastKept,
 ];
 
 /** The same set plus editor behavior (undo/redo). Used by the live editor. */

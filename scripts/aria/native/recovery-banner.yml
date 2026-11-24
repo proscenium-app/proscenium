@@ -1,5 +1,6 @@
 - banner
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "The Weight of Water" [haspopup]
   - tablist "What this pane shows"
     - tab "Script" [selected]
@@ -24,7 +25,7 @@
     - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
-    - treeitem "Scene 1" [level=2]
+    - treeitem "Scene 1" [level=2] [selected]
     - treeitem "Characters" [level=1] [expanded]
     - treeitem "Mara" [level=2]
     - treeitem "Jonah" [level=2]
@@ -61,7 +62,26 @@
     - tab "Scene" [selected]
     - tab "Comments"
   - button "Open as a pane"
+  - generic
+  - heading "The Weight of Water" [level=2]
+  - generic
   - paragraph
+  - generic
+  - textbox "Summary"
+  - generic
+  - radiogroup "Scene color"
+    - radio "No Color"
+    - radio "Setup" [checked]
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+  - generic
+  - textbox "Notes"
+  - generic
+  - button "Show"
+  - button "Review"
   - paragraph
 - contentinfo
   - button "<plays folder>/The Weight of Water"

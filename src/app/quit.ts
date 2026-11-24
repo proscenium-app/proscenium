@@ -25,9 +25,14 @@
  *
  * Nothing is torn down to quit, so a quit that is called off leaves the play as
  * it was.
+ *
+ * Leaving the front is a quit that may come back, where the system suspends an
+ * app the writer leaves and may end it later without a word (an iPad): the same
+ * settle, with nothing shown and no note left, since the app may come back as
+ * it was (`LeavingAnswerer`).
  */
 import { useEffect, useRef, useState } from "react";
-import { quit } from "../storage/ipc";
+import { leaving, quit } from "../storage/ipc";
 import type { SaveProblem } from "../storage/save-failure";
 
 /** What settling for a quit came to (useWorkspace `settleForQuit`). */
@@ -204,4 +209,70 @@ export function useQuitGate(settle: () => Promise<QuitSettled>): {
     dontQuit: () => answererRef.current?.dontQuit(),
     quitAnyway: () => void answererRef.current?.quitAnyway(),
   };
+}
+
+/** The page's half of leaving the front: the app holds the system's time until `settled`. */
+export interface LeavingChannel {
+  settled: (id: number) => Promise<void>;
+}
+
+/**
+ * Answers each `app://leaving`: the workspace settles as it does for a quit
+ * (docs/app/keeping-work/storage-and-file-format.md#STOR-D13), what can land
+ * lands, and the rest goes where the next launch finds it, a script's words in
+ * its recovery snapshot. Then the page says it has settled, and the app gives
+ * the system its time back.
+ *
+ * Unlike a quit, nothing waits on the writer and nothing is shown: there is no
+ * one to show it to. No note is left for the play's next open either, since
+ * the app may come back as it was; if the system ends it while it is away, the
+ * next launch finds the snapshot and offers it back, as after any quit. The
+ * answer goes even when the settle throws, since an app that holds on is ended
+ * for it. Settles run one after another, as a quit's do.
+ */
+export class LeavingAnswerer {
+  private queue: Promise<unknown> = Promise.resolve();
+
+  constructor(
+    private readonly settle: () => Promise<QuitSettled>,
+    private readonly channel: LeavingChannel,
+  ) {}
+
+  /** Leaving `id`. Resolves once it has been answered. */
+  async leave(id: number): Promise<void> {
+    const settling = this.queue
+      .then(() => this.settle())
+      .then(
+        () => {},
+        () => {},
+      );
+    this.queue = settling;
+    await settling;
+    await this.channel.settled(id).catch(() => {});
+  }
+}
+
+/** Leaving the front, for the app shell: answers every `app://leaving` with `settle`. */
+export function useLeavingSettle(settle: () => Promise<QuitSettled>): void {
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
+  const answererRef = useRef<LeavingAnswerer | null>(null);
+  answererRef.current ??= new LeavingAnswerer(() => settleRef.current(), leaving);
+  useEffect(() => {
+    // As the quit gate's: a subscription arriving after its effect was cleaned
+    // up unsubscribes itself, so no leaving is answered twice.
+    let dead = false;
+    let off: (() => void) | null = null;
+    void leaving
+      .onLeaving((id) => void answererRef.current?.leave(id))
+      .then((unlisten) => {
+        if (dead) unlisten();
+        else off = unlisten;
+      })
+      .catch(() => {});
+    return () => {
+      dead = true;
+      off?.();
+    };
+  }, []);
 }

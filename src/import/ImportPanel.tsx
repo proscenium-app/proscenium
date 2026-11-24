@@ -522,6 +522,9 @@ export function ImportPanel({
                         <span className={`import-desk__words import-desk__words--${line.kind}`}>
                           <Text content={line.content} />
                           {line.kind === "pageBreak" && "Page break"}
+                          {line.kind === "horizontalRule" &&
+                            !line.content.length &&
+                            "Horizontal line"}
                         </span>
                         <span className="import-desk__kind">
                           {asDocument

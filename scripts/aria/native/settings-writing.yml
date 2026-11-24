@@ -1,4 +1,5 @@
 - dialog "Settings"
+  - button "Close"
   - heading "Settings" [level=2]
   - tablist "Settings sections"
     - tab "General"
@@ -16,6 +17,12 @@
     - none
       - switch "Show scene navigation strip"
     - paragraph
+    - none
+      - switch "Show your place in the scene"
+    - paragraph
+    - none
+      - switch "Capitalize as you type"
+    - paragraph
     - heading "COMMENTS" [level=4]
     - none
       - textbox "Your name"
@@ -31,6 +38,5 @@
       - button "Add Word" [disabled]
     - paragraph [live=polite]
     - paragraph
-  - button "Done"
   - status [live=polite]
   - alert [live=assertive]

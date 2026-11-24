@@ -4,7 +4,7 @@
 import { describe, expect, it } from "bun:test";
 
 import dgModernRaw from "../../formats/dg-modern.json";
-import { DEFAULT_FORMAT_ID, FormatRegistry } from "./registry";
+import { DEFAULT_FORMAT_ID, FormatRegistry, builtinFormats } from "./registry";
 
 describe("FormatRegistry", () => {
   it("registers the published built-ins, dg-modern first (the default)", () => {
@@ -87,5 +87,24 @@ describe("FormatRegistry", () => {
     registry.addUserFormat("half-baked.json", JSON.stringify(custom));
     expect(registry.get("half-baked")).toBeUndefined();
     expect(registry.warnings[0]?.message).toContain("elements.dialogue");
+  });
+});
+
+describe("which built-ins put character names in directions in capitals as typed", () => {
+  // The evidence for each is beside its source in
+  // docs/app/formatting/formats-and-layout.md#FMT-2.
+  it("is every American stage format and the sketch format, and not the UK's", () => {
+    const on = Object.fromEntries(
+      builtinFormats().map((spec) => [spec.id, spec.elements.action.capitalizeCastNames]),
+    );
+    expect(on).toEqual({
+      "dg-modern": true,
+      "dg-traditional": true,
+      "dg-musical": true,
+      "samuel-french": true,
+      "stage-us-modern": true,
+      "sketch-comedy": true,
+      "stage-uk": false,
+    });
   });
 });

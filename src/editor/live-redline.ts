@@ -40,7 +40,7 @@ import {
 import { LINE_BREAK, toEditorDoc } from "./bridge";
 
 /** Shown whole, as cut or as added: no words to mark inside. */
-const WHOLE = new Set(["boneyard", "pageBreak"]);
+const WHOLE = new Set(["boneyard", "pageBreak", "horizontalRule"]);
 /** Marks that say where a comment is, not how a word is written. */
 const NOT_WRITING = new Set([COMMENT_RANGE, COMMENT_RANGE_END]);
 

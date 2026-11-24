@@ -1,4 +1,3 @@
-- button "Dismiss"
 - dialog "Export .docx"
   - heading "Export .docx" [level=2]
   - none

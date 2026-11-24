@@ -217,6 +217,17 @@ describe("the deployed bundle in workerd, against GitHub itself", () => {
       assert.equal(r.status, 200, `the ${via} route answered ${r.status}`);
       assert.equal(await r.text(), theirs);
       assert.equal(r.headers.get("Cache-Control"), "no-store");
+      // A header probe: GitHub's own length, no body (docs/engineering/services-and-feedback.md#SERV-289).
+      const probe = await production.dispatchFetch(
+        `${UPDATES}/v1/${via}/v${own.version}/${signature}`,
+        { method: "HEAD" },
+      );
+      assert.equal(probe.status, 200, `the ${via} route answered HEAD with ${probe.status}`);
+      assert.equal(
+        probe.headers.get("Content-Length"),
+        String(new TextEncoder().encode(theirs).byteLength),
+      );
+      assert.equal(await probe.text(), "");
     }
   });
   test("a version the list does not admit is refused before GitHub is asked", async () => {

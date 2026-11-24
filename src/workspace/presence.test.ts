@@ -18,7 +18,7 @@ function appearances(spec: Record<string, number[]>): Map<string, SceneAppearanc
   return new Map(
     Object.entries(spec).map(([name, ords]) => [
       name,
-      ords.map((ordinal) => ({ ordinal, label: `Sc ${ordinal + 1}` })),
+      ords.map((ordinal) => ({ ordinal, label: `Sc ${ordinal + 1}`, speeches: 1 })),
     ]),
   );
 }

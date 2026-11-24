@@ -114,7 +114,8 @@ export function readDocx(name: string, bytes: Uint8Array): ImportDocument {
           kind: inheritedKind(styleId),
         };
       })
-      .filter((p) => paragraphText(p).trim());
+      // A horizontal line is a paragraph with no words (docs/app/importing/document-import.md#IMPT-104).
+      .filter((p) => p.kind === "horizontalRule" || paragraphText(p).trim());
   const body = child(root, "body");
   if (!body) throw new Error("This Word document has no body text.");
   const result: ImportDocument = {
@@ -247,7 +248,8 @@ export function readOdt(name: string, bytes: Uint8Array): ImportDocument {
         const content: InlineNode[] = [];
         walk(e, e, info.marks, content);
         const p = { content, style: info.name };
-        if (paragraphText(p).trim()) result.paragraphs.push(p);
+        if (paragraphText(p).trim() || styleKind(p.style) === "horizontalRule")
+          result.paragraphs.push(p);
       } else collect(e);
     }
   };

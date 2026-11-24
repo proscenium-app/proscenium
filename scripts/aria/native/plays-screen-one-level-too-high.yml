@@ -22,6 +22,7 @@
       - columnheader
       - columnheader
       - columnheader
+      - columnheader
 - contentinfo
   - button "/dev"
 - status [live=polite]

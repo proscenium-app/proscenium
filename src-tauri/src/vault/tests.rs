@@ -995,3 +995,37 @@ fn the_replacement_folder_is_new_and_on_the_targets_volume() {
     assert_eq!(std::fs::metadata(&after).unwrap().dev(), volume);
     std::fs::remove_dir_all(&after).unwrap();
 }
+
+/// A coordinated listing works in the folder the coordinator hands back, and an
+/// iPad's names a folder in iCloud Drive `/var/mobile/…` where the vault's root
+/// is `/private/var/mobile/…`. Every entry is still a path inside the Plays
+/// folder: an absolute one written into a play's binder makes every reader
+/// refuse the play.
+#[cfg(unix)]
+#[test]
+fn a_listing_through_another_spelling_of_its_folder_stays_inside_the_plays_folder() {
+    let (dir, vault) = new_vault();
+    std::fs::create_dir_all(vault.root().join("Tide/Notes")).unwrap();
+    std::fs::write(vault.root().join("Tide/Tide.fountain"), "INT. HOUSE").unwrap();
+    std::fs::write(vault.root().join("Tide/Notes/Ideas.md"), "ideas").unwrap();
+    let alias = dir.path().join("another-spelling");
+    std::os::unix::fs::symlink(vault.root(), &alias).unwrap();
+
+    let mut listed: Vec<String> = vault
+        .list_in("Tide", &alias.join("Tide"))
+        .unwrap()
+        .into_iter()
+        .map(|e| e.rel_path)
+        .collect();
+    listed.sort();
+    assert_eq!(listed, ["Tide/Notes", "Tide/Tide.fountain"]);
+
+    let nested: Vec<String> = vault
+        .list_in("Tide/Notes", &alias.join("Tide/Notes"))
+        .unwrap()
+        .into_iter()
+        .map(|e| e.rel_path)
+        .collect();
+    assert_eq!(nested, ["Tide/Notes/Ideas.md"]);
+    assert!(listed.iter().chain(&nested).all(|p| !p.starts_with('/')));
+}

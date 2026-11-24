@@ -26,6 +26,8 @@
 export interface Lexicon {
   correct(word: string): boolean;
   suggest(word: string): string[];
+  /** Words it also carries as a name, lower-cased (dictionary.ts `namesIn`). */
+  names?: ReadonlySet<string>;
 }
 
 export interface Speller {

@@ -31,6 +31,7 @@ import {
 } from "react";
 import type { ErrorCode } from "../diagnostics/error-codes";
 import { announce, ensureAnnouncer } from "./announce";
+import { onHover } from "./hover";
 import { CheckIcon, CloseIcon, TrashIcon, WarnIcon } from "./Icons";
 
 export type ToastKind = "ok" | "error" | "trash" | "plain";
@@ -170,8 +171,10 @@ export function ToastHost({
            it, and a second region would say every toast twice. */
         <div
           className={`toast toast--${top.kind ?? "plain"}`}
-          onMouseEnter={() => setHeld((h) => ({ ...h, hover: true }))}
-          onMouseLeave={() => setHeld((h) => ({ ...h, hover: false }))}
+          {...onHover(
+            () => setHeld((h) => ({ ...h, hover: true })),
+            () => setHeld((h) => ({ ...h, hover: false })),
+          )}
           onFocus={() => setHeld((h) => ({ ...h, focus: true }))}
           onBlur={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {

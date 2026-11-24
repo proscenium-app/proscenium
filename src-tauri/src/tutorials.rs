@@ -136,7 +136,7 @@ pub fn tutorials_write(
     )
 }
 
-fn valid_id(id: &str) -> bool {
+pub(crate) fn valid_id(id: &str) -> bool {
     id.len() == 26
         && id
             .bytes()
@@ -285,6 +285,7 @@ pub fn tutorials_trash(
     app: AppHandle,
     state: crate::ManagerState<'_>,
     id: String,
+    note: Option<String>,
 ) -> Result<(), String> {
     let base = root(&app)?;
     let play = session(&base, &id, false).map_err(|e| e.to_string())?;
@@ -300,7 +301,9 @@ pub fn tutorials_trash(
         Some(base.join("trash")),
     )
     .map_err(|e| e.to_string())?;
-    vault.trash(&id).map_err(|e| e.to_string())
+    // Where a delete goes to Proscenium’s Trash, what the page says of the
+    // practice goes with it.
+    vault.trash(&id, note.as_deref()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

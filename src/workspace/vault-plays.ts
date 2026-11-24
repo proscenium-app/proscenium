@@ -28,6 +28,8 @@ import {
   type PlayFile,
 } from "./play-file";
 import { startingBinder } from "./play-shape";
+import { SIDE_NAME } from "./front-folder";
+import { TITLE_PAGE_FILE } from "../layout/page-files";
 import type { FolderOfPlays } from "./plays-folder";
 import { ulid } from "../storage/ulid";
 import type { KeptFile } from "../storage/import-bytes";
@@ -269,11 +271,19 @@ function starterFountain(title: string): string {
 /**
  * Write a whole play into `dir` (a child of the open Plays folder).
  *
- * **A new play is two files** (docs/app/keeping-work/storage-and-file-format.md#STOR-D3): the script and the play file. No
- * directories are scaffolded — the binder shows Characters and Notes so the
- * writer can see where things go, and each directory is created when its first
- * file lands. Nothing hidden, no `.gitkeep`, nothing the writer did not ask
- * for (docs/app/keeping-work/storage-and-file-format.md#STOR-111).
+ * **A new play is three files** (docs/app/keeping-work/storage-and-file-format.md#STOR-D3): the script, its title page and the
+ * play file. No other directory is scaffolded — the binder shows Characters
+ * and Notes so the writer can see where things go, and each directory is
+ * created when its first file lands. Nothing hidden, no `.gitkeep`, nothing
+ * the writer did not ask for (docs/app/keeping-work/storage-and-file-format.md#STOR-111).
+ *
+ * A play begun blank starts with its title page as a page of its own, in a
+ * Front Matter folder above the script
+ * (docs/app/keeping-work/storage-and-file-format.md#STOR-195), so the binder
+ * lists the play's pages from its first minute and the page is a file before
+ * any word is written on it. A play begun from a script the writer has (an
+ * import, the sample, a practice play) keeps the pages that script's title
+ * page says, as they are, until one is edited.
  *
  * The play file is written LAST, because it is the discovery signal: a
  * half-scaffolded directory must never list as a play.
@@ -299,6 +309,16 @@ export async function scaffoldPlayAt(
   // Created, never written over: a name that turned out to be taken leaves
   // whatever is there untouched and fails the scaffold instead.
   await vault.create(at(scriptRel), script ?? starterFountain(title));
+  const titlePage =
+    script === undefined
+      ? {
+          folder: ulid(),
+          page: ulid(),
+          dir: SIDE_NAME.front,
+          path: `${SIDE_NAME.front}/Title Page.md`,
+        }
+      : null;
+  if (titlePage) await vault.create(at(titlePage.path), TITLE_PAGE_FILE);
 
   // Save the source before publishing the manifest. A failed copy leaves an
   // incomplete folder, never a discoverable play that claims to keep its source.
@@ -324,8 +344,26 @@ export async function scaffoldPlayAt(
       sceneAnchors: "manifest",
       autosave: { debounceMs: 600, maxWaitMs: 2000 },
     },
-    binder: startingBinder({ id: scriptId, type: "script", path: scriptRel }),
-    scripts: { [scriptId]: { scenes: [], orphans: [] } },
+    binder: [
+      ...(titlePage
+        ? [
+            {
+              id: titlePage.folder,
+              type: "folder" as const,
+              path: titlePage.dir,
+              children: [{ id: titlePage.page, type: "document" as const, path: titlePage.path }],
+            },
+          ]
+        : []),
+      ...startingBinder({ id: scriptId, type: "script", path: scriptRel }),
+    ],
+    scripts: {
+      [scriptId]: {
+        scenes: [],
+        orphans: [],
+        ...(titlePage ? { frontMatter: { folder: titlePage.folder } } : {}),
+      },
+    },
   };
   const playRel = playFileName(title);
   await vault.create(at(playRel), serializePlay(play));

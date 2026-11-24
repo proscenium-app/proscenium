@@ -17,6 +17,7 @@ import type { FindScope, FindStorage } from "./find";
 import { leftAloneNote } from "./find-core";
 import { useAnnouncedStatus } from "../ui/use-announced-status";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, PopupButton, WarnIcon } from "../ui";
+import { AS_TYPED } from "../ui/as-typed";
 
 /** Fixed scopes, then one per speaker in the script. */
 const ELEMENT_SCOPES: { id: string; label: string; scope: FindScope }[] = [
@@ -147,6 +148,7 @@ export function FindBar({ editor }: { editor: Editor }) {
       <div className="findbar__row">
         <input
           ref={inputRef}
+          {...AS_TYPED}
           className="findbar__field"
           value={find.query}
           placeholder="Find in the script…"
@@ -240,6 +242,7 @@ export function FindBar({ editor }: { editor: Editor }) {
       {find.replaceOpen && (
         <div className="findbar__row findbar__row--replace">
           <input
+            {...AS_TYPED}
             className="findbar__field"
             value={replacement}
             placeholder="Replace with…"

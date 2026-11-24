@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
+import { setSystemWords } from "../ui/system-words";
 import {
   describeUpdates,
   offeredTracks,
@@ -10,10 +11,15 @@ import {
   restartProblem,
   slowerTrackNote,
   trackOfVersion,
+  updateSource,
 } from "./updates";
 
 const rust = readFileSync(new URL("../../src-tauri/src/updates.rs", import.meta.url), "utf8");
 const ipc = readFileSync(new URL("../storage/ipc.ts", import.meta.url), "utf8");
+const settingsRs = readFileSync(
+  new URL("../../src-tauri/src/settings.rs", import.meta.url),
+  "utf8",
+);
 
 describe("describeUpdates", () => {
   it("says which version this is before anything is known", () => {
@@ -92,7 +98,12 @@ describe("the page and updates.rs agree", () => {
 
   it("on the releases address, which only Rust holds", () => {
     // docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D2: every address is in telemetry/allowlist.rs.
-    expect(rust).toContain("const RELEASES: &str = crate::telemetry::allowlist::RELEASES;");
+    // Release notes open from every build, the stores' copies too, so the
+    // command lives beside Settings' other links rather than the updater.
+    const command = settingsRs.slice(settingsRs.indexOf("pub async fn open_release_notes"));
+    expect(command.slice(0, 400)).toContain("use crate::telemetry::allowlist::RELEASES;");
+    expect(ipc).toContain('invoke("open_release_notes"');
+    expect(ipc).not.toContain("update_release_notes");
     expect(ipc).not.toMatch(/https?:\/\/[a-z0-9]/i);
   });
 });
@@ -150,5 +161,41 @@ describe("offeredTracks", () => {
       expect(offeredTracks(["stable"], track, false)).toEqual(["stable"]);
     }
     expect(stableOnly(["stable"])).toBe(true);
+  });
+});
+
+describe("a copy with no updater", () => {
+  const MAC = { machine: "Mac", system: "macOS", fileManager: "Finder", trash: "Trash" };
+
+  it("says TestFlight updates a copy TestFlight installed, and the store every other", () => {
+    expect(updateSource({ testflight: true })).toBe("TestFlight");
+    expect(updateSource({ testflight: false })).toBe("the App Store");
+    expect(updateSource(null)).toBe("the App Store");
+    expect(
+      describeUpdates({ kind: "unavailable" }, "1.1.0", updateSource({ testflight: true })),
+    ).toBe("Proscenium 1.1.0. Updates for this copy come from TestFlight.");
+  });
+
+  it("names each system's store", () => {
+    try {
+      setSystemWords({
+        machine: "iPad",
+        system: "iPadOS",
+        fileManager: "Files",
+        trash: "Proscenium’s Trash",
+      });
+      expect(
+        describeUpdates({ kind: "unavailable" }, "1.1.0", updateSource({ testflight: false })),
+      ).toBe("Proscenium 1.1.0. Updates for this copy come from the App Store.");
+      setSystemWords({
+        machine: "PC",
+        system: "Windows",
+        fileManager: "File Explorer",
+        trash: "Recycle Bin",
+      });
+      expect(updateSource({ testflight: false })).toBe("the Microsoft Store");
+    } finally {
+      setSystemWords(MAC);
+    }
   });
 });

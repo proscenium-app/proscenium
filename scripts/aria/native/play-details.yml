@@ -1,0 +1,18 @@
+- dialog "Play Details"
+  - heading "Play Details" [level=2]
+  - none
+  - textbox "Title"
+  - none
+  - textbox "Credit"
+  - none
+  - textbox "Authors"
+  - none
+  - textbox "Contact"
+  - none
+  - textbox "Draft date"
+  - none
+  - textbox "Source"
+  - button "Cancel"
+  - button "Save"
+  - status [live=polite]
+  - alert [live=assertive]

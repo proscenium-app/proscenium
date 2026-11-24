@@ -284,6 +284,22 @@ describe("a title page that names a key twice keeps all it was given", () => {
         "",
       ],
       ["Title: Play\nOpening Notes: 12", { title: "Play", _extra: { "Opening Notes": "12" } }, ""],
+      // The production notes page's text, written last, after the flag
+      // (docs/engineering/fountain-model.md#EDIT-199).
+      [
+        'Title: Play\nOpening Notes First: false\nProduction Notes Text: "## Casting\\n\\nSix actors play all twenty roles."',
+        {
+          title: "Play",
+          openingNotesBeforeCharacters: false,
+          productionNotes: "## Casting\n\nSix actors play all twenty roles.",
+        },
+        "",
+      ],
+      [
+        "Title: Play\nProduction Notes Text: the set is bare",
+        { title: "Play", _extra: { "Production Notes Text": "the set is bare" } },
+        "",
+      ],
       // A key with nothing after it: an empty text, an unknown key of no lines.
       ["Title:\nNotes:", { title: "", _extra: { Notes: "" } }, "Title: \nNotes: "],
       // And a list of none, read as it always was. Its lines were not written
@@ -347,6 +363,8 @@ describe("a title page that names a key twice keeps all it was given", () => {
       key("Characters Page Text", "page", "charactersPage"),
       key("Opening Notes", "page", "openingNotes"),
       key("Opening Notes First", "flag", "openingNotesBeforeCharacters"),
+      key("Production Notes Text", "page", "productionNotes"),
+      key("production notes text", "page", "productionNotes"),
     ];
 
     let state = 20261008;
@@ -848,5 +866,73 @@ describe("a title page is written as one the reader takes", () => {
       expect(serialize(parse(saved))).toBe(saved);
     }
     expect(noValue).toBeGreaterThan(2000);
+  });
+});
+
+/**
+ * The production notes page's text: one JSON string under `Production Notes Text`,
+ * written after the opening notes' flag (docs/engineering/fountain-model.md#EDIT-199).
+ * Not `Production Notes`, which a writer can type at the top of a script.
+ */
+describe("production notes are a page of their own in the title page", () => {
+  const action = (text: string): BlockNode => ({
+    type: "action",
+    content: [{ type: "text", text }],
+  });
+  const notes =
+    "## Casting\n\nSix actors play every role.\n\nA slash (/) marks where the next line starts.";
+
+  it("reads, writes and rests as a whole value", () => {
+    const typed = `Title: Play\nProduction Notes Text: ${JSON.stringify(notes)}\n\nA room.\n`;
+    const read = parse(typed);
+    expect(read.frontMatter).toEqual({ title: "Play", productionNotes: notes });
+    expect(read.doc.content).toEqual([action("A room.")]);
+    expect(serialize(read)).toBe(typed);
+    // An empty text is a page with nothing on it, and is kept as the writer left it.
+    expect(parse('Title: Play\nProduction Notes Text: ""\n\nA room.\n').frontMatter).toEqual({
+      title: "Play",
+      productionNotes: "",
+    });
+  });
+
+  it("named twice, the last entry that reads is the page and the other is kept", () => {
+    // Kept beside its field, the first is written above the field's own line,
+    // so the field's line is still the last that reads on the reopen.
+    expectRead(
+      'Title: Play\nProduction Notes Text: "First"\nProduction Notes Text: "Second"',
+      {
+        title: "Play",
+        productionNotes: "Second",
+        _extra: { "Production Notes Text": '"First"' },
+      },
+      'Title: Play\nProduction Notes Text: "First"\nProduction Notes Text: "Second"',
+    );
+  });
+
+  it("a first line that only looks like the old key name stays in the script", () => {
+    // No title page above it: a stage direction a writer typed, not a page.
+    for (const line of ["Production notes: the set is bare.", "PRODUCTION NOTES: none."]) {
+      const typed = `${line}\n\nA room.\n`;
+      const read = parse(typed);
+      expect(read.frontMatter).toEqual({});
+      expect(read.doc.content).toEqual([action(line), action("A room.")]);
+      expect(serialize(read)).toBe(typed);
+    }
+    // `Production Notes:` in a title page is a key the app does not know, kept as written.
+    expectRead(
+      "Title: Play\nProduction Notes: the set is bare",
+      { title: "Play", _extra: { "Production Notes": "the set is bare" } },
+      "Title: Play\nProduction Notes: the set is bare",
+    );
+  });
+
+  it("a script whose first line is the key itself is marked, so it stays a stage direction", () => {
+    const held: ParsedScript = {
+      frontMatter: {},
+      doc: { type: "doc", content: [action("Production Notes Text: x"), action("A room.")] },
+    };
+    const saved = serialize(held);
+    expect(saved.startsWith("!Production Notes Text: x")).toBe(true);
+    expect(parse(saved)).toEqual(held);
   });
 });

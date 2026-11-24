@@ -8,10 +8,11 @@
  * boundary, so e.g. `rel_dir` is passed as `relDir`. This is the ONLY module
  * that talks to the backend; everything else goes through the higher-level store.
  */
-import { setPCWords } from "./pc-words";
+import { setStorageSystem } from "./storage-system";
 import { relativeTo } from "./path-key";
 import type { KeyStyle } from "../ui/keys";
 import type { SystemWords } from "../ui/system-words";
+import { setOwnTrashDays } from "./own-trash";
 import type { FeedbackDraft } from "./feedback-draft";
 import { invoke } from "@tauri-apps/api/core";
 import { listen as tauriListen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
@@ -100,6 +101,18 @@ export interface SavedCopy {
 export interface ReadResult {
   content: string;
   hash: string;
+}
+
+/**
+ * One pass of asking iCloud for the open folder (docs/engineering/cross-platform.md#PLAT-69).
+ * `ubiquitous` is false where iCloud Drive does not keep the folder (a desktop,
+ * a folder on the iPad itself), and then nothing is ever waited for.
+ * `waiting` is how many of its files and folders were not yet on this device
+ * when the pass looked: each was asked for, and 0 means everything is here.
+ */
+export interface CloudDownload {
+  ubiquitous: boolean;
+  waiting: number;
 }
 
 export type WriteOutcome =
@@ -235,8 +248,11 @@ export const tutorials = {
           relative,
           destination,
         }),
-  trash: (id: string): Promise<void> =>
-    USE_MOCK ? mock().then((m) => m.tutorialTrash(id)) : invoke("tutorials_trash", { id }),
+  /** To the system's trash, or Proscenium’s with `note` (src/workspace/trash.ts). */
+  trash: (id: string, note?: string): Promise<void> =>
+    USE_MOCK
+      ? mock().then((m) => m.tutorialTrash(id, note))
+      : invoke("tutorials_trash", { id, note: note ?? null }),
   root: (): Promise<string> =>
     USE_MOCK
       ? mock().then((m) => m.tutorialRoot())
@@ -286,7 +302,7 @@ export const vault = {
     vaultOpenedAt(null);
     return (
       USE_MOCK
-        ? mock().then((m) => m.open(path))
+        ? mock().then((m) => m.open(path, playId))
         : folderHandle(path).then((handle) =>
             invoke<OpenResult>("vault_open", { handle, playId: playId ?? null }),
           )
@@ -299,6 +315,13 @@ export const vault = {
     USE_MOCK ? mock().then((m) => m.list(relDir)) : invoke("vault_list", { relDir }),
   read: (rel: string): Promise<ReadResult> =>
     USE_MOCK ? mock().then((m) => m.read(rel)) : invoke("vault_read", { rel }),
+  /**
+   * Ask iCloud for everything in the open folder that is not on this device
+   * yet, and say how much that was (docs/engineering/cross-platform.md#PLAT-69).
+   * It starts downloads and waits for none of them: the caller asks again.
+   */
+  downloadCloud: (): Promise<CloudDownload> =>
+    USE_MOCK ? mock().then((m) => m.downloadCloud()) : invoke("vault_download"),
   /**
    * Guarded write (docs/app/keeping-work/storage-and-file-format.md#STOR-D9). Neither failure writes anything.
    *
@@ -358,9 +381,15 @@ export const vault = {
   },
   exists: (rel: string): Promise<boolean> =>
     USE_MOCK ? mock().then((m) => m.exists(rel)) : invoke("vault_exists", { rel }),
-  /** Move to the OS trash (recoverable) — the user-facing delete. */
-  trash: (rel: string): Promise<void> =>
-    USE_MOCK ? mock().then((m) => m.trash(rel)) : invoke("vault_trash", { rel }),
+  /**
+   * Move to the OS trash (recoverable) — the user-facing delete. `note` is
+   * what the page says of it (src/workspace/trash.ts), kept beside it where
+   * the delete goes to Proscenium’s Trash, so Put Back can return it.
+   */
+  trash: (rel: string, note?: string): Promise<void> =>
+    USE_MOCK
+      ? mock().then((m) => m.trash(rel, note))
+      : invoke("vault_trash", { rel, note: note ?? null }),
   /** Atomically relocate a file/dir within the vault (binder move/rename). */
   rename: (from: string, to: string): Promise<void> =>
     USE_MOCK ? mock().then((m) => m.rename(from, to)) : invoke("vault_rename", { from, to }),
@@ -430,7 +459,10 @@ export interface Capabilities {
   canExportAnywhere: boolean;
   /** False where the external-change contract rests on foreground rescan. */
   canWatchFiles: boolean;
-  /** How a shortcut is written: a Mac's glyphs, or a PC's words (src/ui/keys.ts). */
+  /**
+   * How a shortcut is written and bound: a Mac's glyphs; an iPad's, which are
+   * a Mac's but for the chords iPadOS keeps; or a PC's words (src/ui/keys.ts).
+   */
   keys: KeyStyle;
   /** What this system calls things (src/ui/system-words.ts). */
   words: SystemWords;
@@ -441,19 +473,67 @@ export interface Capabilities {
   suggestedFolder: "icloud" | "documents" | null;
   /** How File › Print… prints: the system's print panel, or the PDF opened in the writer's PDF app. */
   print: "panel" | "pdf-app";
+  /**
+   * The system's own spelling, and with it its smart punctuation, may run
+   * where the writer types (src/ui/system-traits.ts). Not on an iPad.
+   */
+  systemSpelling: boolean;
+  /**
+   * A native menu bar carries the menu's commands and takes their chords
+   * before the page sees them. Not on an iPad, where the page binds them.
+   */
+  menuBar: boolean;
+  /**
+   * The window's title bar is drawn over the top of the page, its controls at
+   * the top left (a Mac's traffic lights), so the top bar keeps their place
+   * clear. Not on an iPad, whose WebKit says it is a Mac's, nor on a PC.
+   */
+  titleBarOverlay: boolean;
+  /**
+   * The page's top bars move the window: a press on their empty space asks
+   * the window to start dragging (Tauri's drag regions). Not on an iPad,
+   * whose windows move by the system's own handle and whose shell has no
+   * window to ask (src/ui/system-traits.ts).
+   */
+  windowDrag: boolean;
+  /**
+   * Which top corner this system puts a window's close control in: `left` on
+   * a Mac and an iPad, `right` on a PC. Settings, which stands in for a window
+   * of its own, puts its close button there (src/ui/system-traits.ts).
+   */
+  closeAt: "left" | "right";
+  /**
+   * How many days Proscenium’s Trash keeps what is deleted, where the system
+   * has no trash and a delete goes there instead (an iPad): the Plays screen
+   * opens it, and puts things back from it. Null where the system's trash
+   * takes a delete (docs/engineering/cross-platform.md#PLAT-16).
+   */
+  ownTrashDays: number | null;
 }
 
-/** Browser dev is a desktop-shaped host: everything except the native bits, in a Mac's words. */
+/**
+ * Browser dev is a Mac's record (docs/engineering/cross-platform.md#PLAT-35):
+ * what smoke's Chromium and WebKit hold is what a Mac's window says. It can
+ * reveal, as a Mac can, so the status bar's path and every Reveal in Finder
+ * are there as they are in the app; the in-memory vault answers a reveal with
+ * nothing. An export to a chosen path is the native shell's alone.
+ */
 const MOCK_CAPABILITIES: Capabilities = {
   canPickFolder: true,
   pickerShowsMessage: true,
-  canReveal: false,
+  canReveal: true,
   canExportAnywhere: false,
   canWatchFiles: true,
   keys: "mac",
   words: { machine: "Mac", system: "macOS", fileManager: "Finder", trash: "Trash" },
   suggestedFolder: "icloud",
   print: "panel",
+  systemSpelling: true,
+  menuBar: true,
+  titleBarOverlay: true,
+  windowDrag: true,
+  closeAt: "left",
+  ownTrashDays: null,
 };
 
 /**
@@ -468,12 +548,44 @@ const MOCK_PC_CAPABILITIES: Capabilities = {
   words: { machine: "PC", system: "Windows", fileManager: "File Explorer", trash: "Recycle Bin" },
   suggestedFolder: "documents",
   print: "pdf-app",
+  titleBarOverlay: false,
+  closeAt: "right",
 };
 
-const mockCapabilities = (): Capabilities =>
-  (globalThis as { __PROSCENIUM_FIXTURE_PC__?: boolean }).__PROSCENIUM_FIXTURE_PC__ === true
-    ? MOCK_PC_CAPABILITIES
-    : MOCK_CAPABILITIES;
+/**
+ * An iPad's record, as `capabilities` in src-tauri/src/lib.rs answers on
+ * iPadOS, for a fixture page that asks to be drawn as the iPad app
+ * (`__PROSCENIUM_FIXTURE_IPAD__`: smoke's act under the iPad's record, in
+ * scripts/smoke-checks.mjs). Its keys are an iPad's: a Mac's, since an
+ * iPad's keyboard has ⌘, but for the Dock's ⌘⌥D. Inside the real app the
+ * flag is never read.
+ */
+const MOCK_IPAD_CAPABILITIES: Capabilities = {
+  ...MOCK_CAPABILITIES,
+  keys: "ipad",
+  pickerShowsMessage: false,
+  canReveal: false,
+  canWatchFiles: false,
+  words: { machine: "iPad", system: "iPadOS", fileManager: "Files", trash: "Proscenium’s Trash" },
+  // The app's own iCloud container, as a Mac's; offered only where the
+  // container is there, which the mock's never is.
+  suggestedFolder: "icloud",
+  systemSpelling: false,
+  menuBar: false,
+  titleBarOverlay: false,
+  windowDrag: false,
+  ownTrashDays: 30,
+};
+
+const mockCapabilities = (): Capabilities => {
+  const fixture = globalThis as {
+    __PROSCENIUM_FIXTURE_PC__?: boolean;
+    __PROSCENIUM_FIXTURE_IPAD__?: boolean;
+  };
+  if (fixture.__PROSCENIUM_FIXTURE_PC__ === true) return MOCK_PC_CAPABILITIES;
+  if (fixture.__PROSCENIUM_FIXTURE_IPAD__ === true) return MOCK_IPAD_CAPABILITIES;
+  return MOCK_CAPABILITIES;
+};
 
 /** Memoized: a build's capabilities cannot change while it runs. */
 let capsPromise: Promise<Capabilities> | null = null;
@@ -483,7 +595,8 @@ export const platform = {
     (capsPromise ??= (
       USE_MOCK ? Promise.resolve(mockCapabilities()) : invoke<Capabilities>("capabilities")
     ).then((caps) => {
-      setPCWords(caps.keys === "pc");
+      setStorageSystem(caps.keys === "pc" ? "pc" : caps.words?.machine === "iPad" ? "ipad" : "mac");
+      setOwnTrashDays(caps.ownTrashDays ?? null);
       return caps;
     })),
   /** The page's first frame is on screen (src-tauri/src/window_color.rs). */
@@ -591,6 +704,64 @@ export const recovery = {
       : invoke("recovery_list", { playId, scriptId: scriptId ?? null }),
 };
 
+/**
+ * Which ring of Proscenium’s Trash an entry is in (src-tauri/src/trash.rs),
+ * which says where it goes back to: one play's, the Plays folder's, practice's,
+ * or the writer's formats'.
+ */
+export type TrashRing =
+  | { kind: "play"; playId: string }
+  | { kind: "plays" }
+  | { kind: "practice" }
+  | { kind: "formats" };
+
+/** One thing Proscenium’s Trash keeps (vault/ring.rs `Kept`). */
+export interface TrashEntry {
+  ring: TrashRing;
+  /** Its name in the ring, which Put Back names it by. */
+  name: string;
+  /** What it was called where it was. */
+  original: string;
+  /** Where it was, relative to the folder it was deleted from; null for one kept before the ring said. */
+  rel: string | null;
+  isDir: boolean;
+  /** A folder holding a play file of its own: a whole play. */
+  isPlay: boolean;
+  deletedMs: number;
+  /** When the ring lets it go for good. */
+  expiresMs: number;
+  /** What the page said of it when it was deleted (src/workspace/trash.ts). */
+  note: string | null;
+}
+
+/** Where a put back landed (src-tauri/src/trash.rs `PutBack`). */
+export interface PutBackResult {
+  /** Relative to the folder open, for a play's ring and the Plays folder's; its name, for practice and a format. */
+  rel: string;
+  /** Its own name was taken, so it came back beside it under another. */
+  renamed: boolean;
+  note: string | null;
+}
+
+/**
+ * Proscenium’s Trash (docs/engineering/cross-platform.md#PLAT-16): where a
+ * delete goes on a system with no trash of its own, in app data and never in
+ * the Plays folder. Only a record whose `ownTrashDays` is a number opens it.
+ */
+export const appTrash = {
+  /** Everything it keeps, newest first, once what has had its span is gone. */
+  list: (): Promise<TrashEntry[]> =>
+    USE_MOCK ? mock().then((m) => m.trashList()) : invoke("trash_list"),
+  /**
+   * Put one entry back: a play's, or the Plays folder's, at `into`, relative
+   * to the folder open; practice and formats where they belong, `into` unused.
+   */
+  putBack: (ring: TrashRing, name: string, into: string | null): Promise<PutBackResult> =>
+    USE_MOCK
+      ? mock().then((m) => m.trashPutBack(ring, name, into))
+      : invoke("trash_put_back", { ring, name, into }),
+};
+
 /** What Rust saw about a folder (lib.rs `FolderFacts`). */
 export interface FolderFacts {
   path: string;
@@ -668,10 +839,10 @@ export const formats = {
       ? mock().then((m) => m.saveUserFormat(fileName, content))
       : invoke("save_user_format", { fileName, content }),
   /** Move one format file to the Trash; a file already gone is not an error. */
-  trash: (fileName: string): Promise<void> =>
+  trash: (fileName: string, note?: string): Promise<void> =>
     USE_MOCK
-      ? mock().then((m) => m.trashUserFormat(fileName))
-      : invoke("trash_user_format", { fileName }),
+      ? mock().then((m) => m.trashUserFormat(fileName, note))
+      : invoke("trash_user_format", { fileName, note: note ?? null }),
   /** A format file the writer picks in the Open panel, not yet saved; null when they cancel. */
   importFile: (): Promise<UserFormatFile | null> =>
     USE_MOCK ? mock().then((m) => m.importFormatFile()) : invoke("import_format_file"),
@@ -694,7 +865,14 @@ function toBase64(bytes: Uint8Array): string {
 
 /** What an export writes: a PDF, or a document for a word processor
  * (docs/app/formatting/formats-and-layout.md#FMT-145). */
-export type ExportFileType = "pdf" | "docx" | "odt";
+export type ExportFileType = "pdf" | "docx" | "odt" | "rtf";
+
+/**
+ * What `save_export` writes: one of the export dialog's files, or the script
+ * as one .fountain with its pages before the script in it, which has no
+ * dialog (docs/app/formatting/formats-and-layout.md#FMT-171).
+ */
+export type ExportKind = ExportFileType | "fountain";
 
 /**
  * Export delivery. Native: platform save dialog, then the Rust `save_export`
@@ -706,7 +884,7 @@ export const exporter = {
   saveFile: async (
     suggestedName: string,
     bytes: Uint8Array,
-    type: ExportFileType = "pdf",
+    type: ExportKind = "pdf",
   ): Promise<string | null> => {
     if (USE_MOCK) return mock().then((m) => m.saveFile(suggestedName, bytes, type));
     return invoke("save_export", { suggestedName, base64: toBase64(bytes), kind: type });
@@ -736,6 +914,8 @@ export interface AppInfo {
   channel: "developer-id" | "app-store" | "download" | "microsoft-store" | "local" | "browser";
   /** The tracks this build is published on, slowest first (settings.rs `TRACKS`). */
   tracks: UpdateTrack[];
+  /** TestFlight installed this copy, and updates it (an iPad's test version); false everywhere else. */
+  testflight: boolean;
 }
 
 /**
@@ -879,10 +1059,11 @@ export const updates = {
     USE_MOCK ? mock().then((m) => m.updateRestart()) : invoke("update_restart"),
   /**
    * One version's release notes, or the list of releases, in the writer's
-   * browser. The address is Rust's; browser dev opens nothing.
+   * browser. The address is Rust's; browser dev opens nothing. Every build
+   * answers it, the stores' copies too, which have no updater.
    */
   openReleaseNotes: (version?: string): Promise<void> =>
-    USE_MOCK ? Promise.resolve() : invoke("update_release_notes", { version: version ?? null }),
+    USE_MOCK ? Promise.resolve() : invoke("open_release_notes", { version: version ?? null }),
   onState: (cb: (state: UpdateState) => void): Promise<UnlistenFn> =>
     USE_MOCK
       ? mock().then((m) => m.onUpdateState(cb))
@@ -984,6 +1165,45 @@ export const quit = {
     USE_MOCK ? mock().then((m) => m.quitSettled(id, go)) : invoke("quit_settled", { id, go }),
   /** Quit now, asking nothing: the writer chose Quit Anyway. */
   now: (): Promise<void> => (USE_MOCK ? mock().then((m) => m.quitNow()) : invoke("quit_now")),
+};
+
+export const EVENT_LEAVING = "app://leaving";
+
+/**
+ * Leaving the front (src/app/quit.ts `LeavingAnswerer`): where the system
+ * suspends an app the writer leaves, and may end it later without a word to
+ * it, the app asks the page to settle as it does for a quit, and holds the
+ * system's time until the page says it has. Only an iPad asks; nothing does in
+ * a browser.
+ */
+export const leaving = {
+  onLeaving: (cb: (id: number) => void): Promise<UnlistenFn> =>
+    USE_MOCK || !isTauri()
+      ? Promise.resolve(() => {})
+      : listen<{ id: number }>(EVENT_LEAVING, (e) => cb(e.payload.id)),
+  settled: (id: number): Promise<void> =>
+    USE_MOCK ? Promise.resolve() : invoke("leaving_settled", { id }),
+};
+
+export const EVENT_KEYBOARD = "app://keyboard";
+
+/**
+ * The screen keyboard's claim on the page, as the app itself sees it
+ * (docs/engineering/cross-platform.md#PLAT-77): how many CSS pixels a docked
+ * keyboard covers at the bottom of the window, the screen's keyboard or a
+ * hardware keyboard's shortcut bar, and 0 for a floating, split or hidden
+ * one. Only an iPad says; `current` is null wherever nothing does, and before
+ * the iPad has said.
+ */
+export const keyboard = {
+  onInset: (cb: (inset: number) => void): Promise<UnlistenFn> =>
+    USE_MOCK || !isTauri()
+      ? Promise.resolve(() => {})
+      : listen<{ inset: number }>(EVENT_KEYBOARD, (e) => cb(e.payload.inset)),
+  current: (): Promise<number | null> =>
+    USE_MOCK || !isTauri()
+      ? Promise.resolve(null)
+      : invoke<number | null>("keyboard_inset").catch(() => null),
 };
 
 export const EVENT_EXTERNAL_CHANGE = "vault://external-change";

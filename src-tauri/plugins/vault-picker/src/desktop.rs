@@ -35,4 +35,10 @@ impl<R: Runtime> VaultPicker<R> {
     pub fn materialize(&self, path: String, _timeout_ms: Option<u32>) -> crate::Result<bool> {
         Ok(std::path::Path::new(&path).exists())
     }
+
+    /// Nothing to ask for: a desktop's iCloud Drive brings a file down when it
+    /// is read, and the app never asks a desktop to.
+    pub fn download_folder(&self, _path: String) -> crate::Result<Downloading> {
+        Ok(Downloading::default())
+    }
 }

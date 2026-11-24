@@ -14,11 +14,12 @@
     - button "Keep This Folder"
   - paragraph: Your plays live in a folder on this Mac only. They will not appear on other devices.
   - table "Plays":
-    - row "Play Progress Status Modified":
+    - row "Play Progress Status Modified Actions":
       - columnheader "Play"
       - columnheader "Progress"
       - columnheader "Status"
       - columnheader "Modified"
+      - columnheader "Actions"
 - contentinfo:
   - button "/dev"
 - status

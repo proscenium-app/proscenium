@@ -19,6 +19,7 @@ import { parseTags, split } from "../workspace/front-matter";
 import { titleOf } from "../workspace";
 import type { BinderItem } from "../workspace";
 import { Capsule, CloseIcon, IconButton, PlusIcon } from "../ui";
+import { AS_TYPED } from "../ui/as-typed";
 
 /** Fields the app owns; the writer never types into them. */
 const OWNED = new Set(UNIVERSAL_FIELDS.map((f) => f.key));
@@ -266,6 +267,7 @@ function NewTagField({
   const field = useCommitOnLeave("", (t) => onCommit(t.trim()));
   return (
     <input
+      {...AS_TYPED}
       className="field insp__tagfield"
       autoFocus
       value={field.draft}

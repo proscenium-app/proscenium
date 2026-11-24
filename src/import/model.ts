@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { parse, serialize, textContent } from "../fountain";
+import { HORIZONTAL_RULE } from "../fountain/model";
 import type { BlockNode, BlockType, FrontMatter, InlineNode } from "../fountain/model";
 import { assertDocumentText } from "../storage/read-limit";
 
@@ -18,6 +19,7 @@ export const ELEMENTS: { value: BlockType; label: string }[] = [
   { value: "centered", label: "Centered" },
   { value: "synopsis", label: "Synopsis" },
   { value: "pageBreak", label: "Page Break" },
+  { value: "horizontalRule", label: "Horizontal Line" },
   { value: "boneyard", label: "Omitted Text" },
 ];
 export interface Paragraph {
@@ -84,6 +86,7 @@ export function styleKind(style: string): BlockType | undefined {
     synopsis: "synopsis",
     scenesummary: "synopsis",
     omittedtext: "boneyard",
+    horizontalline: "horizontalRule",
   };
   return Object.prototype.hasOwnProperty.call(aliases, key) ? aliases[key] : undefined;
 }
@@ -113,7 +116,11 @@ export function reviewLines(
       reason = "Kept as a stage direction";
       review = true;
       if (reading === "detect") {
-        if (/^ACT\s+(?:[IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE)\b/i.test(text)) kind = "act";
+        // Three hyphens or more and nothing else is how a plain-text or
+        // Markdown play draws a line across the page
+        // (docs/app/importing/document-import.md#IMPT-104).
+        if (HORIZONTAL_RULE.test(text)) kind = "horizontalRule";
+        else if (/^ACT\s+(?:[IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE)\b/i.test(text)) kind = "act";
         else if (/^SCENE\s+(?:[IVXLCDM]+|\d+|ONE|TWO|THREE|FOUR|FIVE)\b/i.test(text))
           kind = "scene";
         else if (/^(?:INT\.?|EXT\.?|INT\.?\/EXT\.?)\s/i.test(text)) kind = "sceneHeading";

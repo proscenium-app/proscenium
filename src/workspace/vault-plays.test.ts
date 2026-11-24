@@ -111,6 +111,38 @@ it("imports keep the exact source before publishing the play file", async () => 
   );
 });
 
+it("a play begun blank starts with its title page as a page of its own, in a Front Matter folder above the script", async () => {
+  // docs/app/keeping-work/storage-and-file-format.md#STOR-195: the binder lists
+  // the play's pages from its first minute.
+  const { dir } = await scaffoldPlayInVault("Fresh", NOW);
+  const { TITLE_PAGE_FILE } = await import("../layout/page-files");
+  expect(store.get(`${dir}/Front Matter/Title Page.md`)).toBe(TITLE_PAGE_FILE);
+  const play = JSON.parse(store.get(`${dir}/${dir}.proscenium`)!);
+  expect(play.binder.map((item: { path: string }) => item.path).slice(0, 2)).toEqual([
+    "Front Matter",
+    "Fresh.fountain",
+  ]);
+  const folder = play.binder[0];
+  expect(folder.children.map((c: { path: string }) => c.path)).toEqual([
+    "Front Matter/Title Page.md",
+  ]);
+  const script = play.binder[1];
+  expect(play.scripts[script.id].frontMatter).toEqual({ folder: folder.id });
+  // The play file is still written last: a half-made folder never lists as a play.
+  const order = [...store.keys()];
+  expect(order.indexOf(`${dir}/Front Matter/Title Page.md`)).toBeLessThan(
+    order.indexOf(`${dir}/${dir}.proscenium`),
+  );
+});
+
+it("a play begun from a script keeps the pages its title page says, and no folder is made for them", async () => {
+  const { dir } = await scaffoldPlayInVault("From a Script", NOW, "Title: Kept\n\n# ACT ONE\n");
+  expect([...store.keys()].some((key) => key.startsWith(`${dir}/Front Matter`))).toBe(false);
+  const play = JSON.parse(store.get(`${dir}/${dir}.proscenium`)!);
+  expect(play.binder[0].type).toBe("script");
+  expect(play.scripts[play.binder[0].id].frontMatter).toBeUndefined();
+});
+
 it("a failed source copy does not publish a partial play or overwrite the source", async () => {
   store.set("Incomplete/Originals/Draft.docx", "already there");
   await expect(

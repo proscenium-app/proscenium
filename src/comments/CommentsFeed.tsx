@@ -16,6 +16,7 @@
  * is no comment store to keep in sync. It is also where a comment is typed
  * when the margin has no room for a card (docs/app/writing/comments.md#COMM-56).
  */
+import { onHover } from "../ui/hover";
 import { keys } from "../ui/keys";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
@@ -175,8 +176,10 @@ export function CommentsFeed({
                     }}
                     data-comment-id={thread.root.id}
                     className={`commentsfeed__row${focusPos === pos ? " is-focused" : ""}`}
-                    onMouseEnter={() => editor.commands.hoverComment(pos)}
-                    onMouseLeave={() => editor.commands.hoverComment(null)}
+                    {...onHover(
+                      () => editor.commands.hoverComment(pos),
+                      () => editor.commands.hoverComment(null),
+                    )}
                   >
                     <ThreadView
                       editor={editor}

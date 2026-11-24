@@ -14,7 +14,11 @@
 //!
 //! The fixtures are three small signed archives and the public half of a
 //! throwaway updater key, whose private half was deleted once they were
-//! signed: `fixtures/Proscenium_<version>.app.tar.gz(.sig)`.
+//! signed: `fixtures/Proscenium_<version>.app.tar.gz(.sig)`. Those signatures
+//! are the CLI's before 2.12, whose signed comment names no version. Every
+//! release built since names it (`version:X.Y.Z`): `….versioned.sig` is
+//! 1.1.0's archive signed so, by a second throwaway key,
+//! `test-updater-versioned.pub`, its private half deleted too.
 use super::*;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpListener;
@@ -31,11 +35,12 @@ fn fixture(name: &str) -> Vec<u8> {
 }
 
 fn pubkey() -> String {
-    // The key file as `tauri signer generate` writes it: base64 of minisign's public key.
-    String::from_utf8(fixture("test-updater.pub"))
-        .unwrap()
-        .trim()
-        .to_string()
+    key("test-updater.pub")
+}
+
+/// A key file as `tauri signer generate` writes it: base64 of minisign's public key.
+fn key(file: &str) -> String {
+    String::from_utf8(fixture(file)).unwrap().trim().to_string()
 }
 
 /// A loopback server: `/manifest` answers `manifest`, `/archive` answers `archive`.
@@ -116,12 +121,13 @@ impl Transport for Loopback {
     }
 }
 
-fn app() -> tauri::App<tauri::test::MockRuntime> {
+/// The app, its updater trusting `pubkey`.
+fn app(pubkey: &str) -> tauri::App<tauri::test::MockRuntime> {
     let mut context = tauri::test::mock_context(tauri::test::noop_assets());
     context.config_mut().plugins.0.insert(
         "updater".into(),
         serde_json::json!({
-            "pubkey": pubkey(), "dangerousInsecureTransportProtocol": true, "endpoints": []
+            "pubkey": pubkey, "dangerousInsecureTransportProtocol": true, "endpoints": []
         }),
     );
     tauri::test::mock_builder()
@@ -143,9 +149,19 @@ fn take(
     manifest: impl Fn(u16) -> Option<serde_json::Value> + Send + 'static,
     archive: Vec<u8>,
 ) -> Taken {
+    take_trusting(&pubkey(), this, manifest, archive)
+}
+
+/// [`take`], by a copy that trusts `pubkey`.
+fn take_trusting(
+    pubkey: &str,
+    this: &str,
+    manifest: impl Fn(u16) -> Option<serde_json::Value> + Send + 'static,
+    archive: Vec<u8>,
+) -> Taken {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let port = serve(manifest, archive);
-    let app = app();
+    let app = app(pubkey);
     let endpoint = reqwest::Url::parse(&format!("http://127.0.0.1:{port}/manifest")).unwrap();
     let mut seen = Vec::new();
     let result = tauri::async_runtime::block_on(take_offer(
@@ -154,7 +170,7 @@ fn take(
         "26.0",
         None,
         this,
-        &pubkey(),
+        pubkey,
         ID,
         &Loopback,
         || Ok(()),
@@ -248,4 +264,55 @@ fn an_archive_is_refused_unless_it_is_the_signed_offer() {
         message.contains("does not match the update notice"),
         "{message}"
     );
+}
+
+/// What every update since the CLI's 2.12 carries: a signature whose signed
+/// comment names its version. The app's own check takes it as it took one
+/// that named none, and it installs.
+#[test]
+fn a_signature_that_names_its_version_is_taken_and_installs() {
+    let name = "Proscenium_1.1.0.app.tar.gz";
+    let signature = String::from_utf8(fixture(&format!("{name}.versioned.sig"))).unwrap();
+    let trusted = key("test-updater-versioned.pub");
+    let (result, _) = take_trusting(&trusted, "1.0.0", offer("1.1.0", &signature), fixture(name));
+    let (update, bytes) = result
+        .unwrap_or_else(|e| panic!("1.0.0 refused 1.1.0: {e}"))
+        .unwrap_or_else(|| panic!("1.0.0 found nothing newer than itself in 1.1.0"));
+    assert_eq!(install_over("1.0.0", &update, &bytes), "1.1.0");
+}
+
+/// The plugin's own check, which a Windows update meets in `Update::install`
+/// (since 2.14.0 it verifies the bytes it is handed): a signature that names
+/// no version is held to the key alone, as `requireSignedVersion` is off; one
+/// that names a version is refused when the service announced another.
+#[test]
+fn the_plugin_holds_a_signed_version_to_the_one_announced() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let name = "Proscenium_1.1.0.app.tar.gz";
+    let verdict = |pubkey: &str, signature: &str, announced: &str| {
+        let port = serve(offer(announced, signature), fixture(name));
+        let app = app(pubkey);
+        let endpoint = reqwest::Url::parse(&format!("http://127.0.0.1:{port}/manifest")).unwrap();
+        let current = semver::Version::parse("1.0.0").unwrap();
+        let update = tauri::async_runtime::block_on(metadata(
+            app.handle(),
+            &[endpoint],
+            "26.0",
+            None,
+            &current,
+        ))
+        .unwrap()
+        .unwrap_or_else(|| panic!("1.0.0 found nothing newer than itself in {announced}"));
+        update.verify(&fixture(name))
+    };
+    let versioned = String::from_utf8(fixture(&format!("{name}.versioned.sig"))).unwrap();
+    let unversioned = String::from_utf8(fixture(&format!("{name}.sig"))).unwrap();
+    let trusted = key("test-updater-versioned.pub");
+    assert!(verdict(&trusted, &versioned, "1.1.0").is_ok());
+    let replayed = verdict(&trusted, &versioned, "1.2.0");
+    assert!(
+        matches!(replayed, Err(UpdaterError::SignedVersionMismatch { .. })),
+        "{replayed:?}"
+    );
+    assert!(verdict(&pubkey(), &unversioned, "1.1.0").is_ok());
 }

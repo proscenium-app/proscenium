@@ -77,6 +77,31 @@ export function applyAppearance(appearance: Appearance): void {
   document.documentElement.dataset.appearance = appearance;
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  applyThemeColor();
+}
+
+/**
+ * The page's chrome, the toolbar's and the status bar's own `--chrome`, as its
+ * theme colour (`<meta name="theme-color">`), light or dark as the page now is.
+ * An iPad paints it behind the page (the folder-picker plugin), so the strip
+ * iPadOS keeps above the toolbar for its status bar and window controls, and
+ * the home indicator's below the status bar, are the app's chrome rather than
+ * the system's white or black (docs/engineering/cross-platform.md#PLAT-80).
+ * Nothing else reads it.
+ */
+export function applyThemeColor(): void {
+  // Only a page with styles has a chrome to name (a test's stand-in has none).
+  if (typeof document === "undefined" || typeof getComputedStyle !== "function") return;
+  if (typeof document.querySelector !== "function" || !document.head) return;
+  const chrome = getComputedStyle(document.documentElement).getPropertyValue("--chrome").trim();
+  if (!chrome) return;
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement("meta");
+    meta.name = "theme-color";
+    document.head.appendChild(meta);
+  }
+  if (meta.content !== chrome) meta.content = chrome;
 }
 
 /** Shared tokens reach every portal while leaving the writing format alone. */

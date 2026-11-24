@@ -15,6 +15,7 @@
  * Mutable orchestration state lives in refs so the autosave/watcher callbacks
  * never see stale closures; React state drives rendering.
  */
+import type { KeptName } from "../editor/names-in-directions";
 import {
   settleWorkspaceDocuments,
   settleQuitDocuments,
@@ -29,14 +30,23 @@ export type { MaterialGate, OpenMaterial } from "./use-material-sessions";
 import { joinPath, matchingPath, pathKey } from "../storage/path-key";
 import { flatten } from "../workspace/binder";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { Editor } from "@tiptap/core";
 import { revertReviewedFile } from "../review/revert";
 import type { RawPlayDetails } from "./RawPlaySheet";
 import { recoverBinderMoves } from "../workspace/binder-relocation";
+import {
+  CLOUD_IDLE,
+  CLOUD_LOOKING,
+  cloudDownloader,
+  type CloudDownloader,
+  type CloudState,
+} from "../workspace/cloud-download";
 import { reviewRecoveryFiles } from "../storage/recover-sessions";
 import { BufferRecovery, type RecoveryBuffer } from "../storage/buffer-recovery";
 import { canonicalLanguage, DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
 import { commentJumpTarget, liveRangeIds } from "../comments";
+import { settleOpenComments } from "../comments/settle";
 import { syncAppearances } from "../materials";
 import {
   burstTexts,
@@ -61,6 +71,7 @@ import {
   toEditorDoc,
 } from "../editor";
 import { scriptRedline } from "../editor/redline-doc";
+import { sceneStarts } from "../editor/scene-starts";
 import { recallCaret, rememberCaret } from "./caret-memory";
 import { recallScript, rememberScript, scriptToOpen } from "./script-memory";
 import { oneAtATime, type Line } from "./one-at-a-time";
@@ -71,15 +82,26 @@ import {
   parse,
   serialize,
   setSceneSynopsis,
-  type CharacterEntry,
+  wholeScript,
   type Doc,
   type FrontMatter,
+  type FrontPageSource,
 } from "../fountain";
 import type { FormatSpec } from "../format";
 import { useFormatRegistry } from "./formats/use-formats";
 import { settingsStore } from "../ui/settings-store";
+import { theTrash } from "../ui/system-words";
+import { announce } from "../ui/announce";
 import {
+  FOOT_MARK,
+  fountainWithPages,
+  backPageList,
+  frontPageList,
+  legacyPageFiles,
+  namedOnPage,
   paginateDoc,
+  readPageFile,
+  writePageFile,
   scenePageMap,
   type LayoutMeta,
   type LayoutResult,
@@ -92,6 +114,8 @@ import { watcherHealth } from "../storage/ipc";
 import { copyPractice } from "../tutorial/copy-practice";
 import { ulid } from "../storage/ulid";
 import { tutorials, type ExportFileType, type PracticeSource } from "../storage/ipc";
+import type { TrashEntry } from "../storage/ipc";
+import { playNote, putBackEntry, type PutBackOutcome } from "../workspace/trash";
 import { anonymousFrontMatter, anonymousMeta } from "../pdf/anonymous";
 import { pageRangeLabel, type FrontSheet } from "../pdf/plan";
 import { sidesDoc } from "../pdf/sides";
@@ -105,6 +129,7 @@ import {
   WritingVersions,
   decodeKeptAtQuit,
   encodeKeptAtQuit,
+  exporter,
   keptAtQuitMessage,
   onConflictCopy,
   onExternalChange,
@@ -134,7 +159,6 @@ import {
   computeWeights,
   deleteItem,
   duplicateItem,
-  detectNewSpeakers,
   discoverPlays,
   discoverPlaysBelow,
   ignoredFile,
@@ -169,6 +193,19 @@ import {
   commitBinder,
   restoreBinderItem,
   locateBinderItem,
+  splitFrontMatter,
+  withFrontMatter,
+  backFolderId,
+  backPageItems,
+  frontFolderId,
+  frontPageItems,
+  frontPageSource,
+  pageFolderOf,
+  type PageSide,
+  hasPageKeys,
+  makeFrontMatterFolder,
+  newPageFile,
+  withoutPageKeys,
   type ApplyResult,
   type SceneAppearance,
   type SceneCard,
@@ -402,6 +439,58 @@ function findByPath(binder: BinderItem[], path: string): BinderItem | null {
 /** A file to keep in a new play beside its script — the `.fdx` it was made from. */
 export type { KeptFile } from "../storage/import-bytes";
 
+/**
+ * The front matter as the layout and the export take it: with the script's
+ * page files when it has a folder of them
+ * (docs/app/formatting/formats-and-layout.md#FMT-169), and without any when it
+ * has none. The script's own text never carries them: its writer writes only
+ * the title page's keys.
+ */
+function withPagesOf(fm: FrontMatter, pages: FrontPageSource[] | undefined): FrontMatter {
+  if (pages === undefined) {
+    if (fm.pages === undefined) return fm;
+    const { pages: _none, ...rest } = fm;
+    return rest;
+  }
+  return fm.pages === pages ? fm : { ...fm, pages };
+}
+
+/**
+ * The same, for the pages after the script
+ * (docs/app/formatting/formats-and-layout.md#FMT-174): the files of the
+ * script's Back Matter folder, and no key at all when it has none.
+ */
+function withBackOf(fm: FrontMatter, back: FrontPageSource[]): FrontMatter {
+  if (!back.length) {
+    if (fm.backPages === undefined) return fm;
+    const { backPages: _none, ...rest } = fm;
+    return rest;
+  }
+  return fm.backPages === back ? fm : { ...fm, backPages: back };
+}
+
+/** The pages after the script held, if they were read for the script open now. */
+function backOf(
+  held: { key: string | null; pages: FrontPageSource[] },
+  playId: string | null,
+  scriptId: string | null,
+): FrontPageSource[] {
+  return playId && scriptId && held.key === `${playId}:${scriptId}` ? held.pages : NO_PAGES;
+}
+const NO_PAGES: FrontPageSource[] = [];
+
+/** The pages held, if they were read for the script open now. */
+function pagesOf(
+  held: { key: string | null; pages: FrontPageSource[] | undefined },
+  playId: string | null,
+  scriptId: string | null,
+): FrontPageSource[] | undefined {
+  return playId && scriptId && held.key === `${playId}:${scriptId}` ? held.pages : undefined;
+}
+
+/** The most files a trashed folder is read into memory for, so that Undo can put it back. */
+const UNDO_FOLDER_FILES = 60;
+
 function findById(binder: BinderItem[], id: string): BinderItem | null {
   for (const it of binder) {
     if (it.id === id) return it;
@@ -475,6 +564,12 @@ export interface Workspace {
    * The Plays screen offers no first play meanwhile.
    */
   lookingBelow: boolean;
+  /**
+   * What is still coming down from iCloud into the open folder
+   * (docs/engineering/cross-platform.md#PLAT-69). The Plays screen says so,
+   * and offers no first play meanwhile.
+   */
+  cloudDownload: CloudState;
   /** The last Plays folder has been tried: what opens from Finder can be routed. */
   booted: boolean;
   /** Edit a play's dashboard metadata (status / logline) from the picker. */
@@ -630,9 +725,43 @@ export interface Workspace {
   saveFrontMatter: (fm: FrontMatter, forScript?: string | null) => boolean;
   /** Which script is open, as a key that changes when another one opens; null for none. */
   openScriptKey: string | null;
-  /** Save the printed cast list (name + description) to the fountain title page. */
-  saveCharacters: (entries: CharacterEntry[]) => void;
+  /** The command's declined names for the open script, from the play file (docs/app/keeping-work/storage-and-file-format.md#STOR-194). */
+  castKeptNow: () => KeptName[];
+  /** Write the command's declined names for the open script. */
+  saveCastKept: (entries: KeptName[]) => Promise<void>;
+  /** Write a name on the Characters page, as Cast's Add to Characters Page does; whether it landed. */
+  addToCharactersPage: (name: string) => Promise<boolean>;
+  /** A paragraph at the end of one page before the script (by its source); whether it landed. */
+  appendToFrontPage: (source: string, markdown: string) => Promise<boolean>;
   patchFrontMatter: (patch: Partial<FrontMatter>, forScript: string | null) => boolean;
+  /**
+   * The open script's pages before the script as files, in binder order
+   * (docs/app/formatting/formats-and-layout.md#FMT-169); undefined while its
+   * title page still holds them.
+   */
+  frontPages: FrontPageSource[] | undefined;
+  /** Write the title page's pages as files, `edited` among them with its new words; their ids by kind. */
+  materializeFrontMatter: (edited?: {
+    kind: string;
+    text: string;
+  }) => Promise<Record<string, string> | null>;
+  /** Take out page keys a script with a folder of pages still holds, kept in Versions first. */
+  settleLeftKeys: () => Promise<void>;
+  /** A new page in the open script's folder, `at` choosing its place; its id, or null. */
+  addFrontPage: (
+    name: string,
+    text: string,
+    at: (existing: FrontPageSource[]) => number,
+    /** After the script, in its Back Matter folder, made with its first page. */
+    side?: PageSide,
+  ) => Promise<string | null>;
+  /**
+   * Whose pages a binder folder holds and on which side of that script, or
+   * null for any other folder (docs/app/formatting/formats-and-layout.md#FMT-174).
+   */
+  pageFolderOf: (folderId: string) => { scriptId: string; side: PageSide } | null;
+  /** Hold a page's file in the store for the page view's editor, opening no pane. */
+  holdFrontPage: (id: string) => void;
   /** Which scenes each UPPERCASE cue speaks in (derived from the script). */
   castAppearances: () => Map<string, SceneAppearance[]>;
   /** Size of each part, for tiering the cast (derived, never stored). */
@@ -641,6 +770,8 @@ export interface Workspace {
   sceneCount: number;
   /** Where each scene sits in the paginated script, and how long it runs. */
   scenePages: ScenePageMap;
+  /** The open script has words and no scene line, so its one card is the whole play. */
+  wholeScript: boolean;
   /** Speakers kept off the printed cast page despite speaking. */
   castHidden: string[];
   hideFromCast: (name: string) => void;
@@ -667,6 +798,10 @@ export interface Workspace {
     to?: "file" | "print";
     type?: ExportFileType;
   }) => void;
+  /** File › Export Fountain…: the open script and its pages before the script
+   * as one .fountain, saved where the writer chooses
+   * (docs/app/formatting/formats-and-layout.md#FMT-171). */
+  exportFountain: () => void;
   exporting: boolean;
   /** Success message (e.g. "Exported …"); the happy-path toast. */
   notice: string | null;
@@ -787,6 +922,13 @@ export interface Workspace {
   consumeCreated: () => void;
   /** Move to Trash. Resolves with the undo the toast offers (docs/app/keeping-work/storage-and-file-format.md#STOR-90). */
   remove: (id: string) => Promise<TrashResult | null>;
+  /** Put one thing back from Proscenium’s Trash, from the Plays screen (src/workspace/trash.ts). */
+  putBackFromTrash: (entry: TrashEntry) => Promise<PutBackOutcome>;
+  /**
+   * Move a whole play's folder to the trash, from the Plays screen alone,
+   * once the writer has said yes twice (docs/app/organizing/workspace-model.md#WORK-91).
+   */
+  trashPlay: (play: VaultPlay) => Promise<{ ok: true } | { ok: false; said: string }>;
 }
 
 export function useWorkspace(): Workspace {
@@ -928,6 +1070,7 @@ export function useWorkspace(): Workspace {
     flushAllMaterials,
     closeMaterial,
     materialWrites,
+    record: materialRecord,
   } = materials;
 
   /** Assigned with the beacon below: tell the installer whether anything is unsaved. */
@@ -1073,6 +1216,20 @@ export function useWorkspace(): Workspace {
   const scriptPathRef = useRef<string | null>(null);
   const activeScriptIdRef = useRef<string | null>(null);
   const frontMatterRef = useRef<FrontMatter>({});
+  /**
+   * The open script's page files as last read
+   * (docs/app/formatting/formats-and-layout.md#FMT-169), with the script they
+   * were read for: a script opened since has none until its own are read.
+   */
+  const frontPagesRef = useRef<{ key: string | null; pages: FrontPageSource[] | undefined }>({
+    key: null,
+    pages: undefined,
+  });
+  /** The open script's pages after it, held the same way. */
+  const backPagesRef = useRef<{ key: string | null; pages: FrontPageSource[] }>({
+    key: null,
+    pages: NO_PAGES,
+  });
   const docRef = useRef<Doc | null>(null);
 
   const loadingRef = useRef(false);
@@ -1083,6 +1240,16 @@ export function useWorkspace(): Workspace {
   // Same shape for the binder reconciler: loadWorkspace and the watcher both
   // call it, and neither should re-bind when the binder changes.
   const reconcileNowRef = useRef<() => Promise<void>>(async () => {});
+  /*
+   * The open folder, asked for from iCloud in passes while it is open
+   * (docs/engineering/cross-platform.md#PLAT-69), and what the passes found
+   * still coming down. What arrives is looked for where the writer is: the
+   * Plays screen's plays, or the open play's files.
+   */
+  const cloudRef = useRef<CloudDownloader | null>(null);
+  const [cloud, setCloud] = useState<CloudState>(CLOUD_IDLE);
+  const lookForPlaysRef = useRef<() => void>(() => {});
+  const rescanRef = useRef<(() => void) | null>(null);
   // The play file read and taken up whole, as a change of it from outside is;
   // assigned once takePlayFromDisk exists below.
   const takePlayFromDiskRef = useRef<(playPath: string) => Promise<void>>(async () => {});
@@ -1340,12 +1507,19 @@ export function useWorkspace(): Workspace {
       // later change from outside can be diffed and undone.
       void changesRef.current?.writeBaseline(path, content);
       const parsed = parse(content);
-      frontMatterRef.current = parsed.frontMatter;
-      setFrontMatterState(parsed.frontMatter);
+      const fm = withBackOf(
+        withPagesOf(
+          parsed.frontMatter,
+          pagesOf(frontPagesRef.current, playIdRef.current, activeScriptIdRef.current),
+        ),
+        backOf(backPagesRef.current, playIdRef.current, activeScriptIdRef.current),
+      );
+      frontMatterRef.current = fm;
+      setFrontMatterState(fm);
       setLayoutMeta({
-        frontMatter: parsed.frontMatter,
-        title: parsed.frontMatter.title ?? "",
-        author: parsed.frontMatter.authors?.join(", ") ?? "",
+        frontMatter: fm,
+        title: fm.title ?? "",
+        author: fm.authors?.join(", ") ?? "",
       });
       loadDocIntoEditor(parsed.doc);
       restoreCaret(path, () => setPlaySettled(true));
@@ -1673,6 +1847,9 @@ export function useWorkspace(): Workspace {
    * the moment of the swap.
    */
   const settleOpenScript = useCallback(async (): Promise<Settled> => {
+    // A comment still being typed is part of what is left: settled first, so
+    // it is in the write below (docs/app/writing/comments.md#COMM-76).
+    if (editorRef.current) settleOpenComments(editorRef.current);
     await landOpenScript();
     const session = sessionRef.current;
     const sid = activeScriptIdRef.current;
@@ -1955,26 +2132,32 @@ export function useWorkspace(): Workspace {
       const editor = editorRef.current;
       if (!editor) return;
       setView("editor");
-      // Match extractScenes' boundary priority: `scene` (##), else `sceneHeading`.
-      const doc = editor.state.doc;
-      let hasScene = false;
-      doc.forEach((n) => {
-        if (n.type.name === "scene") hasScene = true;
-      });
-      const boundary = hasScene ? "scene" : "sceneHeading";
-      let count = -1;
-      let target: number | null = null;
-      doc.forEach((node, offset) => {
-        if (node.type.name === boundary) {
-          count += 1;
-          if (count === ordinal) target = offset;
-        }
-      });
-      if (target === null) return;
+      // The scene's first line by the one rule the caret and the inspector
+      // read (scene-starts.ts): a play with no scene line is one scene, and
+      // its one card opens it at its top. A copy of the rule here that knew
+      // only the first two kinds opened nothing for such a play.
+      const target = sceneStarts(editor.state.doc)[ordinal];
+      if (target === undefined) return;
       const pos = target + 1;
+      // A key or click before the deferred focus below is the writer moving on
+      // (⌃⇥ out, ← in the rail): the scene is still selected and scrolled to,
+      // but focus stays where they put it. A throttled timer runs late enough
+      // for that to happen.
+      let movedOn = false;
+      const onInput = () => {
+        movedOn = true;
+      };
+      window.addEventListener("keydown", onInput, true);
+      window.addEventListener("pointerdown", onInput, true);
       // Defer until the editor pane is un-hidden so the scroll can measure.
       setTimeout(() => {
-        editor.chain().focus().setTextSelection(pos).run();
+        window.removeEventListener("keydown", onInput, true);
+        window.removeEventListener("pointerdown", onInput, true);
+        // Focus at once, not through TipTap's `focus` command: that focuses in
+        // yet another animation frame, by when a key pressed in the rail could
+        // have been taken back into the script.
+        if (!movedOn) editor.view.focus();
+        editor.commands.setTextSelection(pos);
         // Explicitly, because ProseMirror's own `scrollIntoView()` moves nothing
         // in this layout — which is why clicking a card used to switch to the
         // script and then leave the writer at whatever they were last reading
@@ -2041,8 +2224,14 @@ export function useWorkspace(): Workspace {
     (replace = false) => {
       const editor = editorRef.current;
       if (!editor) return;
-      setView("editor"); // also closes an open material and re-selects the script
-      setTimeout(() => editor.commands.openFind(replace), 0);
+      // The script in front, drawn at once (this also closes an open material
+      // and re-selects the script), and its find bar opened in the same turn
+      // as the tap or key that asked. An iPad brings up the screen's keyboard
+      // only for a field focused while it is still handling the tap: opened a
+      // moment later, as it was, the bar had the caret in its field and no
+      // keyboard to type with (docs/engineering/cross-platform.md#PLAT-71).
+      flushSync(() => setView("editor"));
+      flushSync(() => editor.commands.openFind(replace));
     },
     [setView],
   );
@@ -2175,6 +2364,8 @@ export function useWorkspace(): Workspace {
       setFormatId(null);
       setLayoutMeta({});
       setFrontMatterState({});
+      frontPagesRef.current = { key: null, pages: undefined };
+      backPagesRef.current = { key: null, pages: NO_PAGES };
       loadDocIntoEditor({ type: "doc", content: [] });
       setBinder([]);
       setCards([]);
@@ -2412,6 +2603,37 @@ export function useWorkspace(): Workspace {
    * Throws on failure so callers choose how to surface it (openFolder shows an
    * error; the startup-restore silently falls back to the welcome screen).
    */
+  /**
+   * The folder just opened, asked for from iCloud for as long as it is the one
+   * open (docs/engineering/cross-platform.md#PLAT-69): the Plays folder, whose
+   * plays are looked for again as they arrive, or a play, whose open files are
+   * checked for changes from outside. A folder iCloud Drive does not keep is
+   * asked once and never again.
+   */
+  const followCloud = useCallback((plays: boolean) => {
+    cloudRef.current?.stop();
+    // Until the first pass answers, a folder that lists empty may be one
+    // still in iCloud: nothing is offered into it meanwhile.
+    setCloud(CLOUD_LOOKING);
+    const generation = workspaceGenRef.current;
+    const live = () => generation === workspaceGenRef.current;
+    const follower = cloudDownloader({
+      ask: vault.downloadCloud,
+      arrived: () => {
+        if (!live()) return;
+        if (plays) lookForPlaysRef.current();
+        else rescanRef.current?.();
+      },
+      changed: (state) => {
+        if (live()) setCloud(state);
+      },
+      live,
+    });
+    cloudRef.current = follower;
+    follower.nudge();
+  }, []);
+  useEffect(() => () => cloudRef.current?.stop(), []);
+
   const openAny = useCallback(
     async (picked: string) => {
       if (!(await teardownWorkspace())) return false;
@@ -2421,6 +2643,9 @@ export function useWorkspace(): Workspace {
       setPreserved([]);
       vaultRootRef.current = opened.root;
       setVaultRoot(opened.root);
+      // iCloud is asked for the folder at once, while its plays are looked
+      // for: a play iCloud has not brought down comes down meanwhile.
+      followCloud(true);
       // Listed before it is remembered: a folder the app can open but not read
       // (the App Sandbox, before a grant) must not become the folder the next
       // launch reopens — nor cost the one it replaced its bookmark.
@@ -2462,7 +2687,7 @@ export function useWorkspace(): Workspace {
       }
       return true;
     },
-    [teardownWorkspace],
+    [teardownWorkspace, followCloud],
   );
 
   /**
@@ -2482,6 +2707,7 @@ export function useWorkspace(): Workspace {
         setRoot(opened.root);
         setConflictCopies(opened.conflicts);
         setPreserved([]);
+        followCloud(false);
 
         // The file may have been renamed in Finder since the scan. Discovery is
         // by extension, so a mismatch never hides a play; the app adopts the
@@ -2537,7 +2763,7 @@ export function useWorkspace(): Workspace {
         setError(String(e));
       }
     },
-    [teardownWorkspace, loadPlay, openAny],
+    [teardownWorkspace, loadPlay, openAny, followCloud],
   );
 
   const backToVault = useCallback(async () => {
@@ -3385,8 +3611,8 @@ export function useWorkspace(): Workspace {
           if (!settled.safe) {
             setError(
               settled.why === "still-changing"
-                ? `“${settled.title}” was still changing, so nothing was moved to the Trash.`
-                : `“${settled.title}” couldn't be saved or kept in Versions, so nothing was moved to the Trash.`,
+                ? `“${settled.title}” was still changing, so nothing was moved to ${theTrash()}.`
+                : `“${settled.title}” couldn't be saved or kept in Versions, so nothing was moved to ${theTrash()}.`,
             );
             return undefined;
           }
@@ -4006,9 +4232,13 @@ export function useWorkspace(): Workspace {
    * read BEFORE the trash and written back on demand, together with only the
    * removed row. Later binder edits and card notes stay where they are.
    *
-   * A folder trashes a whole subtree, and reading a subtree into memory to
-   * un-delete it is a different feature — so a folder gets the toast without an
-   * Undo, and the toast says where it went instead of pretending.
+   * A folder trashes a whole subtree. One that holds only documents, as a
+   * script's folder of pages does, is read the same way and put back whole:
+   * its files where they were, its row and theirs with the ids they had, so
+   * a script's claim on its pages holds again. Any other folder (a script in
+   * it, a file that is not words, or more than a writer's folder of notes
+   * holds) is not read into memory to be un-deleted: it gets the toast
+   * without an Undo, which says where it went instead of pretending.
    */
   const remove = useCallback(
     (id: string): Promise<TrashResult | null> => {
@@ -4040,6 +4270,7 @@ export function useWorkspace(): Workspace {
         await flushAllMaterials();
 
         const saved: { path: string; content: string }[] = [];
+        let wholeFolder = false;
         if (item.type !== "folder") {
           try {
             if (await vault.exists(item.path)) {
@@ -4048,12 +4279,28 @@ export function useWorkspace(): Workspace {
           } catch {
             /* unreadable is not fatal — it only costs this file its undo */
           }
+        } else {
+          const files = flatten([item]).filter((row) => row.type !== "folder");
+          wholeFolder =
+            files.length <= UNDO_FOLDER_FILES &&
+            files.every((row) => row.type !== "script" && /\.md$/i.test(row.path));
+          if (wholeFolder) {
+            try {
+              for (const row of files)
+                if (await vault.exists(row.path))
+                  saved.push({ path: row.path, content: (await vault.read(row.path)).content });
+            } catch {
+              // One of them could not be read: none is put back by halves.
+              wholeFolder = false;
+              saved.length = 0;
+            }
+          }
         }
 
         const res = await binderOpNow((c) => deleteItem(c, id), { id, deletes: true });
         if (!res?.ok) return null;
 
-        const canUndo = item.type !== "folder" && saved.length > 0;
+        const canUndo = item.type === "folder" ? wholeFolder : saved.length > 0;
         return {
           title: titleOf(item) || "This file",
           undo: canUndo
@@ -4062,6 +4309,26 @@ export function useWorkspace(): Workspace {
                   if (playIdRef.current !== playId) {
                     setError(`“${titleOf(item)}” is in a play that isn't open any more.`);
                     return;
+                  }
+                  // A folder goes back whole or not at all. If anything
+                  // stands where it or one of its files stood (a folder of
+                  // pages made again since by Add Page, a file a sync
+                  // brought), nothing is written: half a folder put back
+                  // beside its namesake is worse than the whole one in the
+                  // Trash, where it still is.
+                  if (item.type === "folder") {
+                    try {
+                      for (const path of [item.path, ...saved.map((f) => f.path)])
+                        if (await vault.exists(path)) {
+                          setError(
+                            `“${titleOf(item)}” was not put back: something is there now. It is still in ${theTrash()}.`,
+                          );
+                          return;
+                        }
+                    } catch (e) {
+                      setError(String(e));
+                      return;
+                    }
                   }
                   for (const f of saved) {
                     try {
@@ -4090,6 +4357,71 @@ export function useWorkspace(): Workspace {
     [binderOpNow, landOpenScript, flushAllMaterials, line],
   );
   const consumeCreated = useCallback(() => setJustCreated(null), []);
+
+  /**
+   * Put one thing back from Proscenium’s Trash, in line with every open and
+   * binder op, from the Plays screen alone, whose folder every play is in.
+   * The plays are listed afresh first, so one renamed since is found by its
+   * id, and again after, so what came back is listed.
+   */
+  const putBackFromTrash = useCallback(
+    (entry: TrashEntry): Promise<PutBackOutcome> =>
+      line(async (): Promise<PutBackOutcome> => {
+        const root = vaultRootRef.current;
+        const onPlays = () => vaultRootRef.current === root && playDirRef.current === null;
+        if (!root || !onPlays())
+          return { ok: false, said: "Proscenium’s Trash puts things back from the Plays screen." };
+        // Practice's own folder of plays is not where a play's things go back.
+        if (practiceRef.current && (entry.ring.kind === "play" || entry.ring.kind === "plays"))
+          return {
+            ok: false,
+            said: "Return to your own plays to put this back. It stays in Proscenium’s Trash.",
+          };
+        const out = await putBackEntry(entry, await discoverPlays(), new Date().toISOString());
+        if (out.ok && onPlays()) setPlays(await discoverPlays());
+        return out;
+      }),
+    [line],
+  );
+
+  /**
+   * A whole play to the trash (docs/app/organizing/workspace-model.md#WORK-91),
+   * in line with every open and binder op, from the Plays screen alone: no
+   * play is open there, so nothing is writing into the folder that goes. Its
+   * folder is named afresh first, so a play renamed in Finder since the list
+   * was read is the one that goes, or none is. The list is read again after,
+   * whatever happened.
+   */
+  const trashPlay = useCallback(
+    (play: VaultPlay): Promise<{ ok: true } | { ok: false; said: string }> =>
+      line(async () => {
+        const root = vaultRootRef.current;
+        const onPlays = () => vaultRootRef.current === root && playDirRef.current === null;
+        if (!root || !onPlays())
+          return {
+            ok: false as const,
+            said: "A play is moved to the trash from the Plays screen.",
+          };
+        if (practiceRef.current)
+          return { ok: false as const, said: "Return to your own plays to move one to the trash." };
+        const now = (await discoverPlays()).find((p) => p.id === play.id);
+        if (!now) {
+          if (onPlays()) setPlays(await discoverPlays());
+          return { ok: false as const, said: `“${play.title}” is no longer in the Plays folder.` };
+        }
+        try {
+          await vault.trash(now.dir, playNote(now));
+          return { ok: true as const };
+        } catch (e) {
+          return { ok: false as const, said: String(e).replace(/^Error:\s*/, "") };
+        } finally {
+          // A list that cannot be read again keeps the one it had.
+          const found = await discoverPlays().catch(() => null);
+          if (found && onPlays()) setPlays(found);
+        }
+      }),
+    [line],
+  );
 
   const versionsOf = useCallback(
     (id: string): VersionsTarget | null =>
@@ -4175,6 +4507,13 @@ export function useWorkspace(): Workspace {
         setError("Another script opened before the title page was saved, so nothing was changed.");
         return false;
       }
+      fm = withBackOf(
+        withPagesOf(
+          fm,
+          pagesOf(frontPagesRef.current, playIdRef.current, activeScriptIdRef.current),
+        ),
+        backOf(backPagesRef.current, playIdRef.current, activeScriptIdRef.current),
+      );
       frontMatterRef.current = fm;
       setFrontMatterState(fm);
       setLayoutMeta({
@@ -4199,22 +4538,299 @@ export function useWorkspace(): Workspace {
     [saveFrontMatter],
   );
 
-  // --- cast & characters ---
-  // The printed cast list (name + short description) is canonical in the
-  // fountain title page; save it through the same dirty→autosave path.
-  const saveCharacters = useCallback(
-    (entries: CharacterEntry[]) => {
-      saveFrontMatter({
-        ...frontMatterRef.current,
-        characters: entries.length ? entries : undefined,
-      });
-    },
-    [saveFrontMatter],
+  // --- pages before the script, kept as files (docs/app/formatting/formats-and-layout.md#FMT-169) ---
+  /** The open script's key, as `openScriptKey` names it. */
+  const openKeyNow = useCallback(
+    () =>
+      playIdRef.current && activeScriptIdRef.current
+        ? `${playIdRef.current}:${activeScriptIdRef.current}`
+        : null,
+    [],
   );
-  // Auto-add calls this from an effect; a ref keeps it out of the deps, so the
-  // effect fires on the script changing rather than on a callback re-binding.
-  const saveCharactersRef = useRef(saveCharacters);
-  saveCharactersRef.current = saveCharacters;
+  /** Pages read for one script: installed in its front matter if it is still the one open. */
+  const setFrontPages = useCallback(
+    (key: string | null, pages: FrontPageSource[] | undefined) => {
+      frontPagesRef.current = { key, pages };
+      if (key !== openKeyNow()) return;
+      const fm = withPagesOf(frontMatterRef.current, pages);
+      if (fm === frontMatterRef.current) return;
+      frontMatterRef.current = fm;
+      setFrontMatterState(fm);
+      setLayoutMeta((m) => ({ ...m, frontMatter: fm }));
+    },
+    [openKeyNow],
+  );
+  const [frontPages, setFrontPagesState] = useState<FrontPageSource[] | undefined>(undefined);
+  /** Bumped when a page's file changed on disk from outside: the folder is read again. */
+  const [pagesHeard, setPagesHeard] = useState(0);
+  // The folder is read whenever the binder or the open script changes: a page
+  // added, renamed, moved, put back or taken away is a change of the binder,
+  // and the order of its rows is the order of the pages.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the binder, the script and a change heard are the causes
+  useEffect(() => {
+    const key = openKeyNow();
+    const items = frontPageItems(binder, playRef.current?.data ?? null, activeScriptIdRef.current);
+    if (!items) {
+      setFrontPages(key, undefined);
+      setFrontPagesState(undefined);
+      return;
+    }
+    let stale = false;
+    const generation = workspaceGenRef.current;
+    void Promise.all(
+      items.map(async (item) => {
+        // A page an editor holds is read as the store last knew it: its file.
+        const open = materials.record(item.id);
+        if (open) return frontPageSource(item, open.content);
+        try {
+          return frontPageSource(item, (await vault.read(item.path)).content);
+        } catch {
+          // Not readable now (not yet down from the cloud): a page with nothing on it.
+          return frontPageSource(item, "");
+        }
+      }),
+    ).then((pages) => {
+      if (stale || generation !== workspaceGenRef.current || key !== openKeyNow()) return;
+      setFrontPages(key, pages);
+      setFrontPagesState(pages);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [binder, openScriptKey, pagesHeard]);
+  // A page's save landing, here or in a pane, is its new words on the page view.
+  useEffect(() => {
+    const held = frontPagesRef.current;
+    if (!held.pages || held.key !== openKeyNow()) return;
+    let changed = false;
+    const pages = held.pages.map((page) => {
+      const open = openMaterials[page.id];
+      if (!open || open.content === page.text) return page;
+      changed = true;
+      return { ...page, text: open.content };
+    });
+    if (!changed) return;
+    setFrontPages(held.key, pages);
+    setFrontPagesState(pages);
+  }, [openMaterials, openKeyNow, setFrontPages]);
+  const pagesHeardRef = useRef(() => setPagesHeard((n) => n + 1));
+
+  // --- pages after the script (docs/app/formatting/formats-and-layout.md#FMT-174) ---
+  /** Pages read for one script's Back Matter folder: installed if it is still the one open. */
+  const setBackPages = useCallback(
+    (key: string | null, pages: FrontPageSource[]) => {
+      backPagesRef.current = { key, pages };
+      if (key !== openKeyNow()) return;
+      const fm = withBackOf(frontMatterRef.current, pages);
+      if (fm === frontMatterRef.current) return;
+      frontMatterRef.current = fm;
+      setFrontMatterState(fm);
+      setLayoutMeta((m) => ({ ...m, frontMatter: fm }));
+    },
+    [openKeyNow],
+  );
+  // Read as the pages before the script are: whenever the binder or the open
+  // script changes, or a page's file is heard to change from outside.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the binder, the script and a change heard are the causes
+  useEffect(() => {
+    const key = openKeyNow();
+    const items = backPageItems(binder, playRef.current?.data ?? null, activeScriptIdRef.current);
+    if (!items.length) {
+      setBackPages(key, NO_PAGES);
+      return;
+    }
+    let stale = false;
+    const generation = workspaceGenRef.current;
+    void Promise.all(
+      items.map(async (item) => {
+        const open = materials.record(item.id);
+        if (open) return frontPageSource(item, open.content);
+        try {
+          return frontPageSource(item, (await vault.read(item.path)).content);
+        } catch {
+          return frontPageSource(item, "");
+        }
+      }),
+    ).then((pages) => {
+      if (stale || generation !== workspaceGenRef.current || key !== openKeyNow()) return;
+      setBackPages(key, pages);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [binder, openScriptKey, pagesHeard]);
+  useEffect(() => {
+    const held = backPagesRef.current;
+    if (!held.pages.length || held.key !== openKeyNow()) return;
+    let changed = false;
+    const pages = held.pages.map((page) => {
+      const open = openMaterials[page.id];
+      if (!open || open.content === page.text) return page;
+      changed = true;
+      return { ...page, text: open.content };
+    });
+    if (changed) setBackPages(held.key, pages);
+  }, [openMaterials, openKeyNow, setBackPages]);
+
+  /**
+   * The first edit of a page a script's title page still prints: every such
+   * page is written as a file in a folder of its own, and only then do the
+   * keys leave the script (docs/app/formatting/formats-and-layout.md#FMT-169).
+   * In an order that cannot lose a word: the
+   * script is kept in Versions as it is; each file is created, never written
+   * over; the folder and the script's claim on it are one write of the play
+   * file; the script is written without the keys last, by its own autosave.
+   * `edited` is the page whose words start it, with those words in its file.
+   * Resolves to the new pages' binder ids by the kind each was, or null when
+   * nothing was written.
+   */
+  const materializingRef = useRef<Promise<Record<string, string> | null> | null>(null);
+  const materializeFrontMatter = useCallback(
+    (edited?: { kind: string; text: string }): Promise<Record<string, string> | null> => {
+      if (materializingRef.current) return materializingRef.current;
+      const run = (async (): Promise<Record<string, string> | null> => {
+        const key = openKeyNow();
+        const scriptId = activeScriptIdRef.current;
+        if (!key || !scriptId || readOnlyRef.current) return null;
+        if (frontFolderId(playRef.current?.data ?? null, scriptId) !== undefined) return null;
+        const files = legacyPageFiles(frontMatterRef.current).map((file) =>
+          file.kind === edited?.kind ? { ...file, text: edited.text } : file,
+        );
+        if (edited && !files.some((file) => file.kind === edited.kind)) return null;
+        if ((await snapshotBuffer("pre-apply")) === null) {
+          setError(
+            "The script couldn't be kept in Versions first, so its pages were left in its title page.",
+          );
+          return null;
+        }
+        if (openKeyNow() !== key) return null;
+        let made: string[] = [];
+        const res = await runBinderOp(async (c) => {
+          const out = await makeFrontMatterFolder(
+            c,
+            scriptId,
+            files.map(({ name, text }) => ({ name, text })),
+          );
+          if (out.ok) made = out.pageIds ?? [];
+          return out;
+        });
+        if (!res?.ok || made.length !== files.length || openKeyNow() !== key) return null;
+        const ids: Record<string, string> = {};
+        files.forEach((file, i) => {
+          ids[file.kind] = made[i]!;
+        });
+        const items = frontPageItems(res.play.binder, res.play, scriptId) ?? [];
+        const pages = items.map((item) =>
+          frontPageSource(item, files[made.indexOf(item.id)]?.text ?? ""),
+        );
+        setFrontPages(key, pages);
+        setFrontPagesState(pages);
+        saveFrontMatter(withoutPageKeys(frontMatterRef.current), key);
+        return ids;
+      })().finally(() => {
+        materializingRef.current = null;
+      });
+      materializingRef.current = run;
+      return run;
+    },
+    [openKeyNow, setFrontPages, snapshotBuffer, runBinderOp, saveFrontMatter],
+  );
+
+  /**
+   * Keys a script whose pages are files should not hold any more (written by
+   * a copy of the app from before, or left by a write that failed): kept in
+   * Versions, then taken out, as the first edit of a page would have.
+   */
+  const settleLeftKeys = useCallback(async () => {
+    const key = openKeyNow();
+    if (!key || readOnlyRef.current || !hasPageKeys(frontMatterRef.current)) return;
+    if (frontFolderId(playRef.current?.data ?? null, activeScriptIdRef.current) === undefined)
+      return;
+    if ((await snapshotBuffer("pre-apply")) === null || openKeyNow() !== key) return;
+    saveFrontMatter(withoutPageKeys(frontMatterRef.current), key);
+  }, [openKeyNow, snapshotBuffer, saveFrontMatter]);
+
+  /**
+   * A page from a scaffold, made in the open script's folder where `at` says
+   * among its pages. A script with no folder gets one, its title page's pages
+   * written there first. Resolves to the new page's binder id, or null.
+   */
+  const addFrontPage = useCallback(
+    async (
+      name: string,
+      text: string,
+      at: (existing: FrontPageSource[]) => number,
+      side: PageSide = "front",
+    ): Promise<string | null> => {
+      const key = openKeyNow();
+      const scriptId = activeScriptIdRef.current;
+      if (!key || !scriptId || readOnlyRef.current) return null;
+      if (side === "back") {
+        // After the script: a folder of its own, made with its first page.
+        const folder = backFolderId(playRef.current?.data ?? null, scriptId);
+        const there = folder && findById(playRef.current?.data.binder ?? [], folder);
+        if (!there) {
+          let made: string | null = null;
+          const res = await runBinderOp(async (c) => {
+            const out = await makeFrontMatterFolder(c, scriptId, [{ name, text }], "back");
+            if (out.ok) made = out.pageIds?.[0] ?? null;
+            return out;
+          });
+          if (!res?.ok || openKeyNow() !== key) return null;
+          return made;
+        }
+        const existing = backOf(backPagesRef.current, playIdRef.current, scriptId);
+        const res = await runBinderOp((c) =>
+          newPageFile(c, folder, name, text, Math.max(0, Math.min(existing.length, at(existing)))),
+        );
+        return res?.ok && res.createdId ? res.createdId : null;
+      }
+      // No folder of pages: none was ever made, or the one the script named
+      // has gone to the Trash (and with it the pages). A play whose title
+      // page still holds its pages writes them as files first; any other
+      // gets a folder made with this page in it, and the script's claim on it.
+      const claimed = frontFolderId(playRef.current?.data ?? null, scriptId);
+      const gone = claimed !== undefined && !findById(playRef.current?.data.binder ?? [], claimed);
+      if (claimed === undefined || gone) {
+        if (!gone && legacyPageFiles(frontMatterRef.current).length) {
+          if (!(await materializeFrontMatter())) return null;
+        } else {
+          let made: string | null = null;
+          const res = await runBinderOp(async (c) => {
+            const out = await makeFrontMatterFolder(c, scriptId, [{ name, text }]);
+            if (out.ok) made = out.pageIds?.[0] ?? null;
+            return out;
+          });
+          if (!res?.ok || openKeyNow() !== key) return null;
+          return made;
+        }
+      }
+      const folder = frontFolderId(playRef.current?.data ?? null, scriptId);
+      if (!folder || openKeyNow() !== key) return null;
+      const existing = pagesOf(frontPagesRef.current, playIdRef.current, scriptId) ?? [];
+      const res = await runBinderOp((c) =>
+        newPageFile(c, folder, name, text, Math.max(0, Math.min(existing.length, at(existing)))),
+      );
+      return res?.ok && res.createdId ? res.createdId : null;
+    },
+    [openKeyNow, materializeFrontMatter, runBinderOp, saveFrontMatter],
+  );
+
+  const pageFolderNow = useCallback(
+    (folderId: string) => pageFolderOf(playRef.current?.data ?? null, folderId),
+    [],
+  );
+
+  /** A page's file in the store without opening it in a pane: the page view's editor writes it. */
+  const holdFrontPage = useCallback(
+    (id: string) => {
+      const item = findById(playRef.current?.data.binder ?? [], id);
+      if (item) void openMaterial(item, { quiet: true });
+    },
+    [openMaterial],
+  );
+
+  // --- cast & characters ---
   // Where each character speaks (derived from the open doc + scene cards).
   const castAppearances = useCallback(() => computeAppearances(docRef.current, cards), [cards]);
   // How big each part is, for tiering the Cast surface. Recomputed with the
@@ -4233,6 +4849,14 @@ export function useWorkspace(): Workspace {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cards, resolvedFormat.spec, layoutMeta],
   );
+  // Whether the one card is the whole script, which no scene line divides
+  // (docs/app/organizing/workspace-model.md#WORK-93): read from the parse the
+  // cards were made from, when they were, so the two cannot disagree.
+  const wholeScriptNow = useMemo(
+    () => wholeScript(docRef.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cards],
+  );
 
   // Keep the hidden set in step with whatever the play file currently says —
   // open, reconcile, or an external edit — without threading it through every
@@ -4247,41 +4871,73 @@ export function useWorkspace(): Workspace {
   }, [cards]);
 
   /**
-   * Rewrite the play file's hidden-speaker set, replayed against whatever base
-   * wins — the same guarded pattern as a card edit, so an outside write landing
-   * mid-flight merges rather than colliding.
+   * Rewrite the open script's entry in the play file, replayed against
+   * whatever base wins — the same guarded pattern as a card edit, so an
+   * outside write landing mid-flight merges rather than colliding. Resolves to
+   * the entry as written, or null when nothing was, or the script changed.
    */
-  const patchCastHidden = useCallback(async (change: (hidden: string[]) => string[]) => {
-    const base = playRef.current;
-    const playPath = playPathRef.current;
-    const scriptId = activeScriptIdRef.current;
-    const playId = playIdRef.current;
-    if (!base || !playPath || !scriptId) return;
-    try {
-      const committed = await commitPlay(
-        playPath,
-        base,
-        (prior) => {
-          const from = prior ?? base.data;
-          const data = scriptDataFor(from, scriptId);
-          return withScriptData(from, scriptId, {
-            ...data,
-            castHidden: change(data.castHidden ?? []),
-          });
-        },
-        new Date().toISOString(),
-      );
-      if (playIdRef.current !== playId) return;
-      if (committed.status === "ok") {
-        takeWrittenRef.current(base, committed);
-        if (activeScriptIdRef.current === scriptId) {
-          setCastHidden(scriptDataFor(committed.data, scriptId).castHidden ?? []);
+  const patchScriptData = useCallback(
+    async (change: (data: ScriptData) => ScriptData): Promise<ScriptData | null> => {
+      const base = playRef.current;
+      const playPath = playPathRef.current;
+      const scriptId = activeScriptIdRef.current;
+      const playId = playIdRef.current;
+      if (!base || !playPath || !scriptId) return null;
+      try {
+        const committed = await commitPlay(
+          playPath,
+          base,
+          (prior) => {
+            const from = prior ?? base.data;
+            return withScriptData(from, scriptId, change(scriptDataFor(from, scriptId)));
+          },
+          new Date().toISOString(),
+        );
+        if (playIdRef.current !== playId) return null;
+        if (committed.status === "ok") {
+          takeWrittenRef.current(base, committed);
+          return activeScriptIdRef.current === scriptId
+            ? scriptDataFor(committed.data, scriptId)
+            : null;
         }
-      } else setError("This play changed on disk — reopen it to see the change.");
-    } catch (e) {
-      setError(String(e));
-    }
+        setError("This play changed on disk — reopen it to see the change.");
+      } catch (e) {
+        setError(String(e));
+      }
+      return null;
+    },
+    [],
+  );
+
+  /** Rewrite the play file's hidden-speaker set. */
+  const patchCastHidden = useCallback(
+    async (change: (hidden: string[]) => string[]) => {
+      const data = await patchScriptData((d) => ({ ...d, castHidden: change(d.castHidden ?? []) }));
+      if (data) setCastHidden(data.castHidden ?? []);
+    },
+    [patchScriptData],
+  );
+
+  /**
+   * The names the writer kept in their own case from Capitalize Character
+   * Names in Directions…, for the open script, as the play file has them now
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-194).
+   */
+  const castKeptNow = useCallback((): KeptName[] => {
+    const scriptId = activeScriptIdRef.current;
+    const play = playRef.current?.data;
+    return (scriptId && play ? scriptDataFor(play, scriptId).castKept : null) ?? [];
   }, []);
+  /** The command's new list, written whole; empty, the key goes. */
+  const saveCastKept = useCallback(
+    async (entries: KeptName[]) => {
+      await patchScriptData((d) => {
+        const { castKept: _, ...rest } = d;
+        return entries.length ? { ...rest, castKept: entries } : rest;
+      });
+    },
+    [patchScriptData],
+  );
 
   /**
    * Take a speaker off the printed cast page for good. Canonical in the play file
@@ -4308,33 +4964,95 @@ export function useWorkspace(): Workspace {
   );
 
   /**
-   * Auto-add: a speaker who says something and isn't listed simply joins the
-   * cast. No button, no "add 3 from script" — the character exists because they
-   * spoke.
-   *
-   * Two guards keep that from being annoying. **A cue with no speech under it
-   * is ignored**, so a half-typed name never lands on the cast page (a
-   * character isn't real until they say something). And this runs with `cards`
-   * — i.e. at autosave cadence after a successful write, not per keystroke.
-   * It converges: once added, the speaker is listed, so the next pass detects
-   * nothing and stops.
+   * The printed Characters page, and the cast list with it where the page
+   * shows one (docs/app/formatting/formats-and-layout.md#FMT-166). A speaker
+   * whose line the writer took off the page is taken off the cast list for
+   * good, as Cast's remove does, or auto-add would put them back on the page
+   * at the next save; one put back on the page is let back.
    */
-  useEffect(() => {
-    if (!sessionRef.current || readOnly) return;
-    const listed = frontMatterRef.current.characters ?? [];
-    // The hidden set as the play file has it for the script open NOW. The
-    // `castHidden` state catches up a render later, and in that render it was
-    // still the last script's — or empty, just after opening — so a speaker
-    // taken off the cast page for good came back every time the script opened.
-    const sid = activeScriptIdRef.current;
-    const play = playRef.current?.data ?? null;
-    const hidden = sid && play ? (scriptDataFor(play, sid).castHidden ?? []) : castHidden;
-    const fresh = detectNewSpeakers(listed, castWeights, hidden).filter(
-      (name) => (castWeights.get(name)?.lines ?? 0) > 0,
-    );
-    if (fresh.length === 0) return;
-    saveCharactersRef.current([...listed, ...fresh.map((name) => ({ name }))]);
-  }, [castWeights, castHidden, readOnly]);
+  /**
+   * A paragraph written at the end of one page before the script, above its
+   * foot if it has one, through the store every page is written through. A
+   * page its title page still prints (`legacy:` and its kind) is written as a
+   * file first, with the rest. Whether the words landed.
+   */
+  const appendToFrontPage = useCallback(
+    async (source: string, markdown: string): Promise<boolean> => {
+      const key = openKeyNow();
+      if (!key || readOnlyRef.current) return false;
+      let id = source;
+      if (source.startsWith("legacy:")) {
+        const ids = await materializeFrontMatter();
+        const made = ids?.[source.slice("legacy:".length)];
+        if (!made) return false;
+        id = made;
+      }
+      const item = findById(playRef.current?.data.binder ?? [], id);
+      if (!item) return false;
+      await openMaterial(item, { quiet: true });
+      const held = materials.record(id);
+      if (!held || openKeyNow() !== key) return false;
+      const { header, body } = splitFrontMatter(held.content);
+      const lines = body.replace(/\s+$/, "").split("\n");
+      const foot = lines.findIndex((l) => l.trim() === FOOT_MARK);
+      const next =
+        foot < 0
+          ? `${lines.join("\n")}\n\n${markdown}\n`
+          : [...lines.slice(0, foot), "", markdown, "", ...lines.slice(foot)].join("\n");
+      return saveMaterial(id, withFrontMatter(header, next), held.content);
+    },
+    [openKeyNow, materializeFrontMatter, openMaterial, materials, saveMaterial],
+  );
+
+  /**
+   * A name written on the page that names most of the cast, as a paragraph of
+   * its own (docs/app/formatting/formats-and-layout.md#FMT-170): the one thing
+   * Cast writes on a page, and only when the writer asks. With no page that
+   * names anyone, a Characters page is made for it. A script whose pages are
+   * still its title page's has them written as files first.
+   */
+  const addToCharactersPage = useCallback(
+    async (name: string): Promise<boolean> => {
+      const key = openKeyNow();
+      const scriptId = activeScriptIdRef.current;
+      const upper = name.trim().toUpperCase();
+      if (!key || !scriptId || !upper || readOnlyRef.current) return false;
+      if (
+        frontFolderId(playRef.current?.data ?? null, scriptId) === undefined &&
+        legacyPageFiles(frontMatterRef.current).length &&
+        !(await materializeFrontMatter())
+      )
+        return false;
+      const pages = pagesOf(frontPagesRef.current, playIdRef.current, scriptId) ?? [];
+      const speakers = [...castWeights.keys()];
+      const best = pages
+        .map((page) => ({
+          page,
+          score:
+            speakers.filter((speaker) => namedOnPage(speaker, page.text)).length +
+            (/character|cast/i.test(page.name) ? 0.5 : 0),
+        }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score)[0]?.page;
+      if (!best) {
+        const text = writePageFile(
+          { layout: "top" },
+          `<!-- proscenium:align=center -->\n\n## CHARACTERS\n\n**${upper}**\n`,
+        );
+        // After the title page and any page set a third of the way down.
+        const id = await addFrontPage("Characters", text, (existing) => {
+          const at = existing.findIndex((page) => readPageFile(page.text).layout === "top");
+          return at < 0 ? existing.length : at;
+        });
+        return id !== null;
+      }
+      const line = /\*\*[^*\n]+\*\*/.test(best.text) ? `**${upper}**` : upper;
+      const ok = await appendToFrontPage(best.id, line);
+      if (ok) announce(`${upper} is on the ${best.name} page.`);
+      return ok;
+    },
+    [openKeyNow, materializeFrontMatter, castWeights, addFrontPage, appendToFrontPage],
+  );
 
   const setPaginated = useCallback((on: boolean) => {
     setPaginatedState(on);
@@ -4371,12 +5089,19 @@ export function useWorkspace(): Workspace {
         // Meant for the script that was open when it was asked for.
         if (sessionRef.current !== session) return false;
         const parsed = parse(content);
-        frontMatterRef.current = parsed.frontMatter;
-        setFrontMatterState(parsed.frontMatter);
+        const fm = withBackOf(
+          withPagesOf(
+            parsed.frontMatter,
+            pagesOf(frontPagesRef.current, playIdRef.current, activeScriptIdRef.current),
+          ),
+          backOf(backPagesRef.current, playIdRef.current, activeScriptIdRef.current),
+        );
+        frontMatterRef.current = fm;
+        setFrontMatterState(fm);
         setLayoutMeta((m) => ({
-          frontMatter: parsed.frontMatter,
-          title: parsed.frontMatter.title ?? m.title ?? "",
-          author: parsed.frontMatter.authors?.join(", ") ?? "",
+          frontMatter: fm,
+          title: fm.title ?? m.title ?? "",
+          author: fm.authors?.join(", ") ?? "",
         }));
         const hash = await writeScriptDoc(parsed.doc);
         if (hash === null) return false;
@@ -4518,6 +5243,26 @@ export function useWorkspace(): Workspace {
     [resolvedFormat, layoutMeta, scriptTitle],
   );
 
+  /**
+   * The front matter as an export takes it: words still on their way from a
+   * page's editor sent to its file first, and each page as the store holds it
+   * now, not as the page view last drew it.
+   */
+  const frontMatterNow = useCallback(async (): Promise<FrontMatter> => {
+    await flushAllMaterials();
+    const fm = frontMatterRef.current;
+    if (!fm.pages && !fm.backPages) return fm;
+    const asHeld = (page: FrontPageSource) => {
+      const held = materialRecord(page.id);
+      return held ? { ...page, text: held.content } : page;
+    };
+    return {
+      ...fm,
+      ...(fm.pages ? { pages: fm.pages.map(asHeld) } : {}),
+      ...(fm.backPages ? { backPages: fm.backPages.map(asHeld) } : {}),
+    };
+  }, [flushAllMaterials, materialRecord]);
+
   const exportScript = useCallback(
     async (opts?: {
       pages?: number[] | null;
@@ -4530,7 +5275,7 @@ export function useWorkspace(): Workspace {
       const doc = docRef.current;
       const scriptPath = scriptPathRef.current;
       const language = playRef.current?.data.settings.language ?? DEFAULT_PLAY_LANGUAGE;
-      const exportFrontMatter = frontMatterRef.current;
+      let exportFrontMatter = frontMatterRef.current;
       const printing = opts?.to === "print";
       // Printing is the PDF's; a .docx or .odt is only ever saved.
       const type: ExportFileType = printing ? "pdf" : (opts?.type ?? "pdf");
@@ -4541,6 +5286,8 @@ export function useWorkspace(): Workspace {
       setExporting(true);
       try {
         autosaveRef.current?.flushNow(); // the file reflects what's on disk
+        exportFrontMatter = await frontMatterNow();
+        const exportMeta = { ...layoutMeta, frontMatter: exportFrontMatter };
         const pages = opts?.pages ?? null;
         const sidesFor = opts?.sidesFor?.trim().toUpperCase() || null;
         // The file name says what the file is — a sides export or an excerpt
@@ -4557,7 +5304,7 @@ export function useWorkspace(): Workspace {
         const args = {
           doc: sidesFor ? sidesDoc(doc, sidesFor) : doc,
           spec: resolvedFormat.spec,
-          meta: anonymous ? anonymousMeta(layoutMeta, scriptTitle) : layoutMeta,
+          meta: anonymous ? anonymousMeta(exportMeta, scriptTitle) : exportMeta,
           language,
           // Any export can carry the title, cast and setting sheets — sides
           // too, for an audition packet. None go unless they were asked for.
@@ -4599,14 +5346,49 @@ export function useWorkspace(): Workspace {
               ? `.docx export failed: ${String(e)}`
               : type === "odt"
                 ? `.odt export failed: ${String(e)}`
-                : `PDF export failed: ${String(e)}`,
+                : type === "rtf"
+                  ? `.rtf export failed: ${String(e)}`
+                  : `PDF export failed: ${String(e)}`,
         );
       } finally {
         setExporting(false);
       }
     },
-    [resolvedFormat, layoutMeta, scriptTitle],
+    [resolvedFormat, layoutMeta, scriptTitle, frontMatterNow],
   );
+
+  /**
+   * The open script as one Fountain file with its pages before the script in
+   * it, for any Fountain app (docs/app/formatting/formats-and-layout.md#FMT-171).
+   * Its title page is the script's as it is written once its pages are files:
+   * pages still in the title page's keys go out as pages, not as those keys too.
+   * No report event, as for a .docx or .odt.
+   */
+  const exportFountain = useCallback(async () => {
+    const doc = docRef.current;
+    const scriptPath = scriptPathRef.current;
+    if (!doc || !scriptPath) {
+      setError("No script open to export.");
+      return;
+    }
+    setExporting(true);
+    try {
+      autosaveRef.current?.flushNow(); // the file reflects what's on disk
+      const fm = await frontMatterNow();
+      const text = fountainWithPages(
+        { frontMatter: withoutPageKeys(fm), doc },
+        frontPageList(fm),
+        backPageList(fm),
+      );
+      const name = `${baseName(scriptPath).replace(/\.fountain$/, "")}.fountain`;
+      const saved = await exporter.saveFile(name, new TextEncoder().encode(text), "fountain");
+      if (saved) setNotice(`Exported ${saved}`);
+    } catch (e) {
+      setError(`Fountain export failed: ${String(e)}`);
+    } finally {
+      setExporting(false);
+    }
+  }, [frontMatterNow]);
 
   // --- watcher listeners (unit C/F) ---
   //
@@ -4636,6 +5418,7 @@ export function useWorkspace(): Workspace {
         });
     }, PLAYS_SETTLE_MS);
   }, []);
+  lookForPlaysRef.current = lookForPlaysSoon;
 
   /**
    * The PLAY FILE read and taken up whole: its binder shown, the open script's
@@ -4711,6 +5494,20 @@ export function useWorkspace(): Workspace {
         ...flatten(playRef.current?.data.binder ?? []).map((item) => item.path),
       ].filter((path): path is string => typeof path === "string");
       const eventPath = matchingPath(e.relPath, new Set(knownPaths)) ?? e.relPath;
+      // A page of the open script changed: the page view reads its folder again.
+      if (
+        frontPageItems(
+          playRef.current?.data.binder ?? [],
+          playRef.current?.data ?? null,
+          activeScriptIdRef.current,
+        )?.some((item) => pathKey(item.path) === pathKey(eventPath)) ||
+        backPageItems(
+          playRef.current?.data.binder ?? [],
+          playRef.current?.data ?? null,
+          activeScriptIdRef.current,
+        ).some((item) => pathKey(item.path) === pathKey(eventPath))
+      )
+        pagesHeardRef.current();
       // The bytes may be unchanged during an external case/NFC rename. Still
       // reconcile so every open buffer follows the disk's actual spelling.
       if (e.relPath !== eventPath && affectsBinder(e.relPath)) {
@@ -4931,7 +5728,11 @@ export function useWorkspace(): Workspace {
       // Back on the Plays screen: what came down meanwhile is listed too.
       if (playDirRef.current === null) lookForPlaysSoon();
       void rescan();
+      // And iCloud is asked at once for what changed on other devices meanwhile.
+      cloudRef.current?.nudge();
     };
+    // What came down from iCloud is checked as a change from outside is.
+    rescanRef.current = () => void rescan();
     document.addEventListener("visibilitychange", onForeground);
     window.addEventListener("focus", onForeground);
     let off: (() => void) | undefined;
@@ -4945,6 +5746,7 @@ export function useWorkspace(): Workspace {
       });
     return () => {
       cancelled = true;
+      rescanRef.current = null;
       document.removeEventListener("visibilitychange", onForeground);
       window.removeEventListener("focus", onForeground);
       off?.();
@@ -5113,12 +5915,18 @@ export function useWorkspace(): Workspace {
     });
   }, [root, mode, readOnly, binder, cards, materialsTick]);
 
-  // Flush on blur/quit (docs/app/keeping-work/storage-and-file-format.md#STOR-D10). And back in the window, saves the disk
-  // refused try again: the writer was most likely in Finder unlocking the
+  // Flush on blur/quit (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), and as the page is hidden or put away,
+  // as the documents do (MaterialEditor.tsx): a system that suspends an app
+  // the writer leaves may end it there without a word, and what autosave's
+  // wait had not written would go with it. And back in the window, saves the
+  // disk refused try again: the writer was most likely in Finder unlocking the
   // file, or making room, as the toast asked — "it will save once" is kept
   // without waiting for the next keystroke.
   useEffect(() => {
     const onBlur = () => autosaveRef.current?.flushNow();
+    const onHidden = () => {
+      if (document.visibilityState === "hidden") onBlur();
+    };
     const onFocus = () => {
       for (const key of refusedRef.current.keys()) {
         if (key.startsWith("script:")) flushRef.current();
@@ -5129,10 +5937,14 @@ export function useWorkspace(): Workspace {
     window.addEventListener("blur", onBlur);
     window.addEventListener("focus", onFocus);
     window.addEventListener("beforeunload", onBlur);
+    window.addEventListener("pagehide", onBlur);
+    document.addEventListener("visibilitychange", onHidden);
     return () => {
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("beforeunload", onBlur);
+      window.removeEventListener("pagehide", onBlur);
+      document.removeEventListener("visibilitychange", onHidden);
     };
   }, []);
 
@@ -5331,6 +6143,7 @@ export function useWorkspace(): Workspace {
       if (playsFolderHint && vaultRoot) setKeptFolder(vaultRoot);
     },
     lookingBelow: vaultRoot !== null && foldersBelow === null,
+    cloudDownload: cloud,
     booted,
     updatePlay: (dir, patch) => void updatePlay(dir, patch),
     root,
@@ -5421,17 +6234,28 @@ export function useWorkspace(): Workspace {
     frontMatter,
     saveFrontMatter,
     openScriptKey,
-    saveCharacters,
+    addToCharactersPage,
+    appendToFrontPage,
+    castKeptNow,
+    saveCastKept,
     patchFrontMatter,
+    frontPages,
+    materializeFrontMatter,
+    settleLeftKeys,
+    addFrontPage,
+    pageFolderOf: pageFolderNow,
+    holdFrontPage,
     castAppearances,
     castWeights,
     scenePages,
     sceneCount: cards.length,
+    wholeScript: wholeScriptNow,
     castHidden,
     hideFromCast,
     unhideFromCast,
     layoutForExport,
     exportScript: (opts) => void exportScript(opts),
+    exportFountain: () => void exportFountain(),
     exporting,
     notice,
     dismissNotice: () => setNotice(null),
@@ -5483,5 +6307,7 @@ export function useWorkspace(): Workspace {
     justCreated,
     consumeCreated,
     remove,
+    putBackFromTrash,
+    trashPlay,
   };
 }

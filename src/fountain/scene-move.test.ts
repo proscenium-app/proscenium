@@ -4,8 +4,14 @@
 import { describe, expect, it } from "bun:test";
 import { parse } from "./parse";
 import { serialize } from "./serialize";
-import { extractScenes } from "./scenes";
-import { moveSceneInDoc, sameSceneOutline, sceneBlockRanges, addSceneToDoc } from "./scene-move";
+import { extractScenes, wholeScript } from "./scenes";
+import {
+  moveSceneInDoc,
+  sameSceneOutline,
+  sceneBlockRanges,
+  addSceneToDoc,
+  setSceneSynopsis,
+} from "./scene-move";
 
 const THREE = [
   "# ACT ONE",
@@ -148,5 +154,73 @@ describe("sameSceneOutline", () => {
     const moved = moveSceneInDoc(typed, 0, 1);
     expect(headings(moved)).toEqual(headings(moveSceneInDoc(before, 0, 1)));
     expect(serialize({ frontMatter: {}, doc: moved })).toContain("Ccc, typed while it was out.");
+  });
+});
+
+/**
+ * A play with no scene line is one scene (docs/app/organizing/workspace-model.md#WORK-41,
+ * docs/app/organizing/workspace-model.md#WORK-93): a short play in one place
+ * often has no heading anywhere, and its one card is the whole script.
+ */
+describe("a script no scene line divides", () => {
+  const UNDIVIDED = [
+    "A bus shelter. Rain.",
+    "",
+    "ODILE",
+    "Is it always this late?",
+    "",
+    "FENWICK",
+    "Only when it rains.",
+  ].join("\n");
+
+  it("is one scene, the whole of it, with no heading", () => {
+    const { doc } = parse(UNDIVIDED);
+    expect(wholeScript(doc)).toBe(true);
+    const scenes = extractScenes(doc);
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0]).toMatchObject({ ordinal: 0, heading: "", range: { from: 0 } });
+    expect(scenes[0].range.to).toBe(doc.content.length);
+  });
+
+  it("is not one when a ## title or a scene heading divides it, or when it is empty", () => {
+    expect(wholeScript(parse(`## SCENE 1\n\n${UNDIVIDED}`).doc)).toBe(false);
+    expect(wholeScript(parse(`.A bus shelter.\n\n${UNDIVIDED}`).doc)).toBe(false);
+    expect(wholeScript(parse("").doc)).toBe(false);
+    expect(wholeScript(null)).toBe(false);
+    // An act title is not a scene line: a one-act play under its act's name
+    // is still one scene.
+    expect(wholeScript(parse(`# ACT ONE\n\n${UNDIVIDED}`).doc)).toBe(true);
+  });
+
+  it("takes its summary at the top, never between a cue and its speech", () => {
+    // Under the first line, as under a heading, the summary went after the
+    // script's opening line, and in a play that opens on a cue it parted the
+    // cue from its speech.
+    const opensOnCue = UNDIVIDED.split("\n").slice(2).join("\n");
+    for (const src of [UNDIVIDED, opensOnCue]) {
+      const doc = setSceneSynopsis(parse(src).doc, 0, "Two strangers wait out the rain.");
+      expect(doc.content[0].type).toBe("synopsis");
+      const out = serialize({ frontMatter: {}, doc });
+      expect(out.startsWith("= Two strangers wait out the rain.\n")).toBe(true);
+      expect(out).toContain("ODILE\nIs it always this late?");
+      const back = parse(out).doc;
+      expect(wholeScript(back)).toBe(true);
+      expect(extractScenes(back)[0].synopsis).toBe("Two strangers wait out the rain.");
+    }
+  });
+
+  it("changes its summary in place, and an empty one takes the line away", () => {
+    const once = setSceneSynopsis(parse(UNDIVIDED).doc, 0, "Two strangers.");
+    const twice = setSceneSynopsis(once, 0, "Two strangers, one shelter.");
+    expect(twice.content.filter((b) => b.type === "synopsis")).toHaveLength(1);
+    expect(extractScenes(twice)[0].synopsis).toBe("Two strangers, one shelter.");
+    expect(setSceneSynopsis(twice, 0, "  ").content).toEqual(parse(UNDIVIDED).doc.content);
+  });
+
+  it("still puts a divided scene's summary under its heading", () => {
+    const doc = setSceneSynopsis(parse(THREE).doc, 1, "The lamp goes out.");
+    const at = doc.content.findIndex((b) => b.type === "synopsis");
+    expect(doc.content[at - 1].type).toBe("scene");
+    expect(extractScenes(doc)[1].synopsis).toBe("The lamp goes out.");
   });
 });

@@ -1,5 +1,6 @@
 - banner:
   - button "Show the binder"
+  - button "All Plays"
   - button "The Weight of Water"
   - tablist "What this pane shows":
     - tab "Script" [selected]
@@ -27,10 +28,10 @@
   - text: Page 2 of 2
   - article:
     - text: Comment
-    - button "Reply to comment"
     - button "Edit comment"
     - button "Resolve comment"
     - paragraph: A607 second
+    - button "Reply to comment": Reply…
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
 - contentinfo:

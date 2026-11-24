@@ -132,7 +132,7 @@
    schemes; the chosen view still reads by its paper, its lift and its weight.
    Nothing had scanned this header until smoke opened a document page. */
 .material__tag {
-  height: var(--h-mini);
+  height: var(--h-badge);
   display: inline-flex;
   align-items: center;
   font-size: var(--t-mini);
@@ -183,8 +183,14 @@
 /* The sheet is the script's page, so the script and a character sheet read as
    two pages off one desk: the play's format sets its size and margins
    (MaterialEditor puts formatCssVars on .material), the status bar sets its
-   zoom (inline, as on .play-page), and it is a page tall however little is
-   written on it, growing with what is.
+   zoom (`--page-scale`, inline, as on .play-page), and it is a page tall
+   however little is written on it, growing with what is.
+   The zoom scales the sheet's own lengths and type, never by CSS `zoom`
+   (docs/app/writing/editor-ux.md#EDIT-196): iPadOS sets a contenteditable
+   element's type back to its unzoomed size, so a zoomed page grew and its
+   words did not. The sheet hands the scale to its words as `--prose-scale`,
+   which `.prose` multiplies its type and spacing by, and which no other page
+   of prose sets.
    It was `min(520px, 100% − 40px)` by 60vh, "capped for measure", so a new
    note at 120% came up as a card a little over half as wide as the script's
    page. The measure is the format's text block now, the width the play prints
@@ -194,18 +200,21 @@
    Fit Width answers for both. */
 .material__page,
 .material__body {
+  --prose-scale: var(--page-scale, 1);
   display: block;
   flex: none;
-  width: var(--fmt-page-width);
-  min-height: var(--fmt-page-height);
+  width: calc(var(--fmt-page-width) * var(--page-scale, 1));
+  min-height: calc(var(--fmt-page-height) * var(--page-scale, 1));
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   border: 0.5px solid rgba(31, 41, 51, 0.17);
   border-radius: var(--r-paper);
   box-shadow: var(--sh-sheet);
-  padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom)
-    var(--fmt-margin-left);
+  padding: calc(var(--fmt-margin-top) * var(--page-scale, 1))
+    calc(var(--fmt-margin-right) * var(--page-scale, 1))
+    calc(var(--fmt-margin-bottom) * var(--page-scale, 1))
+    calc(var(--fmt-margin-left) * var(--page-scale, 1));
 }
 .material__page {
   line-height: 1.65;
@@ -226,13 +235,15 @@
 }
 .material__page .prose {
   flex: 1 0 auto;
-  padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom)
-    var(--fmt-margin-left);
+  padding: calc(var(--fmt-margin-top) * var(--page-scale, 1))
+    calc(var(--fmt-margin-right) * var(--page-scale, 1))
+    calc(var(--fmt-margin-bottom) * var(--page-scale, 1))
+    calc(var(--fmt-margin-left) * var(--page-scale, 1));
 }
 .material__body {
   /* Source is the file itself, so it reads in the script face. */
   font-family: var(--font-script);
-  font-size: var(--t-body);
+  font-size: calc(var(--t-body) * var(--page-scale, 1));
   line-height: 1.75;
   resize: none;
   overflow: hidden; /* grown to fit by the editor; the frame does the scrolling */
@@ -275,6 +286,12 @@
   padding: 0.15rem 0.35rem;
   cursor: pointer;
 }
+/* The control names the style in the bar's own type. The menu draws each
+   style at the size it applies; on the control's face that made "Heading 1"
+   the largest thing in the bar. */
+.fmt__block .fmt__blockrow {
+  font: inherit;
+}
 .fmt__block:focus {
   outline: none;
   border-color: var(--accent);
@@ -314,7 +331,7 @@
    shown read-only from a file, this one is the note itself. */
 .prose {
   outline: none;
-  font-size: var(--t-head);
+  font-size: calc(var(--t-head) * var(--prose-scale, 1));
   line-height: 1.65;
   color: var(--ink);
 }
@@ -399,7 +416,7 @@
   margin-bottom: 0;
 }
 .prose p {
-  margin: 0 0 1rem;
+  margin: 0 0 calc(1rem * var(--prose-scale, 1));
 }
 .prose h1,
 .prose h2,
@@ -407,37 +424,37 @@
 .prose h4,
 .prose h5,
 .prose h6 {
-  margin: 2rem 0 0.7rem;
+  margin: calc(2rem * var(--prose-scale, 1)) 0 calc(0.7rem * var(--prose-scale, 1));
   line-height: 1.25;
   font-weight: 600;
   letter-spacing: -0.005em;
 }
 .prose h1 {
-  font-size: var(--t-title);
-  padding-bottom: 0.35rem;
+  font-size: calc(var(--t-title) * var(--prose-scale, 1));
+  padding-bottom: calc(0.35rem * var(--prose-scale, 1));
   border-bottom: 0.5px solid var(--rule);
 }
 .prose h2 {
-  font-size: var(--t-title);
+  font-size: calc(var(--t-title) * var(--prose-scale, 1));
 }
 .prose h3 {
-  font-size: var(--t-head);
+  font-size: calc(var(--t-head) * var(--prose-scale, 1));
 }
 .prose h4 {
-  font-size: var(--t-body);
+  font-size: calc(var(--t-body) * var(--prose-scale, 1));
   color: var(--ash);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 .prose h5,
 .prose h6 {
-  font-size: var(--t-head);
+  font-size: calc(var(--t-head) * var(--prose-scale, 1));
   color: var(--ash);
 }
 .prose ul,
 .prose ol {
-  margin: 0 0 1rem;
-  padding-left: 1.4rem;
+  margin: 0 0 calc(1rem * var(--prose-scale, 1));
+  padding-left: calc(1.4rem * var(--prose-scale, 1));
 }
 /* The page draws its own bullets and numbers, hung in the list's indent beside
    the item's first line. The engine's own markers are laid out wrong on a
@@ -450,7 +467,7 @@
    1 sets it inline, src/markdown/lists.ts), and the bullets by depth are the
    three every browser draws. */
 .prose li {
-  margin: 0.3rem 0;
+  margin: calc(0.3rem * var(--prose-scale, 1)) 0;
   list-style: none;
   position: relative;
 }
@@ -495,18 +512,19 @@
 .prose ol ol,
 .prose ul ol,
 .prose ol ul {
-  margin: 0.3rem 0 0.1rem;
+  margin: calc(0.3rem * var(--prose-scale, 1)) 0 calc(0.1rem * var(--prose-scale, 1));
 }
 .prose blockquote {
-  margin: 0 0 1rem;
-  padding: 0.15rem 0 0.15rem 1rem;
+  margin: 0 0 calc(1rem * var(--prose-scale, 1));
+  padding: calc(0.15rem * var(--prose-scale, 1)) 0 calc(0.15rem * var(--prose-scale, 1))
+    calc(1rem * var(--prose-scale, 1));
   border-left: 3px solid var(--accent);
   font-style: italic;
 }
 .prose hr {
   border: 0;
   border-top: 0.5px solid var(--rule);
-  margin: 1.8rem 0;
+  margin: calc(1.8rem * var(--prose-scale, 1)) 0;
 }
 .prose a {
   color: var(--accent);
@@ -515,20 +533,20 @@
 }
 .prose code {
   font-family: var(--font-script);
-  font-size: var(--t-inline-script);
+  font-size: calc(var(--t-inline-script) * var(--prose-scale, 1));
   background: color-mix(in srgb, var(--ink) 6%, transparent);
   border-radius: var(--r-chip-sm);
   padding: 0.05em 0.28em;
 }
 .prose pre {
-  margin: 0 0 1rem;
-  padding: 0.7rem 0.85rem;
+  margin: 0 0 calc(1rem * var(--prose-scale, 1));
+  padding: calc(0.7rem * var(--prose-scale, 1)) calc(0.85rem * var(--prose-scale, 1));
   overflow-x: auto;
   border: 0.5px solid var(--rule);
   border-radius: 6px;
   background: color-mix(in srgb, var(--ink) 4%, transparent);
   font-family: var(--font-script);
-  font-size: var(--t-body);
+  font-size: calc(var(--t-body) * var(--prose-scale, 1));
   line-height: 1.45;
 }
 .prose pre code {
@@ -539,15 +557,15 @@
 .prose table {
   border-collapse: collapse;
   width: 100%;
-  margin: 0 0 1.2rem;
-  font-size: var(--t-head);
+  margin: 0 0 calc(1.2rem * var(--prose-scale, 1));
+  font-size: calc(var(--t-head) * var(--prose-scale, 1));
   line-height: 1.45;
   table-layout: fixed;
 }
 .prose th,
 .prose td {
   border: 0.5px solid var(--rule);
-  padding: 0.3rem 0.6rem;
+  padding: calc(0.3rem * var(--prose-scale, 1)) calc(0.6rem * var(--prose-scale, 1));
   text-align: left;
   vertical-align: top;
   /* A cell is a mini-document; its paragraph must not add block spacing. */
@@ -574,4 +592,68 @@
 }
 .prose ::selection {
   background: var(--accent-soft);
+}
+
+/* A page file's fields and foot (src/markdown/page-file-nodes.ts) --------- */
+/* A field is drawn as what it shows, shaded the way a word processor shades a
+   field, so a detail the play supplies reads apart from words typed here. The
+   shade is a shadow, not padding, so a field takes the room its words take.
+   With no value it shows its name in the secondary ink, which keeps 4.5:1 on
+   the shade on both a lit sheet and a night card; the hint colour does not.
+   Its lines stand one under another, spaces kept, as the page prints them.
+   Selected, it takes the focus ring's line: the browser's highlight is hidden
+   while a whole node is selected. */
+.prose span.pagefield {
+  white-space: pre-wrap;
+  border-radius: var(--r-chip-sm);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  box-shadow: 0 0 0 0.12em color-mix(in srgb, var(--ink) 8%, transparent);
+  cursor: default;
+}
+.prose span.pagefield--empty {
+  color: var(--ink-2);
+}
+.prose span.pagefield.ProseMirror-selectednode {
+  outline: 1.5px solid var(--accent-text);
+  outline-offset: 0.12em;
+}
+/* The foot: a hairline across the page with its name on it, in the chrome's
+   own type at its own size, since neither is a word of the page. */
+.prose .pagefoot {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  margin: calc(1.5rem * var(--prose-scale, 1)) 0;
+  font-family: var(--font-ui);
+  font-size: var(--t-mini);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--ash);
+  cursor: default;
+}
+.prose .pagefoot::before,
+.prose .pagefoot::after {
+  content: "";
+  flex: 1;
+  border-top: 0.5px solid var(--rule-strong);
+}
+.prose .pagefoot.ProseMirror-selectednode {
+  color: var(--accent-text);
+  outline: 1.5px solid var(--accent-text);
+  outline-offset: 2px;
+  border-radius: var(--r-chip);
+}
+.prose .pagefoot.ProseMirror-selectednode::before,
+.prose .pagefoot.ProseMirror-selectednode::after {
+  border-top-color: var(--accent-text);
+}
+/* Forced colours drop the shade, so a field keeps an outline of its own. */
+@media (forced-colors: active) {
+  .prose span.pagefield {
+    outline: 1px dashed CanvasText;
+  }
+  .prose span.pagefield.ProseMirror-selectednode {
+    outline: 2px solid Highlight;
+  }
 }

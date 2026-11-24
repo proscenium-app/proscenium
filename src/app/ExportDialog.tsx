@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { paginateFrontMatter } from "../layout";
+import { paginateBackMatter, paginateFrontMatter, readPageFile } from "../layout";
 import { anonymousFrontMatter, identityOf } from "../pdf/anonymous";
 import type { FrontSheet } from "../pdf/plan";
 import type { ExportFileType } from "../storage/ipc";
@@ -38,7 +38,8 @@ export interface ExportRequest {
  * The front-sheet choice lives here too, for the opposite reason: a title page
  * and a cast list mean the same thing in front of the sides as in front of the
  * script, so a choice the writer made survives changing the part. Until they
- * make one (`null`), the panel follows its default.
+ * make one (`null`), the panel follows its default. The pages after the script
+ * (docs/app/formatting/formats-and-layout.md#FMT-174) are in the same choice.
  *
  * So does the file type (docs/app/formatting/formats-and-layout.md#FMT-145):
  * a PDF, a .docx or an .odt of the same pages is still the same choice after
@@ -96,15 +97,31 @@ export function ExportDialog(props: {
   );
   // The same pages the renderer draws, for the script and the sides alike.
   const fallbackTitle = ws.layoutMeta.title || ws.scriptTitle;
+  const exportFrontMatter = useMemo(
+    () => (anonymous ? anonymousFrontMatter(ws.frontMatter, fallbackTitle) : ws.frontMatter),
+    [ws.frontMatter, anonymous, fallbackTitle],
+  );
   const frontPages = useMemo(
-    () =>
-      paginateFrontMatter(
-        anonymous ? anonymousFrontMatter(ws.frontMatter, fallbackTitle) : ws.frontMatter,
-        ws.format,
-      ),
-    [ws.frontMatter, ws.format, anonymous, fallbackTitle],
+    () => paginateFrontMatter(exportFrontMatter, ws.format),
+    [exportFrontMatter, ws.format],
+  );
+  // The sheets after the script's last page, laid out as the renderer draws them.
+  const backPages = useMemo(
+    () => paginateBackMatter(exportFrontMatter, ws.format),
+    [exportFrontMatter, ws.format],
   );
   const identity = useMemo(() => identityOf(ws.frontMatter), [ws.frontMatter]);
+  // A page whose file says so starts unticked, before the script or after it
+  // (docs/app/formatting/formats-and-layout.md#FMT-169).
+  const leftOut = useMemo(
+    () =>
+      new Set(
+        [...(ws.frontMatter.pages ?? []), ...(ws.frontMatter.backPages ?? [])]
+          .filter((page) => !readPageFile(page.text).exports)
+          .map((page) => page.id),
+      ),
+    [ws.frontMatter],
+  );
   if (!layout) return null;
   return (
     <ExportPanel
@@ -113,7 +130,9 @@ export function ExportDialog(props: {
       spec={ws.format}
       layout={layout}
       frontPages={frontPages}
+      backPages={backPages}
       frontChoice={frontChoice}
+      leftOut={leftOut}
       onFrontChoice={setFrontChoice}
       characters={characters}
       sidesFor={sidesFor}

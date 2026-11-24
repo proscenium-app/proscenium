@@ -1,0 +1,337 @@
+// SPDX-FileCopyrightText: 2026 Habiby LLC
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+/**
+ * The Add Page gallery's scaffolds (src/layout/scaffolds.ts): each writes a
+ * page file that reads back as it was written and lays out under every
+ * built-in format without printing a marker or a field's braces; a characters
+ * page names the speakers in the order they enter, as Cast reads names back
+ * from a page; and a new page lands where published plays put it.
+ */
+import { describe, expect, it } from "bun:test";
+import { builtinFormats } from "../format";
+import type { FrontMatter } from "../fountain/model";
+import { openingParagraphs } from "./opening-prose";
+import {
+  TITLE_PAGE_FILE,
+  namesOnPages,
+  readPageFile,
+  writePageFile,
+  type PageLayout,
+} from "./page-files";
+import {
+  SCAFFOLDS,
+  SCAFFOLD_PLACES,
+  landsAt,
+  pageAlready,
+  pageName,
+  scaffoldById,
+  scaffoldSheet,
+  sideOf,
+  type Scaffold,
+  type ScaffoldId,
+} from "./scaffolds";
+
+const ctx = { speakers: ["MARA", "JONAH", "OLD WOMAN"] };
+const details: FrontMatter = {
+  title: "Water",
+  authors: ["A. Writer"],
+  contact: ["a@example.com", "", "Agent"],
+  draftDate: "June 2026",
+};
+const dg = builtinFormats().find((spec) => spec.id === "dg-modern")!;
+const scaffold = (id: ScaffoldId): Scaffold => scaffoldById(id)!;
+const body = (id: ScaffoldId, speakers: readonly string[] = ctx.speakers) =>
+  readPageFile(scaffold(id).text({ speakers })).body;
+/** A play's pages as the binder lists them: a name, and a layout (a page from the top unless said). */
+const pages = (...list: (string | [string, PageLayout])[]) =>
+  list.map((page) =>
+    typeof page === "string"
+      ? { name: page, layout: "top" as const }
+      : { name: page[0], layout: page[1] },
+  );
+
+describe("the scaffolds", () => {
+  it("are listed by where each page goes, before the script or after it, each with a name and a sentence of its own", () => {
+    expect(SCAFFOLD_PLACES.map((g) => g.label)).toEqual([
+      "Before the script",
+      "After the script",
+      "Either",
+    ]);
+    expect(SCAFFOLDS.map((s) => `${s.place}: ${s.name}`)).toEqual([
+      "front: Title Page",
+      "front: Dedication",
+      "front: Epigraph",
+      "front: Characters",
+      "front: Characters & Setting",
+      "front: Setting",
+      "front: A Note on the Text",
+      "front: Musical Numbers",
+      "back: Production Notes",
+      "back: Production History",
+      "back: Author's Note",
+      "back: About the Author",
+      "back: Acknowledgments",
+      "back: Glossary",
+      "either: Blank Page",
+    ]);
+    // Listed in the groups' own order, so the list reads straight down.
+    const order = SCAFFOLD_PLACES.map((g) => g.id);
+    expect(SCAFFOLDS.map((s) => order.indexOf(s.place))).toEqual(
+      [...SCAFFOLDS.map((s) => order.indexOf(s.place))].sort((a, b) => a - b),
+    );
+    // A page that goes either way goes before the script until told otherwise.
+    expect(sideOf(scaffold("blank"))).toBe("front");
+    expect(sideOf(scaffold("glossary"))).toBe("back");
+    expect(sideOf(scaffold("dedication"))).toBe("front");
+    expect(new Set(SCAFFOLDS.map((s) => s.id)).size).toBe(SCAFFOLDS.length);
+    expect(new Set(SCAFFOLDS.map((s) => s.description)).size).toBe(SCAFFOLDS.length);
+    for (const s of SCAFFOLDS) expect(s.description).toMatch(/^[A-Z].*\.$/);
+  });
+
+  it("each write a page file that reads back as it was written", () => {
+    const layouts: Record<string, PageLayout> = {};
+    for (const s of SCAFFOLDS)
+      for (const speakers of [ctx.speakers, []]) {
+        const file = s.text({ speakers });
+        const read = readPageFile(file);
+        expect(writePageFile(read, read.body)).toBe(file);
+        layouts[s.id] = read.layout;
+      }
+    expect(layouts).toEqual({
+      "title-page": "title",
+      "characters-setting": "top",
+      characters: "top",
+      "note-on-text": "top",
+      setting: "top",
+      dedication: "third",
+      epigraph: "third",
+      "authors-note": "top",
+      "production-notes": "top",
+      "production-history": "top",
+      "musical-numbers": "top",
+      "about-the-author": "top",
+      acknowledgments: "top",
+      glossary: "top",
+      blank: "top",
+    });
+  });
+
+  it("start a title page as the play's fields have always printed it", () => {
+    expect(scaffold("title-page").text(ctx)).toBe(TITLE_PAGE_FILE);
+  });
+
+  it("leave Production Notes out of an export until it is ticked, and nothing else", () => {
+    expect(SCAFFOLDS.filter((s) => !readPageFile(s.text(ctx)).exports).map((s) => s.id)).toEqual([
+      "production-notes",
+    ]);
+  });
+
+  it("head each page with its centered heading and write no words of their own", () => {
+    const headings: Record<string, [string, boolean, string][]> = {};
+    for (const s of SCAFFOLDS)
+      if (s.id !== "title-page")
+        headings[s.id] = openingParagraphs(body(s.id, []))
+          .filter((p) => p.text)
+          .map((p) => [p.text, p.heading, p.align]);
+    // A page with no heading has no words at all: a blank page is nothing in
+    // its file, and a dedication's and an epigraph's lines are in theirs as
+    // how they are set, waiting for words.
+    expect(body("blank").trim()).toBe("");
+    expect(body("dedication").trim()).toBe("<!-- proscenium:line=center -->");
+    expect(body("epigraph").trim()).toBe(
+      "<!-- proscenium:line=center -->\n\n<!-- proscenium:line=right -->",
+    );
+    expect(openingParagraphs(body("dedication")).map((p) => [p.text, p.align])).toEqual([
+      ["", "center"],
+    ]);
+    expect(openingParagraphs(body("epigraph")).map((p) => [p.text, p.align])).toEqual([
+      ["", "center"],
+      ["", "right"],
+    ]);
+    expect(headings).toEqual({
+      "characters-setting": [
+        ["CHARACTERS", true, "center"],
+        ["SETTING", true, "center"],
+      ],
+      characters: [["CHARACTERS", true, "center"]],
+      "note-on-text": [["A NOTE ON THE TEXT", true, "center"]],
+      setting: [["SETTING", true, "center"]],
+      dedication: [],
+      epigraph: [],
+      "authors-note": [["AUTHOR'S NOTE", true, "center"]],
+      "production-notes": [["PRODUCTION NOTES", true, "center"]],
+      "production-history": [["PRODUCTION HISTORY", true, "center"]],
+      "musical-numbers": [["MUSICAL NUMBERS", true, "center"]],
+      "about-the-author": [["ABOUT THE AUTHOR", true, "center"]],
+      acknowledgments: [["ACKNOWLEDGMENTS", true, "center"]],
+      glossary: [["GLOSSARY", true, "center"]],
+      blank: [],
+    });
+  });
+
+  it("list the speakers on a characters page in the order they enter, each once and in bold", () => {
+    expect(openingParagraphs(body("characters-setting")).map((p) => [p.text, p.align])).toEqual([
+      ["CHARACTERS", "center"],
+      ["MARA", "left"],
+      ["JONAH", "left"],
+      ["OLD WOMAN", "left"],
+      ["SETTING", "center"],
+    ]);
+    const speakers = ["MARA", "  JONAH ", "", "Mara", "STAR*", "_HE_", "1. GUARD"];
+    for (const id of ["characters", "characters-setting"] as const) {
+      // Cast reads a page's names from its paragraphs that begin in bold.
+      expect(namesOnPages([{ id: "p", name: "Characters", text: body(id, speakers) }])).toEqual([
+        "MARA",
+        "JONAH",
+        "STAR*",
+        "_HE_",
+        "1. GUARD",
+      ]);
+      for (const p of openingParagraphs(body(id, speakers)).filter((p) => !p.heading))
+        expect(p.runs).toEqual([
+          { start: 0, end: p.text.length, bold: true, italic: false, underline: false },
+        ]);
+    }
+  });
+
+  it("lay out under every built-in format, printing no marker and no field's braces", () => {
+    for (const spec of builtinFormats())
+      for (const s of SCAFFOLDS)
+        for (const fm of [details, {}, null]) {
+          const sheet = scaffoldSheet(s, ctx, fm, spec);
+          for (const line of sheet?.lines ?? []) {
+            expect(line.text).not.toContain("<!--");
+            expect(line.text).not.toMatch(/\{[A-Za-z]+\}/);
+          }
+        }
+  });
+
+  it("draw the page with the play's details in its fields, a page with no words yet with a line of what goes on it, and nothing for a blank page", () => {
+    const words = (id: ScaffoldId, fm: FrontMatter = details) =>
+      scaffoldSheet(scaffold(id), ctx, fm, dg)?.lines.map((line) => line.text) ?? null;
+    expect(words("title-page")).toEqual([
+      "WATER",
+      "by",
+      "A. Writer",
+      "a@example.com",
+      "Agent",
+      "June 2026",
+    ]);
+    expect(words("characters")).toEqual(["CHARACTERS", "MARA", "JONAH", "OLD WOMAN"]);
+    // The picture, never the page: what a dedication's file starts as holds no word.
+    expect(words("dedication")).toEqual(["For someone"]);
+    expect(words("epigraph")).toEqual(["A line you want before the play", "Its source"]);
+    expect(words("blank")).toBeNull();
+    const dedication = scaffoldSheet(scaffold("dedication"), ctx, details, dg)!;
+    expect(dedication.lines[0]!.align).toBe("center");
+    expect(dedication.lines[0]!.row).toBeGreaterThan(dg.frontMatter.sectionTopRows);
+    // The play's own pages are not the page being drawn.
+    expect(
+      words("setting", { ...details, pages: [{ id: "p", name: "Mine", text: "Mine." }] }),
+    ).toEqual(["SETTING", "Where and when the play happens"]);
+    // A characters page with no one speaking yet is pictured with what goes on it.
+    expect(
+      scaffoldSheet(scaffold("characters"), { speakers: [] }, details, dg)?.lines.map(
+        (l) => l.text,
+      ),
+    ).toEqual(["CHARACTERS", "Each character, with a few words about them"]);
+    const title = scaffoldSheet(scaffold("title-page"), ctx, details, dg)!;
+    expect(title.kind).toBe("title");
+    expect(title.lines[0]!.row).toBeGreaterThan(dg.frontMatter.sectionTopRows);
+  });
+});
+
+describe("a new page", () => {
+  it("lands first in a play with no pages", () => {
+    for (const s of SCAFFOLDS) expect(landsAt(s.id, [])).toBe(0);
+  });
+
+  it("lands where published plays put it, among today's pages written as files", () => {
+    const play = pages(["Title Page", "title"], "Characters", "Opening Notes", "Production Notes");
+    const at = Object.fromEntries(SCAFFOLDS.map((s) => [s.id, landsAt(s.id, play)]));
+    expect(at).toEqual({
+      "title-page": 1,
+      dedication: 1,
+      epigraph: 1,
+      "production-history": 1,
+      characters: 2,
+      "characters-setting": 2,
+      setting: 2,
+      "note-on-text": 2,
+      "authors-note": 4,
+      "production-notes": 4,
+      "musical-numbers": 4,
+      "about-the-author": 4,
+      acknowledgments: 4,
+      glossary: 4,
+      blank: 4,
+    });
+  });
+
+  it("is marked when the play has that page already: its title page by its layout, any other by its name", () => {
+    const play = [
+      { id: "t", name: "Cover", text: writePageFile({ layout: "title" }, "# {TITLE}") },
+      { id: "c", name: "characters", text: "## CHARACTERS\n" },
+      { id: "n", name: "Opening Notes", text: "Notes.\n" },
+    ];
+    // The play's title page, whatever its file is called: there is one, and Add Page shows it.
+    expect(pageAlready(scaffold("title-page"), play)).toEqual({ id: "t", name: "Cover" });
+    expect(pageAlready(scaffold("characters"), play)).toEqual({ id: "c", name: "characters" });
+    expect(pageAlready(scaffold("dedication"), play)).toBeNull();
+    // A page named as a title page is one, though it is laid out as any page.
+    expect(
+      pageAlready(scaffold("title-page"), [{ id: "x", name: "Title Page", text: "Words.\n" }]),
+    ).toEqual({ id: "x", name: "Title Page" });
+    // A blank page is never the page a play "has".
+    expect(pageAlready(scaffold("blank"), [{ id: "b", name: "Blank Page", text: "" }])).toBeNull();
+    expect(pageAlready(scaffold("title-page"), [])).toBeNull();
+  });
+
+  it("lands after the pages convention puts before it, in a submission draft", () => {
+    const play = pages(
+      ["Title Page", "title"],
+      ["Dedication", "third"],
+      "Characters & Setting",
+      "A Note on the Text",
+      "Author's Note",
+    );
+    expect(landsAt("epigraph", play)).toBe(2);
+    expect(landsAt("dedication", play)).toBe(2);
+    expect(landsAt("production-history", play)).toBe(2);
+    expect(landsAt("characters", play)).toBe(3);
+    expect(landsAt("setting", play)).toBe(3);
+    expect(landsAt("note-on-text", play)).toBe(4);
+    expect(landsAt("musical-numbers", play)).toBe(5);
+  });
+
+  it("puts the title page first and the setting after the characters, wherever they were dragged", () => {
+    const play = pages("Setting", "Cast of Characters", "Musical Numbers");
+    expect(landsAt("title-page", play)).toBe(0);
+    expect(landsAt("dedication", play)).toBe(0);
+    expect(landsAt("characters", play)).toBe(2);
+    expect(landsAt("setting", play)).toBe(2);
+    expect(landsAt("note-on-text", play)).toBe(2);
+    expect(landsAt("production-notes", play)).toBe(3);
+  });
+
+  it("takes a title page written freely, or one by another name, as the title page", () => {
+    expect(landsAt("dedication", pages(["Title Page", "third"], "Characters"))).toBe(1);
+    expect(landsAt("dedication", pages(["Cover", "title"], "Characters"))).toBe(1);
+    expect(landsAt("dedication", pages(["Dedication", "third"], "Characters"))).toBe(1);
+  });
+
+  it("lands last from an id no scaffold has, as a blank page", () => {
+    expect(landsAt("no-such-page", pages(["Title Page", "title"], "Characters"))).toBe(2);
+  });
+
+  it("takes the scaffold's name, or the next number free when a page has it", () => {
+    expect(pageName("dedication", [])).toBe("Dedication");
+    expect(pageName("characters-setting", ["Characters", "Setting"])).toBe("Characters & Setting");
+    expect(pageName("title-page", ["Title Page"])).toBe("Title Page 2");
+    expect(pageName("title-page", ["title page", "TITLE PAGE 2 ", "Title Page 4"])).toBe(
+      "Title Page 3",
+    );
+    expect(pageName("no-such-page", ["Blank Page"])).toBe("Blank Page 2");
+  });
+});

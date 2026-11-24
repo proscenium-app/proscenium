@@ -21,7 +21,9 @@ pub use super::active::{Installed, Period};
 pub enum Channel {
     /// The download, signed with the Developer ID, updated by the app itself.
     DeveloperId,
-    /// The Mac App Store's build, updated by the store.
+    /// The Mac App Store's build, or the iPad's, from the App Store or
+    /// TestFlight, updated by the store: an iPad's whole version says which
+    /// track it is (version.rs).
     AppStore,
     /// Built on this Mac by `bun run app:install`, updated by nothing: an
     /// updater there would replace it with the next alpha.

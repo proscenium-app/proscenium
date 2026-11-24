@@ -1,4 +1,5 @@
 - tab "General"
+- button "Reveal in Finder"
 - button "Change…"
 - button "Show when Proscenium opens: Where you left off"
 - switch "Show Progress column"
@@ -28,4 +29,3 @@
 - textbox "Status 7 of 8: produced"
 - button "Move “produced” up"
 - button "Move “produced” down"
-- button "Delete “produced”"

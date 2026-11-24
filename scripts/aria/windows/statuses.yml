@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "1953 North Sea Flood"
   - tablist "What this pane shows":
     - tab "Script"
@@ -88,6 +89,7 @@
 - alert
 - dialog "Settings":
   - heading "Settings" [level=2]
+  - button "Close"
   - tablist "Settings sections":
     - tab "General" [selected]
     - tab "Appearance"
@@ -160,6 +162,5 @@
     - button "Add Status" [disabled]
     - paragraph
   - text: Settings are saved on this PC, not in your plays.
-  - button "Done"
   - status
   - alert

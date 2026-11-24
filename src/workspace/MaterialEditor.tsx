@@ -41,12 +41,15 @@
  * tall, whatever the format or the zoom said.
  */
 import { keys } from "../ui/keys";
+import { systemSpelling } from "../ui/system-traits";
+import { useZoomAnchor } from "../ui/zoom-anchor";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { formatCssVars, type FormatSpec } from "../format";
 import { FormatBar } from "../markdown/FormatBar";
 import { firstLineOffset, toFirstLine } from "../markdown/first-line";
 import { ProseEditor } from "../markdown/ProseEditor";
+import type { FieldValues } from "../markdown/page-fields";
 import { Button, CloseIcon, IconButton, onScreen, usePageTarget } from "../ui";
 import { parseTags, reconstruct, split } from "./front-matter";
 import { normalizeType, schemaFor } from "../materials/schema";
@@ -113,8 +116,8 @@ export interface MaterialEditorProps {
    */
   format: FormatSpec;
   /**
-   * Page zoom, exactly as PlayEditor takes it: a view transform on the sheet
-   * alone, so at the same zoom a material and the script are the same width.
+   * Page zoom, exactly as PlayEditor takes it: the sheet alone scales by it,
+   * so at the same zoom a material and the script are the same width.
    */
   zoom?: number;
   language?: string;
@@ -125,6 +128,13 @@ export interface MaterialEditorProps {
    * those rows (use-zoom.ts), and nothing outside this editor sees them change.
    */
   onSheetMoved?: () => void;
+  /**
+   * The document is a page before or after the open script
+   * (docs/app/formatting/formats-and-layout.md#FMT-169), opened in a pane of
+   * its own: its fields show the play's details as they do on its sheet, and
+   * its foot mark is the rule, never braces and a comment.
+   */
+  pageFields?: FieldValues;
 }
 
 export function MaterialEditor({
@@ -142,13 +152,22 @@ export function MaterialEditor({
   zoom = 1,
   language = "en-US",
   onSheetMoved,
+  pageFields,
 }: MaterialEditorProps) {
   const parsed = useMemo(() => split(content), [content]);
+  const pageFile = useMemo(() => (pageFields ? { values: pageFields } : undefined), [pageFields]);
   // The page's geometry, set on the editor's root so the sheet (and nothing
   // outside this editor) can read it — as ExportPanel does for its sheets.
   const pageVars = useMemo(() => formatCssVars(format) as React.CSSProperties, [format]);
-  // `zoom` (not transform), as on .play-page, so scroll extents track the size.
-  const sheetZoom = zoom !== 1 ? { zoom } : undefined;
+  // The sheet scales its own lengths and type by the zoom, as the script's page
+  // does (docs/app/writing/editor-ux.md#EDIT-196), never by CSS `zoom`: iPadOS
+  // sets a contenteditable element's type back to its unzoomed size, so under
+  // `zoom` a document's page grew and its words did not (materials.css).
+  const sheetScale = { "--page-scale": zoom } as React.CSSProperties;
+  // A zoom keeps the writer's place on the page, in Page and in Source
+  // (docs/app/writing/editor-ux.md#EDIT-198).
+  const desk = useRef<HTMLDivElement | null>(null);
+  useZoomAnchor(desk, zoom);
   const [body, setBody] = useState(parsed.body);
   const [mode, setMode] = useState<Mode>(storedMode);
   const [saveState, setSaveState] = useState<"clean" | "dirty" | "saved">("clean");
@@ -632,21 +651,29 @@ export function MaterialEditor({
       {mode === "page" ? (
         <>
           <FormatBar editor={editor} />
-          <div className="material__desk">
-            <div className="material__page" data-tutorial="material-page" style={sheetZoom}>
-              <ProseEditor markdown={body} onChange={onChange} onBlur={flush} onReady={setEditor} />
+          <div className="material__desk" ref={desk}>
+            <div className="material__page" data-tutorial="material-page" style={sheetScale}>
+              <ProseEditor
+                markdown={body}
+                onChange={onChange}
+                onBlur={flush}
+                onReady={setEditor}
+                pageFile={pageFile}
+              />
             </div>
           </div>
         </>
       ) : (
-        <div className="material__desk">
+        <div className="material__desk" ref={desk}>
           <textarea
             ref={box}
             className="material__body"
-            style={sheetZoom}
+            style={sheetScale}
             value={body}
             placeholder="Write…"
-            spellCheck
+            // The page's rule (ProseEditor.tsx): the system checks spelling only
+            // where its Smart Punctuation cannot rewrite what is typed.
+            spellCheck={systemSpelling()}
             onChange={(e) => onChange(e.target.value)}
             onBlur={flush}
           />

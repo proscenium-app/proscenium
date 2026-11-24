@@ -127,8 +127,14 @@ fn arch_name(arch: &str) -> &'static str {
     }
 }
 
-/// What the machine is called on its line: a Mac, or a PC.
-const MACHINE: &str = if cfg!(windows) { "PC" } else { "Mac" };
+/// What the machine is called on its line: a Mac, a PC or an iPad.
+const MACHINE: &str = if cfg!(windows) {
+    "PC"
+} else if cfg!(target_os = "ios") {
+    "iPad"
+} else {
+    "Mac"
+};
 
 fn on_off(on: bool) -> &'static str {
     if on {
@@ -337,7 +343,18 @@ pub fn copy_to_clipboard(app: &tauri::AppHandle, text: &str) -> Result<(), Strin
     }
 }
 
-#[cfg(not(any(target_os = "macos", windows)))]
+/// Put `text` on the iPad's pasteboard, through the folder-picker plugin.
+/// Called from a command's worker, never the main thread, which the
+/// pasteboard's answer needs.
+#[cfg(target_os = "ios")]
+pub fn copy_to_clipboard(app: &tauri::AppHandle, text: &str) -> Result<(), String> {
+    use tauri_plugin_vault_picker::VaultPickerExt;
+    app.vault_picker()
+        .copy_text(text.to_string())
+        .map_err(|_| "the pasteboard would not take the diagnostics".to_string())
+}
+
+#[cfg(not(any(target_os = "macos", windows, target_os = "ios")))]
 pub fn copy_to_clipboard(_app: &tauri::AppHandle, _text: &str) -> Result<(), String> {
     Err("this platform has no clipboard Proscenium can write to yet".into())
 }

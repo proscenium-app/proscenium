@@ -43,7 +43,7 @@ const F = (over: Partial<Omit<Facts, "ui">> & { ui?: Partial<UiFacts> } = {}): F
   unsaved: false,
   format: "stage-us-modern",
   cards: [{ id: "a", heading: "SCENE 1", synopsis: "" }],
-  front: { charactersPage: "", characters: [], openingNotes: "" },
+  front: { charactersPage: "", characters: [], pages: 0 },
   documents: [],
   material: null,
   export: { open: false, range: false, rangeError: false, opening: false, preview: false },
@@ -535,71 +535,53 @@ describe("Arrange Scenes on the Board", () => {
   });
 });
 
-describe("Characters and Opening Pages", () => {
+describe("Pages Before the Script", () => {
   const cast = F({
     view: "cast",
-    front: { charactersPage: "", characters: ["SOREL", "SIMON"], openingNotes: "" },
+    front: { charactersPage: "", characters: [], pages: 1 },
+  });
+  const listed = F({
+    view: "script",
+    front: { charactersPage: "## CHARACTERS\n\n**SOREL**\n", characters: ["SOREL"], pages: 2 },
   });
   test("Open Cast", () => {
     expect(cue("cast", F()).target).toEqual({ kind: "view", view: "cast" });
     expect(cue("cast", cast).tone).toBe("done");
   });
-  test("Make the printed page yours", () => {
-    expect(cue("characters-page", cast, cast).target).toEqual({
+  test("Put someone on the Characters page: from Cast, until the page names them", () => {
+    expect(cue("characters-page", cast, cast).target).toEqual({ kind: "ui", id: "add-to-page" });
+    expect(cue("characters-page", F({ front: cast.front }), cast).back).toBe(true);
+    expect(cue("characters-page", listed, cast).tone).toBe("done");
+  });
+  test("Add a character on the page: in the script's page view, until a name is listed", () => {
+    const away = cue("add-character", F({ view: "cast", front: listed.front }), listed);
+    expect(away.target).toEqual({ kind: "view", view: "script" });
+    expect(away.back).toBeUndefined();
+    expect(cue("add-character", listed, listed).target).toEqual({
       kind: "ui",
       id: "characters-page",
     });
-    expect(cue("characters-page", F({ front: cast.front }), cast).back).toBe(true);
-    expect(
-      cue(
-        "characters-page",
-        F({
-          view: "cast",
-          front: { ...cast.front, charactersPage: "# Characters\n\nSOREL, reading.\n" },
-        }),
-        cast,
-      ).tone,
-    ).toBe("done");
-  });
-  test("Add someone to the cast: an empty row does not count", () => {
-    expect(cue("add-character", cast, cast).target).toEqual({ kind: "ui", id: "add-character" });
-    const row = F({
-      view: "cast",
-      front: { ...cast.front, characters: ["SOREL", "SIMON", ""] },
-      ui: { focus: "character-name", focusText: "" },
-    });
-    expect(cue("add-character", row, cast).tone).toBe("do");
-    expect(says(cue("add-character", row, cast))).toContain("JUDITH");
+    const typing = F({ ...listed, ui: { focus: "characters-page" } });
+    expect(says(cue("add-character", typing, listed))).toContain("JUDITH");
     const done = cue(
       "add-character",
-      F({ view: "cast", front: { ...cast.front, characters: ["SOREL", "SIMON", "JUDITH"] } }),
-      cast,
+      F({ front: { ...listed.front, characters: ["SOREL", "JUDITH"] } }),
+      listed,
     );
     expect(done.tone).toBe("done");
     expect(says(done)).toContain("JUDITH");
   });
-  test("Write opening notes: menu, item, the notes, Save", () => {
-    expect(cue("opening-notes", cast, cast).target).toEqual({ kind: "ui", id: "document-menu" });
+  test("Add a page: from the play's menu, done when the page is there", () => {
+    expect(cue("opening-notes", listed, listed).target).toEqual({
+      kind: "ui",
+      id: "document-menu",
+    });
     expect(
-      cue("opening-notes", F({ ui: { menu: ["opening-pages", "export-pdf"] } }), cast).target,
-    ).toEqual({ kind: "menu", id: "opening-pages" });
-    expect(
-      cue(
-        "opening-notes",
-        F({ ui: { sheet: "opening-pages", fields: { "opening-notes": "" } } }),
-        cast,
-      ).target,
-    ).toEqual({ kind: "ui", id: "opening-notes" });
-    expect(
-      cue(
-        "opening-notes",
-        F({ ui: { sheet: "opening-pages", fields: { "opening-notes": "A kitchen." } } }),
-        cast,
-      ).target,
-    ).toEqual({ kind: "ui", id: "opening-save" });
-    expect(
-      cue("opening-notes", F({ front: { ...cast.front, openingNotes: "A kitchen." } }), cast).tone,
-    ).toBe("done");
+      cue("opening-notes", F({ ui: { menu: ["add-front-page", "play-details"] } }), listed).target,
+    ).toEqual({ kind: "menu", id: "add-front-page" });
+    expect(cue("opening-notes", F({ front: { ...listed.front, pages: 3 } }), listed).tone).toBe(
+      "done",
+    );
   });
 });
 

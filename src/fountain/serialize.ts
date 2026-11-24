@@ -22,6 +22,7 @@
 import { Lexer, rules } from "fountain-js";
 import { blankOverBlocks } from "./empty-line";
 import { serializeInline, textContent } from "./inline";
+import { HORIZONTAL_RULE } from "./model";
 import type { BlockNode, BlockType, InlineNode, ParsedScript } from "./model";
 import { holdNoteBreaks, isBlank } from "./note-breaks";
 import { opensWithTitlePage, serializeTitlePage } from "./titlepage";
@@ -145,9 +146,14 @@ function stageDirection(text: string): string {
   const shown = holdNoteBreaks(text);
   const lines = shown.body.split("\n");
   const forced = actionNeedsForce(text, lines);
-  const written = lines.map((line, i) =>
-    i === 0 && forced ? `!${line}` : line.replace(TAKEN_MARK, "$1!!"),
-  );
+  const written = lines.map((line, i) => {
+    // A line of only hyphens with an empty line or nothing on either side
+    // would come back a horizontal line: a `\` in front keeps it the
+    // direction's own words (docs/engineering/fountain-model.md#EDIT-214).
+    const alone = isBlank(lines[i - 1] ?? "") && isBlank(lines[i + 1] ?? "");
+    const own = alone && HORIZONTAL_RULE.test(line) ? line.replace(/-/, "\\-") : line;
+    return i === 0 && forced ? `!${own}` : own.replace(TAKEN_MARK, "$1!!");
+  });
   return shown.restore(written.join("\n"));
 }
 
@@ -341,6 +347,8 @@ function serializeBlock(block: BlockNode, inSpeech = false): string {
       return `= ${text}`;
     case "pageBreak":
       return "===";
+    case "horizontalRule":
+      return "---";
     case "boneyard":
       return `/*${textContent(block.content)}*/`;
     default:

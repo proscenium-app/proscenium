@@ -1,0 +1,151 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/* Add a Page (src/app/AddPageSheet.tsx) ----------------------------------- */
+/* Two columns: the pages a script can have, listed by where they go, and the
+   chosen one drawn at a size that can be read, with what it is for and where
+   it will land under it. A row is a label over its own radio, which lies
+   under the row at the row's size: a click anywhere on the row is the
+   radio's, its tint and border say chosen, and its ring says focused. */
+.addpage {
+  padding: var(--s-6) var(--s-7) var(--s-7);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-7);
+}
+.addpage__list {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+.addpage__group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.addpage__legend {
+  padding: 0;
+  margin-bottom: var(--s-3);
+}
+.addpage__choice {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-4);
+  min-height: var(--h-regular);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+  cursor: default;
+}
+.addpage__radio {
+  appearance: none;
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 1.5px solid transparent;
+  border-radius: inherit;
+  background: transparent;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion);
+}
+.addpage__radio:hover {
+  background: var(--hover);
+}
+.addpage__radio:checked {
+  border-color: var(--accent);
+  background: var(--accent-softer);
+}
+.addpage__radio:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The name and the mark let a click through to the radio under them. */
+.addpage__name,
+.addpage__has {
+  pointer-events: none;
+}
+.addpage__name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--t-body);
+  line-height: 1.3;
+  color: var(--ink);
+}
+/* A page the play has already. */
+.addpage__has {
+  flex: none;
+  font-size: var(--t-mini);
+  color: var(--ink-2);
+}
+/* The chosen page, and what is said of it. */
+.addpage__side {
+  flex: none;
+  position: sticky;
+  top: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s-4);
+  width: 264px;
+}
+/* The page is paper on the sheet's paper, and the preview's own shadow is
+   scaled away with it: the edge is drawn here, at the picture's size. */
+.addpage__picture {
+  align-self: flex-start;
+  line-height: 0;
+  border-radius: var(--r-paper);
+  box-shadow:
+    0 0 0 0.5px var(--rule-strong),
+    var(--sh-card);
+}
+.addpage__about,
+.addpage__lands {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.45;
+}
+.addpage__about {
+  color: var(--ink-2);
+}
+.addpage__lands {
+  color: var(--ink);
+  font-weight: 600;
+}
+.addpage__side .seg {
+  align-self: flex-start;
+}
+/* A narrow window: the list, then the picture under it. */
+@media (max-width: 620px) {
+  .addpage {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .addpage__side {
+    position: static;
+    width: auto;
+  }
+}
+/* Forced colours drop the tint and repaint every border alike: the chosen
+   row keeps a border in the system's selection colour, and the rest none. */
+@media (forced-colors: active) {
+  .addpage__radio {
+    forced-color-adjust: none;
+    background: transparent;
+    border-color: transparent;
+  }
+  .addpage__radio:checked {
+    border-color: Highlight;
+  }
+}
