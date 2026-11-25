@@ -26,8 +26,7 @@
  *   bun run smoke -- --shots        # a PNG in .smoke/ of each check that fails
  *   bun run smoke -- --shots=all    # ... and of every check that passes
  *   bun run smoke -- --engine webkit  # one engine only (chromium or webkit)
- *   SMOKE_TIME_SCALE=3 bun run smoke  # a slow host: every wait may take three times as long
- *   bun run smoke -- --serial       # the engines one after the other, not side by side
+ *   SMOKE_TIME_SCALE=3 bun run smoke  # a slow host: every wait may take three times as long *   bun run smoke -- --serial       # the engines one after the other, not side by side
  *   bun run smoke -- --acts editor,spelling  # named acts only (smoke-checks.mjs ACTS)
  *   bun run smoke -- --features spell  # the opening act and spell's acts; a run's plan first adds
  *                                      # every feature that uses spell (ci-plan.mjs explain names its acts)
@@ -97,7 +96,7 @@ import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { availableParallelism } from "node:os";
+import { availableParallelism, tmpdir } from "node:os";
 import { dirname, extname, join, normalize as normalizePath } from "node:path";
 import {
   ACTS,
@@ -238,11 +237,83 @@ if (ACT_NAMES.length && UPDATE_ARIA) {
  * scripts/aria/windows/.
  */
 const WEBVIEW2 = ONE_ENGINE === "webview2";
-const ENGINES = {
-  chromium,
-  webkit,
-  ...(WEBVIEW2 ? { webview2: (await import("./smoke-webview2.mjs")).webview2 } : {}),
-};
+
+/**
+ * **The snapshots are taken with scroll bars that take no room**, whatever the
+ * host's own. A pane keeps its scroll bar's room (`scrollbar-gutter: stable`,
+ * src/app/styles/panes.css), and the zoom a fit lands on is read from what is
+ * left, so a Mac whose scroll bars take room fits the page two points smaller
+ * ("Fit width · 82%" for 84%) and every surface's tree says so. Which kind a
+ * Mac draws is its own setting, and left at Automatic it follows what is
+ * plugged in: a hosted test Mac and this project's build host once drew
+ * different ones, and a pass that was clean on one failed thirty snapshots on
+ * the other. Chromium on a Mac takes the choice from its own command line
+ * (`-AppleShowScrollBars WhenScrolling`, an argument for its process alone; no
+ * setting of the machine's changes), through a wrapper, since Playwright
+ * passes only `--` switches. Playwright's WebKit takes no room on any Mac.
+ */
+function chromiumWithOverlayScrollBars() {
+  if (process.platform !== "darwin") return chromium;
+  const full = chromium.executablePath();
+  const m = full.match(/^(.*)\/chromium-(\d+)\/chrome-mac-(arm64|x64)\//);
+  const shell =
+    m &&
+    `${m[1]}/chromium_headless_shell-${m[2]}/chrome-headless-shell-mac-${m[3]}/chrome-headless-shell`;
+  if (!shell || !existsSync(shell)) {
+    throw new Error(
+      `smoke: no headless Chromium beside ${full} (bunx playwright install chromium)`,
+    );
+  }
+  const dir = join(tmpdir(), `proscenium-smoke-chromium-${process.pid}`);
+  mkdirSync(dir, { recursive: true });
+  const wrapper = join(dir, "chrome-headless-shell");
+  writeFileSync(
+    wrapper,
+    `#!/bin/sh\nexec ${JSON.stringify(shell)} "$@" -AppleShowScrollBars WhenScrolling\n`,
+    { mode: 0o755 },
+  );
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  return { launch: (options = {}) => chromium.launch({ ...options, executablePath: wrapper }) };
+}
+
+/**
+ * Each engine is asked, before any act, whether a scroll bar takes room in it,
+ * so a host where the pin above did not hold fails here, once, saying why,
+ * and not as a page of snapshots two points out.
+ */
+function measured(name, engine) {
+  return {
+    async launch(options) {
+      const browser = await engine.launch(options);
+      const page = await browser.newPage();
+      try {
+        await page.setContent(
+          '<div style="width:300px;height:100px;overflow:auto;scrollbar-gutter:stable"><div style="height:500px"></div></div>',
+        );
+        const room = await page.evaluate(() => {
+          const box = document.body.firstElementChild;
+          return box.offsetWidth - box.clientWidth;
+        });
+        if (room > 0) {
+          await browser.close();
+          throw new Error(
+            `smoke: a scroll bar takes ${room}px in ${name} on this host, and the snapshots are taken where it takes none (scripts/smoke.mjs, chromiumWithOverlayScrollBars)`,
+          );
+        }
+      } finally {
+        if (browser.isConnected()) await page.close();
+      }
+      return browser;
+    },
+  };
+}
+
+const ENGINES = WEBVIEW2
+  ? { chromium, webkit, webview2: (await import("./smoke-webview2.mjs")).webview2 }
+  : {
+      chromium: measured("chromium", chromiumWithOverlayScrollBars()),
+      webkit: measured("webkit", webkit),
+    };
 if (WEBVIEW2) setSmokeSystem("pc");
 if (ONE_ENGINE && !ENGINES[ONE_ENGINE]) {
   console.error(`smoke: --engine is chromium, webkit or webview2, not ${ONE_ENGINE}`);
@@ -728,6 +799,16 @@ const stoppedBy = (what) => (e) => {
 process.on("uncaughtException", stoppedBy("an error nothing caught"));
 process.on("unhandledRejection", stoppedBy("a promise that failed with nothing waiting on it"));
 
+// The browsers drive dist/, which `bun run smoke` builds first. Run alone in a
+// checkout that never built it, every check would wait out its timeout for a
+// page that never comes, as long as the whole run takes: say so at once.
+if (!WEBVIEW2 && !existsSync(join(DIST, "index.html"))) {
+  console.error(
+    "smoke: there is no dist/ to drive: `bun run build` first, or `bun run smoke`, which builds it",
+  );
+  process.exit(2);
+}
+
 // Two browsers' worth of pages: never beside a native self-test on the same host.
 await holdHostBench("smoke");
 const server = await serve();
@@ -809,8 +890,13 @@ async function runAct(browser, engine, name, attempt, { clockMs = 0, variant = n
         external.push(`${r.method()} ${r.url()}`);
     });
   } else {
+    // An act may ask for an iPad's window and a finger (`launch: { window,
+    // touch }`): with `hasTouch`, both engines match `(pointer: coarse)` and
+    // `(hover: none)`, as an iPad's WebKit does, and `tap()` is a finger's.
+    const launch = actNamed(name).launch ?? {};
     context = await browser.newContext({
-      viewport: { width: 1280, height: 800 },
+      viewport: launch.window ?? { width: 1280, height: 800 },
+      hasTouch: launch.touch === true,
       colorScheme: P.scheme,
       deviceScaleFactor: 2,
     });
@@ -857,8 +943,11 @@ async function runAct(browser, engine, name, attempt, { clockMs = 0, variant = n
      rather than a second hand-written one to keep in step. A context of its
      own is a first launch: nothing remembered, an untouched vault. */
   if (engine !== "webview2")
-    await page.addInitScript(() => {
+    await page.addInitScript((ipad) => {
       window.__PROSCENIUM_FIXTURE__ = true;
+      // An act that asks to be drawn as the iPad app is given the iPad's
+      // record (`launch: { ipad: true }`, src/storage/ipc.ts).
+      if (ipad) window.__PROSCENIUM_FIXTURE_IPAD__ = true;
       // Fresh once per act, not once per load: "open at launch" reloads the page
       // and has to find the settings and the last folder it left behind.
       try {
@@ -869,7 +958,7 @@ async function runAct(browser, engine, name, attempt, { clockMs = 0, variant = n
       } catch {
         /* a fresh profile has nothing to clear */
       }
-    });
+    }, actNamed(name).launch?.ipad === true);
   const started = Date.now();
   const actTiming = { engine, act: name, attempt, startMs: 0, ms: 0, checks: [] };
   const results = [];
@@ -922,9 +1011,13 @@ async function runAct(browser, engine, name, attempt, { clockMs = 0, variant = n
           throw new Error(`accessibility:\n        ${P.audits.findings.join("\n        ")}`);
       } catch (e) {
         // An accessibility failure lists its findings on the lines below the
-        // first; every other failure is one line.
+        // first, as does what an iPad's checks found (smoke-checks.mjs
+        // `IPAD_FOUND`); every other failure is one line.
         const text = String(e);
-        error = text.startsWith("Error: accessibility") ? text : text.split("\n")[0];
+        error =
+          text.startsWith("Error: accessibility") || text.startsWith("Error: an iPad writer meets")
+            ? text
+            : text.split("\n")[0];
       }
       results.push({ check: check.name, ok: !error, error, ms: Date.now() - t });
       actTiming.checks.push({

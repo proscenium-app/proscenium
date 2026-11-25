@@ -14,7 +14,7 @@
  * galley still shows "p. N / M"). Only the drawn chrome
  * is gated by `enabled`.
  */
-import { styleSegments } from "../pdf/plan";
+import { frontSheetLabel, styleSegments } from "../pdf/plan";
 import { Extension } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, type EditorState, type Transaction } from "@tiptap/pm/state";
@@ -26,8 +26,12 @@ import { besidePairs, runInPairs } from "../layout/engine";
 import { elementColumnIn } from "../format/spec";
 import { inchesToCh, type FormatSpec } from "../format";
 import {
+  backPageList,
   buildLayoutBlock,
+  frontPageList,
+  legacyPageFiles,
   paginate,
+  paginateBackMatter,
   paginateFrontMatter,
   type FrontMatterPage,
   type FrontMatterLine,
@@ -37,6 +41,9 @@ import {
   type LayoutResult,
   type RawPiece,
 } from "../layout";
+import { remainderHeight, textRowsOf } from "./line-shortfall";
+import { afterTap } from "../ui/finger";
+import { LINE_BREAK } from "./bridge";
 
 export interface PaginationConfig {
   enabled: boolean;
@@ -44,14 +51,199 @@ export interface PaginationConfig {
   meta: LayoutMeta;
   /** Canonical front matter; the shared engine supplies every sheet. */
   frontMatter?: FrontMatter | null;
-  /** Clicking the title sheet opens the Title Page editor. */
-  onTitlePageClick?: (() => void) | null;
   /**
-   * Double-clicking the Characters sheet opens where it is edited. Gets the
-   * engine's id of the paragraph hit (`cast-2`, `characters-prose-1`), or null
-   * between lines.
+   * One click on any page before the script edits it where it stands
+   * (docs/app/formatting/formats-and-layout.md#FMT-169), with the page's
+   * source (`FrontMatterPage.source`) and the engine's id of the paragraph
+   * hit, or null between lines.
    */
-  onCharactersPageOpen?: ((paragraphId: string | null) => void) | null;
+  onFrontPageOpen?: ((source: string, paragraphId: string | null) => void) | null;
+  /**
+   * Add Page, offered beside the pages themselves
+   * (docs/app/formatting/formats-and-layout.md#FMT-175): in the gap between
+   * the last page before the script and the script's first sheet, and under
+   * the last sheet for a page after the script. Null where the play cannot be
+   * written.
+   */
+  onAddPage?: ((side: "front" | "back") => void) | null;
+  /**
+   * A page before the script being edited where it stands
+   * (docs/app/formatting/formats-and-layout.md#FMT-165): its sheets are not
+   * drawn, and in their place stands `root`, the sheet an editor is mounted
+   * in, kept through every layout until the editing ends.
+   */
+  editingFront?: FrontEdit | null;
+}
+
+/** The front sheets whose text is written in Opening Pages' prose editors. */
+export type NotesSheetKind = "setting" | "production";
+
+/** The pages before the script that are edited on the page itself. */
+export type FrontEditKind = "characters" | NotesSheetKind;
+
+export interface FrontEdit {
+  /** The page's source (`FrontMatterPage.source`). */
+  source: string;
+  /** From `frontEditHost`: drawn in the page's place, the same element every time. */
+  root: HTMLElement;
+  /**
+   * The page is one after the script: its sheet stands after the script's
+   * last. Said by whoever opens it, since a page just added is edited before
+   * its folder has been read.
+   */
+  back?: boolean;
+}
+
+/** Which side of the script the editing sheet was last drawn on: `data-side` on its root. */
+export const EDIT_SIDE = "side";
+
+/** What a writer is told an empty Author field is for, on the sheet as in the editor. */
+export const AUTHOR_PROMPT = "Author's name";
+
+/**
+ * A sheet before the script with the page's own chrome around it, and the
+ * element inside it an editor is mounted in. Made once per editing surface.
+ */
+export function frontEditHost(): {
+  root: HTMLElement;
+  mount: HTMLElement;
+  /** Stand the sheet as a page after the script does: under the gap, not over it. */
+  place: (back: boolean) => void;
+} {
+  const root = el("pgchrome pgchrome--front pgchrome--editing");
+  root.contentEditable = "false";
+  const mount = el("frontsheet frontsheet--editing", root);
+  el("pgchrome__botmargin", root);
+  el("pgchrome__band", root);
+  el("pgchrome__topmargin", root);
+  let standsBack = false;
+  const place = (back: boolean) => {
+    if (back === standsBack) return;
+    standsBack = back;
+    if (back) root.append(mount);
+    else root.prepend(mount);
+  };
+  return { root, mount, place };
+}
+
+/**
+ * A page's name on its sheet, in the corner of the paper outside the text
+ * block, where nothing prints: what the page is, and that a press edits it
+ * (docs/app/formatting/formats-and-layout.md#FMT-175). It is part of the
+ * sheet, so a press on it is a press on the sheet; a screen reader already
+ * hears the sheet's own name and what a press does.
+ */
+function pageChip(name: string, sheet: HTMLElement, editable: boolean): void {
+  const chip = el("pgchip", sheet);
+  chip.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  label.className = "pgchip__name";
+  label.textContent = name;
+  chip.appendChild(label);
+  if (!editable) return;
+  const hint = document.createElement("span");
+  hint.className = "pgchip__hint";
+  hint.textContent = "Edit";
+  chip.appendChild(hint);
+}
+
+/**
+ * Add Page, on the desk beside the pages, for a pointer or a finger: a press
+ * the script's selection never takes. It is the pointer's way to a command
+ * the keyboard and a screen reader have in the menus (Add Page… in the
+ * document menu, the Script menu and the folder of pages' own), so it is no
+ * control of its own to them, as a sheet's name in its corner is not. A
+ * control here would also be one that scrolls under the bar at the top of
+ * the script: half hidden there, it is a target too small to press, at
+ * whatever offset the writer stopped scrolling.
+ */
+function addPageWidget(side: "front" | "back", corner: boolean, onAdd: () => void): HTMLElement {
+  const root = el(`pgchrome pgadd pgadd--${side}${corner ? " pgadd--corner" : ""}`);
+  root.contentEditable = "false";
+  const button = el("pgadd__button", root);
+  button.textContent = "Add Page";
+  button.setAttribute("aria-hidden", "true");
+  button.dataset.addPage = side;
+  button.addEventListener("mousedown", (event) => event.preventDefault());
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    onAdd();
+  });
+  return root;
+}
+
+/**
+ * Whatever opens a sheet before the script: a press of the pointer (never
+ * selecting a word of the sheet's text), or Return or Space with the sheet
+ * focused, which the Tab key reaches (docs/app/formatting/formats-and-layout.md#FMT-169).
+ */
+function opensOnPress(
+  sheet: HTMLElement,
+  name: string,
+  open: (target: EventTarget | null) => void,
+): void {
+  sheet.classList.add(
+    sheet.classList.contains("titlesheet") ? "titlesheet--editable" : "frontsheet--editable",
+  );
+  sheet.tabIndex = 0;
+  sheet.setAttribute("role", "button");
+  sheet.setAttribute(
+    "aria-label",
+    `${name}, ${sheet.dataset.backPage === undefined ? "front" : "back"} matter`,
+  );
+  sheet.setAttribute("aria-description", "Press to write on this page.");
+  sheet.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    open(event.target);
+  });
+  sheet.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    open(null);
+  });
+}
+
+/** A page with nothing on it yet: a sheet with its name, to be written on. */
+function emptyPageWidget(
+  source: string,
+  name: string,
+  onOpen: ((source: string, paragraphId: string | null) => void) | null,
+  back = false,
+): HTMLElement {
+  const root = el(`pgchrome pgchrome--front${back ? " pgchrome--back" : ""}`);
+  root.contentEditable = "false";
+  if (back) gapBefore(root);
+  const sheet = el("frontsheet frontsheet--placeholder", root);
+  sheet.dataset.frontPlaceholder = source;
+  sheet.dataset.frontSource = source;
+  if (back) sheet.dataset.backPage = "";
+  el("frontsheet__placeholderhead", sheet).textContent = name;
+  el("frontsheet__placeholderhint", sheet).textContent = onOpen
+    ? "Click to write on this page."
+    : "Nothing is written on this page yet.";
+  if (onOpen) opensOnPress(sheet, name, () => onOpen(source, null));
+  if (!back) gapAfter(root);
+  return root;
+}
+
+/** The foot of a sheet, the desk between two sheets, and the head of the next. */
+function gapAfter(root: HTMLElement): void {
+  el("pgchrome__botmargin", root);
+  el("pgchrome__band", root);
+  el("pgchrome__topmargin", root);
+}
+/** The same three, before a sheet that follows the script's last. */
+const gapBefore = gapAfter;
+
+/**
+ * The pages before the script in print order, by source: a page file's
+ * binder id, or `legacy:` and the kind of a page the title page prints.
+ */
+function frontSources(frontMatter: FrontMatter | null | undefined): string[] {
+  if (frontMatter?.pages) return frontMatter.pages.map((page) => page.id);
+  return legacyPageFiles(frontMatter).map((file) => `legacy:${file.kind}`);
 }
 
 export interface PaginationStorage {
@@ -86,7 +278,7 @@ interface LayoutMetaMsg {
 type Meta = ConfigMeta | LayoutMetaMsg;
 
 /** Extract engine blocks from the live doc; srcStart carries PM positions. */
-function blocksFromPmDoc(
+export function blocksFromPmDoc(
   doc: PMNode,
   spec: FormatSpec,
 ): {
@@ -109,6 +301,14 @@ function blocksFromPmDoc(
     if (hasNote && !hasText) return;
     const pieces: RawPiece[] = [];
     node.forEach((child, childOffset) => {
+      // A line break inside a speech or an action (Enter, Shift+Enter) is a
+      // node here and a newline everywhere else. Left out, the engine read a
+      // speech's paragraphs as one, wrapped it on lines the page does not have,
+      // and broke the page partway through a line the writer could see had room.
+      if (child.type.name === LINE_BREAK) {
+        pieces.push({ text: "\n", srcStart: offset + 1 + childOffset });
+        return;
+      }
       if (child.isText && child.text) {
         const marks = child.marks;
         pieces.push({
@@ -231,6 +431,8 @@ function marginSlots(className: string, slots: Slots, parent: HTMLElement): HTML
  * (CONT'D) cue. */
 function breakWidget(args: {
   fillRows: number;
+  /** Rows of text on the page this break ends (line-shortfall.ts). */
+  textRows: number;
   header: Slots | null;
   /** The footer of the page this break ENDS. */
   footer: Slots | null;
@@ -238,7 +440,7 @@ function breakWidget(args: {
 }): HTMLElement {
   const root = el("pgchrome");
   root.contentEditable = "false";
-  el("pgchrome__fill", root).style.height = `${Math.max(0, args.fillRows)}lh`;
+  el("pgchrome__fill", root).style.height = remainderHeight(args.fillRows, args.textRows);
   const bottom = el("pgchrome__botmargin", root);
   if (args.footer) marginSlots("pgchrome__footer", args.footer, bottom);
   el("pgchrome__band", root);
@@ -256,47 +458,59 @@ function breakWidget(args: {
 function frontMatterWidget(
   page: FrontMatterPage,
   spec: FormatSpec,
-  onClick: (() => void) | null,
-  onCharactersOpen: ((paragraphId: string | null) => void) | null,
+  onOpen: ((source: string, paragraphId: string | null) => void) | null,
+  names: ReadonlyMap<string, string>,
+  /** A page after the script: its sheet stands under the gap, not over it. */
+  back = false,
+  /** Lines that stand for a detail the play does not have yet (`AUTHOR_PROMPT`). */
+  prompts: ReadonlySet<string> = NO_PROMPTS,
 ): HTMLElement {
-  const root = el(`pgchrome pgchrome--${page.kind === "title" ? "title" : "front"}`);
+  const root = el(
+    `pgchrome pgchrome--${page.kind === "title" ? "title" : "front"}${back ? " pgchrome--back" : ""}`,
+  );
   root.contentEditable = "false";
+  if (back) gapBefore(root);
   const sheet = el(page.kind === "title" ? "titlesheet" : "frontsheet", root);
   sheet.dataset.frontKind = page.kind;
-  if (page.kind === "title" && onClick) {
-    sheet.classList.add("titlesheet--editable");
-    sheet.title = "Edit title page";
-    sheet.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      onClick();
-    });
-  }
-  // A double-click, not a click: this sheet sits in the scroll path above the
-  // first scene, and a stray click should not take the writer out of the script.
-  if (page.kind === "characters" && onCharactersOpen) {
-    sheet.classList.add("frontsheet--editable");
-    sheet.title = "Double-click to edit the characters";
-    // The second press would select a word of the sheet's text.
-    sheet.addEventListener("mousedown", (event) => {
-      if (event.detail > 1) event.preventDefault();
-    });
-    sheet.addEventListener("dblclick", (event) => {
-      event.preventDefault();
-      const hit = event.target instanceof Element ? event.target : null;
+  if (back) sheet.dataset.backPage = "";
+  const source = page.source;
+  // The page that lists the cast, which the guide points at (lesson 4).
+  if (page.kind === "characters" || /character|cast/i.test(page.label ?? ""))
+    sheet.dataset.tutorial = "characters-page";
+  if (source !== undefined && onOpen) {
+    sheet.dataset.frontSource = source;
+    // One click, the title page's as every other's: the pages are part of
+    // the play, and a click on one is meant
+    // (docs/app/formatting/formats-and-layout.md#FMT-169).
+    // Named as the page is everywhere else: its file's name, or the name its
+    // file will have (frontPageList), not the old sheet's label.
+    const name = names.get(source) ?? frontSheetLabel(page).label;
+    opensOnPress(sheet, name, (target) => {
+      const hit = target instanceof Element ? target : null;
       const line = hit?.closest<HTMLElement>("[data-front-paragraph]");
-      onCharactersOpen(line?.dataset.frontParagraph ?? null);
+      onOpen(source, line?.dataset.frontParagraph ?? null);
     });
   }
-  frontMatterLines(page.lines, sheet, spec);
-  el("pgchrome__botmargin", root);
-  el("pgchrome__band", root);
-  el("pgchrome__topmargin", root);
+  frontMatterLines(page.lines, sheet, spec, prompts);
+  if (source !== undefined)
+    pageChip(names.get(source) ?? frontSheetLabel(page).label, sheet, !!onOpen);
+  if (!back) gapAfter(root);
   return root;
 }
 
-function frontMatterLines(lines: FrontMatterLine[], sheet: HTMLElement, spec: FormatSpec): void {
+const NO_PROMPTS: ReadonlySet<string> = new Set();
+
+function frontMatterLines(
+  lines: FrontMatterLine[],
+  sheet: HTMLElement,
+  spec: FormatSpec,
+  prompts: ReadonlySet<string> = NO_PROMPTS,
+): void {
   for (const line of lines) {
-    const text = el("frontsheet__line", sheet);
+    const text = el(
+      prompts.has(line.text) ? "frontsheet__line frontsheet__line--prompt" : "frontsheet__line",
+      sheet,
+    );
     for (const segment of styleSegments(line.text, line.runs ?? [], {
       bold: line.fontStyle === "bold" || line.fontStyle === "bold-italic",
       italic: line.fontStyle === "italic" || line.fontStyle === "bold-italic",
@@ -332,6 +546,8 @@ function introWidget(layout: LayoutResult, spec: FormatSpec, bodyPage: number): 
       root.appendChild(
         breakWidget({
           fillRows: 0,
+          // An intro sheet is drawn at its exact height, with no line of text in flow.
+          textRows: 0,
           footer: page.footer,
           header: layout.pages[index + 1].header,
           contd: null,
@@ -347,6 +563,7 @@ function edgeWidget(
   kind: "first-header" | "fill",
   args: {
     fillRows?: number;
+    textRows?: number;
     header?: Slots | null;
     footer?: Slots | null;
   },
@@ -357,7 +574,10 @@ function edgeWidget(
     marginSlots("pgchrome__header", args.header, el("pgchrome__firstheader", root));
   }
   if (kind === "fill") {
-    el("pgchrome__fill", root).style.height = `${Math.max(0, args.fillRows ?? 0)}lh`;
+    el("pgchrome__fill", root).style.height = remainderHeight(
+      args.fillRows ?? 0,
+      args.textRows ?? 0,
+    );
     // The last sheet's bottom margin is the page's own padding, not chrome, so
     // its footer hangs from a zero-height anchor down into it.
     if (args.footer) marginSlots("pgchrome__footer", args.footer, el("pgchrome__lastfooter", root));
@@ -505,7 +725,75 @@ function computeLayout(
   }
 
   const decorations: Decoration[] = [...dualDecos];
-  for (const [index, page] of paginateFrontMatter(config.frontMatter, config.spec).entries()) {
+  // A play with no author yet says so where the name will print, on a sheet
+  // that can be written on: never in print, which lays out the play's own
+  // details (docs/app/formatting/formats-and-layout.md#FMT-176).
+  const editable = !!config.onFrontPageOpen;
+  const unnamed =
+    editable && !!config.frontMatter && !(config.frontMatter.authors ?? []).join("").trim();
+  const shown = unnamed
+    ? { ...config.frontMatter, authors: [AUTHOR_PROMPT], credit: config.frontMatter?.credit ?? "" }
+    : config.frontMatter;
+  const prompts: ReadonlySet<string> = unnamed ? new Set([AUTHOR_PROMPT]) : NO_PROMPTS;
+  const fronts = paginateFrontMatter(shown, config.spec);
+  const order = frontSources(config.frontMatter);
+  const names = new Map(
+    [...frontPageList(config.frontMatter), ...backPageList(config.frontMatter)].map((p) => [
+      p.id,
+      p.name,
+    ]),
+  );
+  const backSources = backPageList(config.frontMatter).map((page) => page.id);
+  const isBack = (source: string | undefined) =>
+    source !== undefined && backSources.includes(source);
+  const rank = (source: string | undefined) => {
+    const at = source === undefined ? -1 : order.indexOf(source);
+    return at < 0 ? order.length : at;
+  };
+  // The page being edited stands where its sheets would, as one sheet that
+  // grows with what is typed; with no sheet of its own yet, where it would go.
+  // A page file with nothing printed on it stands where it goes, to be written on.
+  const editing = config.editingFront ?? null;
+  const inserts: { rank: number; deco: () => Decoration }[] = [];
+  const editingBack = !!editing && (editing.back ?? isBack(editing.source));
+  /** The editing sheet, marked with the side it is drawn on as it is drawn. */
+  const editingRoot = (side: "front" | "back") => () => {
+    editing!.root.dataset[EDIT_SIDE] = side;
+    return editing!.root;
+  };
+  if (editing && !editingBack)
+    inserts.push({
+      rank: rank(editing.source),
+      deco: () =>
+        Decoration.widget(0, editingRoot("front"), {
+          side: -1,
+          key: `pg-front-edit-${editing.source}`,
+          // The editor in it is its own: the script neither reads its keys
+          // nor takes its selection for the script's.
+          stopEvent: () => true,
+          ignoreSelection: true,
+        }),
+    });
+  if (config.spec.frontMatter.placement !== "inline")
+    for (const page of config.frontMatter?.pages ?? []) {
+      if (page.id === editing?.source || fronts.some((front) => front.source === page.id)) continue;
+      inserts.push({
+        rank: rank(page.id),
+        deco: () =>
+          Decoration.widget(
+            0,
+            () => emptyPageWidget(page.id, page.name, config.onFrontPageOpen ?? null),
+            { side: -1, key: `pg-front-empty-${page.id}-${page.name}` },
+          ),
+      });
+    }
+  inserts.sort((a, b) => a.rank - b.rank);
+  const drawInserts = (upTo: number) => {
+    while (inserts.length && inserts[0]!.rank <= upTo) decorations.push(inserts.shift()!.deco());
+  };
+  for (const [index, page] of fronts.entries()) {
+    drawInserts(rank(page.source));
+    if (page.source !== undefined && page.source === editing?.source) continue;
     decorations.push(
       Decoration.widget(
         0,
@@ -513,11 +801,32 @@ function computeLayout(
           frontMatterWidget(
             page,
             config.spec!,
-            config.onTitlePageClick ?? null,
-            config.onCharactersPageOpen ?? null,
+            config.onFrontPageOpen ?? null,
+            names,
+            false,
+            prompts,
           ),
-        { side: -1, key: `pg-front-${index}-${JSON.stringify(page)}` },
+        {
+          side: -1,
+          key: `pg-front-${index}-${editable}-${names.get(page.source ?? "") ?? ""}-${JSON.stringify(page)}`,
+        },
       ),
+    );
+  }
+  drawInserts(Number.POSITIVE_INFINITY);
+  const onAddPage = config.onAddPage ?? null;
+  if (onAddPage) {
+    // In the gap over the script's first sheet when a page stands before it,
+    // and in the corner of that sheet's own margin when none does.
+    // Until here the page's own decorations are the pages before the script alone.
+    const corner = decorations.length === dualDecos.length;
+    decorations.push(
+      Decoration.widget(0, () => addPageWidget("front", corner, () => onAddPage("front")), {
+        side: -1,
+        key: `pg-add-front-${corner}`,
+        stopEvent: () => true,
+        ignoreSelection: true,
+      }),
     );
   }
   if (pages[0]?.header) {
@@ -562,27 +871,84 @@ function computeLayout(
     const header = page.header;
     const footer = prev.footer;
     const fillRows = prev.fillRows;
+    const textRows = textRowsOf(prev.lines);
     decorations.push(
-      Decoration.widget(pos, () => breakWidget({ fillRows, header, footer, contd }), {
+      Decoration.widget(pos, () => breakWidget({ fillRows, textRows, header, footer, contd }), {
         side: -1,
-        key: `pg-${i}-${pos}-${fillRows}-${contd ?? ""}-${JSON.stringify(header)}-${JSON.stringify(footer)}`,
+        key: `pg-${i}-${pos}-${fillRows}-${textRows}-${contd ?? ""}-${JSON.stringify(header)}-${JSON.stringify(footer)}`,
       }),
     );
   }
   const last = pages[pages.length - 1];
   if (last) {
     const footer = last.footer;
+    const textRows = textRowsOf(last.lines);
     decorations.push(
       Decoration.widget(
         doc.content.size,
-        () => edgeWidget("fill", { fillRows: last.fillRows, footer }),
+        () => edgeWidget("fill", { fillRows: last.fillRows, textRows, footer }),
         {
           side: 1,
-          key: `pg-last-${last.fillRows}-${JSON.stringify(footer)}`,
+          key: `pg-last-${last.fillRows}-${textRows}-${JSON.stringify(footer)}`,
         },
       ),
     );
   }
+  // The pages after the script (docs/app/formatting/formats-and-layout.md#FMT-174),
+  // each under a gap of its own after the script's last sheet, in their
+  // folder's order: a page's sheets, the page being edited in its place, a
+  // page with nothing printed yet as a sheet to be written on.
+  const backs = paginateBackMatter(config.frontMatter, config.spec);
+  let side = 2;
+  const drawEditing = () =>
+    decorations.push(
+      Decoration.widget(doc.content.size, editingRoot("back"), {
+        side: side++,
+        key: `pg-back-edit-${editing!.source}`,
+        stopEvent: () => true,
+        ignoreSelection: true,
+      }),
+    );
+  for (const source of backSources) {
+    if (editingBack && source === editing?.source) {
+      drawEditing();
+      continue;
+    }
+    const sheets = backs.filter((page) => page.source === source);
+    if (!sheets.length) {
+      const name = names.get(source) ?? "Page";
+      decorations.push(
+        Decoration.widget(
+          doc.content.size,
+          () => emptyPageWidget(source, name, config.onFrontPageOpen ?? null, true),
+          { side: side++, key: `pg-back-empty-${source}-${name}` },
+        ),
+      );
+      continue;
+    }
+    for (const page of sheets)
+      decorations.push(
+        Decoration.widget(
+          doc.content.size,
+          () => frontMatterWidget(page, config.spec!, config.onFrontPageOpen ?? null, names, true),
+          {
+            side: side++,
+            key: `pg-back-${editable}-${names.get(source) ?? ""}-${JSON.stringify(page)}`,
+          },
+        ),
+      );
+  }
+  // A page just added after the script, edited before its folder has been
+  // read: its sheet stands last, where the page will.
+  if (editingBack && editing && !backSources.includes(editing.source)) drawEditing();
+  if (onAddPage)
+    decorations.push(
+      Decoration.widget(
+        doc.content.size,
+        () => addPageWidget("back", true, () => onAddPage("back")),
+        { side: side++, key: "pg-add-back", stopEvent: () => true, ignoreSelection: true },
+      ),
+    );
   return { deco: DecorationSet.create(doc, decorations), pageStarts, total: pages.length };
 }
 
@@ -632,13 +998,19 @@ export const Pagination = Extension.create<Record<string, never>, PaginationStor
 
     const schedule = (view: EditorView) => {
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        timer = null;
+      // The sheets drawn again wait for a finger's tap under way: drawn under
+      // it, they cost an iPad's tap its click (ui/finger.ts).
+      const relayout = () => {
+        if (view.isDestroyed) return;
         const state = KEY.getState(view.state);
         if (!state?.stale) return;
         const { deco, pageStarts, total } = computeLayout(view.state.doc, state.config);
         const meta: LayoutMetaMsg = { kind: "layout", deco, pageStarts, total };
         view.dispatch(view.state.tr.setMeta(KEY, meta));
+      };
+      timer = setTimeout(() => {
+        timer = null;
+        afterTap(relayout);
       }, RELAYOUT_DEBOUNCE_MS);
     };
 

@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "The Weight of Water"
   - tablist "What this pane shows":
     - tab "Script" [selected]
@@ -30,7 +31,7 @@
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
     - group "Scenes in The Weight of Water":
-      - treeitem "Scene 1" [level=2]
+      - treeitem "Scene 1" [level=2] [selected]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]
@@ -69,8 +70,29 @@
     - tab "Scene" [selected]
     - tab "Comments"
   - button "Open as a pane"
-  - paragraph: No scene here
-  - paragraph: "Put the caret in a scene, or type ## Scene in the script, and its card appears here."
+  - text: Whole play
+  - heading "The Weight of Water" [level=2]
+  - text: Page 1 · 1 page · 0 speeches
+  - paragraph: "No scene titles, so the play is one scene. To divide it, type ## Scene where each scene begins."
+  - text: Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color"
+    - radio "Setup" [checked]
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: setup
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: Comments here 0 in this play
+  - button "Show"
+  - text: Changed somewhere else just now.
+  - button "Review"
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "<plays>\\The Weight of Water"
   - text: <save status>

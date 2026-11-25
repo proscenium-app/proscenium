@@ -152,9 +152,26 @@ export function sigilAfterBreak(tr: Transaction, pos: number, sigil: "!" | "@"):
  * a DOM); `insertPageBreak` is the command that dispatches it.
  */
 export function pageBreakTr(state: EditorState): Transaction | null {
-  const pageBreak = state.schema.nodes.pageBreak;
+  return lineOfItsOwnTr(state, "pageBreak");
+}
+
+/**
+ * A horizontal line (Fountain `---`, docs/app/writing/editor-ux.md#EDIT-213),
+ * placed as a page break is: in place of an empty line, or after the line
+ * the caret is on, with the caret on the line after it.
+ */
+export function horizontalRuleTr(state: EditorState): Transaction | null {
+  return lineOfItsOwnTr(state, "horizontalRule");
+}
+
+/** A page break or a horizontal line: an atom that is a line of the script by itself. */
+function lineOfItsOwnTr(
+  state: EditorState,
+  name: "pageBreak" | "horizontalRule",
+): Transaction | null {
+  const atom = state.schema.nodes[name];
   const action = state.schema.nodes.action;
-  if (!pageBreak || !action) return null;
+  if (!atom || !action) return null;
   const $from = state.selection.$from;
   if ($from.depth < 1) return null;
   const parent = $from.parent;
@@ -165,24 +182,32 @@ export function pageBreakTr(state: EditorState): Transaction | null {
   const tr = state.tr.replaceWith(
     at,
     empty ? $from.after() : at,
-    lands ? pageBreak.create() : [pageBreak.create(), action.create()],
+    lands ? atom.create() : [atom.create(), action.create()],
   );
-  // pageBreak is an atom (size 1), so the block after it opens at +1 and its
-  // content starts at +2.
+  // The atom's size is 1, so the block after it opens at +1 and its content
+  // starts at +2.
   return tr.setSelection(TextSelection.create(tr.doc, at + 2));
 }
 
-export function insertPageBreak(editor: Editor): boolean {
+function dispatchTr(editor: Editor, make: (state: EditorState) => Transaction | null): boolean {
   return editor
     .chain()
     .focus()
     .command(({ state, dispatch }) => {
-      const tr = pageBreakTr(state);
+      const tr = make(state);
       if (!tr) return false;
       dispatch?.(tr.scrollIntoView());
       return true;
     })
     .run();
+}
+
+export function insertPageBreak(editor: Editor): boolean {
+  return dispatchTr(editor, pageBreakTr);
+}
+
+export function insertHorizontalRule(editor: Editor): boolean {
+  return dispatchTr(editor, horizontalRuleTr);
 }
 
 /** ⌘B/⌘I/⌘U, and the bar's B/I/U — one fence, two doors. */

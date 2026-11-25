@@ -16,13 +16,21 @@
  * vanish on the next save, which is the worst kind of formatting bug because
  * the writer sees it work. The two extensions are switched off in ProseEditor
  * for the same reason, so their keyboard shortcuts cannot smuggle them back in.
+ *
+ * Over a page file (ProseEditor's `pageFile`) the bar also offers Insert
+ * Field, the play's details as fields; a field is written as its token, which
+ * the file holds as it is.
  */
 import { keys } from "../ui/keys";
 import { FormattingIcon } from "../ui/FormattingIcon";
 import type { Editor } from "@tiptap/core";
-import { useEffect, useState } from "react";
-import { PopupButton } from "../ui";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDownIcon, Menu, PopupButton, announce, useMenu } from "../ui";
+import { afterTap } from "../ui/finger";
+import { holdCaretThroughPress } from "./bar-press";
 import { continueNumbering, numberingAt, startNumberingAt } from "./lists";
+import { canInsertField, hasPageFields } from "./page-file-nodes";
+import { FIELD_LABEL, FIELD_MENU } from "./page-fields";
 
 export interface FormatBarProps {
   editor: Editor | null;
@@ -87,6 +95,100 @@ const BLOCKS: {
   },
 ];
 
+/**
+ * One of the bar's buttons. Its own component, never one made inside the
+ * bar's render: a component made there is a new one each render, so React
+ * took down every button and put up new ones on each of the editor's
+ * transactions, and on an iPad a tap that met new buttons going up was held
+ * back from its click, WebKit taking it for a hover that showed something.
+ */
+function Btn({
+  on,
+  title,
+  label,
+  run,
+  children,
+}: {
+  on?: boolean;
+  title: string;
+  label: string;
+  run: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      className={`fmt__btn${on ? " is-on" : ""}`}
+      title={title}
+      aria-label={label}
+      aria-pressed={on}
+      // The bar must not steal the selection: a button that focuses itself
+      // collapses the range you were about to embolden.
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={run}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Insert Field: a pull-down of the play's details, each put at the caret as a
+ * field. Like the bar's buttons, a press leaves the caret where it was, so the
+ * field goes where the writer was typing; chosen from the keyboard, the menu
+ * hands focus back and the field goes to the caret the page kept.
+ */
+function InsertField({ editor }: { editor: Editor }) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const menu = useMenu();
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className="popupbtn"
+        aria-haspopup="menu"
+        aria-expanded={menu.open}
+        disabled={!canInsertField(editor.state)}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => menu.openFrom(ref.current)}
+        onKeyDown={(e) => {
+          // ↓ and ↑ open a pull-down, as they do a native one.
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            menu.openFrom(ref.current);
+          }
+        }}
+      >
+        <span className="popupbtn__label">Insert Field</span>
+        <span className="popupbtn__badge" aria-hidden="true">
+          <ChevronDownIcon size={9} />
+        </span>
+      </button>
+      {menu.anchor && (
+        <Menu
+          anchor={menu.anchor}
+          label="Insert Field"
+          width={190}
+          onClose={menu.close}
+          entries={FIELD_MENU.map((name) => ({
+            id: name,
+            label: FIELD_LABEL[name],
+            onSelect: () => {
+              // Focus at once, not a frame later: a late focus put back the
+              // selection it found, over whatever came in the meantime.
+              editor.view.focus();
+              if (!canInsertField(editor.state)) return;
+              editor.commands.insertField(name);
+              announce(`${FIELD_LABEL[name]} field inserted`);
+            },
+          }))}
+        />
+      )}
+    </>
+  );
+}
+
 export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
   // ProseMirror state changes do not re-render React on their own, so the
   // active states would freeze at whatever they were when the bar mounted —
@@ -94,7 +196,12 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
   const [, bump] = useState(0);
   useEffect(() => {
     if (!editor) return;
-    const rerender = () => bump((n) => n + 1);
+    // What the bar shows follows the caret once a finger's tap has had its
+    // click: a button put up under the finger (the list's numbering, coming
+    // as the caret went into a list) cost an iPad's tap its click
+    // (ui/finger.ts).
+    const bumpNow = () => bump((n) => n + 1);
+    const rerender = () => afterTap(bumpNow);
     editor.on("transaction", rerender);
     editor.on("selectionUpdate", rerender);
     return () => {
@@ -119,40 +226,20 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
   const blocks = openingPage ? BLOCKS.slice(0, 4) : BLOCKS;
   const block = blocks.find((b) => b.is(editor)) ?? BLOCKS[0];
 
-  const Btn = ({
-    on,
-    title,
-    label,
-    run,
-    children,
-  }: {
-    on?: boolean;
-    title: string;
-    label: string;
-    run: () => void;
-    children: React.ReactNode;
-  }) => (
-    <button
-      type="button"
-      className={`fmt__btn${on ? " is-on" : ""}`}
-      title={title}
-      aria-label={label}
-      aria-pressed={on}
-      // The bar must not steal the selection: a button that focuses itself
-      // collapses the range you were about to embolden.
-      onMouseDown={(e) => e.preventDefault()}
-      onClick={run}
-    >
-      {children}
-    </button>
-  );
-
   return (
-    <div className="fmt" role="toolbar" aria-label="Formatting">
+    <div
+      className="fmt"
+      role="toolbar"
+      aria-label="Formatting"
+      // On an iPad a finger landing here moved the page's caret to the
+      // document's start before its click came (bar-press.ts).
+      onPointerDownCapture={(e) => holdCaretThroughPress(editor.view, e.nativeEvent)}
+    >
       {/* Each style is rendered AT its own size in the menu, so the control
           shows what it does rather than naming it (docs/engineering/design-system.md#UI-D107). */}
       <PopupButton
         className="fmt__block"
+        keepsCaret
         label="Paragraph style"
         menuWidth={190}
         value={block.label}
@@ -218,6 +305,7 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
       {openingPage && (
         <PopupButton
           disabled={editor.isActive("bulletList") || editor.isActive("orderedList")}
+          keepsCaret
           label="Text alignment"
           value={
             editor.getAttributes(editor.isActive("heading") ? "heading" : "paragraph").textAlign ??
@@ -304,6 +392,9 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
         </>
       )}
 
+      {/* A page file's editor holds fields; no other editor can. */}
+      {hasPageFields(editor) && <InsertField editor={editor} />}
+
       {/* Only in a numbered list, and last on the bar, so that nothing else
           moves when it comes and goes. */}
       {numbering && (
@@ -311,6 +402,7 @@ export function FormatBar({ editor, openingPage = false }: FormatBarProps) {
           <span className="fmt__rule" />
           <PopupButton
             className="fmt__count"
+            keepsCaret
             label="List numbering"
             title="Where this numbered list counts from"
             menuWidth={210}

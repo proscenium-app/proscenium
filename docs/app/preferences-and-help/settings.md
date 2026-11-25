@@ -48,6 +48,20 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
      spell check on or off (the same setting the document menu toggles); dictionary
      words with Add Word and Forget. `sceneStatuses` is no longer a setting: a
      `settings.json` that has it is read without it, and a patch that names it is refused.
+   - <a id="SET-44"></a> **SET-44** **Writing › Script › Capitalize as you type** — auto-caps
+     on or off ([docs/app/writing/editor-ux.md#EDIT-54](../writing/editor-ux.md#EDIT-54)): cues,
+     act and scene headings and transitions, and character names in the directions where the
+     format asks ([docs/app/writing/editor-ux.md#EDIT-202](../writing/editor-ux.md#EDIT-202)).
+     `autoCaps` in `settings.json`; absent means on, as auto-caps always was.
+   - <a id="SET-45"></a> **SET-45** **Writing › Script › Show your place in the scene** — a
+     thin upright line inside the scene the navigation strip has lit, standing at the share of
+     that scene above the point the strip reads the script at (a third of the way down the
+     visible script, the same point that picks the scene). The share is measured in drawn
+     height from the scene's heading to the next scene's, so it agrees with the strip's
+     widths, which are pages; it never leaves its segment. Directly below the strip's own
+     switch, and dimmed while the strip is off, its note saying so. `scenePlaceMarker` in
+     `settings.json`; absent means on. The line is part of the strip's picture: the strip's
+     label is unchanged, and the line takes no pointer.
    - <a id="SET-10"></a> **SET-10** **Formats** — an empty slot with a working "Open Formats Folder". Part B
      fills it.
    - <a id="SET-11"></a> **SET-11** **Keyboard Shortcuts** — the shared shortcut reference.
@@ -76,6 +90,9 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
      On Windows, where no alpha is published, the menu is Stable and Beta whatever the
      copy holds, with no Have a key? button; a stored alpha follows beta there, and
      stays stored.
+     On an iPad there is no track: the App Store updates the copy, or TestFlight a copy
+     TestFlight installed, and Updates says which, with Release notes and no track,
+     Check Now or Have a key?, as the Mac App Store's copy does.
    - <a id="SET-38"></a> **SET-38** **Have a key?** — a small button under the track, while the copy
      holds no key, opens a field and Add Key. A key of the wrong shape is refused in
      words beside the field. An accepted one closes the field, adds Alpha to the
@@ -133,6 +150,15 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
    and the document menu can open Formats.
 4. <a id="SET-17"></a> **SET-17** **Plain words.** Every setting is a sentence a playwright understands, and
    every switch says what happens when it is off. The Words in Settings contract below also requires on-state wording and names off only when off costs something its label does not show.
+5. <a id="SET-43"></a> **SET-43** **A window of its own.** Settings stands in for a
+   Settings window: centred in the app's window, rounded on every corner, and
+   closed by a × in its heading at the corner where the system puts a window's
+   close control: the top left on a Mac and an iPad, the top right on a PC
+   (`closeAt`, [docs/engineering/cross-platform.md#PLAT-35](../../engineering/cross-platform.md#PLAT-35)).
+   Esc and a click on the dimmed window around it close it too. It has no Done
+   button: a change takes effect as it is made, so there is nothing to confirm.
+   The × is the heading's first Tab stop on a Mac and its last on a PC, and
+   Tab from it goes to the chosen section.
 
 <a id="SET-D103"></a>
 

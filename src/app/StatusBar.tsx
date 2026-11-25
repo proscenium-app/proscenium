@@ -10,7 +10,6 @@
  * "Saved · 2:14 AM" is a fact, and a fact does not need a badge.
  */
 import { systemWords } from "../ui/system-words";
-import { vault } from "../storage";
 import { Chip, WarnIcon } from "../ui";
 import type { SaveStatus } from "./useWorkspace";
 import { WatcherStatus } from "./WatcherStatus";
@@ -38,6 +37,7 @@ function savedAt(): string {
 
 export function StatusBar({
   root,
+  onReveal,
   status,
   savedTime,
   formatWarnings,
@@ -46,6 +46,11 @@ export function StatusBar({
   children,
 }: {
   root: string | null;
+  /**
+   * Show the folder in the file manager, where the system has one to show it
+   * in (capabilities, never platform); the path is plain text where it has not.
+   */
+  onReveal?: () => void;
   status: SaveStatus;
   /** The clock the last save landed at; the bar states it rather than "just now". */
   savedTime: string | null;
@@ -58,32 +63,35 @@ export function StatusBar({
   const label = STATUS_LABEL[status];
   return (
     <footer className="statusbar">
-      {root && (
-        <button
-          type="button"
-          className="statusbar__path"
-          onClick={() => void vault.reveal()}
-          title={`Reveal in ${systemWords().fileManager}`}
-        >
-          {root}
-        </button>
-      )}
+      {root &&
+        (onReveal ? (
+          <button
+            type="button"
+            className="statusbar__path"
+            onClick={onReveal}
+            title={`Reveal in ${systemWords().fileManager}`}
+          >
+            {root}
+          </button>
+        ) : (
+          <span className="statusbar__path">{root}</span>
+        ))}
       {formatWarnings.length > 0 && (
-        <Chip kind="warn" tiny title={formatWarnings.join("\n")}>
+        <Chip kind="warn" tiny news title={formatWarnings.join("\n")}>
           <WarnIcon size={10} />
           {formatWarnings.length} format warning
           {formatWarnings.length === 1 ? "" : "s"}
         </Chip>
       )}
       {conflictCopies.length > 0 && (
-        <Chip kind="warn" tiny title="Open Changes to compare them.">
+        <Chip kind="warn" tiny news title="Open Changes to compare them.">
           <WarnIcon size={10} />
           {conflictCopies.length} other version
           {conflictCopies.length === 1 ? "" : "s"}
         </Chip>
       )}
       {preserved.length > 0 && (
-        <Chip tiny title="Kept in Versions.">
+        <Chip tiny news title="Kept in Versions.">
           {preserved.length} version{preserved.length === 1 ? "" : "s"} kept
         </Chip>
       )}

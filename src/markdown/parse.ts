@@ -31,6 +31,18 @@ import {
   MAX_MARKDOWN_NODES,
   type Budget,
 } from "./inline";
+import { FOOT_MARK } from "./page-fields";
+
+/** How a file is read. */
+export interface ParseOptions {
+  /**
+   * The file is a page before the script (src/layout/page-files.ts). Its first
+   * line that is the foot mark is a block of its own, `foot`, wherever it
+   * stands, since the layout splits the page's body from its foot at that
+   * line whatever is around it. Any later one is the text it is, as it prints.
+   */
+  pageFile?: boolean;
+}
 
 export interface CodeBlock {
   kind: "code";
@@ -76,6 +88,8 @@ export interface TableBlock {
 }
 export type Block =
   | { kind: "managedMarker"; text: string }
+  /** Where a title page's foot begins: read only from a page file. */
+  | { kind: "foot" }
   | CodeBlock
   | Heading
   | Paragraph
@@ -152,9 +166,19 @@ function isItem(line: string): boolean {
   return ITEM.test(line) && !RULE.test(line);
 }
 
-function isBlockStart(line: string): boolean {
+/** Whether the foot can still begin: a page file's, until its first foot mark. */
+interface Foot {
+  open: boolean;
+}
+
+function isFoot(line: string, foot: Foot): boolean {
+  return foot.open && line.trim() === FOOT_MARK;
+}
+
+function isBlockStart(line: string, foot: Foot): boolean {
   return (
     line.trim() === MANAGED_MARK ||
+    isFoot(line, foot) ||
     HEADING.test(line) ||
     QUOTE.test(line) ||
     RULE.test(line) ||
@@ -164,16 +188,32 @@ function isBlockStart(line: string): boolean {
 }
 
 /** Split source into blocks. Fenced code wins over everything inside it. */
-export function parseBlocks(source: string): Block[] {
+export function parseBlocks(source: string, options: ParseOptions = {}): Block[] {
   try {
     assertDocumentText(source);
-    const blocks = scanBlocks(source, { left: MAX_MARKDOWN_NODES });
+    const blocks = scanBlocks(
+      source,
+      { left: MAX_MARKDOWN_NODES },
+      { open: options.pageFile === true },
+    );
+    // A line set centered or at the right and waiting for words is a comment
+    // of its own, `<!-- proscenium:line=center -->`: an empty paragraph, as a
+    // page started from a dedication's scaffold begins (src/layout/scaffolds.ts).
+    // Its own mark, never the alignment's below with nothing under it: that
+    // one sets whatever paragraph follows, so an empty centered line written
+    // as it would center the next paragraph when the file was read again.
+    const set = blocks.map((block): Block => {
+      if (block.kind !== "paragraph" || block.spans.length !== 1 || block.spans[0]!.kind !== "text")
+        return block;
+      const line = block.spans[0]!.text.match(/^<!-- proscenium:line=(center|right) -->$/);
+      return line ? { kind: "paragraph", spans: [], align: line[1] as "center" | "right" } : block;
+    });
     // Alignment is a narrow, inert comment; unmatched comments stay visible.
-    return blocks.filter((block, i) => {
+    return set.filter((block, i) => {
       if (block.kind !== "paragraph" || block.spans.length !== 1 || block.spans[0].kind !== "text")
         return true;
       const marker = block.spans[0].text.match(/^<!-- proscenium:align=(center|right) -->$/);
-      const next = blocks[i + 1];
+      const next = set[i + 1];
       if (!marker || !next || (next.kind !== "paragraph" && next.kind !== "heading")) return true;
       next.align = marker[1] as "center" | "right";
       return false;
@@ -185,7 +225,7 @@ export function parseBlocks(source: string): Block[] {
   }
 }
 
-function scanBlocks(source: string, budget: Budget): Block[] {
+function scanBlocks(source: string, budget: Budget, foot: Foot): Block[] {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const out: Block[] = [];
   let i = 0;
@@ -196,6 +236,13 @@ function scanBlocks(source: string, budget: Budget): Block[] {
 
     if (line.trim() === MANAGED_MARK) {
       out.push({ kind: "managedMarker", text: line.trim() });
+      i += 1;
+      continue;
+    }
+
+    if (isFoot(line, foot)) {
+      out.push({ kind: "foot" });
+      foot.open = false;
       i += 1;
       continue;
     }
@@ -264,7 +311,7 @@ function scanBlocks(source: string, budget: Budget): Block[] {
     }
 
     if (isItem(line)) {
-      const [list, next] = readList(lines, i, indentOf(line), budget);
+      const [list, next] = readList(lines, i, indentOf(line), budget, foot);
       out.push(list);
       i = next;
       continue;
@@ -274,7 +321,7 @@ function scanBlocks(source: string, budget: Budget): Block[] {
     const para: string[] = [];
     while (i < lines.length && lines[i]!.trim()) {
       const l = lines[i]!;
-      if (para.length && isBlockStart(l)) break;
+      if (para.length && isBlockStart(l, foot)) break;
       para.push(l.trim());
       i += 1;
     }
@@ -295,6 +342,7 @@ function readList(
   start: number,
   base: number,
   budget: Budget,
+  foot: Foot,
   depth = 0,
 ): [ListBlock, number] {
   if (depth >= MAX_MARKDOWN_DEPTH) throw new MarkdownBudget();
@@ -322,7 +370,7 @@ function readList(
 
     if (indent >= base + 2 && items.length) {
       // Nested: hang a whole child list off the item we just read.
-      const [child, next] = readList(lines, i, indent, budget, depth + 1);
+      const [child, next] = readList(lines, i, indent, budget, foot, depth + 1);
       items[items.length - 1]!.children.push(child);
       i = next;
       continue;
@@ -339,7 +387,7 @@ function readList(
       lines[i]!.trim() &&
       indentOf(lines[i]!) > base &&
       !isItem(lines[i]!) &&
-      !isBlockStart(lines[i]!)
+      !isBlockStart(lines[i]!, foot)
     ) {
       // A wrapped line reflows into the one above. A line the writer ended on
       // purpose says so, with a backslash or two spaces, and stays a line of

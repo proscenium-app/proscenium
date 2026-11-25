@@ -26,7 +26,8 @@ pub fn unavailable(path: &Path) -> bool {
     }
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     {
-        use std::os::macos::fs::MetadataExt;
+        // `darwin`, which both systems have; `std::os::macos` is the Mac's alone.
+        use std::os::darwin::fs::MetadataExt;
         // sys/stat.h SF_DATALESS: the provider owns the bytes but has evicted them.
         const SF_DATALESS: u32 = 0x4000_0000;
         std::fs::symlink_metadata(path).is_ok_and(|meta| meta.st_flags() & SF_DATALESS != 0)

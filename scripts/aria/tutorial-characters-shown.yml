@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Practice Play"
   - tablist "What this pane shows":
     - tab "Script"
@@ -17,6 +18,10 @@
   - button "Collapse all folders"
   - searchbox "Filter the binder"
   - tree "Binder items":
+    - treeitem "Front Matter" [expanded] [level=1]
+    - group "Front Matter":
+      - treeitem "Title Page" [level=2]
+      - treeitem "Characters" [level=2]
     - treeitem "Practice Play Rename “Practice Play” Actions for “Practice Play”" [level=1] [selected]:
       - text: Practice Play
       - button "Rename “Practice Play”"
@@ -31,49 +36,20 @@
   - button "New"
   - text: at the top level
 - main "Play":
-  - heading "Characters Page" [level=1]
-  - paragraph: Edit the page your readers will see. Cast tools and private notes are below.
-  - group "Printed characters page":
-    - toolbar "Formatting":
-      - 'button "Paragraph style: Body Text"': Body Text
-      - button "Bold"
-      - button "Italic"
-      - 'button "Text alignment: Align Left"': Align Left
-      - button "Bulleted list":
-        - img
-      - button "Numbered list":
-        - img
-    - heading "Characters" [level=1]
-    - paragraph:
-      - strong: JUNIPER
-    - paragraph:
-      - strong: SIMON
-    - paragraph:
-      - emphasis: The Blisses, and the guests they asked for the weekend.
-  - group: Page Options
-  - heading "Cast Tools" [level=2]
-  - paragraph: Names, private notes, appearances and sides.
+  - heading "Cast" [level=1]
+  - paragraph: Who speaks, where, and which page of the play names them. Those pages are written in the script’s page view, where they print.
   - group "JUNIPER":
     - text: JUNIPER
-    - textbox "Name — JUNIPER"
-    - textbox "Description — JUNIPER"
-    - button "Remove JUNIPER"
-    - button "Move JUNIPER up" [disabled]
-    - button "Move JUNIPER down"
+    - button "On the Characters page"
     - text: 2 lines · 1 scene Appears in SCENE 1
     - button "Sides (PDF) ↗"
     - button "Add Notes"
   - group "SIMON":
-    - text: SIMON
-    - textbox "Name — SIMON"
-    - textbox "Description — SIMON"
-    - button "Remove SIMON"
-    - button "Move SIMON up"
-    - button "Move SIMON down" [disabled]
-    - text: 1 line · 1 scene Appears in SCENE 1
+    - text: SIMON Not on a page 1 line · 1 scene Appears in SCENE 1
+    - button "Add to Characters Page"
+    - button "Leave Off"
     - button "Sides (PDF) ↗"
     - button "Add Notes"
-  - button "Add Character"
   - heading "Who’s on stage" [level=3]
   - paragraph: A mark where a character speaks. Read across for a part’s shape, down for how full a scene is.
   - table:
@@ -109,7 +85,7 @@
   - button "Open as a pane"
   - text: Scene 2
   - heading "SCENE 1" [level=2]
-  - text: Pages 1–2 · 2 pages · 3 speeches Summary · not printed
+  - text: Pages 1–2 · 2 pages · 2 speeches Summary · not printed
   - textbox "Summary"
   - text: Color
   - radiogroup "Scene color":
@@ -123,9 +99,9 @@
     - text: no color
   - text: Notes · never prints
   - textbox "Notes"
-  - text: On stage JUNIPER 2 SIMON 1 Comments here 0 in this scene
+  - text: On stage JUNIPER 1 SIMON 1 Comments here 0 in this scene
   - button "Show"
-  - paragraph: The synopsis is part of the script. The rest is card metadata.
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
   - text: <save status>
@@ -136,8 +112,8 @@
 - alert
 - complementary "Tutorial":
   - text: Practice
-  - button "Characters and Opening Pages, step 2 of 4. Choose a step": Characters and Opening Pages 2 of 4
+  - button "Pages Before the Script, step 2 of 4. Choose a step": Pages Before the Script 2 of 4
   - button "Stop Tutorial"
-  - paragraph: The printed page keeps your wording now.
+  - paragraph: The Characters page names them now, and prints them.
   - button "Next"
   - button "More Help"

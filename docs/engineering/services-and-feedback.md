@@ -27,6 +27,7 @@ This reference covers owned endpoints, service behavior, protection and operatio
 | `https://updates.proscenium.ink/v1/<track>/{{target}}/{{arch}}/{{current_version}}` | the updater, `alpha` and `beta` builds | counts the check; answers with that track's manifest from R2 ([SERV-249](#SERV-249)); alpha only with its key ([SERV-261](#SERV-261)) | <a id="SERV-246"></a>SERV-246 |
 | `https://updates.proscenium.ink/v1/<track>/download/v<version>/<file>` | the website's Download of a beta's Windows installers; the updater, before [SERV-286](#SERV-286) | streams that file from the track's R2 objects; alpha only with its key | <a id="SERV-247"></a>SERV-247 |
 | `https://updates.proscenium.ink/v1/<track>/update/v<version>/<file>` | the updater | the same as SERV-247, counted as an update ([SERV-286](#SERV-286)) | <a id="SERV-288"></a>SERV-288 |
+| `https://updates.proscenium.ink/robots.txt` | crawlers | answers GET and HEAD with `User-agent: *` and `Disallow: /`, so the named ones stay away from the files ([SERV-290](#SERV-290)); counts nothing and asks no switch, limit, key or store; with a query or any other method it is a bare 404 | <a id="SERV-291"></a>SERV-291 |
 | `https://reports.proscenium.ink/v1/events` | the reports client | checks each event against the list, then adds it to the day's counts | <a id="SERV-4"></a>SERV-4 |
 | `https://reports.proscenium.ink/api/<project>/envelope/` | the crash reporter (Sentry's SDK) | forwards the report to Sentry without the sender's address | <a id="SERV-5"></a>SERV-5 |
 | `https://feedback.proscenium.ink/v1/messages` | Send Feedback ([feedback.md](../app/preferences-and-help/feedback.md)) | adds the message to the private list, and sends nothing on | <a id="SERV-6"></a>SERV-6 |
@@ -37,7 +38,7 @@ This reference covers owned endpoints, service behavior, protection and operatio
 - <a id="SERV-8"></a> **SERV-8** **One exception, on purpose.** The updater's second endpoint stays GitHub's
   own `latest.json`, and the GitHub hosts stay on the allowlist for it.
   - <a id="SERV-9"></a> **SERV-9** tauri-plugin-updater tries its endpoints in order and stops at the first
-    that answers (2.11.0, `src/updater.rs`).
+    that answers (2.14.0, `src/updater.rs`, as in 2.11.0).
   - <a id="SERV-10"></a> **SERV-10** If proscenium.ink ever fails, copies still update from GitHub. If
     Proscenium ever leaves GitHub, the fallback fails quietly and the first
     endpoint carries on.
@@ -180,6 +181,50 @@ This reference covers owned endpoints, service behavior, protection and operatio
     before; stable's download route serves them as GitHub does, since the
     website and the cask name a release until they are moved, and a halt
     deletes nothing (SERV-270).
+  - <a id="SERV-289"></a> **SERV-289** **A HEAD of a release's file is answered and counted
+    as nothing.** On the download and update routes, a release's and a track's
+    (SERV-3, SERV-287, SERV-247, SERV-288), HEAD passes the same switch, rate
+    limit, key, admission and manifest checks as GET, so a file a GET would
+    refuse is refused alike, and answers 200 with the headers a GET would send:
+    `Content-Type`, `Cache-Control`, and the file's `Content-Length`, as GitHub
+    declares it or as R2 holds it. It sends no body and adds to no count
+    (SERV-286): a header probe is neither a download nor an update. Homebrew
+    asks a cask's file with `curl --head` first, and while HEAD was refused it
+    asked again as a GET, so one install counted twice. A check's routes are
+    GET alone; HEAD there is a bare 404.
+  - <a id="SERV-290"></a> **SERV-290** **A program's fetch of a release's file is a crawler's,
+    never the website's.** A reading of the host's own request log from
+    2026-10-26 to 2026-10-30 found every Windows download the service counted
+    as the website's (an installer for each chip, a day) was a program's, by
+    four different programs, and so were seven of the twelve Mac downloads,
+    all counted as `website` (SERV-286). A download on
+    the download route (SERV-3, SERV-247) that is not the project's own, not
+    Homebrew's and not a signature adds to `crawler` instead of `website` when
+    its User-Agent says a program asked:
+    - a program that names itself a bot, crawler, spider or slurp
+      (`ClaudeBot/1.0`, `GPTBot/1.3`, `Googlebot/2.1`, `bingbot/2.0`), or the
+      PDF reader that names itself `pdfmin` (`msh-pdfmin/1`);
+    - the stock iPhone string of headless-browser tooling, `iPhone OS 13_2_3`
+      (`Version/13.0.3 Mobile/15E148`): no phone runs iOS 13.2.3 now, and
+      neither app installs on a phone;
+    - a bare Windows token, `(Windows NT 10.0)`, with no `Win64` or `ARM64`
+      after it, which no 64-bit Windows browser sends and the apps, being
+      64-bit only, would not run on. Medium confidence, kept: a 32-bit browser
+      does send it, and its fetch is counted as a crawler's too.
+
+    The kinds are decided in this order: `own`, `signature`, `update`,
+    `homebrew`, `crawler`, `website`, so a program that says
+    `proscenium-checks` or `Homebrew/` is still the project's or Homebrew's,
+    and a file on the update route is still an update. A crawler is counted
+    and served, never refused; its `robots.txt` (SERV-291) asks the named ones
+    to stay away. The User-Agent chooses the kind and is never stored or sent
+    on (SERV-286). `crawler` is a kind the counts' table allows from migration
+    `0009_crawler_kind.sql`, built again with every row kept: rows before it
+    stay as they were, `website` rows with programs' fetches among them.
+    `downloads.sql` counts no `crawler`; `file-requests.sql` lists it. A table
+    that does not list `crawler` refuses the row, and the download answers 500,
+    so the migration is applied to production before the Worker that writes the
+    kind is deployed.
   - <a id="SERV-267"></a> **SERV-267** **The stable route is proven against GitHub itself before every
     release, never only against a stand-in.** `services/edge/test/workerd-live.node.ts`
     (`bun run test:live`) runs the bundle `wrangler deploy` uploads in workerd
@@ -545,22 +590,31 @@ reports.
   - <a id="SERV-104"></a> **SERV-104** crash envelopes only for our Sentry project;
   - <a id="SERV-105"></a> **SERV-105** downloads only of the release's own files, from our repository.
 - <a id="SERV-106"></a> **SERV-106** **Plausibility:** a version never released, or a platform we do not build,
-  is refused. The platforms we build, and the system versions each is built
-  for, are SERV-282's.
+  is refused. The platforms we build, the system versions each is built for,
+  and which routes each asks, are SERV-282's.
   - <a id="SERV-282"></a> **SERV-282** **The systems we build, and how each names its
     version.** A copy runs on a Mac (`darwin`) or on Windows (`windows`), on
-    either chip (`aarch64`, `x86_64`). It names its system's version in its
-    update check's `Proscenium-OS` and in a report's `os`, in that system's form
-    and no finer: a Mac's `<major>.<minor>`, from macOS 14, such as `15.6`;
+    either chip (`aarch64`, `x86_64`), or on an iPad (`ios`), on Apple silicon
+    alone (`aarch64`). It names its system's version in a report's `os`, and a
+    Mac's or a PC's in its update check's `Proscenium-OS` too, in that system's
+    form and no finer: a Mac's `<major>.<minor>`, from macOS 14, such as `15.6`;
     Windows' `10.0.<build>`, from Windows 10 22H2's build 19045, such as
-    `10.0.26100` (Windows 11 is 10.0 too, from build 22000). Windows' update
-    revision after the build is not sent, as a Mac's patch number is not. A
-    usage batch's channel is its own system's too: a Mac's `developer-id` (the
-    download) or `app-store`; Windows' `download` (its installer, from the site,
-    GitHub or winget) or `microsoft-store`. An address naming another system is
-    a bare 404 (SERV-98). A version or a channel that is not its own system's, a
-    Mac's from Windows or Windows' from a Mac included, is refused with a 400: a
-    check before it is counted, and a usage batch or a crash report whole.
+    `10.0.26100` (Windows 11 is 10.0 too, from build 22000); an iPad's
+    iPadOS `<major>.<minor>`, from iPadOS 17, the floor it is built for, such as
+    `26.5`. Windows' update revision after the build is not sent, as a Mac's or
+    an iPad's patch number is not. A usage batch's channel is its own system's
+    too: a Mac's `developer-id` (the download) or `app-store`; Windows'
+    `download` (its installer, from the site, GitHub or winget) or
+    `microsoft-store`; an iPad's `app-store`, whether the App Store or
+    TestFlight installed it, which its whole version tells apart (SERV-272): an
+    alpha, TestFlight's internal build for the team, is refused as every alpha
+    is. **An iPad reports and never checks:** TestFlight and the App Store
+    update it, so it has no update route, and an update check naming `ios` is
+    a bare 404, as an address naming any other system we do not serve is
+    (SERV-98). A version or a channel that is not its own system's, a
+    Mac's from Windows, Windows' from a Mac or either's from an iPad included,
+    is refused with a 400: a check before it is counted, and a usage batch or a
+    crash report whole.
   - <a id="SERV-250"></a> **SERV-250** A version counts as released when the stable admission list or any
     track's list of published versions holds it, so a copy that changes track is
     never refused for the track it came from.
@@ -954,13 +1008,22 @@ changed, on the maintainer's word of 2026-10-23: the update service counts
 each file it serves by what it was (SERV-286), so the page tells a download
 from the website or Homebrew from an update, and both from the project's own
 machines.
+On the maintainer's word of 2026-10-30 the page counts a download as the
+service counts it and nothing else: the website's, Homebrew's (two requests an
+install, since the service answers no HEAD) and, said as about, what GitHub
+served beyond what the service streamed through it; GitHub's counter is drawn
+as a raw counter, in no total. It takes the release machine's own fetches out
+by day from the release records (each update proof, each Homebrew proof, each
+publish day's fetches of the published files), holds the hosted runners' and
+the outside check's kinds of computer to be the project's on release days, and
+draws downloads and updates from the day the service told them apart.
 
 **What it reads, each a fixed request with fixed parameters:**
 
 | What | From | Its limits |
 |---|---|---|
 | Update checks by day, version, macOS and chip; every release file served, by what it was (SERV-286) | `update-use.sql`, `file-requests.sql` | A check is a copy asking, at launch and once a day while it runs, so a day's checks are roughly the copies in use: a copy opened twice is counted twice, and one with update checks switched off not at all. The monitor's own requests are subtracted and labelled |
-| Launches, and every event and property value, by day | `usage-by-day.sql`, `launches-by-day.sql` | Releases and published betas only (SERV-272); an alpha sends none. Copies with usage reports switched off send none |
+| Launches, and every event and property value, by day | `usage-by-day.sql`, `launches-by-day.sql` | Releases and published betas only (SERV-272); an alpha sends none, the team's iPad copies from TestFlight's internal builds among them. Copies with usage reports switched off send none. A launch is its batch's own system's: an iPad's is `ios`, never read from its channel, which a Mac App Store copy's shares (SERV-282) |
 | Daily, weekly and monthly active copies; new against returning; Mac against Windows | `active-by-day.sql` | Exact for copies with usage reports on, from the first release that sends `copy_active`; before it, missing, never zero. A copy is counted under the version and system it ran when first counted in the period |
 | Feedback messages per day | `feedback-counts.sql` | Counts only. A writer's words stay on the feedback page and nowhere else |
 | Crash reports per day, and the top failures | Sentry, the three requests of CHECKS-D102 | As the weekly summary reads them; the country and city Sentry attaches are never read |

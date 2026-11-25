@@ -8,9 +8,13 @@ import { GO, links } from "../src/links";
 import { admissionList, lists } from "./lists";
 const now = new Date("2026-09-18T12:34:56Z");
 const migrations = await Promise.all(
-  ["0001_updates.sql", "0003_usage.sql", "0006_usage_track.sql", "0008_update_kinds.sql"].map((f) =>
-    Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text(),
-  ),
+  [
+    "0001_updates.sql",
+    "0003_usage.sql",
+    "0006_usage_track.sql",
+    "0008_update_kinds.sql",
+    "0009_crawler_kind.sql",
+  ].map((f) => Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text()),
 );
 const launch = { name: "app_launched", props: {} };
 const batch = () => ({
@@ -190,6 +194,78 @@ test("a Windows copy's batch is taken, with Windows' version and build, and coun
     { ...batch(), channel: "microsoft-store" },
   ])
     expect((await f.run(body)).status, JSON.stringify(body)).toBe(400);
+});
+test("an iPad's batch is taken, with iPadOS's major and minor version, Apple silicon and the App Store's channel, and counted apart by its platform (docs/engineering/services-and-feedback.md#SERV-282)", async () => {
+  const f = fixture();
+  const ipad = { platform: "ios", arch: "aarch64", channel: "app-store" };
+  for (const os of ["17.0", "18.6", "26.5"])
+    expect((await f.run({ ...batch(), ...ipad, os })).status, os).toBe(204);
+  // A published beta's, as a Mac's: TestFlight's external beta is told apart by its whole version.
+  expect((await f.run({ ...batch(), ...ipad, os: "26.5", version: "1.0.1-beta.2" })).status).toBe(
+    204,
+  );
+  expect((await f.run(batch())).status).toBe(204);
+  expect(
+    f.db
+      .query(
+        "SELECT platform, arch, os, channel, version, track, count FROM usage_counts ORDER BY platform, os, version",
+      )
+      .all(),
+  ).toEqual([
+    {
+      platform: "darwin",
+      arch: "aarch64",
+      os: "15.6",
+      channel: "developer-id",
+      version: "1.0.0",
+      track: "stable",
+      count: 1,
+    },
+    ...[
+      ["17.0", "1.0.0", "stable"],
+      ["18.6", "1.0.0", "stable"],
+      ["26.5", "1.0.0", "stable"],
+      ["26.5", "1.0.1-beta.2", "beta"],
+    ].map(([os, version, track]) => ({
+      platform: "ios",
+      arch: "aarch64",
+      os,
+      channel: "app-store",
+      version,
+      track,
+      count: 1,
+    })),
+  ]);
+  // Only an iPad's own: below its floor, finer than major and minor, a chip no
+  // iPad has, a Mac's or Windows' version or channel, or an alpha's version
+  // (TestFlight's internal builds, the team's own), and the batch is refused whole.
+  for (const extra of [
+    { os: "16.7" },
+    { os: "26.5.1" },
+    { os: "26" },
+    { os: "15.6", platform: "ios" },
+    { os: "10.0.26100" },
+    { arch: "x86_64" },
+    { arch: "arm64" },
+    { channel: "developer-id" },
+    { channel: "download" },
+    { channel: "microsoft-store" },
+    { channel: "testflight" },
+    { platform: "ipados" },
+    { platform: "iOS" },
+    { version: "1.0.1-alpha.57" },
+  ])
+    expect(
+      (await f.run({ ...batch(), ...ipad, os: "26.5", ...extra })).status,
+      JSON.stringify(extra),
+    ).toBe(400);
+  // And a Mac or Windows copy can never borrow the iPad's version.
+  for (const body of [
+    { ...batch(), os: "26.5.1" },
+    { ...batch(), platform: "windows", channel: "download", os: "26.5" },
+  ])
+    expect((await f.run(body)).status, JSON.stringify(body)).toBe(400);
+  expect(f.db.query("SELECT SUM(count) AS n FROM usage_counts").get()).toEqual({ n: 5 });
 });
 test("an active copy is one more in its period's daily total, and nothing in a batch tells two copies apart (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-86)", async () => {
   const f = fixture();

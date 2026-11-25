@@ -26,6 +26,7 @@ export { renderPdf } from "./render";
 export type { PdfFontBytes } from "./render";
 export {
   FRONT_SHEET_LABEL,
+  frontSheetLabel,
   defaultFrontSheets,
   formatPageRange,
   frontKindsOf,
@@ -46,7 +47,11 @@ export interface ScriptPdfArgs {
   spec: FormatSpec;
   meta: LayoutMeta;
   frontMatter?: FrontMatter | null;
-  /** The kinds of front sheet to put before the pages; null/omitted puts every one. */
+  /**
+   * The kinds of unnumbered sheet to put around the pages: front sheets before
+   * them, the pages after the script (`frontMatter.backPages`) after them.
+   * Null/omitted puts every one.
+   */
   frontSheets?: readonly FrontSheet[] | null;
   language?: string;
   /** Printed page numbers to include; null/omitted exports the whole script. */

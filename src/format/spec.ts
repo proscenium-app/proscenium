@@ -57,6 +57,12 @@ export interface ElementFormat {
   tightStack: boolean;
   /** When false the element never reaches pagination or print (synopsis). */
   print: boolean;
+  /**
+   * Action only: a cast name typed in a stage direction or a parenthetical
+   * goes to capitals as the writer types it (docs/app/writing/editor-ux.md#EDIT-202).
+   * Typing, not printing: the script holds the capitals.
+   */
+  capitalizeCastNames: boolean;
 }
 
 export interface PageMargins {
@@ -178,6 +184,11 @@ export const REQUIRED_FORMAT_ELEMENTS = [
 export const OPTIONAL_FORMAT_ELEMENT_PRESETS = {
   synopsis: { print: false, fontStyle: "italic" },
   pageBreak: { print: false, startsNewPage: true },
+  // A line drawn across the text block, margin to margin, on a row of its
+  // own with a blank row above and below
+  // (docs/app/formatting/formats-and-layout.md#FMT-172). It prints, so every
+  // format already has one without saying so.
+  horizontalRule: { spacingBefore: 1, spacingAfter: 1 },
   boneyard: { print: false, fontStyle: "italic" },
 } as const satisfies Partial<Record<BlockType, Partial<ElementFormat>>>;
 
@@ -185,6 +196,7 @@ export const FORMAT_ELEMENT_KEYS = [
   ...REQUIRED_FORMAT_ELEMENTS,
   "synopsis",
   "pageBreak",
+  "horizontalRule",
   "boneyard",
 ] as const satisfies readonly BlockType[];
 

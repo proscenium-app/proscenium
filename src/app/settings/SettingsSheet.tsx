@@ -3,7 +3,10 @@
 
 /**
  * Settings (⌘,) — one sheet, sections down the left
- * (docs/app/preferences-and-help/settings.md#SET-D100, Part A).
+ * (docs/app/preferences-and-help/settings.md#SET-D100, Part A). It stands in
+ * for a Settings window of its own: centred in the window, closed by the ×
+ * at the corner the system puts a window's close control in, or by Esc
+ * (docs/app/preferences-and-help/settings.md#SET-43).
  *
  * It was one scrolling column of four groups. Privacy, updates and formats
  * each add a group of their own, and seven groups in a column is a column
@@ -19,8 +22,9 @@
  */
 import { systemWords } from "../../ui/system-words";
 import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
-import { Button, Sheet } from "../../ui";
+import { Sheet } from "../../ui";
 import { tabbables } from "../../ui/layers";
+import { useMedia } from "../../ui/use-media";
 import type { VaultPlay } from "../../workspace";
 import type { DesignerRequest } from "../formats/open";
 import { ShortcutList } from "../ShortcutsOverlay";
@@ -86,9 +90,17 @@ export function SettingsSheet(props: SettingsSheetProps) {
     else el.removeAttribute("tabindex");
   });
 
+  /* A window too narrow for the sections beside what they hold (a third of
+     a Split View, a small Stage Manager window) runs them across the top
+     (settings.css), where ← and → move along them as ↑ and ↓ do down. */
+  const across = useMedia("(max-width: 699px)");
   const onListKey = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    const to = stepSection(section, e.key);
+    const key = across
+      ? (({ ArrowRight: "ArrowDown", ArrowLeft: "ArrowUp" } as Record<string, string>)[e.key] ??
+        e.key)
+      : e.key;
+    const to = stepSection(section, key);
     if (!to) return;
     e.preventDefault();
     onSection(to);
@@ -100,26 +112,22 @@ export function SettingsSheet(props: SettingsSheetProps) {
       title="Settings"
       width={700}
       height={520}
+      floating
+      closable
       onClose={onClose}
       footer={
-        <>
-          {/* settings.json and the formats live in the app's own folders, so
-              nothing here travels with a play or changes one. */}
-          <span className="sheet__hint">
-            Settings are saved on this {systemWords().machine}, not in your plays.
-          </span>
-          <span className="sheet__spacer" />
-          <Button treatment="primary" onClick={onClose}>
-            Done
-          </Button>
-        </>
+        /* settings.json and the formats live in the app's own folders, so
+           nothing here travels with a play or changes one. */
+        <span className="sheet__hint">
+          Settings are saved on this {systemWords().machine}, not in your plays.
+        </span>
       }
     >
       <div className="prefs">
         <div
           className="prefs__nav"
           role="tablist"
-          aria-orientation="vertical"
+          aria-orientation={across ? "horizontal" : "vertical"}
           aria-label="Settings sections"
           onKeyDown={onListKey}
         >

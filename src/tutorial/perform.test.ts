@@ -40,7 +40,7 @@ const facts = (s: EditorState): Facts => ({
   unsaved: false,
   format: "stage-us-modern",
   cards: [],
-  front: { charactersPage: "", characters: [], openingNotes: "" },
+  front: { charactersPage: "", characters: [], pages: 0 },
   documents: [],
   material: null,
   export: { open: false, range: false, rangeError: false, opening: false, preview: false },

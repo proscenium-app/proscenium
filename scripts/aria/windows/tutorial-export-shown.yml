@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Practice Play"
   - tablist "What this pane shows":
     - tab "Script" [selected]
@@ -17,6 +18,11 @@
   - button "Collapse all folders"
   - searchbox "Filter the binder"
   - tree "Binder items":
+    - treeitem "Front Matter" [expanded] [level=1]
+    - group "Front Matter":
+      - treeitem "Title Page" [level=2]
+      - treeitem "Characters" [level=2]
+      - treeitem "Setting" [level=2]
     - treeitem "Practice Play" [level=1]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters": Empty
@@ -49,7 +55,7 @@
   - button "Open as a pane"
   - text: Scene 2
   - heading "SCENE 1" [level=2]
-  - text: Pages 1–2 · 2 pages · 3 speeches Summary · not printed
+  - text: Pages 1–2 · 2 pages · 2 speeches Summary · not printed
   - textbox "Summary"
   - text: Color
   - radiogroup "Scene color":
@@ -63,9 +69,9 @@
     - text: no color
   - text: Notes · never prints
   - textbox "Notes"
-  - text: On stage JUNIPER 2 SIMON 1 Comments here 0 in this scene
+  - text: On stage JUNIPER 1 SIMON 1 Comments here 0 in this scene
   - button "Show"
-  - paragraph: The synopsis is part of the script. The rest is card metadata.
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "<app data>\\tutorials\\sessions\\<id>\\Practice Play"
   - text: <save status>
@@ -86,17 +92,17 @@
   - button "All Pages"
   - list "Pages":
     - listitem:
-      - button "Title page": PRACTICE PLAY
-      - checkbox "Include title page" [checked]
-      - text: Title
+      - button "Title Page": PRACTICE PLAY
+      - checkbox "Include Title Page" [checked]
+      - text: Title Page
     - listitem:
-      - button "Characters page": Characters JUNIPER SIMON The Blisses, and the guests they asked for the weekend.
-      - checkbox "Include characters page" [checked]
+      - button "Characters": CHARACTERS JUNIPER JUDITH
+      - checkbox "Include Characters" [checked]
       - text: Characters
     - listitem:
-      - button "Opening notes": The hall of the Blisses' house at Cookham, in June.
-      - checkbox "Include opening notes" [checked]
-      - text: Notes
+      - button "Setting": SETTING The hall of the Blisses' house at Cookham, in June.
+      - checkbox "Include Setting" [checked]
+      - text: Setting
     - listitem:
       - button "Page 1": SCENE 2 SCENE 1 JUNIPER I wish she hadn't sent me the beastly book. I must say something nice about it. SIMON The binding's very dashing.
       - checkbox "Include page 1" [checked]
@@ -105,18 +111,18 @@
       - button "Page 2": "2."
       - checkbox "Include page 2"
       - text: "2"
-  - region "Preview of what will export": PRACTICE PLAY Characters JUNIPER SIMON The Blisses, and the guests they asked for the weekend. The hall of the Blisses' house at Cookham, in June. SCENE 2 SCENE 1 JUNIPER I wish she hadn't sent me the beastly book. I must say something nice about it. SIMON The binding's very dashing.
+  - region "Preview of what will export": PRACTICE PLAY CHARACTERS JUNIPER JUDITH SETTING The hall of the Blisses' house at Cookham, in June. SCENE 2 SCENE 1 JUNIPER I wish she hadn't sent me the beastly book. I must say something nice about it. SIMON The binding's very dashing.
   - button "Previous page" [disabled]: ◀
-  - text: Title page · sheet 1 of 4
+  - text: Title Page · sheet 1 of 4
   - button "Next page": ▶
   - group "Include":
     - text: Include
-    - checkbox "Title page" [checked]
-    - text: Title page
-    - checkbox "Characters page" [checked]
-    - text: Characters page
-    - checkbox "Opening notes" [checked]
-    - text: Opening notes
+    - checkbox "Title Page" [checked]
+    - text: Title Page
+    - checkbox "Characters" [checked]
+    - text: Characters
+    - checkbox "Setting" [checked]
+    - text: Setting
   - checkbox "Anonymous copy"
   - text: "Anonymous copy For a blind reading: no name or contact details. Language"
   - textbox "Play language"

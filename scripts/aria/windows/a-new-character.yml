@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Wren Thackeray"
   - tablist "What this pane shows":
     - tab "Script"

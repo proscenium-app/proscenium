@@ -20,9 +20,13 @@ mock.module("cloudflare:sockets", () => ({
 const { default: worker } = await import("../src/index");
 const { REPORTS } = await import("../src/reports");
 const migrations = await Promise.all(
-  ["0001_updates.sql", "0003_usage.sql", "0006_usage_track.sql", "0008_update_kinds.sql"].map((f) =>
-    Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text(),
-  ),
+  [
+    "0001_updates.sql",
+    "0003_usage.sql",
+    "0006_usage_track.sql",
+    "0008_update_kinds.sql",
+    "0009_crawler_kind.sql",
+  ].map((f) => Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text()),
 );
 
 const archive = "Proscenium_1.0.0_universal.app.tar.gz";

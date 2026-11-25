@@ -13,6 +13,12 @@
  *   <token> | node scripts/release-keychain.mjs sentry [--replace]
  *                                               file the Sentry read token the release clock counts
  *                                               crashes with, piped or just copied, never displayed
+ *   <secret> | node scripts/release-keychain.mjs msstore --tenant <id> --client <id> [--replace]
+ *                                               file the Microsoft Store's submission key, the secret
+ *                                               piped or just copied, never displayed
+ *   node scripts/release-keychain.mjs sales --host <user@host> [--replace]
+ *                                               file App Store Connect's sales reports key from
+ *                                               ~/Downloads into the build host's keychain, never displayed
  *   node scripts/release-keychain.mjs log <id>  Apple's reasons for a notarization submission, with the stored key
  *   node scripts/release-keychain.mjs move --host <user@host>
  *                                               copy every item to the build host's own keychain, over SSH
@@ -85,7 +91,21 @@ export const STORE_PROFILE = join(PROFILE_DIR, "Proscenium_Mac_App_Store.provisi
  * only be opened by a password nobody is there to type — so a keychain of its
  * own takes its place, and `move` fills it.
  */
-export const KEYCHAIN = process.env.PROSCENIUM_KEYCHAIN || null;
+export const KEYCHAIN = keychainPath(process.env.PROSCENIUM_KEYCHAIN);
+
+/**
+ * The keychain a name means, as its file's full path wherever this Mac's
+ * ~/Library/Keychains holds it. The build host's scheduled jobs run under a
+ * launchd daemon, and there `unlock-keychain proscenium-release.keychain`
+ * failed on every run while the same command over SSH, or from the runner's
+ * agent, worked: a daemon opens a keychain by its path.
+ */
+export function keychainPath(name, home = homedir()) {
+  if (!name) return null;
+  if (name.startsWith("/")) return name;
+  const file = join(home, "Library", "Keychains", name.endsWith("-db") ? name : `${name}-db`);
+  return existsSync(file) ? file : name;
+}
 
 /** The build host's side of `move`, by the name each thing has there. */
 export const HOST_KEYCHAIN = "proscenium-release.keychain";
@@ -136,6 +156,18 @@ export const ITEMS = {
  */
 export const HOST_ITEMS = {
   SENTRY_READ_TOKEN: "Sentry read token (org:read), the release clock's crash count",
+  // The Microsoft Store's submission key: a Microsoft Entra application that
+  // Partner Center lists with the Manager role, by its tenant and client ids
+  // (identifiers) and the secret Partner Center showed once.
+  MS_STORE_TENANT_ID: "Microsoft Store submission key's tenant ID",
+  MS_STORE_CLIENT_ID: "Microsoft Store submission key's client ID",
+  MS_STORE_CLIENT_SECRET: "Microsoft Store submission key's secret",
+  // App Store Connect's sales reports key: a Team key with the Sales and
+  // Reports role, which the build host reads the store's daily download
+  // counts with. The release key's App Manager role is refused those
+  // reports, and a key's role never changes once it is made.
+  APPLE_SALES_KEY: "sales reports key's Key ID",
+  APPLE_SALES_KEY_P8: "sales reports key, the .p8 file",
 };
 
 const DEVELOPER_ID = /\b([0-9A-F]{40}) "(Developer ID Application: (.+) \(([A-Z0-9]{10})\))"/;
@@ -258,6 +290,126 @@ async function sentry() {
   );
 }
 
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The Microsoft Store's submission key as Partner Center gives it: a tenant
+ * ID and a client ID, each a GUID, and a secret of Entra's own alphabet.
+ * Anything else is refused whole, and the refusal never repeats the secret.
+ */
+export function msStoreKey({ tenant, client, secret }) {
+  if (!GUID.test(String(tenant ?? "").trim()))
+    throw new Error("--tenant is the Tenant ID Partner Center shows, a GUID. Nothing was stored.");
+  if (!GUID.test(String(client ?? "").trim()))
+    throw new Error("--client is the Client ID Partner Center shows, a GUID. Nothing was stored.");
+  const value = String(secret ?? "").trim();
+  if (!/^[A-Za-z0-9~._-]{30,100}$/.test(value))
+    throw new Error("That is not a key Partner Center made. Nothing was stored.");
+  return { tenant: String(tenant).trim(), client: String(client).trim(), secret: value };
+}
+
+/**
+ * The Microsoft Store's submission key, into this Mac's keychain, the secret
+ * never displayed: from a pipe, so the Mac where it was copied can hand it to
+ * the build host over SSH, or else from the clipboard, which is then
+ * cleared. `--replace` files a new key over an old one.
+ */
+async function msstore() {
+  const piped = !process.stdin.isTTY;
+  let text = "";
+  if (piped) {
+    process.stdin.setEncoding("utf8");
+    for await (const chunk of process.stdin) text += chunk;
+  } else
+    text = execFileSync("pbpaste", [], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  const key = msStoreKey({ tenant: opt("--tenant"), client: opt("--client"), secret: text });
+  const replace = args.includes("--replace");
+  store("MS_STORE_TENANT_ID", key.tenant, { replace });
+  store("MS_STORE_CLIENT_ID", key.client, { replace });
+  store("MS_STORE_CLIENT_SECRET", key.secret, { replace });
+  if (!piped) execFileSync("pbcopy", [], { input: "", stdio: ["pipe", "ignore", "ignore"] });
+  console.log(
+    `The Microsoft Store's submission key is in ${KEYCHAIN ?? "the login keychain"}${piped ? "" : "; the clipboard is clear"}.`,
+  );
+}
+
+/**
+ * App Store Connect's key as Apple gives it: a Key ID of ten capitals and
+ * digits, and a .p8 file holding one PEM private key. Anything else is
+ * refused whole, and the refusal never repeats the key.
+ */
+export function salesKey({ keyId, p8 }) {
+  const id = String(keyId ?? "").trim();
+  if (!/^[A-Z0-9]{10}$/.test(id))
+    throw new Error(
+      "--key is the Key ID App Store Connect shows, ten capitals and digits. Nothing was stored.",
+    );
+  const text = Buffer.isBuffer(p8) ? p8.toString("utf8") : String(p8 ?? "");
+  if (
+    !/^-----BEGIN PRIVATE KEY-----\r?\n[A-Za-z0-9+/=\r\n]+-----END PRIVATE KEY-----\s*$/.test(text)
+  )
+    throw new Error("That is not a key App Store Connect made (a .p8 file). Nothing was stored.");
+  return { keyId: id, p8: Buffer.from(text) };
+}
+
+/**
+ * The sales reports key, into the build host's keychain, never displayed.
+ * On a Mac with the download: the one AuthKey_….p8 in ~/Downloads, sent to
+ * the host over SSH as the connection's own data and filed there by this
+ * command with `--key`, then moved aside for the Drive archive. With `--key`:
+ * the .p8 from the pipe, into this Mac's keychain (the host's, given
+ * PROSCENIUM_KEYCHAIN).
+ */
+async function sales() {
+  const replace = args.includes("--replace");
+  if (opt("--key")) {
+    const chunks = [];
+    for await (const chunk of process.stdin) chunks.push(chunk);
+    const key = salesKey({ keyId: opt("--key"), p8: Buffer.concat(chunks) });
+    store("APPLE_SALES_KEY", key.keyId, { replace });
+    store("APPLE_SALES_KEY_P8", key.p8, { replace });
+    console.log(`The sales reports key ${key.keyId} is in ${KEYCHAIN ?? "the login keychain"}.`);
+    return;
+  }
+  const file = downloaded(
+    (f) => /^AuthKey_[A-Z0-9]{10}\.p8$/.test(f),
+    "App Store Connect API key (AuthKey_….p8)",
+  );
+  const key = salesKey({
+    keyId: basename(file).slice("AuthKey_".length, -".p8".length),
+    p8: readFileSync(file),
+  });
+  const host = opt("--host") ?? DEFAULT_HOST;
+  if (!host) {
+    store("APPLE_SALES_KEY", key.keyId, { replace });
+    store("APPLE_SALES_KEY_P8", key.p8, { replace });
+  } else {
+    // The host files it from its own mirror of this repository, with its
+    // own keychain; the key is the connection's data, never a word.
+    const filed = spawnSync(
+      "ssh",
+      [
+        host,
+        `cd ~/Dev/playwriter && . scripts/mini-env.sh >/dev/null 2>&1 && PROSCENIUM_KEYCHAIN=${HOST_KEYCHAIN} node scripts/release-keychain.mjs sales --key ${key.keyId}${replace ? " --replace" : ""}`,
+      ],
+      { input: key.p8, stdio: ["pipe", "inherit", "inherit"] },
+    );
+    if (filed.status !== 0)
+      throw new Error(
+        `release-keychain: the build host did not file the key (exit ${filed.status}); the .p8 stays in ~/Downloads`,
+      );
+  }
+  const kept = moveForSafekeeping(file);
+  console.log(
+    [
+      `release-keychain: the sales reports key is filed${host ? ` on ${host}` : ""}.`,
+      `  The .p8 file is now in ${dirname(kept)}.`,
+      "  Apple will never offer it again: run `node scripts/keys-archive.mjs` to seal it into the Drive archive,",
+      "  then that folder can go to the Trash.",
+    ].join("\n"),
+  );
+}
+
 /**
  * The key id inside a minisign signature or public key, as Tauri stores them:
  * base64 of the whole file, whose second line is base64 of
@@ -354,7 +506,10 @@ export function readProfile(path) {
           stdio: ["ignore", "pipe", "ignore"],
         }),
       ),
-      appId: get("Entitlements.com\\.apple\\.application-identifier"),
+      // A Mac's profile names it under com.apple., an iPad's without.
+      appId:
+        get("Entitlements.com\\.apple\\.application-identifier") ??
+        get("Entitlements.application-identifier"),
       team: get("Entitlements.com\\.apple\\.developer\\.team-identifier"),
       expires: get("ExpirationDate"),
       allDevices: get("ProvisionsAllDevices") === "true",
@@ -373,6 +528,8 @@ export function readProfile(path) {
         }
       })(),
       name: get("Name"),
+      // What `xcodebuild -exportArchive` names a profile by.
+      uuid: get("UUID"),
     };
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -1075,13 +1232,23 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         console.error(e.message);
         process.exit(1);
       });
+    else if (command === "msstore")
+      msstore().catch((e) => {
+        console.error(e.message);
+        process.exit(1);
+      });
+    else if (command === "sales")
+      sales().catch((e) => {
+        console.error(e.message);
+        process.exit(1);
+      });
     else if (command === "move") move();
     else if (command === "secrets") secrets();
     else if (command === "status") status();
     else if (command === "log") notaryLog(process.argv[3]);
     else {
       console.error(
-        "usage: node scripts/release-keychain.mjs status | notary | profile | cloudflare | sentry [--replace] | move [--host <ssh host>] | secrets | log <submission id>",
+        "usage: node scripts/release-keychain.mjs status | notary | profile | cloudflare | sentry [--replace] | msstore --tenant <id> --client <id> [--replace] | sales [--host <ssh host>] [--replace] | move [--host <ssh host>] | secrets | log <submission id>",
       );
       process.exit(2);
     }

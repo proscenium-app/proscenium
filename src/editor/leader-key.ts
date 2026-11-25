@@ -22,7 +22,7 @@ import { Extension } from "@tiptap/core";
 import type { Editor } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import { insertNote, insertPageBreak } from "./breaks";
+import { insertHorizontalRule, insertNote, insertPageBreak } from "./breaks";
 import { placeAtCaret } from "./popup-position";
 import { announce } from "../ui/announce";
 import { bindCaretPopup, openCaretMenu } from "../ui/Menu";
@@ -41,9 +41,10 @@ export const LEADER_ELEMENTS: Record<string, string> = {
   "=": "synopsis",
   n: "note",
   ">": "centered",
-  // Not an element you *set* — a node you insert (see runLeader). The leader
-  // only arms on an empty block, which is exactly where a page break belongs.
+  // Not elements you *set*: nodes you insert (see runLeader). The leader only
+  // arms on an empty block, which is exactly where a page break or a line goes.
   "-": "pageBreak",
+  h: "horizontalRule",
 };
 
 /** Menu rows, in reach-for order (body elements first, structure, extended). */
@@ -62,6 +63,7 @@ export const LEADER_MENU: { key: string; label: string }[] = [
   // The writer's word for a Fountain note (docs/app/writing/comments.md#COMM-5).
   { key: "n", label: "Comment" },
   { key: "-", label: "Page Break" },
+  { key: "h", label: "Horizontal Line" },
 ];
 
 const LEADER_CHAR = ";";
@@ -103,14 +105,15 @@ function isModifierKey(key: string): boolean {
 }
 
 /**
- * Apply a leader letter. Two rows aren't element types and are inserted rather
- * than set: `note` is inline (cursor lands inside it) and `pageBreak` is an atom
- * with its own placement rules (breaks.ts).
+ * Apply a leader letter. Three rows aren't element types and are inserted
+ * rather than set: `note` is inline (cursor lands inside it), and `pageBreak`
+ * and `horizontalRule` are atoms with their own placement rules (breaks.ts).
  */
 function runLeader(editor: Editor, letter: string): boolean {
   const name = LEADER_ELEMENTS[letter];
   if (!name) return false;
   if (name === "pageBreak") return insertPageBreak(editor);
+  if (name === "horizontalRule") return insertHorizontalRule(editor);
   if (name === "note") return insertNote(editor);
   return editor.chain().focus().setNode(name).run();
 }
@@ -184,7 +187,11 @@ class LeaderMenuView {
     });
     const hint = document.createElement("div");
     hint.className = "pl-elementmenu__hint";
-    hint.textContent = `press a key · esc cancels · ${keys("⌘⌥")} chords work anywhere`;
+    // On a touch screen, what a finger does: its screen's keyboard has no Esc,
+    // and a tap anywhere else closes the menu.
+    hint.textContent = window.matchMedia("(pointer: coarse)").matches
+      ? "tap one, or type its letter · tap elsewhere to cancel"
+      : `press a key · esc cancels · ${keys("⌘⌥")} chords work anywhere`;
     this.dom.replaceChildren(...rows, hint);
     placeAtCaret(this.dom, this.view);
     this.activation.link();

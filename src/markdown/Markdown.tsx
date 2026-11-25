@@ -83,6 +83,7 @@ function renderList(block: ListBlock, key: string): React.ReactNode {
 function renderBlock(block: Block, key: string): React.ReactNode {
   switch (block.kind) {
     case "managedMarker":
+    case "foot":
       return null;
     case "code":
       return <CodeFence block={block} key={key} />;

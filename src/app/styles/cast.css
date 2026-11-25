@@ -105,9 +105,14 @@
   opacity: 0;
   transition: opacity var(--motion);
 }
-.castcard:hover .castcard__remove,
 .castcard__remove:focus {
   opacity: 1;
+}
+/* A finger sees it at once (touch-controls.css). */
+@media (hover: hover) {
+  .castcard:hover .castcard__remove {
+    opacity: 1;
+  }
 }
 .castcard__remove:hover {
   background: var(--bad-tint);
@@ -152,8 +157,120 @@
 .castcard__notes--new {
   color: var(--ash);
 }
+/* A window too narrow for a name beside its description (a third of a Split
+   View, a small Stage Manager window): the description goes under the name,
+   and what follows wraps, rather than squeeze the description to nothing. */
+@media (max-width: 699px) {
+  .castview {
+    padding-left: var(--s-4);
+    padding-right: var(--s-4);
+  }
+  .castcard__fields {
+    flex-wrap: wrap;
+  }
+  .castcard__desc {
+    flex-basis: 100%;
+  }
+  .castcard__meta {
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+}
 .castview__adders {
   display: flex;
   align-items: center;
   gap: var(--s-4);
+}
+
+/* Capitalize Character Names in Directions… (CastNamesSheet.tsx): each name
+   found, with its line around it. */
+.castnames__all,
+.castnames__row {
+  display: flex;
+  align-items: center;
+  /* Room for a finger: each checkbox's target clears the next (24px). */
+  min-height: 28px;
+  gap: var(--s-4);
+  font-size: var(--t-small);
+  color: var(--ink);
+  cursor: pointer;
+}
+.castnames__all {
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--rule);
+}
+.castnames__list {
+  list-style: none;
+  margin: var(--s-3) 0 0;
+  padding: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+.castnames__row {
+  padding: var(--s-2) 0;
+}
+.castnames__line {
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.castnames__line strong {
+  color: var(--ink);
+}
+.castnames__count {
+  align-self: center;
+}
+
+/* Cast & Pages (docs/app/formatting/formats-and-layout.md#FMT-167): the pages
+   before the script, each a section of its own, and a row to jump between them. */
+.pages__jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: calc(-1 * var(--s-4));
+}
+.pages__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  scroll-margin-top: var(--s-6);
+}
+.pages__switchhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+}
+/* "Cast", the shortest, still a finger's width on a touch screen (44pt). */
+.pages__jump .btn {
+  min-width: 44px;
+}
+/* A name the script and the pages give, read here, never typed
+   (docs/app/formatting/formats-and-layout.md#FMT-170). */
+.castcard__name--read {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+.castcard__onpage {
+  font-size: var(--t-mini);
+  color: var(--ink-2);
+}
+.castcard__onpage[data-on-page="no"] {
+  color: var(--ash);
+}
+/* The page that names a character is a way to that page. */
+.castcard__onpage--link {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--t-mini);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+.castcard__onpage--link:hover {
+  text-decoration: underline;
 }

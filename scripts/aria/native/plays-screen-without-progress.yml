@@ -20,6 +20,8 @@
       - cell
         - button "Status for The Lighthouse: drafting" [haspopup]
       - cell
+      - cell
+        - button "More actions for “The Lighthouse”" [haspopup]
     - row
       - cell
         - button "The Weight of Water"
@@ -27,7 +29,10 @@
       - cell
         - button "Status for The Weight of Water: drafting" [haspopup]
       - cell
+      - cell
+        - button "More actions for “The Weight of Water”" [haspopup]
     - row
+      - columnheader
       - columnheader
       - columnheader
       - columnheader

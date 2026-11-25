@@ -3,7 +3,8 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { ariaKeys, binding, chord, keys, PC_CHORDS, pressed, setKeyStyle } from "./keys";
+import { SHORTCUTS } from "../app/keymap";
+import { ariaKeys, binding, chord, keyCap, keys, PC_CHORDS, pressed, setKeyStyle } from "./keys";
 
 const press = (init: KeyboardEventInit & { code?: string }) =>
   ({ ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...init }) as KeyboardEvent;
@@ -20,6 +21,48 @@ describe("a Mac's keys (docs/app/preferences-and-help/settings.md#SET-11)", () =
     expect(ariaKeys("⌘⌥B")).toBe("Alt+Meta+b");
     expect(ariaKeys("⌘B")).toBe("Meta+b");
     expect(ariaKeys("⌃⌘↑ / ⌃⌘↓")).toBe("Control+Meta+ArrowUp Control+Meta+ArrowDown");
+  });
+});
+
+describe("an iPad's keys (docs/app/writing/editor-ux.md#EDIT-72)", () => {
+  test("are a Mac's, in its glyphs, but for Dialogue's, which the Dock keeps", () => {
+    setKeyStyle("ipad");
+    expect(keys("⌘⌥D")).toBe("⌘⇧D");
+    expect(keys("⌘⌥C")).toBe("⌘⌥C");
+    expect(keys("⌘⇧E")).toBe("⌘⇧E");
+    expect(keys("⌘+ / ⌘−")).toBe("⌘+ / ⌘−");
+    expect(chord("⌘⌥D")).toBe("⌘⇧D");
+    expect(chord("⌥⌘↑")).toBe("⌥⌘↑");
+    expect(keyCap("⌘⌥D")).toBe("⌘⇧D");
+    expect(keyCap("Return")).toBe("⏎ Return");
+  });
+
+  test("bind and match Dialogue's ⌘⇧D, and the Dock's ⌘⌥D no longer", () => {
+    setKeyStyle("ipad");
+    expect(binding("⌘⌥D")).toBe("Mod-Shift-d");
+    expect(binding("⌘⌥C")).toBe("Mod-Alt-c");
+    expect(ariaKeys("⌘⌥D")).toBe("Shift+Meta+d");
+    expect(pressed(press({ metaKey: true, shiftKey: true, key: "D", code: "KeyD" }), "⌘⌥D")).toBe(
+      true,
+    );
+    expect(pressed(press({ metaKey: true, altKey: true, key: "∂", code: "KeyD" }), "⌘⌥D")).toBe(
+      false,
+    );
+    expect(pressed(press({ metaKey: true, altKey: true, key: "ç", code: "KeyC" }), "⌘⌥C")).toBe(
+      true,
+    );
+  });
+
+  test("no two of the app's chords become one", () => {
+    setKeyStyle("ipad");
+    const seen = new Map<string, string>();
+    for (const { keys: written } of SHORTCUTS)
+      for (const mac of written.split(" / ")) {
+        const ipad = chord(mac);
+        expect([mac, seen.get(ipad) ?? mac]).toEqual([mac, mac]);
+        seen.set(ipad, mac);
+      }
+    expect(seen.get("⌘⇧D")).toBe("⌘⌥D");
   });
 });
 
@@ -117,12 +160,32 @@ describe("a sentence for this system", () => {
     );
     setSystemWords({ machine: "Mac", system: "macOS", fileManager: "Finder", trash: "Trash" });
   });
+
+  test("is an iPad's with its own chords, ⌘⇧D for the Dock's ⌘⌥D", async () => {
+    const { forThisSystem, setSystemWords } = await import("./system-words");
+    setKeyStyle("ipad");
+    setSystemWords({
+      machine: "iPad",
+      system: "iPadOS",
+      fileManager: "Files",
+      trash: "Proscenium’s Trash",
+    });
+    try {
+      expect(
+        forThisSystem("Dialogue is ⌘⌥D, Character ⌘⌥C. ⌘Return breaks the page on this Mac."),
+      ).toBe("Dialogue is ⌘⇧D, Character ⌘⌥C. ⌘Return breaks the page on this iPad.");
+    } finally {
+      setSystemWords({ machine: "Mac", system: "macOS", fileManager: "Finder", trash: "Trash" });
+    }
+  });
 });
 
 describe("Windows' menu bar (src-tauri/src/menu.rs)", () => {
   const menuRs = readFileSync(new URL("../../src-tauri/src/menu.rs", import.meta.url), "utf8");
+  /** The menus a Mac and a PC share: an iPad's own items (`IPAD_…`) are neither's. */
+  const shared = menuRs.replace(/const IPAD_\w+: &\[Item\] = &\[[\s\S]*?\n\];/g, "");
   /** Every item with a Mac accelerator, as `[id, glyphs]`. */
-  const macItems = [...menuRs.matchAll(/\("([\w-]+)", "[^"]*", Some\("([^"]+)"\)\)/g)].map(
+  const macItems = [...shared.matchAll(/\("([\w-]+)", "[^"]*", Some\("([^"]+)"\)\)/g)].map(
     ([, id, accel]) => [id as string, glyphs(accel as string)] as const,
   );
   const pcBlock = /pub const PC_KEYS[^=]*= &\[([\s\S]*?)\n\];/.exec(menuRs)?.[1] ?? "";
@@ -141,6 +204,22 @@ describe("Windows' menu bar (src-tauri/src/menu.rs)", () => {
     const shown = [...pcKeys.values()];
     expect(new Set(shown).size).toBe(shown.length);
     expect(shown.some((k) => /Ctrl\+Alt|Alt\+/.test(k))).toBe(false);
+  });
+
+  test("an iPad's menu takes each item's chord as the page binds it there", () => {
+    const ipadBlock = /pub const IPAD_KEYS[^=]*= &\[([\s\S]*?)\];/.exec(menuRs)?.[1] ?? "";
+    const ipadKeys = new Map(
+      [...ipadBlock.matchAll(/\("([\w-]+)", "([^"]+)"\)/g)].map(
+        ([, id, k]) => [id as string, glyphs(k as string)] as const,
+      ),
+    );
+    setKeyStyle("ipad");
+    for (const [id, mac] of macItems) {
+      const want = chord(mac);
+      // Where the iPad's chord is the Mac's, the menu keeps the Mac's accelerator.
+      expect([id, ipadKeys.get(id) ?? mac]).toEqual([id, want]);
+    }
+    expect(ipadKeys.get("el-dialogue")).toBe("⌘⇧D");
   });
 });
 
@@ -167,5 +246,27 @@ describe("a Mac's chord, pressed", () => {
     expect(pressed(press({ ctrlKey: true, key: "b", code: "KeyB" }), "⌘B")).toBe(false);
     expect(pressed(press({ ctrlKey: true, metaKey: true, key: "ArrowUp" }), "⌃⌘↑")).toBe(true);
     expect(pressed(press({ metaKey: true, key: "ArrowUp" }), "⌃⌘↑")).toBe(false);
+  });
+});
+
+describe("a ⌥ chord, pressed on a Mac's or an iPad's keyboard", () => {
+  test("is read by the key's place: ⌥ types another character", () => {
+    // ⌘⌥B types ∫, ⌘⌥F ƒ and ⌘⌥I ˆ: the letter never arrives (use-shell-commands.ts).
+    expect(pressed(press({ metaKey: true, altKey: true, key: "∫", code: "KeyB" }), "⌘⌥B")).toBe(
+      true,
+    );
+    expect(pressed(press({ metaKey: true, altKey: true, key: "ƒ", code: "KeyF" }), "⌘⌥F")).toBe(
+      true,
+    );
+    expect(pressed(press({ metaKey: true, altKey: true, key: "ˆ", code: "KeyI" }), "⌘⌥I")).toBe(
+      true,
+    );
+    // ⌘F is not ⌘⌥F, and ⌃⌘F, focus mode, is neither.
+    expect(pressed(press({ metaKey: true, key: "f", code: "KeyF" }), "⌘⌥F")).toBe(false);
+    expect(pressed(press({ ctrlKey: true, metaKey: true, key: "f", code: "KeyF" }), "⌘F")).toBe(
+      false,
+    );
+    // ⌘. leaves Focus as Esc does.
+    expect(pressed(press({ metaKey: true, key: ".", code: "Period" }), "⌘.")).toBe(true);
   });
 });

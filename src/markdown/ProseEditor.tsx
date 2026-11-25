@@ -18,18 +18,29 @@
  *     real transaction, and the caller compares before writing.
  *  2. **Never re-seed a dirty buffer.** An external change arriving mid-sentence
  *     is the watcher's decision to make, not this one's.
+ *
+ * A page before the script is a page file (`pageFile`): its field tokens are
+ * drawn as fields and its foot mark as a rule (page-file-nodes.ts).
  */
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { Extension, Node as TipTapNode } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { CaretOnFocus } from "../ui/caret-on-focus";
+import { PendingSelection } from "../ui/pending-selection";
+import { FormatInput } from "../ui/format-input";
+import { BarPress } from "./bar-press";
 import { DocumentCaret } from "./caret";
 import { toDoc, toMarkdown, type Node } from "./doc";
 import { DocumentLists } from "./lists";
+import { pageFileExtensions, setFieldValues, type FieldEditRequest } from "./page-file-nodes";
+import type { FieldValues } from "./page-fields";
 import { paperClick } from "./paper-click";
+import { ProseCheckerContext } from "./prose-checker";
 import { emit, loaded, proseSync, propArrived } from "./prose-sync";
+import { systemSpelling } from "../ui/system-traits";
 
 /**
  * Column alignment is part of the table, so the cells have to carry it: the
@@ -105,10 +116,26 @@ export const PROSE_EXTENSIONS = [
   }),
   DocumentLists,
   DocumentCaret,
+  CaretOnFocus,
+  // A finger's press on the format bar leaves the caret where it was.
+  BarPress,
+  // An iPad's ⌘B and ⌘I, and its screen keyboard's B and I, as the format
+  // bar's; its ⌘U and U have nothing to run, as the file has no underline. The
+  // keys are taken here too, so a press that also comes as the menu's item or
+  // the system's format runs once.
+  FormatInput(
+    {
+      bold: (ed) => ed.chain().focus().toggleBold().run(),
+      italic: (ed) => ed.chain().focus().toggleItalic().run(),
+    },
+    { keys: true },
+  ),
   Table.configure({ resizable: false }),
   TableRow,
   aligned(TableHeader),
   aligned(TableCell),
+  // A click is never undone by an update arriving with it (docs/app/writing/editor-ux.md#EDIT-211).
+  PendingSelection,
 ];
 
 export interface ProseEditorProps {
@@ -126,6 +153,28 @@ export interface ProseEditorProps {
    * the sheet's own top margin, competing with the first line of prose.
    */
   onReady?: (editor: Editor) => void;
+  /**
+   * The text is a page before the script, as a page file holds it
+   * (src/layout/page-files.ts): each field token is drawn as a field showing
+   * its value from `values` (as the layout's `fieldValue` gives them; `TITLE`
+   * falls back to `title` in capitals), and a title page's foot mark as the
+   * rule its foot starts under. The formatting bar then offers Insert Field.
+   *
+   * Whether the text is a page file is read once, as the editor is made: a
+   * page file's document holds nodes no other editor has. The values may
+   * change at any time; the fields are drawn again where they stand, and
+   * nothing is saved for it.
+   */
+  pageFile?: {
+    values: FieldValues;
+    /**
+     * A field asked to be edited (a click on it, Return on it, or typing with
+     * it selected): the page's own way to write that detail of the play
+     * (docs/app/formatting/formats-and-layout.md#FMT-176). Without it a field
+     * only shows its value.
+     */
+    onEditField?: (request: FieldEditRequest) => void;
+  };
 }
 
 export function ProseEditor({
@@ -134,7 +183,30 @@ export function ProseEditor({
   onBlur,
   onReady,
   editable = true,
+  pageFile,
 }: ProseEditorProps) {
+  /**
+   * The page file's own reading, fixed for the editor's life: a document read
+   * as a page file and an editor without its nodes would not open at all.
+   */
+  // The way to edit a field is asked for through a ref: the editor's
+  // extensions are made once, and the handler they call is today's.
+  const editField = useRef(pageFile?.onEditField);
+  editField.current = pageFile?.onEditField;
+  const [page] = useState(() =>
+    pageFile
+      ? {
+          values: pageFile.values,
+          onEdit: pageFile.onEditField
+            ? (request: FieldEditRequest) => editField.current?.(request)
+            : undefined,
+        }
+      : null,
+  );
+  const readAs = useMemo(() => ({ pageFile: !!page }), [page]);
+  // A page keeps a line that is set and waiting for words; a document does not.
+  const writeAs = useMemo(() => ({ emptyLines: !!page }), [page]);
+  const values = pageFile?.values;
   /**
    * Which props are this editor's own words coming back (prose-sync.ts): the
    * prop as last seen, the newest Markdown the editor produced, and the
@@ -147,7 +219,7 @@ export function ProseEditor({
    * called that an edit and wrote it back; comparing against the loaded document
    * calls it what it is — nothing happened.
    */
-  const sync = useRef(proseSync(markdown, toMarkdown(toDoc(markdown))));
+  const sync = useRef(proseSync(markdown, toMarkdown(toDoc(markdown, readAs), writeAs)));
   /**
    * Whether what the editor reports now is the writer's. Transactions that
    * settle the freshly-parsed document are the editor arranging itself, and
@@ -172,14 +244,42 @@ export function ProseEditor({
     return false;
   };
 
+  /**
+   * The app's own spell checker, where the system's may not run in a document
+   * (prose-checker.ts): its extensions join the page's as the editor is made,
+   * and what it draws goes beside the page. Nothing is handed over on a Mac or
+   * a PC, and the editor is the one it always was.
+   */
+  const checker = useContext(ProseCheckerContext);
+  const checking = checker?.extensions;
+  const extensions = useMemo(() => {
+    const own = page
+      ? [...PROSE_EXTENSIONS, ...pageFileExtensions(page.values, page.onEdit)]
+      : PROSE_EXTENSIONS;
+    return checking ? [...own, ...checking] : own;
+  }, [checking, page]);
+
   const editor = useEditor({
-    extensions: PROSE_EXTENSIONS,
+    extensions,
     editable,
-    content: toDoc(markdown) as never,
+    content: toDoc(markdown, readAs) as never,
     editorProps: {
       attributes: {
         class: "prose",
-        spellcheck: "true",
+        /* The system checks a document's spelling where it may. Where it may
+           not (an iPad), spell checking is off, because WebKit turns smart
+           quotes and dashes off only there, and the system's Smart
+           Punctuation would otherwise rewrite what the writer typed in the
+           file's bytes (ui/system-traits.ts). The app's own checker marks the
+           words there instead (prose-checker.ts). */
+        spellcheck: systemSpelling() ? "true" : "false",
+        /* Where the app's own checker marks the words, the system's
+           autocorrection is off too, as it is in the script: on an iPad it put
+           its own guess in place of an underlined word as the tap on it moved
+           the caret away, so the app's corrections never opened, and it knows
+           nothing of the cast a character's sheet names. The system's sentence
+           capitals stay (docs/app/writing/editor-ux.md#EDIT-194). */
+        ...(systemSpelling() ? {} : { autocorrect: "off" }),
         /* macOS's writing suggestions (inline predictive text, on by default)
            deleted letters typed here. In the native self-test's outline notes,
            " Tide turns at the stair." kept "Tide ns at the stair.": at the key
@@ -214,7 +314,7 @@ export function ProseEditor({
       onReady?.(ed);
     },
     onUpdate({ editor: ed }) {
-      const next = toMarkdown(ed.getJSON() as Node);
+      const next = toMarkdown(ed.getJSON() as Node, writeAs);
       if (!live.current) {
         loaded(sync.current, next);
         return;
@@ -236,14 +336,25 @@ export function ProseEditor({
   // keystrokes, and the prop it compared was already old.
   useLayoutEffect(() => {
     if (!editor || propArrived(sync.current, markdown) !== "replace") return;
-    editor.commands.setContent(toDoc(markdown) as never, { emitUpdate: false });
-    loaded(sync.current, toMarkdown(editor.getJSON() as Node));
-  }, [editor, markdown]);
+    editor.commands.setContent(toDoc(markdown, readAs) as never, { emitUpdate: false });
+    loaded(sync.current, toMarkdown(editor.getJSON() as Node, writeAs));
+  }, [editor, markdown, readAs, writeAs]);
+
+  // The play's details changed elsewhere: each field shows its new value where
+  // it stands, the caret where it was. No word changed, so nothing is saved.
+  useLayoutEffect(() => {
+    if (editor && page && values) setFieldValues(editor, values);
+  }, [editor, page, values]);
 
   useEffect(() => {
     // Editable or not changes no word: no update for it.
     editor?.setEditable(editable, false);
   }, [editor, editable]);
 
-  return <EditorContent editor={editor} className="prose-host" />;
+  return (
+    <>
+      <EditorContent editor={editor} className="prose-host" />
+      {editor && checker?.beside(editor)}
+    </>
+  );
 }

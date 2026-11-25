@@ -26,6 +26,7 @@ import type { Token } from "fountain-js";
 import { splitCueExtension } from "./cue";
 import { blankOverBlocks } from "./empty-line";
 import { parseInline } from "./inline";
+import { HORIZONTAL_RULE } from "./model";
 import type { BlockNode, Doc, InlineNode, ParsedScript } from "./model";
 import { holdNameNotes } from "./name-notes";
 import { holdNoteBreaks } from "./note-breaks";
@@ -303,7 +304,9 @@ function tokensToDoc(tokens: BodyToken[], boneyards: string[]): Doc {
 
       case "action": {
         const m = (tok.text ?? "").match(BONEYARD_SENTINEL);
-        if (m) {
+        if (HORIZONTAL_RULE.test(tok.text ?? "")) {
+          blocks.push({ type: "horizontalRule" });
+        } else if (m) {
           const idx = Number(m[1]);
           blocks.push({
             type: "boneyard",

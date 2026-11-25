@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import type { InlineNode, MarkType } from "../fountain/model";
-import { paragraphText, type ImportDocument, type Paragraph } from "./model";
+import { paragraphText, styleKind, type ImportDocument, type Paragraph } from "./model";
 
 interface State {
   skip: boolean;
@@ -20,6 +20,8 @@ const DESTINATIONS = new Set([
   "header",
   "headerl",
   "headerr",
+  "headerf",
+  "footerf",
   "footer",
   "footerl",
   "footerr",
@@ -70,8 +72,10 @@ export function readRtf(name: string, source: string): ImportDocument {
     else content.push({ type: "text", text: value, marks });
   };
   const flush = () => {
-    const p = { content, style: paragraphStyle };
-    if (paragraphText(p).trim()) paragraphs.push(p);
+    // A paragraph with no words still has the style it was given.
+    const p = { content, style: content.length ? paragraphStyle : state.style };
+    // A horizontal line is a paragraph with no words (docs/app/importing/document-import.md#IMPT-104).
+    if (paragraphText(p).trim() || styleKind(p.style) === "horizontalRule") paragraphs.push(p);
     content = [];
   };
   while (i < source.length) {
@@ -148,9 +152,12 @@ export function readRtf(name: string, source: string): ImportDocument {
       continue;
     }
     if (state.skip) continue;
-    if (word === "par" || word === "row") flush();
+    // A cell ends its last paragraph, so a table is read cell by cell, in row
+    // order, as from Word; a section break ends the paragraph it is in
+    // (docs/app/importing/document-import.md#IMPT-21).
+    if (word === "par" || word === "row" || word === "cell" || word === "sect") flush();
     else if (word === "line") emit("\n");
-    else if (word === "tab" || word === "cell") emit("\t");
+    else if (word === "tab") emit("\t");
     else if (word === "s") state.style = styles.get(String(number)) ?? `Style ${number}`;
     else if (word === "pard") state.style = "Unstyled";
     else if (word === "plain") state.marks.clear();

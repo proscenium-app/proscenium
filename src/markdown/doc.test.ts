@@ -388,11 +388,57 @@ test("the character appearance marker survives edits as an invisible node", () =
   expect(toMarkdown(toDoc(source))).toContain(marker);
 });
 
-test("an empty aligned paragraph never leaks an alignment marker into the page", () => {
+test("a page's empty line that is centered or at the right keeps how it is set, by a mark of its own", () => {
+  // A dedication's line is centered before a word is typed on it
+  // (src/layout/scaffolds.ts): a page's file holds the line as a comment of
+  // its own, and the page reads it back as the empty line, never as words.
+  const centered = { type: "paragraph", attrs: { textAlign: "center" }, content: [] };
+  const right = { type: "paragraph", attrs: { textAlign: "right" }, content: [] };
+  const page = { emptyLines: true };
+  const one = toMarkdown({ type: "doc", content: [centered] }, page);
+  expect(one).toBe("<!-- proscenium:line=center -->\n");
+  expect(toDoc(one).content).toEqual([centered]);
+  // Two of them, one under the other: an epigraph and its source.
+  const two = toMarkdown({ type: "doc", content: [centered, right] }, page);
+  expect(two).toBe("<!-- proscenium:line=center -->\n\n<!-- proscenium:line=right -->\n");
+  expect(toDoc(two).content).toEqual([centered, right]);
+  // The paragraph under an empty centered line keeps its own setting. The
+  // alignment's mark alone would have centered it when the file was read
+  // again: the two were written alike.
+  const body = { type: "paragraph", content: [{ type: "text", text: "Body" }] };
+  const over = toMarkdown({ type: "doc", content: [centered, body] }, page);
+  expect(over).toBe("<!-- proscenium:line=center -->\n\nBody\n");
+  expect(toDoc(over).content).toEqual([centered, body]);
+  const heading = {
+    type: "heading",
+    attrs: { level: 2, textAlign: "center" },
+    content: [{ type: "text", text: "NOTES" }],
+  };
+  const under = toMarkdown({ type: "doc", content: [heading, centered, body] }, page);
+  expect(toDoc(under).content).toEqual([heading, centered, body]);
+  expect(toMarkdown(toDoc(under), page)).toBe(under);
+  // The words typed on the line later are set as the line was, by the alignment's mark.
+  const typed = toMarkdown(
+    {
+      type: "doc",
+      content: [{ ...centered, content: [{ type: "text", text: "For my mother." }] }],
+    },
+    page,
+  );
+  expect(typed).toBe("<!-- proscenium:align=center -->\n\nFor my mother.\n");
+  // A line with no alignment is nothing in a page's file either.
+  expect(toMarkdown({ type: "doc", content: [{ type: "paragraph" }] }, page)).toBe("");
+});
+
+test("a document that is not a page writes nothing for an empty line, set or not, as it always has", () => {
   const text = toMarkdown({
     type: "doc",
     content: [{ type: "paragraph", attrs: { textAlign: "center" } }],
   });
   expect(text).toBe("");
   expect(toDoc(text).content).toEqual([{ type: "paragraph" }]);
+  // And the alignment's mark with nothing under it stays on the page as it was written.
+  const marker = "<!-- proscenium:align=center -->";
+  expect(toMarkdown(toDoc(`${marker}\n`))).toContain(marker);
+  expect(toMarkdown(toDoc(`${marker}\n\n- one\n`))).toContain(marker);
 });

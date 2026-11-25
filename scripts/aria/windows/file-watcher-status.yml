@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "The Weight of Water"
   - tablist "What this pane shows":
     - tab "Script" [selected]
@@ -24,9 +25,13 @@
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
     - group "Scenes in The Weight of Water":
-      - treeitem "SCENE 1 1" [level=2]
-      - treeitem "SCENE 2 1–2" [level=2]
-      - treeitem "SCENE 1 2" [level=2] [selected]
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3] [selected]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]

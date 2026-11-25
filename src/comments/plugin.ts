@@ -51,6 +51,7 @@ import {
   rangeMarker,
   type ParsedComment,
 } from "./model";
+import { caretBeforeStretch, keepFrontOutside } from "./front";
 import { commentText, ownText } from "./own-text";
 import { COMMENT_RANGE, COMMENT_RANGE_END } from "./ranges";
 
@@ -627,6 +628,12 @@ export const Comments = Extension.create<Record<string, never>, CommentsStorage>
       return el;
     };
 
+    const lineEnd = (): HTMLElement => {
+      const el = document.createElement("span");
+      el.className = "pl-line-end";
+      return el;
+    };
+
     const build = (
       doc: PMNode,
       marks: Pick<PluginState, "activePos" | "hoverPos" | "doomedPos">,
@@ -683,6 +690,22 @@ export const Comments = Extension.create<Record<string, never>, CommentsStorage>
           );
         }
       }
+      // A line that ends in a comment: what the format draws after the text (a
+      // closing paren, a suffix) is drawn here, before the editor's placeholder
+      // break, which would otherwise put it on a line of its own. Drawn before
+      // the caret, so the caret at the line's end stays after the comment and
+      // the words typed there follow it (docs/app/writing/comments.md#COMM-77).
+      doc.descendants((node, pos) => {
+        if (!node.isTextblock) return true;
+        if (node.lastChild?.type.name === "note") {
+          const end = pos + node.nodeSize;
+          decos.push(
+            Decoration.node(pos, end, { class: "pl-ends-in-comment" }),
+            Decoration.widget(end - 1, lineEnd, { side: -1, key: "pl-line-end" }),
+          );
+        }
+        return false;
+      });
       return {
         entries,
         threads,
@@ -695,6 +718,8 @@ export const Comments = Extension.create<Record<string, never>, CommentsStorage>
     return [
       new Plugin<PluginState>({
         key: KEY,
+        // The page's caret where a stretch begins stands before it (front.ts).
+        view: () => ({ update: (view) => caretBeforeStretch(view) }),
         state: {
           init: (_config, state) =>
             build(state.doc, { activePos: null, hoverPos: null, doomedPos: null }),
@@ -736,11 +761,15 @@ export const Comments = Extension.create<Record<string, never>, CommentsStorage>
          * A range whose comment was deleted, or whose text all was, is no
          * range: its marks come off, in the step that ended it, so undo puts
          * the whole of it back. Nothing is added here, only taken away, and
-         * never from the text being typed.
+         * never from the text being typed, but for words typed in front of a
+         * stretch that came out inside it (front.ts).
          */
         appendTransaction(transactions, _oldState, newState) {
           if (!transactions.some((tr) => tr.docChanged)) return null;
-          return clearDeadRanges(newState, KEY.getState(newState)?.deadRanges ?? []);
+          const tr =
+            clearDeadRanges(newState, KEY.getState(newState)?.deadRanges ?? []) ?? newState.tr;
+          keepFrontOutside(transactions, newState, tr);
+          return tr.docChanged ? tr : null;
         },
         props: {
           decorations(state) {

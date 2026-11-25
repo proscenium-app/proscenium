@@ -17,6 +17,7 @@
 import { Extension, Mark, Node as TipTapNode } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useZoomAnchor } from "../ui/zoom-anchor";
 import { formatCssVars, type FormatSpec } from "../format";
 import { PROSE_EXTENSIONS } from "../markdown/ProseEditor";
 import {
@@ -141,6 +142,8 @@ export function RedlineDocument({
       window.removeEventListener("resize", solve);
     };
   }, [format]);
+  // A pane resized under the page keeps the reader's place (docs/app/writing/editor-ux.md#EDIT-198).
+  useZoomAnchor(frame, zoom);
 
   return (
     <div className="redline redline--document" style={vars} ref={frame}>
@@ -155,7 +158,9 @@ export function RedlineDocument({
           className="material__page redline__doc"
           role="group"
           aria-label={label}
-          style={{ zoom } as CSSProperties}
+          // Its own lengths and type scale, as the document's page does
+          // (materials.css), never CSS `zoom`.
+          style={{ "--page-scale": zoom } as CSSProperties}
         >
           <EditorContent editor={editor} className="prose-host" />
         </div>

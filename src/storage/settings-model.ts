@@ -66,8 +66,20 @@ export interface Settings {
   /** The page map under the script (docs/app/preferences-and-help/settings.md#SET-42), named for the running time it
    *  showed until a page stopped being read as a minute; the key keeps that name. */
   runningTimeStrip: boolean;
+  /**
+   * The place marker inside the lit scene of that strip
+   * (docs/app/preferences-and-help/settings.md#SET-45). On unless turned off; the strip
+   * being off hides it either way.
+   */
+  scenePlaceMarker: boolean;
   /** Spell check on or off: the document menu's Check Spelling is this value. */
   spellcheck: boolean;
+  /**
+   * Capitals as they are typed: cues, headings and transitions, and the
+   * cast's names in the directions where the format asks
+   * (docs/app/writing/editor-ux.md#EDIT-54). On unless turned off.
+   */
+  autoCaps: boolean;
   /** Words taught to the spell checker, sorted, one spelling each. */
   learnedWords: string[];
   /**
@@ -126,7 +138,9 @@ export interface SettingsPatch {
   formatOrder?: string[];
   interfaceTextSize?: number;
   runningTimeStrip?: boolean;
+  scenePlaceMarker?: boolean;
   spellcheck?: boolean;
+  autoCaps?: boolean;
   openAtLaunch?: OpenAtLaunch;
   /** A play's id, or null: the writer went back to the Plays screen. */
   lastPlay?: string | null;
@@ -161,7 +175,9 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   formatOrder: [],
   interfaceTextSize: 100,
   runningTimeStrip: true,
+  scenePlaceMarker: true,
   spellcheck: true,
+  autoCaps: true,
   learnedWords: [],
   playStatuses: [...DEFAULT_PLAY_STATUSES],
   showProgress: true,
@@ -277,7 +293,12 @@ export function readSettings(raw: unknown): Settings {
       typeof o.runningTimeStrip === "boolean"
         ? o.runningTimeStrip
         : DEFAULT_SETTINGS.runningTimeStrip,
+    scenePlaceMarker:
+      typeof o.scenePlaceMarker === "boolean"
+        ? o.scenePlaceMarker
+        : DEFAULT_SETTINGS.scenePlaceMarker,
     spellcheck: typeof o.spellcheck === "boolean" ? o.spellcheck : DEFAULT_SETTINGS.spellcheck,
+    autoCaps: typeof o.autoCaps === "boolean" ? o.autoCaps : DEFAULT_SETTINGS.autoCaps,
     learnedWords: Array.isArray(o.learnedWords)
       ? o.learnedWords.filter((w): w is string => typeof w === "string")
       : [],
@@ -314,7 +335,9 @@ export function validatePatch(patch: SettingsPatch): string | null {
     "accent",
     "interfaceTextSize",
     "runningTimeStrip",
+    "scenePlaceMarker",
     "spellcheck",
+    "autoCaps",
     "openAtLaunch",
     "lastPlay",
     "learnedWords",
@@ -348,7 +371,9 @@ export function validatePatch(patch: SettingsPatch): string | null {
   }
   for (const key of [
     "runningTimeStrip",
+    "scenePlaceMarker",
     "spellcheck",
+    "autoCaps",
     "checkForUpdates",
     "shareAnalytics",
     "privacyNoticeSeen",

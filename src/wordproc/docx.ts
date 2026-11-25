@@ -98,7 +98,7 @@ interface Geometry {
 function styleXml(style: ParagraphStyle, doc: WpDocument, g: Geometry): string {
   const size = doc.spec.type.size;
   // pPr in schema order: keepNext, keepLines, pageBreakBefore, widowControl,
-  // tabs, spacing, ind, jc, outlineLvl.
+  // pBdr, tabs, spacing, ind, jc, outlineLvl.
   const p: string[] = [];
   if (style.keepWithNext) p.push("<w:keepNext/>");
   if (style.keepTogether) p.push("<w:keepLines/>");
@@ -108,6 +108,10 @@ function styleXml(style: ParagraphStyle, doc: WpDocument, g: Geometry): string {
   p.push(
     style.orphans >= 2 || style.widows >= 2 ? "<w:widowControl/>" : '<w:widowControl w:val="0"/>',
   );
+  // A horizontal line is the paragraph's foot, a half-point rule in the
+  // text's colour (docs/app/writing/editor-ux.md#EDIT-213).
+  if (style.rule)
+    p.push('<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="0" w:color="auto"/></w:pBdr>');
   if (style.furniture) {
     p.push(
       `<w:tabs><w:tab w:val="center" w:pos="${Math.round(g.block / 2)}"/><w:tab w:val="right" w:pos="${g.block}"/></w:tabs>`,
@@ -333,6 +337,19 @@ function sectPrXml(
           `<w:${element} w:type="first" r:id="${parts.furniture(tag, furniturePart(tag, off ? null : f, g))}"/>`,
         );
       }
+    }
+  } else if (section.kind === "back") {
+    // The pages after the script print no header or footer, and a section that
+    // names none takes the script's: so these name empty ones.
+    for (const [tag, on] of [
+      ["hdr", furnished.header],
+      ["ftr", furnished.footer],
+    ] as const) {
+      if (!on) continue;
+      const element = tag === "hdr" ? "headerReference" : "footerReference";
+      refs.push(
+        `<w:${element} w:type="default" r:id="${parts.furniture(tag, furniturePart(tag, null, g))}"/>`,
+      );
     }
   }
   // sectPr in schema order: references, type, pgSz, pgMar, pgNumType, titlePg.

@@ -21,6 +21,7 @@ import affUrl from "../../dictionaries/en.aff?url";
 import dicUrl from "../../dictionaries/en.dic?url";
 import britishAffUrl from "../../dictionaries/en-GB.aff?url";
 import britishDicUrl from "../../dictionaries/en-GB.dic?url";
+import { namesIn } from "./dictionary-names";
 import type { Lexicon } from "./speller";
 import { spellingLanguage, type SpellingLanguage } from "../workspace/language";
 
@@ -42,6 +43,7 @@ async function build(language: SpellingLanguage): Promise<Lexicon> {
   return {
     correct: (word) => checker.correct(word),
     suggest: (word) => checker.suggest(word),
+    names: namesIn(dic),
   };
 }
 

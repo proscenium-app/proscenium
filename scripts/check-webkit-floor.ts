@@ -102,6 +102,10 @@ const ENGINES: Engine[] = [
         "Used only inside @media (forced-colors: active) (accessibility.css), Windows' high " +
         "contrast themes, which no Mac has: WebKit never matches the query, so the rule is " +
         "never applied there, on the floor or above it.",
+      "css.properties.text-size-adjust":
+        "For iPadOS alone (base.css, docs/app/writing/editor-ux.md#EDIT-196): its text " +
+        "autosizing set a zoomed page's type back to its unzoomed size, and `none` stops it. " +
+        "A Mac's WebKit does no autosizing and ignores the property, on the floor and above it.",
     },
     canary: {
       css: `.a{field-sizing:content}@starting-style{.b{opacity:0}}.c{text-wrap:balance}`,
@@ -121,7 +125,12 @@ const ENGINES: Engine[] = [
     key: "edge",
     version: WEBVIEW2_FLOOR,
     label: `WebView2 ${WEBVIEW2_FLOOR}.0 (Windows)`,
-    allowed: {},
+    allowed: {
+      "css.properties.text-size-adjust":
+        "For iPadOS alone (base.css, docs/app/writing/editor-ux.md#EDIT-196): its text " +
+        "autosizing set a zoomed page's type back to its unzoomed size. WebView2 does no " +
+        "autosizing and ignores the -webkit- spelling, which changes nothing on a PC.",
+    },
     canary: {
       css: `.a{corner-shape:squircle}.b:open{opacity:0}.c{reading-flow:normal}`,
       js: `RegExp.escape("x"); Error.isError(e);`,

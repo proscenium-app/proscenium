@@ -1,5 +1,6 @@
 - banner
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Practice Play" [haspopup]
   - tablist "What this pane shows"
     - tab "Script" [selected]
@@ -87,3 +88,4 @@
   - menuitemradio "Lyric ⌘⌥L"
   - menuitemradio "Centered Text ; >"
   - menuitemradio "Scene Summary (Not Printed) ; ="
+  - menuitemradio "Horizontal Line ; H"

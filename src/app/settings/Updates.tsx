@@ -8,9 +8,10 @@
  * settings-model.ts); the state comes from updates.rs through src/app/updates.ts.
  *
  * **A store copy has no updater** (`unavailable`: the App Store's and the
- * iPad's builds compile none in). The store updates it, so the switch, its
- * schedule, the track, Check Now and the note about where checks go are all
- * about a machine that is not there. It shows its version and the release notes.
+ * iPad's builds compile none in). The store updates it, or TestFlight a copy
+ * TestFlight installed, so the switch, its schedule, the track, Check Now and
+ * the note about where checks go are all about a machine that is not there. It
+ * shows its version, who updates it, and the release notes.
  * **Nor does a local copy** (`bun run app:install`), which nothing updates
  * (it is built without the updater), and it says so.
  *
@@ -26,7 +27,7 @@
  * **An Intel Mac takes Stable alone** (docs/app/preferences-and-help/settings.md#SET-40): the track is a
  * line of text, not a menu of one, with no key to add.
  */
-import { systemWords } from "../../ui/system-words";
+import { chipChoices, systemWords } from "../../ui/system-words";
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { Button, PopupButton, announce } from "../../ui";
 import { updates as ipc } from "../../storage/ipc";
@@ -42,6 +43,7 @@ import {
   restartToUpdate,
   slowerTrackNote,
   TRACK_LABELS,
+  updateSource,
   useUpdateState,
 } from "../updates";
 import { Group, Note, SectionBody, SwitchRow, useAppInfo } from "./parts";
@@ -159,8 +161,8 @@ export function UpdatesSlot() {
     if (!asked.current) return;
     if (state.kind === "checking" || state.kind === "downloading") return;
     asked.current = false;
-    announceUpdates(state, version);
-  }, [state, version]);
+    announceUpdates(state, version, updateSource(info));
+  }, [state, version, info]);
 
   const canCheck = ![
     "unconfigured",
@@ -236,7 +238,7 @@ export function UpdatesSlot() {
           <span className="settings__rowlabel">
             {local
               ? `Proscenium ${version}, built on this ${systemWords().machine}. It doesn’t update itself.`
-              : describeUpdates(state, version)}
+              : describeUpdates(state, version, updateSource(info))}
           </span>
           {fromStore ? null : state.kind === "ready" ? (
             <Button
@@ -299,7 +301,7 @@ export function UpdatesSlot() {
 /** What an update check sends, in this system's words. */
 function checkSends(withKey: boolean): string {
   const { machine, system } = systemWords();
-  const chips = machine === "Mac" ? "Apple silicon or Intel" : "an x64 or an Arm64 chip";
+  const chips = chipChoices();
   return withKey
     ? `A check sends the Proscenium and ${system} versions, whether this ${machine} has ${chips}, and this copy’s key for Alpha.`
     : `A check sends the Proscenium and ${system} versions, and whether this ${machine} has ${chips}.`;

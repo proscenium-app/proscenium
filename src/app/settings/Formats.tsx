@@ -19,6 +19,7 @@ import {
 } from "../../format";
 import { settings as ipc, formats } from "../../storage";
 import type { VaultPlay } from "../../workspace";
+import { formatNote } from "../../workspace/trash";
 import {
   Button,
   ArrowUpIcon,
@@ -253,7 +254,7 @@ function FormatRow(props: {
     setBusy(true);
     const content = formatFileText(spec);
     try {
-      await formats.trash(fileName);
+      await formats.trash(fileName, formatNote(spec.name));
       await reloadFormats();
       props.onDeleted();
       const names = props.usedBy.map((p) => `“${p.title}”`);

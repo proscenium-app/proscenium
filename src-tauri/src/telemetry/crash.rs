@@ -90,17 +90,22 @@ fn symbol_allowed(s: &str) -> bool {
         && s.bytes()
             .all(|c| c.is_ascii_alphanumeric() || b"_:<>, &[](){}#;!?=-".contains(&c))
 }
-/// A Mac's `major.minor` from 14, or Windows' `10.0.<build>` from 19045,
-/// Windows 10 22H2 (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-15).
+/// A Mac's `major.minor` from 14, an iPad's from iPadOS 17, its floor, or
+/// Windows' `10.0.<build>` from 19045, Windows 10 22H2
+/// (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-15).
 fn os_allowed(s: &str) -> bool {
     if cfg!(windows) {
         return windows_os_allowed(s);
     }
+    apple_os_allowed(s, if cfg!(target_os = "ios") { 17 } else { 14 })
+}
+/// `major.minor` of a Mac's or an iPad's system, from `floor`. Pure.
+fn apple_os_allowed(s: &str, floor: u32) -> bool {
     let parts: Vec<_> = s.split('.').collect();
     parts.len() == 2
         && parts[0]
             .parse::<u32>()
-            .is_ok_and(|n| (14..=99).contains(&n))
+            .is_ok_and(|n| (floor..=99).contains(&n))
         && parts.iter().all(|p| {
             !p.is_empty()
                 && p.len() <= 2
@@ -331,6 +336,28 @@ pub fn read_all(dir: &Path) -> Vec<(PathBuf, CrashRecord)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A Mac's from macOS 14 and an iPad's from iPadOS 17, its floor, each its
+    /// major and minor alone, as the reports service takes them
+    /// (docs/engineering/services-and-feedback.md#SERV-282).
+    #[test]
+    fn an_apple_systems_version_is_its_major_and_minor_from_its_floor() {
+        for (version, mac, ipad) in [
+            ("14.0", true, false),
+            ("16.7", true, false),
+            ("17.0", true, true),
+            ("26.5", true, true),
+            ("26.5.1", false, false),
+            ("26", false, false),
+            ("13.6", false, false),
+            ("026.5", false, false),
+            ("10.0.26100", false, false),
+        ] {
+            assert_eq!(apple_os_allowed(version, 14), mac, "a Mac's {version}");
+            assert_eq!(apple_os_allowed(version, 17), ipad, "an iPad's {version}");
+        }
+    }
+
     pub(super) fn sample(at: DateTime<Utc>) -> CrashRecord {
         make_record(
             CrashKind::RustPanic,

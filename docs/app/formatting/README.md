@@ -11,6 +11,7 @@ and paginator, so a formatting change has one source of truth.
 | House stage format | [House treatment](formats-and-layout.md#FMT-D103) and [element rules](formats-and-layout.md#EDIT-D102) |
 | Pagination | [Layout contract](formats-and-layout.md#FMT-D105) |
 | Title, cast and opening pages | [Front matter](formats-and-layout.md#EDIT-D103) |
+| Production notes before the script | [Production notes](formats-and-layout.md#FMT-D110) |
 | PDF export and reading order | [PDF structure](formats-and-layout.md#EDIT-D104) |
 | Anonymous copies for blind readings | [Anonymous copies](formats-and-layout.md#FMT-D108) |
 | .docx and .odt for word processors | [Word-processor documents](formats-and-layout.md#FMT-D109) |
