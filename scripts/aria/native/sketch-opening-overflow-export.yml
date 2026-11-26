@@ -23,9 +23,13 @@
       - button "Page 4"
       - none
         - checkbox "Include page 4" [checked]
+    - listitem
+      - button "Page 5"
+      - none
+        - checkbox "Include page 5" [checked]
   - region "Preview of what will export"
   - button "Previous page" [disabled]
-  - group [live=polite]: Page 1 of 4
+  - group [live=polite]: Page 1 of 5
   - button "Next page"
   - none
     - checkbox "Anonymous copy"

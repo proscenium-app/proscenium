@@ -34,8 +34,10 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { onHover } from "./hover";
 import { CheckIcon, ChevronRightIcon } from "./Icons";
 import { registerLayer, useFocusReturn, useLayer } from "./layers";
+import { useKeyboardInsetNow } from "./keyboard-inset";
 import { keys } from "./keys";
 import { portalHost } from "./portal-host";
 
@@ -185,7 +187,14 @@ export type MenuEntry =
 
 export type MenuAnchor =
   | { kind: "point"; x: number; y: number }
-  | { kind: "rect"; rect: DOMRect; align?: "start" | "end"; side?: "bottom" | "top" };
+  | {
+      kind: "rect";
+      rect: DOMRect;
+      /** The control itself, read again when the menu is placed again. */
+      el?: Element;
+      align?: "start" | "end";
+      side?: "bottom" | "top";
+    };
 
 export interface MenuProps {
   anchor: MenuAnchor;
@@ -285,10 +294,20 @@ export function Menu({
 
   /* Placed after layout, from the element's real size: a menu that is measured
      from an estimate flickers, and one that is not clamped can open off-screen
-     next to a row near the window edge. */
+     next to a row near the window edge. Placed again when the screen's keyboard
+     comes, goes or changes its bar while the menu is open, and kept above it. */
+  const inset = useKeyboardInsetNow();
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // What the screen's keyboard leaves of the window.
+    const visible = Math.max(0, window.innerHeight - inset);
+    // With the screen's keyboard up, a menu is no taller than what it leaves,
+    // and scrolls: placed against the window alone, it opened under the keys.
+    el.style.maxHeight =
+      inset > 0
+        ? `${Math.max(120, Math.min(window.innerHeight * 0.7, 560, visible - GAP * 2))}px`
+        : "";
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     let top: number;
@@ -296,19 +315,20 @@ export function Menu({
     if (anchor.kind === "point") {
       top = anchor.y;
       left = anchor.x;
-      if (top + h > window.innerHeight - GAP) top = Math.max(GAP, anchor.y - h);
+      if (top + h > visible - GAP) top = Math.max(GAP, anchor.y - h);
       if (left + w > window.innerWidth - GAP) left = Math.max(GAP, anchor.x - w);
     } else {
-      const r = anchor.rect;
+      // Where the control is now: the status bar rides up above the screen's
+      // keyboard, and a menu placed again from where it was opened ran under it.
+      const r = anchor.el?.isConnected ? anchor.el.getBoundingClientRect() : anchor.rect;
       // An arrow needs its own height of clearance, or it lands on the control.
       const gap = arrow ? GAP + 6 : GAP;
       const below = r.bottom + gap;
       top =
-        anchor.side === "top" || below + h > window.innerHeight - GAP
-          ? Math.max(GAP, r.top - h - gap)
-          : below;
+        anchor.side === "top" || below + h > visible - GAP ? Math.max(GAP, r.top - h - gap) : below;
       left = anchor.align === "end" ? r.right - w : r.left;
       left = Math.max(GAP, Math.min(left, window.innerWidth - w - GAP));
+      top = Math.min(top, Math.max(GAP, visible - GAP - h));
       if (arrow) {
         const x = Math.min(Math.max(r.left + r.width / 2 - left, 14), w - 14);
         setPos({
@@ -320,8 +340,11 @@ export function Menu({
         return;
       }
     }
+    // Above the keys whatever the anchor: a point taken before the keyboard
+    // came may be where the keyboard now is.
+    top = Math.min(top, Math.max(GAP, visible - GAP - h));
     setPos({ top: Math.round(top), left: Math.round(left) });
-  }, [anchor, arrow]);
+  }, [anchor, arrow, inset]);
 
   /*
    * Focus the lit row so arrows and type-select have somewhere to land — but do
@@ -479,7 +502,10 @@ export function Menu({
   const style: React.CSSProperties = {
     top: pos?.top ?? -9999,
     left: pos?.left ?? -9999,
-    minWidth: width,
+    // Never wider than the window: Go to Scene asks for 320 points, all of a
+    // third of a Split View.
+    minWidth: width === undefined ? undefined : `min(${width}px, calc(100vw - ${GAP * 2}px))`,
+    maxWidth: `calc(100vw - ${GAP * 2}px)`,
     visibility: pos ? "visible" : "hidden",
     ...(pos?.arrowX !== undefined ? { ["--arrow-x" as string]: `${pos.arrowX}px` } : null),
   };
@@ -540,14 +566,17 @@ export function Menu({
         className={`menu__item${i === cursor ? " is-cursor" : ""}${
           a.destructive ? " menu__item--destructive" : ""
         }`}
-        onMouseEnter={(ev) => {
+        // A pointer's hover moves the cursor and opens a submenu; a finger's
+        // tap opens one by its click, which a submenu shown by its hover held
+        // back on an iPad (hover.ts).
+        {...onHover<HTMLButtonElement>((ev) => {
           setCursor(i);
           setSubmenu(
             a.submenu
               ? { index: i, rect: ev.currentTarget.getBoundingClientRect(), keyboard: false }
               : null,
           );
-        }}
+        })}
         onClick={() => (a.submenu ? openSubmenu(i) : choose(i))}
       >
         <span className="menu__check" aria-hidden="true">
@@ -649,7 +678,7 @@ export function useMenu() {
   const openFrom = useCallback(
     (el: HTMLElement | null, align?: "start" | "end", side?: "bottom" | "top") => {
       if (!el) return;
-      setAnchor({ kind: "rect", rect: el.getBoundingClientRect(), align, side });
+      setAnchor({ kind: "rect", rect: el.getBoundingClientRect(), el, align, side });
     },
     [],
   );

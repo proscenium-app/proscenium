@@ -7,10 +7,226 @@ release candidates; 1.0.0 is the first public release.
 
 Each release's notes on GitHub come from its section here, so write entries as
 a playwright would want to read them: what you can do now, what works better,
-what was broken and is fixed. `bun run version <x.y.z>` turns Unreleased into
-that version's section.
+what was broken and is fixed. Keep each entry to one light line of 30 words at
+most; the Guide teaches the rest. `bun run version <x.y.z>` turns Unreleased
+into that version's section.
 
 ## [Unreleased]
+
+## [1.0.7]
+
+### Added
+
+- Write every page before the script where it prints: in page view, click
+  the title page, the Characters page or any other, and type.
+- Click a detail on the title page, such as your name, to change it. Play
+  Details… lists them all.
+- Add Page, above Act One and under the last page, adds a page before or
+  after the script.
+- Pages after the script, such as an author's note or a glossary, in a Back
+  Matter folder.
+- Dedication and Epigraph pages start centered a third of the way down.
+- Export Fountain… saves the whole play, its pages with it, as one .fountain
+  file.
+- Export as Rich Text: choose .rtf under File type in the export window.
+- Delete a play from the Plays screen: Move to Trash…, from the … at the end
+  of its row.
+- Character names in stage directions go into capitals as you type them, in
+  the formats that ask for it.
+- Capitalize Character Names in Directions… catches the names already
+  written, and remembers the ones you keep.
+- A horizontal line across the page marks a shift inside a scene: type ---
+  on an empty stage direction.
+- The rail shows the acts, with each act's scenes folded under it.
+- The scene navigation strip marks how far through the scene you are
+  reading.
+- All Plays is on the toolbar, before the play's title.
+
+### Changed
+
+- Cast lists the company (⌘4) and says which page names each character. The
+  Characters page is yours to write.
+- Edit Opening Pages… is gone: Play Details… and Add Page… take its place. A
+  play from an earlier version prints as it did.
+- The fourth tutorial is Pages Before the Script.
+- A new play starts with its title page in a Front Matter folder.
+- Moving a Front Matter or Back Matter folder to the Trash asks first, and
+  Undo puts it back.
+- Settings opens as a window of its own, closed by its ×.
+- Proscenium's window opens at the size and place you left it.
+- Reply at the end of each conversation in the comments.
+- The script's zoom stops where its type would be too small to read.
+
+### Fixed
+
+- A zoom keeps your place in the script.
+- Script in the top bar comes back to your place, not the title page.
+- Two files of a play saved at the same moment are never refused.
+- Every speech keeps its character's name, so none turns into a stage
+  direction when the play opens again.
+- Backspace and Delete stop at a character's name.
+- Typing in the middle of a scene heading or a name no longer splits the
+  word.
+- No page ends on a paragraph's lone first line, and page view breaks a long
+  speech where the printed page does.
+- A format spaced by half a line no longer stops the pages from drawing.
+- A PDF viewer numbers pages as they are printed.
+- A click puts the caret where you clicked, even on a busy page.
+- Bold, Italic and Underline in the Script menu format the document you are
+  in, not the script behind it.
+- Comments: a long one no longer moves the page as you type, one left open
+  keeps its words, and a ")" after one stays on its line.
+- The inspector counts a scene's own speeches, and a play with no scene
+  lines is one scene.
+- On a Mac, Export's Include boxes untick with a click, Restart to Update
+  launches normally, and Release notes works in the Mac App Store copy.
+- A key or a click just after opening a scene stays where you made it.
+- On Windows, Ctrl+Shift+S makes a Scene Heading instead of saving.
+- An imported Rich Text table is read cell by cell.
+
+### Security
+
+- The library for secure connections is updated for four published
+  advisories, and the Windows updater no longer carries unused zip code.
+  Neither could be reached from Proscenium.
+
+## [1.0.6]
+
+### Added
+
+- Production notes: a page for whoever stages the play, headed PRODUCTION
+  NOTES, after every other opening page, so it is the last thing read before
+  the script. Turn it on and write it in Cast & Pages. Export PDF, .docx, .odt
+  and Print list Production notes under Include, and a PDF viewer names the
+  sheet "Production".
+- In page view, a double-click on the Characters page, the opening notes or
+  the production notes edits that page where it stands, with the caret at the
+  line you clicked and its formatting bar at the top of the script. Done, Esc
+  or a click in the script lays the page out again.
+- The Characters page and the cast list are kept in step both ways. On the
+  page, a paragraph that begins with a name in bold is that character's line,
+  and the cast list follows the page as you type; change a name, a
+  description or the order in the cast list and the page follows. Everything
+  else on the page stays as you wrote it.
+- Character names in stage directions and parentheticals go to capitals as
+  you type them, in the formats that ask for it: the three Dramatists Guild
+  formats, Samuel French / Concord, Proscenium House and Sketch Comedy, and
+  not UK / International. ⌘Z straight after, or Backspace as the next key,
+  gives back the name as you typed it, and it stays that way. The Format
+  Designer's Action row has the switch, "Character names in capitals as you
+  type", and Settings › Writing › Capitalize as you type turns all capitals
+  as you type off.
+- Capitalize Character Names in Directions…, in the document menu and the
+  Script menu, lists every character's name in the directions that is not yet
+  in capitals, each ticked. Untick the ones to keep as written: Proscenium
+  remembers them, after the play is closed and opened again too, and with
+  every name unticked the button is Keep All as Written.
+- The rail shows the acts. Under the script, each act is a row with its page
+  range, and its scenes fold under it like a folder's contents: its chevron,
+  → and ← fold it, and a folded act is marked when it holds the scene you are
+  in. A click or ⏎ on an act opens the script there. A play with two acts no
+  longer shows SCENE 1, SCENE 2, SCENE 1 with no act at all.
+- The scene navigation strip marks your place in the scene: a thin line in
+  the lit scene shows how far through it you are reading, and follows as you
+  scroll and write. Settings › Writing › Show your place in the scene turns it
+  off.
+
+### Changed
+
+- Cast is now Cast & Pages (⌘4), the home of every page before the script:
+  the title page, the Characters page, opening notes and production notes,
+  in the order they print, then the cast tools, with a row at the top to go
+  to each. Opening notes and production notes each have a switch that puts
+  the page in the play, and turning one off asks first when it has words.
+  Everything is saved as you write it. Edit Opening Pages… and a click on the
+  title page in page view open Cast & Pages at the title page; the Opening
+  Pages sheet is gone. Turning off Write the title page freely asks first
+  when the page you wrote says more than the fields would print, where it
+  threw the page away at once.
+- Settings opens as a window of its own in the middle of Proscenium's,
+  closed by its ×, at the top left on a Mac and the top right on Windows. Its
+  Done button is gone.
+- Proscenium's window opens at the size and place you left it, filling the
+  screen if you left it so. The first time, it fills the screen, where it
+  opened small and had to be resized by hand at every launch.
+- Each conversation in the comments ends, under its last reply, in a field
+  reading "Reply…" that opens where it is. The Reply button sat on the first
+  comment.
+- The script's zoom stops where its type would go below a legible size,
+  about 56% for 12-point type. Further out, its lines wrapped where the
+  printed page does not and its pages ran taller than the format's. A fit
+  that stops there says so in its percentage.
+
+### Fixed
+
+- A zoom keeps your place: the line the caret is on, or the line in the
+  middle of the window, stays where it was, and the zoom's − and + leave the
+  caret in the script. Zooming out from Act One could show Act Two, and
+  zooming back in did not undo it.
+- Script in the top bar, after Board, Outline, Cast & Pages or Changes,
+  comes back to your place in the script, where it opened at the title page.
+- A save could be refused with "No such file or directory" when two files of
+  one play were saved at the same moment, on a Mac and on Windows. Every word
+  was kept, but the save had to be made again.
+- Every line of speech on the page has its character's name over it. A
+  speech that lost its cue, by Enter after a speech, a direction opened
+  between its paragraphs, or a cue changed, deleted or joined to the line
+  above, looked like dialogue and came back a stage direction the next time
+  the play was opened. Now a speech parted from its cue by a direction gets
+  the speaker's name again, as a printed play repeats it, and a speech with
+  no speaker above it is shown as the stage direction it will be.
+- Backspace and Delete stop at a character's name: a cue is never joined to
+  the line above or below it, so a speech keeps its cue. Backspace at the
+  start of a name made the whole speech a stage direction, and Enter did not
+  bring it back.
+- Typing into a scene heading, an act or a character's name anywhere but its
+  end no longer splits the word in two: capitals as you type leave the caret
+  after the letter you typed.
+- A page never ends on the lone first line of a paragraph, such as "And"
+  over an empty line with the rest of the speech on the next page. The page
+  view, the PDF and the export preview break in the same place.
+- The page view breaks a speech or a direction written in paragraphs where
+  the printed page does, at the end of a full line. It could end a page
+  partway through a line that had room for the next words.
+- A format that spaces its elements by part of a line, such as 0.5, no
+  longer stops Proscenium from laying out its pages. A speech or a direction
+  split across two pages could take the screen showing it down with it, the
+  Format Designer's preview among them.
+- A PDF viewer numbers a script's pages as they are printed. With a title
+  page, every page showed one higher in the viewer's sidebar and Go to Page
+  than the number on it; opening pages are named instead, such as "Title".
+- A click on a line takes the caret there however busy the page is. On a
+  page still settling from a scroll, a zoom or typing, the caret could stay
+  in the line above, and a drag start from there.
+- A click on a page before the script in page view, such as the Characters
+  page, leaves the caret where it stood in the script, and the words you type
+  go there. As a play opened, they went nowhere.
+- A long comment no longer moves the script as you type it: its field grows
+  with your words and the cards below make room. On a Mac each line past the
+  third scrolled the page.
+- A comment still being typed when you leave the play or open another
+  script is saved with your words. It was saved reading "comment". A new
+  comment with no words is taken out, as Esc takes it out.
+- A comment at the end of a parenthetical leaves its ")" on the line, where
+  the ")" dropped to a line of its own.
+- On a Mac, Export's Include boxes and Anonymous copy untick with a click on
+  the tick itself, which ticked them again.
+- A key pressed or a click made just after opening a scene stays where you
+  made it, where the script could take the keyboard back from the rail.
+- On Windows, Ctrl+Shift+S makes a Scene Heading. It saved the script
+  instead.
+- On a Mac, Restart to Update opens the new version as an ordinary launch.
+  macOS 27 listed "Proscenium - background tasks" under Login Items and said
+  so in a notification.
+- Release notes in Settings › Updates opens in a copy from the Mac App
+  Store, where it did nothing.
+
+### Security
+
+- The library Proscenium makes its secure connections with is updated for
+  four published advisories. The Windows updater no longer carries code to
+  unpack zip files, which it never needed and which had an advisory of its
+  own. Neither could be reached from Proscenium.
 
 ## [1.0.5] - 2026-10-29
 

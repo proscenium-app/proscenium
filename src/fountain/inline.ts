@@ -197,9 +197,20 @@ function emphasisDelim(set: Set<MarkType>): string {
   return "";
 }
 
+const CASE_MARKS: ReadonlySet<string> = new Set(["castCaps", "castKept"]);
+
+/** A text node without the page's marks on a name's case; a note as it is. */
+function withoutCaseMarks(node: InlineNode): InlineNode {
+  if (node.type !== "text" || !node.marks?.some((m) => CASE_MARKS.has(m.type))) return node;
+  const marks = node.marks.filter((m) => !CASE_MARKS.has(m.type));
+  return marks.length ? { ...node, marks } : { type: "text", text: node.text };
+}
+
 /** Serialize inline nodes back to canonical Fountain inline markup. */
 export function serializeInline(nodes: InlineNode[]): string {
-  const merged = mergeAdjacent(nodes);
+  // The page's own marks on a name's case are not the script's: without them
+  // the runs are the ones the script had, so nothing new is written.
+  const merged = mergeAdjacent(nodes.map(withoutCaseMarks));
   let out = "";
   for (const node of merged) {
     if (node.type === "note") {

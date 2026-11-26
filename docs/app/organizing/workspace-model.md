@@ -44,6 +44,10 @@ two plays (docs/app/keeping-work/storage-and-file-format.md#STOR-D17).
 
 **WORK-7** The editor aside, the workspace presents three coordinated views. All three read the same manifests and the same parsed scenes; they are lenses, not separate data.
 
+<a id="WORK-88"></a>
+
+**WORK-88** **The script keeps the writer's place while another view is in front.** Board, Outline, Cast & Pages or Changes from the top bar, and Script again, comes back with the page where it was left, scrolled to the same line. It came back at the title page: the pane put its remembered scroll back before the script's pages were in it, and with nothing under it the scroll stopped at the top. The script's pages go into the pane the moment its slot is made, ahead of the scroll (`setScriptSlot`, `src/app/use-workspace-panes.ts`). The smoke check "the top bar's Script comes back to the writer's place" goes through every view and back.
+
 <a id="WORK-D1"></a>
 
 #### Binder (left rail) — the materials tree
@@ -72,7 +76,7 @@ tree. `archive/`, `exports/` and `chats/` are ordinary folders. Selecting a scri
 | New folder | Add an ordered `binder[]` entry and **write nothing**. The directory appears when the first file lands in it (create-on-demand, docs/app/keeping-work/storage-and-file-format.md#STOR-D3). | <a id="WORK-14"></a>WORK-14 |
 | New script / document | Create the file and add an ordered `binder[]` entry, next to the selection rather than at the end. | <a id="WORK-15"></a>WORK-15 |
 | Duplicate a file | Copy it to `<name> copy` beside the original. A script's copy starts with no card records: scene ids are unique to a script, so sharing them would give one scene two boards. Files only — a folder has no recursive copy behind it. | <a id="WORK-16"></a>WORK-16 |
-| Delete | Moves the file to the OS trash, removes the `binder[]` entry, and drops that script's `scripts[]` entry. Never a silent unlink. A folder with no directory just loses its row. | <a id="WORK-17"></a>WORK-17 |
+| Delete | Moves the file to the OS trash, removes the `binder[]` entry, and drops that script's `scripts[]` entry. Never a silent unlink. A folder with no directory just loses its row. Where the system has no trash of its own, it goes to Proscenium’s Trash with its row, where it stood and its cards, which Put Back restores (docs/engineering/cross-platform.md#PLAT-73). | <a id="WORK-17"></a>WORK-17 |
 
 <a id="WORK-18"></a>
 
@@ -136,6 +140,14 @@ for them to learn (docs/app/keeping-work/storage-and-file-format.md#STOR-D8).
 
 **WORK-85** **A card holds what a writer uses on one.** Each card shows the scene heading (or act/scene label) and its page range; the **summary** (the Fountain `=` line, editable on the card, written back to the script); its **notes** (`card.boardNote`, under Notes, open on a card that has one and folded on one that has none); and its **color**, chosen on the card from a menu that shows each color's swatch and its name: No Color, Setup, Turns, Interior, Subplot, Revise, Parked. A card moves by its drag handle or by its Move Earlier and Move Later buttons. The same color is chosen, under the same names, from the outline's row ([WORK-87](#WORK-87)), from the inspector's Scene tab, and from a scene's row in the rail, whose menu opens on a right-click, ⇧F10 or ⌃⏎; the rail's dot beside a scene is its color, and No Color draws an empty ring there and wherever a color is offered, never a filled dot. Heading and summary come from the script and are recomputed on every reconcile, never stored; the color and the notes come from the play file (`scripts[<binder id>].scenes[].card`, canonical there). This is the one-home-per-datum rule from docs/app/keeping-work/storage-and-file-format.md#STOR-D6 made visible. A scene has no status and no label anywhere in the app. A play file that holds `card.status` or `card.label` keeps them, written back as they are, so a copy of the app that still shows them loses nothing. Neither a card nor an outline row marks a scene something outside the app changed: the inspector's Scene tab says so, with a link to Changes.
 
+<a id="WORK-92"></a>
+
+**WORK-92** **The inspector's Scene tab counts the scene it shows.** Under the heading it gives the scene's pages and its speeches, one speech per cue in the scene, so a second line of the same speech or a parenthetical is not another. Each name under On Stage carries the speeches that character has in this scene, never across the play. A line at the foot says where its fields are kept: the summary in the script file, where it never prints, and the color and the notes in Proscenium.
+
+<a id="WORK-93"></a>
+
+**WORK-93** **A play with no scene line is one scene.** A script with words in it and neither a `##` scene title nor a scene heading is one scene, from its first line to its last ([WORK-41](#WORK-41)), and everything that asks which scene a line is in gives that answer: the caret is in it wherever it stands, its card on the board, the outline and the rail opens the script at its top, and its comments are its own ([docs/app/writing/comments.md#COMM-70](../writing/comments.md#COMM-70)). The inspector's Scene tab shows it as the whole play: Whole Play over the script's title, the script's pages and its speeches, the same summary, color and notes, every speaker under On Stage with the speeches they have in the play, and one line saying the play has no scene titles and that `## Scene`, typed where each scene begins, divides it. A summary written for it goes at the top of the script, never under its first line, where it could part a cue from its speech. An empty script is no scene, and neither is what stands above the first scene line of a divided one: there the tab says No Scene Here.
+
 <a id="WORK-86"></a>
 
 **WORK-86** **The board runs across or down.** Across, each act is a band, its name and length over a hairline, and its cards run left to right under it, wrapping. Down, each act is a column under its name and its cards run top to bottom, the acts side by side; when they do not all fit, the board scrolls sideways rather than narrowing them. A play with no acts is one band, or one column. Across and Down sit at the top of the board, Across unless the writer chose Down; the choice is a view kept on this computer, for every play. Either way, Tab and a screen reader follow the script's order, act by act. A card is never narrower than 260 pixels, and its summary has room for several lines before it scrolls.
@@ -193,6 +205,10 @@ for them to learn (docs/app/keeping-work/storage-and-file-format.md#STOR-D8).
 - <a id="WORK-40"></a> **WORK-40** The **Scene Heading element** (a forced Fountain scene heading, e.g. `.A kitchen. Night.`) is an *optional* setting line inside a scene, printed as a centered/italic locale line. It is not the structural unit.
 - <a id="WORK-41"></a> **WORK-41** Fallbacks: a one-act with no `##` sections → cards fall back to Scene Heading elements; a fully undivided script → one card, with beats (`=` lines) as sub-rows.
 
+<a id="WORK-89"></a>
+
+**WORK-89** **The rail shows the acts.** Under the open script, each act is a row of its own, its name a step heavier than a scene's and its page range beside it, and the act's scenes are rows under it, so a play with an ACT ONE and an ACT TWO never shows two unexplained SCENE 1s side by side. An act folds and unfolds like a folder: its chevron, → and ← fold it without moving the script, and folded it is marked when it holds the scene the caret is in. A click or ⏎ on an act opens the script at it and unfolds it. Acts are grouped in runs, as the Board groups them, so the rail and the Board agree about which scenes an act holds; scenes before the first act, and every scene in a play with no acts, stay directly under the script. An act is the script's words, not a file: it cannot be dragged, renamed, trashed or given a color here.
+
 <a id="WORK-42"></a>
 
 **WORK-42** **Round-trip note.** Sections round-trip losslessly as Fountain text (open→edit→save is byte-stable for the structure). Other Fountain tools treat `#`/`##` as *navigation-only* and won't print "ACT ONE" the way our renderer does — they preserve it, they just don't render it centered. We accept this: round-trip fidelity is about the *file* staying valid and lossless, not about other apps reproducing our house pixels. (If cross-tool *printing* of act/scene labels ever becomes a requirement, the alternative is forced scene headings.)
@@ -237,11 +253,11 @@ them is ever required for the script to open.
 
 <a id="WORK-51"></a>
 
-**WORK-51** A material opens as a **page**, not as source: the body is edited in a prose editor where a heading looks like a heading and `## ` becomes one as you type it (src/markdown/ProseEditor.tsx), with a formatting bar over it (src/markdown/FormatBar.tsx). A **Source** toggle (⌘E) shows the raw file. Front-matter is never in either — it is lifted into the header strip, where the title is an editable field that renames the file.
+**WORK-51** A material opens as a **page**, not as source: the body is edited in a prose editor where a heading looks like a heading and `## ` becomes one as you type it (src/markdown/ProseEditor.tsx), with a formatting bar over it (src/markdown/FormatBar.tsx). A press on the bar, on a button or on one of its menus, leaves the caret where it was: on an iPad a press on a menu that took the caret put the keyboard away, and the menu never opened. A finger's tap leaves it too: on an iPad a finger landing on the bar put the page's caret at the document's start before the tap's click came, and the list's numbering, shown only while the caret is in a numbered list, went away with its menu as the menu opened. While a finger presses the bar, a caret the page moves is put back where the editor had it (src/markdown/bar-press.ts). A **Source** toggle (⌘E) shows the raw file. Front-matter is never in either — it is lifted into the header strip, where the title is an editable field that renames the file.
 
 <a id="WORK-52"></a>
 
-**WORK-52** **The page is the script's page.** Page and Source both draw the play's own sheet: the format's page size and margins, at the status bar's zoom, at least one page tall and growing with the text. At the same zoom a note is exactly as wide as the script, and a new, empty note is a whole blank page rather than a card. In a pane narrower than a page it does what the script's page does — keeps its size while the pane scrolls — and Fit Width is the fix for both. The fits solve for whichever pane holds the page on screen: the script's, or with no pane showing the script, the note in the focused pane. The level stays one level for both, and Fit Page keeps the whole page in view under the note's header and format bar (in Page) as it does under the script's element bar.
+**WORK-52** **The page is the script's page.** Page and Source both draw the play's own sheet: the format's page size and margins, at the status bar's zoom, at least one page tall and growing with the text. At the same zoom a note is exactly as wide as the script, and a new, empty note is a whole blank page rather than a card. In a pane narrower than a page it does what the script's page does — keeps its size while the pane scrolls — and Fit Width is the fix for both. The fits solve for whichever pane holds the page on screen: the script's, or with no pane showing the script, the note in the focused pane. The level stays one level for both, and Fit Page keeps the whole page in view under the note's header and format bar (in Page) as it does under the script's element bar. The zoom scales the sheet's own lengths and its words' type and spacing (`--page-scale`, `src/app/styles/materials.css`), as it scales the script's page ([EDIT-196](../writing/editor-ux.md#EDIT-196)), never by CSS `zoom`, under which an iPad keeps an editable page's words at their unzoomed size; the Changes view draws a document's page the same way.
 
 <a id="WORK-53"></a>
 
@@ -360,7 +376,7 @@ shape. Every scaffolder consumes it:
 
 <a id="WORK-60"></a>
 
-**WORK-60** **That is the whole of a new play: two files.** The binder still shows
+**WORK-60** **That is the whole of a new play: its script, its title page and the play file.** The binder still shows
 `Characters` and `Notes`, so a writer can see where a character sheet is meant
 to go before they have one — but neither directory exists until the first file
 lands in it, because every write creates its parents. The app never scaffolds
@@ -386,6 +402,8 @@ file it into. That is why `defaultDirFor` returns a capitalized name — since
 - <a id="WORK-63"></a> **WORK-63** **Open** points the app at the **Plays folder** and lists the plays in it. The app writes nothing there.
 - <a id="WORK-64"></a> **WORK-64** **Entering a play** reopens the vault at that play's own folder, so every path the rest of the app handles — binder entries, autosave, the watcher — is relative to the play and needs no prefix.
 - <a id="WORK-65"></a> **WORK-65** **Where the plays live** is an app-level preference (outside the folder), stored as a security-scoped bookmark with the path as a hint, on every platform (docs/app/keeping-work/storage-and-file-format.md#STOR-D12). No play content is ever stored outside its folder.
+- <a id="WORK-90"></a> **WORK-90** **The way back to every play is on the window, not only in a menu.** In a play, the toolbar carries **All Plays** with a back chevron, after the binder's switch and before the play's title, where a window's back button sits; a folded toolbar (an iPad's below 1000 points, any window below 700) keeps the chevron alone, so the title keeps its room, and its name is still All Plays. It does what File › All Plays, the document menu's first row and ⌘⇧O do: it leaves the play for the Plays screen. A writer looking for the way out of a play did not find it in the menus alone.
+- <a id="WORK-91"></a> **WORK-91** **A play is deleted from the Plays screen, asked twice, and told how to get it back.** Each play's row ends in a More Actions button (…), and a right-click on the row opens the same menu, whose destructive row is **Move to Trash…** (Move to the Recycle Bin… on a PC, Move to Proscenium’s Trash… on an iPad). Nowhere else offers it: the Plays screen is the one place no play is open. In a window narrower than 700 points (a third of an iPad's Split View) a row keeps its title, its status and More Actions whole, and Progress and Modified give way. It asks twice, each time with Cancel first and as ⏎'s answer. The first question names the play and says what goes and how to have it back: the play's whole folder, with its scripts, pages, files and cards; that a Plays folder another device syncs loses it there too; that its versions stay on this device and return with it; and, in the system's own words, where to put it back (on a Mac the Trash in the Dock, then Put Back or a drag back into the Plays folder; on a PC the Recycle Bin, then Restore; on an iPad Proscenium’s Trash at the foot of the Plays screen, then Put Back, within its 30 days). Its button is Continue…. The second asks once more, by the play's name, and its button is the destructive Move to Trash. The folder then goes as every delete does (docs/app/keeping-work/storage-and-file-format.md#STOR-5): to the system's trash, or on a system with none to Proscenium’s Trash, its note saying it was a play, so Put Back returns it whole to the Plays folder. The list is read again, and a toast says where it went. A play that could not be moved stays listed, and an error toast says why. Before this, a writer had to leave the app for Finder to delete a play, and nothing told them what that did to the copies on their other devices.
 - <a id="WORK-66"></a> **WORK-66** **Versions and Changes** live in the app's own data directory keyed by play id, never inside the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-D10). Deleting all of it loses no writing.
 
 <a id="WORK-D109"></a>
@@ -401,8 +419,10 @@ file it into. That is why `defaultDirFor` returns a capitalized name — since
 
 <a id="WORK-69"></a>
 
-**WORK-69** The Cast surface separates an editable printed Characters page from cast
-management. Cast rows have a writer-controlled order and no role ranking.
+**WORK-69** The Cast & Pages surface holds every page before the script and the cast
+([docs/app/formatting/formats-and-layout.md#FMT-167](../formatting/formats-and-layout.md#FMT-167)); its printed
+Characters page and its cast rows are one list, kept in step both ways
+([docs/app/formatting/formats-and-layout.md#FMT-166](../formatting/formats-and-layout.md#FMT-166)). Cast rows have a writer-controlled order and no role ranking.
 New character notes start blank; character prompts are optional. The
 redundant Cast & Characters shortcut above binder files is removed. The
 binder remains an unrestricted file tree. Tags are editable beside a

@@ -16,6 +16,12 @@ class MaterializeArgs: Decodable {
   let timeoutMs: Int?
 }
 
+class DownloadArgs: Decodable {
+  let path: String
+  /// The most files and folders one pass looks at.
+  let most: Int?
+}
+
 /// The folder picker and bookmark store for the vault.
 ///
 /// **Why this plugin exists.** `tauri-plugin-dialog` implements *file* pickers on
@@ -41,9 +47,57 @@ class VaultPickerPlugin: Plugin, UIDocumentPickerDelegate {
   /// as it runs.
   private var scoped: [URL] = []
 
+  /// The page's theme colour, watched for as long as the web view lives.
+  private var themeWatch: NSKeyValueObservation?
+
+  /// Before the app has launched, Tauri starts its plugins: the one moment a
+  /// file opened from Files can be taken before tao hands it on
+  /// (OpenedFiles.swift).
+  override init() {
+    super.init()
+    OpenedFiles.install()
+    // SystemBridge.swift's commands (share, print, open a link, copy,
+    // coordinated access, background tasks, the iCloud container) are @objc
+    // methods Tauri finds by selector, which no code names, and the linker
+    // takes a file of a static library only for a symbol something names.
+    // These two are that file's, so the file and every command in it are
+    // linked. Without them it came in only by chance, for a type's metadata
+    // emitted there, and a new file that took the metadata left all of its
+    // commands out of the app (scripts/ipad/plugin-commands.mjs checks).
+    _ = BackgroundTasks.shared
+    _ = Coordinations.shared
+  }
+
   deinit {
     for url in scoped {
       url.stopAccessingSecurityScopedResource()
+    }
+  }
+
+  /// The web view and its controller exist: the keyboard is watched against
+  /// the one, and on iPadOS 17 to 25 the menu's key commands go on the other.
+  /// The page's chrome is painted behind it (docs/engineering/cross-platform.md#PLAT-80).
+  override func load(webview: WKWebView) {
+    let controller = manager.viewController
+    DispatchQueue.main.async { [weak self] in
+      KeyboardFrame.shared.found(webview)
+      MainMenu.shared.attachLegacy(to: controller)
+      self?.paintChrome(of: webview)
+    }
+  }
+
+  /// The page lies inside the web view's safe area, so what is outside it, the
+  /// strip iPadOS keeps above the toolbar for its status bar and window
+  /// controls and the home indicator's below the status bar, shows what is
+  /// behind the page: the system's white or black. The page names its chrome
+  /// as its theme colour, light or dark as it is (src/ui/use-accent.ts), and
+  /// that is painted behind it, so those strips read as the app's bars.
+  private func paintChrome(of webview: WKWebView) {
+    themeWatch = webview.observe(\.themeColor, options: [.initial, .new]) { web, _ in
+      guard let chrome = web.themeColor else { return }
+      web.backgroundColor = chrome
+      web.scrollView.backgroundColor = chrome
+      web.underPageBackgroundColor = chrome
     }
   }
 
@@ -178,6 +232,130 @@ class VaultPickerPlugin: Plugin, UIDocumentPickerDelegate {
     }
   }
 
+  /// Ask iCloud for everything in a folder that is not on this iPad yet
+  /// (docs/engineering/cross-platform.md#PLAT-69).
+  ///
+  /// **Why the app asks.** Since iPadOS 16.4 iCloud Drive keeps what it has
+  /// not brought down as dataless items: a folder nothing has looked into has
+  /// no entries on the iPad at all, and a file's bytes stay in the cloud. A
+  /// listing coordinated with `.immediatelyAvailableMetadataOnly` waits for
+  /// neither, and `materialize` asks for one file the vault already knows to
+  /// read. So a Plays folder nothing had looked into listed as play folders with
+  /// nothing in them, no play was found, and the writer was left to download
+  /// the folder by hand in Files.
+  ///
+  /// One pass walks the folder a folder at a time. Each folder is listed inside
+  /// a coordinated read with no options, which waits for iCloud to say what is
+  /// in it (Apple's own sample for a picked folder reads it so, and a read of a
+  /// folder brings that folder's listing down, not its whole tree), and is
+  /// given up after ten seconds without an answer, the whole pass after thirty.
+  /// Each file in it that is not current is asked for by
+  /// `startDownloadingUbiquitousItem`, one file at a time, since asking for a
+  /// folder is not documented to reach what is inside it; a stub
+  /// `.<name>.icloud`, the older form, asks for the file it stands for. It
+  /// waits for none of the files; the page asks again, and finds what came down
+  /// by listing and reading as before. A file changed on another device is not
+  /// current either (`.downloaded`: a copy older than the cloud's), so the same
+  /// passes keep the folder up to date while it is open.
+  ///
+  /// Resolves `{ubiquitous, waiting}`: whether iCloud Drive keeps the folder,
+  /// and how much was asked for or could not be looked into yet, 0 when
+  /// everything is here. A file whose download failed is not waited for, and
+  /// one whose state iCloud does not say is not counted, so a pass never says
+  /// "downloading" for ever.
+  @objc public func downloadFolder(_ invoke: Invoke) throws {
+    let args = try invoke.parseArgs(DownloadArgs.self)
+    let root = URL(fileURLWithPath: args.path)
+    let most = args.most ?? 5_000
+    // Off the plugin's queue: each folder's read may wait for iCloud.
+    DispatchQueue.global(qos: .utility).async {
+      let ubiquitous =
+        (try? root.resourceValues(forKeys: [.isUbiquitousItemKey]))?.isUbiquitousItem == true
+      guard ubiquitous else {
+        invoke.resolve(["ubiquitous": false, "waiting": 0])
+        return
+      }
+      invoke.resolve(["ubiquitous": true, "waiting": Self.askForEverything(in: root, most: most)])
+    }
+  }
+
+  /// The walk: how many files were asked for, and folders not looked into yet.
+  private static func askForEverything(in root: URL, most: Int) -> Int {
+    let fm = FileManager.default
+    let deadline = Date().addingTimeInterval(30)
+    var waiting = 0
+    var seen = 0
+    var folders: [(URL, Int)] = [(root, 0)]
+    while let next = folders.popLast() {
+      let (folder, depth) = next
+      // Out of time: what is left is still to look into, next pass.
+      guard Date() < deadline, let entries = listed(folder, wait: 10) else {
+        waiting += 1
+        continue
+      }
+      for url in entries {
+        seen += 1
+        if seen > most { return waiting }
+        let name = url.lastPathComponent
+        // `.<name>.icloud`, with a name in it: "..icloud" stands for nothing.
+        if name.hasPrefix("."), name.hasSuffix(".icloud"), name.count > ".icloud".count + 1 {
+          let real = url.deletingLastPathComponent()
+            .appendingPathComponent(String(name.dropFirst().dropLast(".icloud".count)))
+          if (try? fm.startDownloadingUbiquitousItem(at: real)) != nil { waiting += 1 }
+          continue
+        }
+        if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+          if depth < 12 { folders.append((url, depth + 1)) }
+          continue
+        }
+        if waitingFor(url), (try? fm.startDownloadingUbiquitousItem(at: url)) != nil {
+          waiting += 1
+        }
+      }
+    }
+    return waiting
+  }
+
+  /// A folder's entries, hidden ones too, listed inside a coordinated read that
+  /// waits for iCloud to say what is in it: nil when it has not said in `wait`.
+  private static func listed(_ folder: URL, wait: TimeInterval) -> [URL]? {
+    let coordinator = NSFileCoordinator(filePresenter: nil)
+    let granted = DispatchSemaphore(value: 0)
+    DispatchQueue.global(qos: .utility).async {
+      if granted.wait(timeout: .now() + wait) == .timedOut { coordinator.cancel() }
+    }
+    var entries: [URL]?
+    var failure: NSError?
+    coordinator.coordinate(readingItemAt: folder, options: [], error: &failure) { given in
+      granted.signal()
+      entries = try? FileManager.default.contentsOfDirectory(
+        at: given,
+        includingPropertiesForKeys: [
+          .isDirectoryKey, .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey,
+          .ubiquitousItemDownloadingErrorKey,
+        ],
+        options: []
+      )
+    }
+    if failure != nil { granted.signal() }
+    return entries
+  }
+
+  /// Whether iCloud says an item is not current here and is still coming:
+  /// never for one whose state it does not say, or whose download failed.
+  private static func waitingFor(_ url: URL) -> Bool {
+    guard
+      let values = try? url.resourceValues(forKeys: [
+        .isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey,
+        .ubiquitousItemDownloadingErrorKey,
+      ]),
+      values.isUbiquitousItem == true,
+      values.ubiquitousItemDownloadingError == nil,
+      let status = values.ubiquitousItemDownloadingStatus
+    else { return false }
+    return status != .current
+  }
+
   private enum DownloadState {
     case current
     case pending
@@ -247,7 +425,9 @@ class VaultPickerPlugin: Plugin, UIDocumentPickerDelegate {
     body(invoke)
   }
 
-  private func topViewController() -> UIViewController? {
+  /// The controller a sheet or panel is presented from: the window's root, or
+  /// whatever it is already presenting. SystemBridge.swift presents from it too.
+  func topViewController() -> UIViewController? {
     let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
     let windows = scenes.flatMap(\.windows)
     let window = windows.first(where: \.isKeyWindow) ?? windows.first
@@ -260,7 +440,9 @@ class VaultPickerPlugin: Plugin, UIDocumentPickerDelegate {
   }
 }
 
+// Public: a release build with Xcode 27's linker refuses a `@_cdecl` entry
+// point that is not, and costs nothing with Xcode 26.
 @_cdecl("init_plugin_vault_picker")
-func initPlugin() -> Plugin {
+public func initPlugin() -> Plugin {
   return VaultPickerPlugin()
 }

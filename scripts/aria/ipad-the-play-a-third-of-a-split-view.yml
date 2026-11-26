@@ -1,0 +1,19 @@
+- banner:
+  - button "Show the binder"
+  - button "All Plays"
+  - button "The Weight of Water"
+  - 'button "What this pane shows: Script"': Script
+  - button "More"
+- main "Play":
+  - 'button "What this line is: Action"': Action
+  - button "More"
+  - text: Page 2 of 2
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- contentinfo:
+  - text: /dev/sample-vault/The Weight of Water Saved · <time>
+  - button "Zoom out"
+  - 'button "Zoom: Fit width · 57%"': Fit width · 57%
+  - button "Zoom in"
+- status
+- alert

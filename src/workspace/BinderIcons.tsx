@@ -21,7 +21,15 @@
  * folders rendered identically and the only signal you had was a color change.
  */
 
-export type IconKind = "script" | "folder" | "character" | "outline" | "reference" | "document";
+export type IconKind =
+  | "script"
+  | "folder"
+  | "character"
+  | "outline"
+  | "reference"
+  | "document"
+  | "pages"
+  | "page";
 
 const S = {
   fill: "none",
@@ -78,6 +86,22 @@ const PATHS: Record<IconKind, React.ReactNode> = {
       <path d="M7.8 8h5" />
       <path d="M5 11.4h1" />
       <path d="M7.8 11.4h5" />
+    </>
+  ),
+  // A script's folder of pages (docs/app/formatting/formats-and-layout.md#FMT-175):
+  // two sheets, one behind the other, where any other folder draws a folder.
+  pages: (
+    <>
+      <path d="M5.2 4.4V2.6h7.4v9h-1.8" />
+      <rect x="3.4" y="4.4" width="7.4" height="9" rx="0.9" />
+    </>
+  ),
+  // One of those pages: a sheet with one centered line a third of the way
+  // down, as a title page has, which tells it from a document of notes.
+  page: (
+    <>
+      <rect x="3.5" y="2.4" width="9" height="11.2" rx="1.1" />
+      <path d="M6.2 6.4h3.6" />
     </>
   ),
   // A paperclip: a file that came from somewhere else and opens elsewhere.

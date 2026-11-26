@@ -89,10 +89,12 @@ MISSING=""
 for t in $USED; do
   printf '%s\n' "$DEFINED" | grep -qx -- "$t" || MISSING="$MISSING $t"
 done
-# --kb-inset, --prev-* and --fmt-* are written by JS or the format spec inline,
-# not by this sheet.
+# --kb-inset, --prev-*, --fmt-* and --page-scale (a page's zoom, always read
+# with a fallback of 1) are written by JS or the format spec inline, not by
+# this sheet.
 MISSING=$(printf '%s' "$MISSING" | tr ' ' '\n' \
-  | grep -v '^--fmt-' | grep -v '^--kb-inset$' | grep -v '^--prev-' | grep -v '^$' || true)
+  | grep -v '^--fmt-' | grep -v '^--kb-inset$' | grep -v '^--prev-' \
+  | grep -v '^--page-scale$' | grep -v '^$' || true)
 if [ -n "$MISSING" ]; then
   echo "design-tokens: read but never defined (the declaration is dropped):"
   printf '%s\n' "$MISSING" | sed 's/^/  /'

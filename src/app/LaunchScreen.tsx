@@ -25,6 +25,7 @@
  * a second (plays.css), so a quick launch never shows them.
  */
 import { AppMarkIcon } from "../ui";
+import { dragRegion } from "../ui/system-traits";
 
 export function LaunchScreen({
   play,
@@ -35,7 +36,7 @@ export function LaunchScreen({
   return (
     <div className="launch-screen">
       {/* The window can still be moved by its top edge while this is up. */}
-      <div className="launch-screen__bar" data-tauri-drag-region />
+      <div className="launch-screen__bar" {...dragRegion()} />
       <div className="launch-screen__desk">
         <div className="launch-screen__card">
           <span className="empty-card__icon">

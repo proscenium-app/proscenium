@@ -157,6 +157,22 @@ test("a Windows copy's crash is taken with Windows' version and build, and its s
       parse(altered((e) => (e.tags = { app_platform: "windows", arch: "x86_64", os }))),
     ).toThrow();
 });
+test("an iPad's crash is taken with iPadOS's major and minor version, Apple silicon alone (docs/engineering/services-and-feedback.md#SERV-282)", () => {
+  for (const os of ["17.0", "26.5"]) {
+    const ipad = altered((e) => {
+      e.tags = { app_platform: "ios", arch: "aarch64", os };
+    });
+    expect(parse(ipad)).toEqual(ipad);
+  }
+  for (const tags of [
+    { app_platform: "ios", arch: "aarch64", os: "16.7" },
+    { app_platform: "ios", arch: "aarch64", os: "26.5.1" },
+    { app_platform: "ios", arch: "aarch64", os: "10.0.26100" },
+    { app_platform: "ios", arch: "x86_64", os: "26.5" },
+    { app_platform: "ipados", arch: "aarch64", os: "26.5" },
+  ])
+    expect(() => parse(altered((e) => (e.tags = tags))), JSON.stringify(tags)).toThrow();
+});
 function connection(status = 200) {
   const chunks: Uint8Array[] = [];
   let closed = 0;

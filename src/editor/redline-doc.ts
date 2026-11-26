@@ -64,7 +64,7 @@ const CONTEXT = 3;
 const SPOKEN = new Set(["parenthetical", "dialogue", "lyric"]);
 const SCENE = new Set(["scene", "sceneHeading"]);
 /** Shown whole, as cut or as added: no words to mark inside. */
-const WHOLE = new Set(["boneyard", "pageBreak"]);
+const WHOLE = new Set(["boneyard", "pageBreak", "horizontalRule"]);
 
 /** A token, and the inline node that draws it. */
 interface Piece extends RedlineToken {

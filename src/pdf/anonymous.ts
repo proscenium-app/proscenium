@@ -13,8 +13,9 @@
  * What the writer typed into the play itself can name them too — a dedication,
  * an opening note, a header a custom format prints — and a copy cannot know
  * which words to cut there. So the dialog looks for the name and contact
- * details on every sheet that is going and says where it found them
- * (docs/app/formatting/formats-and-layout.md#FMT-144).
+ * details on every sheet that is going, the pages after the script among
+ * them (a page about the author is the likeliest to name one), and says where
+ * it found them (docs/app/formatting/formats-and-layout.md#FMT-144).
  */
 import type { FrontMatter } from "../fountain";
 import type { LayoutMeta } from "../layout";
@@ -62,6 +63,7 @@ export function identityOf(fm: FrontMatter | null | undefined): string[] {
 }
 
 function sheetText(sheet: PlannedSheet): string {
+  // An unnumbered sheet, before the script or after it.
   if (sheet.kind === "front") return sheet.front.lines.map((line) => line.text).join(" ");
   const { header, footer, intro, lines } = sheet.page;
   return [

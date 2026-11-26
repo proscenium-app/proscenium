@@ -9,10 +9,12 @@
  * conversation is shown, because this is the only place they are drawn. What a
  * surface adds is where the conversation sits and what a click on it means.
  */
+import { onHover } from "../ui/hover";
 import { keys } from "../ui/keys";
-import { useRef, type MouseEvent } from "react";
+import { useLayoutEffect, useRef, type MouseEvent } from "react";
 import type { Editor } from "@tiptap/core";
-import { CheckIcon, PencilIcon, ReplyIcon, ShowInScriptIcon, TrashIcon } from "../ui/Icons";
+import { letEditorGoOnHold } from "../ui/hold-to-select";
+import { CheckIcon, PencilIcon, ShowInScriptIcon, TrashIcon } from "../ui/Icons";
 import { commentNameInput } from "./model";
 import type { CommentThread, PmCommentEntry } from "./plugin";
 import type { ThreadEditing } from "./use-thread-editing";
@@ -44,6 +46,17 @@ function Composer({
 }) {
   const field = useRef<HTMLTextAreaElement | null>(null);
   const signs = kind === "new" || kind === "reply";
+  // The field is as tall as its words, three lines at the least, and never
+  // scrolls inside itself (docs/app/writing/comments.md#COMM-75). WebKit moves
+  // the page by as much as a field scrolls within: each line the comment
+  // wrapped past the third scrolled the script a line, keystroke by
+  // keystroke. The card grows instead, and the cards under it make room.
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+  }, [editing.draft]);
   const label = {
     new: "New comment",
     reply: "Reply",
@@ -123,8 +136,12 @@ export function ThreadView({
 }) {
   const { root } = thread;
   const doom = {
-    onMouseEnter: () => editor.commands.doomComment(root.pos),
-    onMouseLeave: () => editor.commands.doomComment(null),
+    // A pointer's hover marks the anchor; a finger's tap must not, or its
+    // click is held back on an iPad (ui/hover.ts).
+    ...onHover(
+      () => editor.commands.doomComment(root.pos),
+      () => editor.commands.doomComment(null),
+    ),
     onFocus: () => editor.commands.doomComment(root.pos),
     onBlur: () => editor.commands.doomComment(null),
   };
@@ -159,17 +176,6 @@ export function ThreadView({
                     aria-label="Show comment in the script"
                   >
                     <ShowInScriptIcon size={13} />
-                  </button>
-                )}
-                {!reply && (
-                  <button
-                    type="button"
-                    {...own}
-                    onClick={() => editing.beginReply(thread)}
-                    title="Reply"
-                    aria-label="Reply to comment"
-                  >
-                    <ReplyIcon size={13} />
                   </button>
                 )}
                 <button
@@ -220,8 +226,10 @@ export function ThreadView({
           />
         ) : (
           // The words can be selected and copied, which a button's cannot; the
-          // keyboard's way to what a click does here is the Show control.
-          <p className="cthread__body" onClick={onWordsClick}>
+          // keyboard's way to what a click does here is the Show control. A
+          // finger held on them lets the script go, so an iPad's long press
+          // can select them (src/ui/hold-to-select.ts).
+          <p className="cthread__body" onClick={onWordsClick} onPointerDown={letEditorGoOnHold}>
             {entry.parsed.body || <em>(empty)</em>}
           </p>
         )}
@@ -233,7 +241,7 @@ export function ThreadView({
     <>
       {message(root, false)}
       {thread.replies.map((reply) => message(reply, true))}
-      {editing.replyingId === root.id && (
+      {editing.replyingId === root.id ? (
         <div className="cthread__msg is-reply">
           <Composer
             kind="reply"
@@ -242,6 +250,23 @@ export function ThreadView({
             onCancel={() => editing.cancelReply(root.id)}
           />
         </div>
+      ) : (
+        // The conversation's next turn waits at its foot, where it will be
+        // written, as a closed reply field (docs/app/writing/comments.md#COMM-54).
+        // It is a button that opens the field rather than the field itself, so
+        // tabbing through the margin opens nothing, and a press opens the name
+        // and the words together. Not while another field is open in it.
+        !threadIsBusy(thread, editing) && (
+          <button
+            type="button"
+            className="cthread__replybox"
+            {...own}
+            onClick={() => editing.beginReply(thread)}
+            aria-label="Reply to comment"
+          >
+            Reply…
+          </button>
+        )
       )}
     </>
   );

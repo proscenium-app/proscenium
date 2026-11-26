@@ -50,6 +50,7 @@ const BLOCKS = [
   "centered",
   "synopsis",
   "pageBreak",
+  "horizontalRule",
   "boneyard",
 ];
 

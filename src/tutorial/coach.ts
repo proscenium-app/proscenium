@@ -43,12 +43,12 @@ export interface UiFacts {
   menu: string[];
   /** The editor's own element menu (Return or Tab on an empty line). */
   elementMenu: boolean;
-  sheet: "export" | "opening-pages" | "other" | null;
+  sheet: "export" | "other" | null;
   /** The `data-tutorial` id around the focused control, and what it holds. */
   focus: string | null;
   focusText: string;
   /** Single fields on screen, by `data-tutorial` id, with what they hold now: the tag
-   *  being typed, Opening Pages' notes before Save. Absent when not on screen. */
+   *  being typed, the opening notes as they are written. Absent when not on screen. */
   fields: Record<string, string>;
 }
 export interface Facts {
@@ -60,7 +60,8 @@ export interface Facts {
   unsaved: boolean;
   format: string;
   cards: { id: string; heading: string; synopsis: string }[];
-  front: { charactersPage: string; characters: string[]; openingNotes: string };
+  /** The pages before the script: the Characters page's words, the names pages list, how many pages. */
+  front: { charactersPage: string; characters: string[]; pages: number };
   documents: string[];
   /** The document open in the focused pane. */
   material: { id: string; name: string; text: string; tags: string[] } | null;
@@ -86,7 +87,7 @@ export interface Baseline {
   synopses: Record<string, string>;
   charactersPage: string;
   characters: number;
-  openingNotes: string;
+  pages: number;
   documents: number;
   material: { id: string; name: string; text: string; tags: number } | null;
 }
@@ -174,7 +175,7 @@ export function measure(f: Facts): Baseline {
     synopses: Object.fromEntries(f.cards.map((c) => [c.id, c.synopsis])),
     charactersPage: f.front.charactersPage,
     characters: named(f.front.characters),
-    openingNotes: f.front.openingNotes,
+    pages: f.front.pages,
     documents: f.documents.length,
     material: f.material && {
       id: f.material.id,
@@ -559,45 +560,43 @@ export function coach(task: Task, f: Facts, b: Baseline): Cue {
 
     case "cast":
       return f.view === "cast"
-        ? done(["The printed Characters page is at the top, the cast tools below it."])
+        ? done(["Everyone who speaks, and which page of the play names them."])
         : todo(["Choose ", { ui: "Cast" }, "."], { kind: "view", view: "cast" });
     case "characters-page":
       if (words(f.front.charactersPage) && f.front.charactersPage !== b.charactersPage)
-        return done(["The printed page keeps your wording now."]);
+        return done(["The Characters page names them now, and prints them."]);
       if (f.view !== "cast") return backTo("cast", "Cast");
-      return todo(
-        [
-          f.ui.focus === "characters-page"
-            ? "Change a word or add a line about them."
-            : "Click the Characters page and change a word.",
-        ],
-        { kind: "ui", id: "characters-page" },
-      );
+      return todo(["Choose ", { ui: "Add to Characters Page" }, " beside a name."], {
+        kind: "ui",
+        id: "add-to-page",
+      });
     case "add-character": {
       const names = f.front.characters.filter(words);
       if (names.length > b.characters)
-        return done([{ type: names[names.length - 1].trim() }, " is in the cast."]);
-      if (f.view !== "cast") return backTo("cast", "Cast");
-      if (f.ui.focus === "character-name")
-        return words(f.ui.focusText)
-          ? todo(["Click outside the row to keep the name."], { kind: "focus" })
-          : todo(["Type a name — try ", { type: EXAMPLE.character }, "."], { kind: "focus" });
-      return todo(["Choose ", { ui: "Add Character" }, "."], { kind: "ui", id: "add-character" });
+        return done([{ type: names[names.length - 1].trim() }, " is on the Characters page."]);
+      // The page is in the script's page view, where the writer has not been
+      // in this lesson yet: the way there, not a way back.
+      if (f.view !== "script")
+        return todo(["Choose ", { ui: "Script" }, ", where the pages print."], {
+          kind: "view",
+          view: "script",
+        });
+      return todo(
+        f.ui.focus === "characters-page"
+          ? [
+              "Type a name in capitals on a line of its own — try ",
+              { type: EXAMPLE.character },
+              ".",
+            ]
+          : ["Click the Characters page above Act One."],
+        { kind: "ui", id: "characters-page" },
+      );
     }
     case "opening-notes":
-      if (words(f.front.openingNotes) && f.front.openingNotes !== b.openingNotes)
-        return done(["Your opening notes are saved in the play."]);
-      if (f.ui.sheet === "opening-pages")
-        return words(f.ui.fields["opening-notes"] ?? "") &&
-          f.ui.fields["opening-notes"] !== b.openingNotes
-          ? todo(["Choose ", { ui: "Save" }, "."], { kind: "ui", id: "opening-save" })
-          : todo(["Write a line here — a place, a time, a dedication."], {
-              kind: "ui",
-              id: "opening-notes",
-            });
-      if (f.ui.menu.includes("opening-pages"))
-        return menuCue("opening-pages", "Edit Opening Pages…");
-      return openDocumentMenu("Edit Opening Pages…");
+      if (f.front.pages > b.pages)
+        return done(["A page of your own, where convention puts it. Click it to write on it."]);
+      if (f.ui.menu.includes("add-front-page")) return menuCue("add-front-page", "Add Page…");
+      return openDocumentMenu("Add Page…");
 
     case "document":
       if (f.documents.length > b.documents)

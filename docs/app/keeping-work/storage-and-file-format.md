@@ -35,7 +35,9 @@ This is the complete on-disk contract. It defines the folder and file schemas, s
    settings. The filename is the title. Nothing canonical is stored twice.
 5. <a id="STOR-5"></a> **STOR-5** **Durability over convenience.** Atomic writes. No silent loss of an
    unsaved edit. Both sides of a collision are kept. Nothing is ever deleted
-   by the app except to the OS trash.
+   by the app except to the OS trash, or on a system that has none, to
+   Proscenium’s Trash, which keeps it 30 days
+   ([docs/engineering/cross-platform.md#PLAT-16](../../engineering/cross-platform.md#PLAT-16)).
 6. <a id="STOR-6"></a> **STOR-6** **Sync is somebody else's folder sync.** The app talks to no service. The
    layout assumes nothing about what a provider does with dot-prefixed names,
    empty directories, or file contents it decides to evict, because every one
@@ -145,7 +147,9 @@ The Weight of Water/                     ← the play; folder name = play name
   and what they see in the binder are the same tree.
 - <a id="STOR-28"></a> **STOR-28** **Order and nesting intent come from the play file**; existence and content
   come from disk (docs/app/keeping-work/storage-and-file-format.md#STOR-D8).
-- <a id="STOR-29"></a> **STOR-29** **Folders exist when something is in them.** A new play is two files. The
+- <a id="STOR-29"></a> **STOR-29** **Folders exist when something is in them.** A new play is three files: its
+  script, its title page in a Front Matter folder ([STOR-195](#STOR-195)), and
+  the play file. The
   binder still shows Characters and Notes as folders so the writer sees where
   things go, and the directory is created when the first file lands. An empty
   directory on disk is still a binder folder; the app just never makes one.
@@ -210,6 +214,14 @@ resolves external entities.
   file claims that ID. A copy cannot take the still-present original's ID.
 - <a id="STOR-39"></a> **STOR-39** **Relative paths only**, forward-slash, relative to the play folder. No
   absolute path is ever stored (portability, docs/app/keeping-work/storage-and-file-format.md#STOR-D15).
+- <a id="STOR-191"></a> **STOR-191** **A play's file is never written in a shape its own reader refuses.** A
+  change that would leave the play file unreadable, such as a binder path
+  that is absolute or leaves the play, writes nothing, and the file on disk
+  stays one every copy of the app opens. A listing names each entry by the
+  folder it was asked for and the entry's name, never by stripping the Plays
+  folder from an absolute path. On an iPad the system can name one folder in
+  iCloud Drive two ways (`/var/mobile/…` and `/private/var/mobile/…`), and the
+  strip then fails.
 
 <a id="STOR-D5"></a>
 
@@ -292,7 +304,7 @@ Finder".
 | `settings.sceneAnchors` | `manifest` (default) or `embedded`: how a card is bound to its scene (docs/app/keeping-work/storage-and-file-format.md#STOR-D6). | <a id="STOR-50"></a>STOR-50 |
 | `settings.autosave` | Debounce and max-wait in ms (docs/app/keeping-work/storage-and-file-format.md#STOR-D13). | <a id="STOR-51"></a>STOR-51 |
 | `binder[]` | The ordered tree. Folders carry `children[]`; leaves carry `path`. `type` ∈ `script · folder · character · document · outline · reference`. **No `title` field**: the title is the filename. **No `index` field**: card data is in `scripts`. | <a id="STOR-52"></a>STOR-52 |
-| `scripts{}` | Keyed by the script's binder id. Each holds `scenes[]` (in script order), `orphans[]`, and optional `castHidden[]`. Only what Fountain cannot express. | <a id="STOR-53"></a>STOR-53 |
+| `scripts{}` | Keyed by the script's binder id. Each holds `scenes[]` (in script order), `orphans[]`, and optional `castHidden[]`, `castKept[]` ([STOR-194](#STOR-194)) and `frontMatter` ([STOR-195](#STOR-195)). Only what Fountain cannot express. | <a id="STOR-53"></a>STOR-53 |
 
 <a id="STOR-54"></a>
 
@@ -361,6 +373,21 @@ names the writer has deliberately removed from the cast tools list. The printed 
 surface adds every speaker automatically, so without this record a removal
 would come back on the next save.
 
+<a id="STOR-D110"></a>
+
+<a id="STOR-195"></a>
+
+**STOR-195** **A script's pages before the script are files in a folder the play file names.** `scripts[id].frontMatter = { "folder": "<binder id>" }` names the binder folder whose Markdown children, in binder order, are that script's pages before the script ([docs/app/formatting/formats-and-layout.md#FMT-169](../formatting/formats-and-layout.md#FMT-169)). `scripts[id].backMatter = { "folder": "<binder id>" }` names, the same way, the folder of its pages after the script ([docs/app/formatting/formats-and-layout.md#FMT-174](../formatting/formats-and-layout.md#FMT-174)): absent, nothing follows the script; it is made, named Back Matter and placed just below the script, with the first such page, each file created and never written over, the folder and its claim in one write of the play file. A reader refuses a claim that is not an object naming a folder's id, and an app that does not know `backMatter` keeps it and shows the folder as any folder. A play begun blank is made with its Front Matter folder already claimed and holding one file, `Title Page.md`, the title page from its fields, written before the play file as the script is; a play begun from a script the writer already had is made with no folder, its pages as that script's title page says them. The folder's name is the writer's (STOR-27 reserves none): it may be renamed or moved, and a page is any `.md` file directly in it. A page file is the prose editor's Markdown, with a YAML header only when it says something (`layout: title` or `layout: third`, `export: false`), field tokens for the play's details, and on a title page a `<!-- proscenium:foot -->` line before what sits at the foot. A paragraph of a page with no words that is centered or at the right is written as a comment of its own, `<!-- proscenium:line=center -->` or `<!-- proscenium:line=right -->`, and read back as that empty line ([docs/app/formatting/formats-and-layout.md#FMT-177](../formatting/formats-and-layout.md#FMT-177)); a reader takes the comment so in any document, and only a page's writer writes it. Absent, the pages are the title page's keys, as before; the first edit of one writes them all as files in a new folder just above the script, creates each file and never writes over one, names the folder and its claim in one write of the play file, and only then writes the script without the keys `Title Page Text`, `Characters Page Text`, `Opening Notes`, `Opening Notes First`, `Production Notes Text`, `Characters`, `Setting`, `Time` and `Place`, the script kept in Versions first. A folder named and gone means no pages. Keys a script with a folder still holds (written by an older copy of the app) are kept in Versions and taken out at the next save of a page.
+
+<a id="STOR-194"></a>
+
+**STOR-194** **Names the writer kept in their own case.** The document menu's Capitalize Character Names in Directions… ([docs/app/writing/editor-ux.md#EDIT-208](../writing/editor-ux.md#EDIT-208)) lists every name in the directions in lower case, and an occurrence the writer unticks is not offered again, after a reopen as before it ([docs/app/writing/editor-ux.md#EDIT-209](../writing/editor-ux.md#EDIT-209)). That is play-file state, like `castHidden[]`, because it is the writer's decision and Fountain has nowhere to put it:
+
+- **Where.** `scripts[id].castKept[]`, after `castHidden[]`. Never the `.fountain`: a mark of case in the script would be read by every other Fountain reader as text. An empty list is no key.
+- **What an entry names.** One occurrence: `{ "name": "JUNE", "line": "0a1b2c3d", "nth": 0 }`. `name` is the name in capitals. `line` is the key of the direction it stands in: its words in capitals with white space as one space, hashed (FNV-1a, 32 bits, eight hex digits), so the key is the same after the occurrence or another name on the line is capitalized, which is all the command changes, and none of the line's words are written. `nth` is which appearance of the name on that line it is, counting whole words in any case. A scene's anchor is not used: a direction moved between scenes keeps its decline. A reader refuses an entry of any other shape.
+- **Who reads and writes it.** The command alone (`keptAfter`, `src/editor/names-in-directions.ts`). It skips an occurrence an entry names; when it applies it adds its unticked occurrences and drops every entry that no longer names a line holding the name that many times, so the list never outgrows the script; and when that is the list the file already holds it writes nothing. The typing rule needs none: after a reopen no word is changed by a key typed after it ([docs/app/writing/editor-ux.md#EDIT-204](../writing/editor-ux.md#EDIT-204)).
+- **What it costs.** A play-file write when the command applies, which is a change the writer made ([STOR-46](#STOR-46)), and nothing while they type.
+
 <a id="STOR-62"></a>
 
 **STOR-62** **Scene identity.** Each scene record carries an `anchor` so its card survives
@@ -396,9 +423,20 @@ page. The ordering value is `true` or `false`. Missing text fields retain the
 legacy generated page; a present empty string explicitly omits that page.
 `Characters:` remains the cast tools' ordered names and descriptions.
 `Setting:`, `Time:` and `Place:` remain readable and are converted to prose
-only when Opening Pages is saved. Unknown and malformed extension values stay
+only when the opening notes are first written, in Cast & Pages or on their page. Unknown and malformed extension values stay
 in the unknown-key bag. Other Fountain applications may not render these
 application-specific opening-page fields.
+
+<a id="STOR-193"></a>
+
+**STOR-193** The title page may also carry `Production Notes Text`, the
+production notes page's Markdown as one JSON string, escaped as the text
+values above ([docs/app/formatting/formats-and-layout.md#FMT-160](../formatting/formats-and-layout.md#FMT-160),
+[docs/engineering/fountain-model.md#EDIT-199](../../engineering/fountain-model.md#EDIT-199)).
+No page is generated behind it: a missing key and a text with no word to
+print both print none, and the app writes the key only for notes that
+print. A malformed value stays in the unknown-key bag. A version of the app
+from before the key keeps it there and writes it back unchanged.
 
 <a id="STOR-68"></a>
 
@@ -496,7 +534,13 @@ parent directory is synced before success is reported.
 differ from the accepted baseline, an immutable, hash-checked copy is kept in
 app data before rollback is attempted. An interrupted exchange is recovered
 before the play opens. A failed preservation or rollback keeps the intent and
-remaining files, blocks ordinary writes, and asks the writer to reopen. Such a
+remaining files, blocks ordinary writes, and asks the writer to reopen. The
+saves of every file in a play keep their intents side by side, and each save
+reads them for its own file's while the others come and go: an intent is
+written whole under a temporary name before it takes its own, and one that
+is gone by the time it is read belongs to a save that finished, including one
+that Windows still holds at its name while it is removed and that refuses to
+be read until it is gone. Neither stops the save reading it. Such a
 failure can leave the hidden sibling until recovery completes; it is never
 discarded merely because it is old. The watcher and reconciler ignore the
 temporary-file pattern. **Copies kept during a save** in Changes lets the
@@ -532,6 +576,25 @@ where a call does not make it itself (the folder watch;
 and a writer's Windows does not allow it by default, so a play whose folder or
 files pass Windows' old limit of 260 characters, as a long title a few folders
 deep does, opens, saves and is watched as any other.
+
+<a id="STOR-189"></a>
+
+**STOR-189** **On an iPad, in iCloud Drive, the floor holds inside a file
+coordinator's access.** A folder the writer picked in iCloud Drive is read and
+written through a file coordinator, as Apple asks of a folder picked through
+the document picker, so that iCloud's own process never meets a file half
+listed, half read or half replaced
+([docs/engineering/cross-platform.md#PLAT-68](../../engineering/cross-platform.md#PLAT-68)).
+A listing and a read each run inside a reading access; a guarded write's hash
+check and its atomic installation run inside one writing access
+`.forReplacing`, held while the vault writes its hidden sibling and renames it
+over the file, so nothing writes the file between the check and the replace.
+The installation is the same exclusive rename or exchange, with the same
+intent in app data: the coordinator says when it may run, never how. A
+coordinator that hands back a different place for the file than the one asked
+for (one that moved) gets nothing written: the write's lock, its intent and its
+self-write token all name the place asked for. A folder on the iPad itself, or
+the app's own Documents, is not in iCloud Drive and is written as on a Mac.
 
 <a id="STOR-85"></a>
 
@@ -774,7 +837,9 @@ keyed by play id, never inside the Plays folder:
 │   ├── progress-preserved-<hash>.json  ← prior progress kept on reset
 │   ├── sessions/<sessionId>/Practice Play/ ← one ordinary play per course
 │   ├── practice/                      ← earlier practice, retained in place
-│   └── trash/                         ← recoverable delete fallback
+│   └── trash/                         ← iOS/Android only: practice deleted (Proscenium’s Trash)
+├── trash/                             ← iOS/Android only: what was deleted with the Plays folder open
+├── formats-trash/                     ← iOS/Android only: the writer's formats deleted
 └── plays/<playId>/
     ├── versions/<scriptId>/<ts>-<reason>.fountain    ← the version ring
     ├── changes/                       ← baselines and before-texts for the Changes surface
@@ -782,8 +847,18 @@ keyed by play id, never inside the Plays folder:
     ├── recovery-owners/<itemId>/<owner>.lock ← OS ownership locks
     ├── kept-at-quit.json              ← what the last quit put in Versions, said at next open (§13)
     ├── cache/                         ← derived scene labels, counts, hashes
-    └── trash/                         ← iOS/Android only: recoverable deletes
+    └── trash/                         ← iOS/Android only: what was deleted in the play
 ```
+
+Each `trash/` above, and `formats-trash/`, is a ring of Proscenium’s Trash,
+the recoverable delete on a system with no trash of its own
+([docs/engineering/cross-platform.md#PLAT-16](../../engineering/cross-platform.md#PLAT-16)):
+each thing deleted kept whole as `<local time>-<name>`, and a `manifest.json`,
+written atomically, saying where each came from and what the page said of it,
+so Put Back returns it there, never over anything
+([docs/engineering/cross-platform.md#PLAT-73](../../engineering/cross-platform.md#PLAT-73)).
+What a ring has kept 30 days is removed for good
+([docs/engineering/cross-platform.md#PLAT-74](../../engineering/cross-platform.md#PLAT-74)).
 
 <a id="STOR-175"></a>
 
@@ -1134,6 +1209,22 @@ tutorials write from too ([TUT-11](../preferences-and-help/tutorials.md#TUT-11))
 Keeping the folder lasts while the app runs; the next launch asks again, until
 a play is made there.
 
+<a id="STOR-192"></a>
+
+**STOR-192** **A Plays folder still coming down is not an empty one.** On an
+iPad, iCloud Drive leaves what is in a folder in the cloud until something asks
+for it, so the app asks itself, from the moment a Plays folder in iCloud Drive
+opens and for as long as it is open
+([PLAT-69](../../engineering/cross-platform.md#PLAT-69)). While any of it is
+still coming down, the Plays screen says *Downloading your plays from iCloud
+Drive…*, or *Downloading more plays from iCloud Drive…* once some are listed,
+never that there are no plays, and lists each play as it arrives. After half a
+minute with nothing new it says it is still downloading, and once everything is
+down a screen reader hears that the plays have downloaded. No sample play is
+offered meanwhile, nor before the folder's first answer has come: until then a
+folder that lists empty may be one still in iCloud (STOR-135). A writer never
+has to download the Plays folder by hand in Files.
+
 <a id="STOR-136"></a>
 
 **STOR-136** **Sandbox consequences (App Store).** Entitlements: app sandbox,
@@ -1234,8 +1325,9 @@ outside app-owned storage without a working bookmark requires selection again.
 <a id="STOR-150"></a>
 
 **STOR-150** Any mutation marks the buffer dirty and arms a debounce (600 ms idle, 2000 ms
-max wait, per play in `settings.autosave`). Blur, hide, tab close, and quit
-flush immediately; ⌘S flushes as reassurance. Only the changed file is
+max wait, per play in `settings.autosave`). Blur, hide (the page hidden, and
+its `pagehide`), tab close, and quit flush immediately, the script as the
+documents do; ⌘S flushes as reassurance. Only the changed file is
 written: dialogue rewrites the script, a recolor rewrites the play file, a
 note rewrites the note. Between flushes a recovery snapshot lands in app data
 every five seconds while there are words the disk does not have (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), so a
@@ -1268,6 +1360,28 @@ Nothing is torn down, so a quit that does not happen leaves the play as it was.
   Don't Quit is the default; Quit Anyway is the writer's choice. The quit
   stays held until they answer. A page that heard and has not answered in
   thirty seconds is never cut short: the quit is called off instead.
+
+<a id="STOR-190"></a>
+
+**STOR-190** **Leaving the iPad's app is a quit that may come back.** iOS
+suspends an app the writer leaves, and may end it later without a word to it,
+so nothing waits for a quit there. The moment the app leaves the front (iOS's
+`applicationWillResignActive`, which also comes for a glance at Control Center,
+where settling early loses nothing), the page settles as it does for a quit:
+what can land lands, and the rest goes where the next launch finds it, a
+script's words in its recovery snapshot. The app holds time from iOS
+(`beginBackgroundTask`) until the page says it has settled, and gives it back
+then, or when iOS's time runs out, so iOS never ends it for holding on
+(`src-tauri/src/ipad.rs`, `app://leaving` and `leaving_settled`). The page is
+told first, before the time is asked for, and the time is asked for and
+given back on the leave's own thread, never on the main queue, which may not
+turn again as the app leaves: asked there, the page was told only once the
+app came back, and the words typed in autosave's wait before leaving were not
+on disk while it was away. Unlike a
+quit, nothing leaves a note for the play's next open, since the app may come
+back as it was; if iOS ends it while it is away, the next launch finds the
+snapshot and offers it back, as after any quit. On return the foreground
+rescan runs ([docs/engineering/cross-platform.md#PLAT-33](../../engineering/cross-platform.md#PLAT-33)).
 
 <a id="STOR-D14"></a>
 

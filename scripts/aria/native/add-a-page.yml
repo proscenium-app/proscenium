@@ -1,0 +1,30 @@
+- dialog "Add a Page"
+  - heading "Add a Page" [level=2]
+  - group "BEFORE THE SCRIPT"
+    - radio "Title Page"
+    - radio "Dedication" [checked]
+    - radio "Epigraph"
+    - radio "Contents"
+    - radio "Characters"
+    - radio "Characters & Setting"
+    - radio "Setting"
+    - radio "A Note on the Text"
+    - radio "Musical Numbers"
+  - group "AFTER THE SCRIPT"
+    - radio "Production Notes"
+    - radio "Production History"
+    - radio "Author's Note"
+    - radio "About the Author"
+    - radio "Acknowledgments"
+    - radio "Glossary"
+  - group "EITHER"
+    - radio "Blank Page"
+  - paragraph
+  - status [live=polite]
+  - tablist "Where the page goes"
+    - tab "Before the script" [selected]
+    - tab "After the script"
+  - button "Cancel"
+  - button "Add Page"
+  - status [live=polite]
+  - alert [live=assertive]

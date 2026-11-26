@@ -2,7 +2,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { describe, expect, it } from "bun:test";
-import { QuitAnswerer, quitHoldWords, type QuitHold, type QuitSettled } from "./quit";
+import {
+  LeavingAnswerer,
+  QuitAnswerer,
+  quitHoldWords,
+  type QuitHold,
+  type QuitSettled,
+} from "./quit";
 import { saveProblem } from "../storage/save-failure";
 
 function deferred<T>() {
@@ -201,5 +207,81 @@ describe("the quit alert's words", () => {
       const { title, body } = quitHoldWords(hold);
       expect(`${title} ${body}`.match(internal)?.[0] ?? null).toBeNull();
     }
+  });
+});
+
+describe("answering a leaving", () => {
+  /** ipad.rs's half, as a log; `settle` as given. */
+  function leaving(settle: () => Promise<QuitSettled>) {
+    const said: string[] = [];
+    const answerer = new LeavingAnswerer(settle, {
+      settled: async (id) => void said.push(`settled ${id}`),
+    });
+    return { answerer, said };
+  }
+
+  it("settles as a quit does, answers, and leaves no note for the next open", async () => {
+    const log: string[] = [];
+    const h = leaving(async () => {
+      log.push("settled the words");
+      return outcome([], log);
+    });
+    await h.answerer.leave(1);
+    expect(log).toEqual(["settled the words"]);
+    expect(h.said).toEqual(["settled 1"]);
+  });
+
+  it("answers only once the settle has finished", async () => {
+    const settle = deferred<QuitSettled>();
+    const h = leaving(() => settle.promise);
+    const answered = h.answerer.leave(2);
+    await flush();
+    expect(h.said).toEqual([]);
+    settle.resolve(outcome());
+    await answered;
+    expect(h.said).toEqual(["settled 2"]);
+  });
+
+  it("answers even when the settle fails, or keeps words nowhere: the app must give the time back", async () => {
+    const failing = leaving(async () => {
+      throw new Error("a bug");
+    });
+    await failing.answerer.leave(3);
+    expect(failing.said).toEqual(["settled 3"]);
+
+    const log: string[] = [];
+    const lost = leaving(async () => outcome(["Mara"], log));
+    await lost.answerer.leave(4);
+    expect(lost.said).toEqual(["settled 4"]);
+    expect(log).toEqual([]);
+  });
+
+  it("answers even when the answer itself is refused", async () => {
+    const answerer = new LeavingAnswerer(async () => outcome(), {
+      settled: async () => {
+        throw new Error("no such leaving");
+      },
+    });
+    await answerer.leave(5);
+  });
+
+  it("settles a second leaving after the first, never beside it", async () => {
+    const first = deferred<QuitSettled>();
+    const order: string[] = [];
+    let calls = 0;
+    const h = leaving(() => {
+      calls++;
+      order.push(`settle ${calls}`);
+      return calls === 1 ? first.promise : Promise.resolve(outcome());
+    });
+    const one = h.answerer.leave(6);
+    const two = h.answerer.leave(7);
+    await flush();
+    expect(order).toEqual(["settle 1"]);
+    expect(h.said).toEqual([]);
+    first.resolve(outcome());
+    await Promise.all([one, two]);
+    expect(order).toEqual(["settle 1", "settle 2"]);
+    expect(h.said).toEqual(["settled 6", "settled 7"]);
   });
 });

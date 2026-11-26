@@ -35,6 +35,7 @@ import {
 import {
   blocksFromDoc,
   paginate,
+  paginateBackMatter,
   paginateFrontMatter,
   type FrontMatterLine,
   type LayoutBlock,
@@ -88,6 +89,7 @@ export const STYLE_NAME: Record<StyleKey, string> = {
   lyric: "Lyric",
   centered: "Centered Text",
   synopsis: "Scene Summary",
+  horizontalRule: "Horizontal Line",
   boneyard: "Omitted Text",
   title: "Title",
   titlePage: "Title Page Text",
@@ -110,6 +112,7 @@ const ELEMENT_ORDER: readonly ElementStyleKey[] = [
   "lyric",
   "centered",
   "synopsis",
+  "horizontalRule",
   "boneyard",
 ];
 
@@ -126,6 +129,7 @@ const NEXT: Record<StyleKey, StyleKey> = {
   lyric: "lyric",
   centered: "action",
   synopsis: "action",
+  horizontalRule: "action",
   boneyard: "action",
   title: "titlePage",
   titlePage: "titlePage",
@@ -164,6 +168,8 @@ export interface ParagraphStyle {
   next: StyleKey;
   /** A header or footer: one line as tall as the type, with the centre and right slots on tab stops. */
   furniture: boolean;
+  /** A horizontal line: an empty paragraph with a rule along its foot, as a word processor draws one. */
+  rule: boolean;
 }
 
 function faces(style: ElementFontStyle): { bold: boolean; italic: boolean } {
@@ -188,6 +194,7 @@ const PLAIN = {
   widows: 0,
   outlineLevel: null,
   furniture: false,
+  rule: false,
 };
 
 /** An element's style: its format entry, in a word processor's terms. */
@@ -229,6 +236,7 @@ function elementStyle(spec: FormatSpec, key: ElementStyleKey): ParagraphStyle {
     outlineLevel: key === "act" ? 1 : key === "scene" ? 2 : key === "sceneHeading" ? 3 : null,
     next: NEXT[key],
     furniture: false,
+    rule: key === "horizontalRule",
   };
 }
 
@@ -322,7 +330,12 @@ export type Furniture = Record<HeaderFooterSlot, string[]>;
 export const SLOTS: readonly HeaderFooterSlot[] = ["left", "center", "right"];
 
 export interface WpSection {
-  kind: "front" | "script";
+  /**
+   * The pages before the script, the script, or the pages after it
+   * (docs/app/formatting/formats-and-layout.md#FMT-174). The first and the
+   * last carry no header, footer or page number.
+   */
+  kind: "front" | "script" | "back";
   /** How it begins: the first begins the document, the rest on a new page or on the same one. */
   begins: "document" | "page" | "continuous";
   /** Page numbers start again at this number here. */
@@ -357,9 +370,12 @@ export interface WpInput {
   doc: Doc;
   spec: FormatSpec;
   meta: LayoutMeta;
-  /** The opening pages to lay out; omitted uses the meta's. */
+  /** The opening pages to lay out, and the pages after the script; omitted uses the meta's. */
   frontMatter?: FrontMatter | null;
-  /** The kinds of front sheet to put first; null/omitted puts every one. */
+  /**
+   * The kinds of unnumbered sheet to put around the script: front sheets
+   * first, the pages after the script last. Null/omitted puts every one.
+   */
   frontSheets?: readonly FrontSheet[] | null;
   language: string;
   /** Printed page numbers to include; null/omitted is the whole script. */
@@ -481,7 +497,7 @@ function clipRuns(runs: readonly StyleRun[], start: number, end: number): StyleR
 }
 
 function frontStyle(kind: FrontSheet, line: FrontMatterLine): StyleKey {
-  if (line.paragraphId === "title") return "title";
+  if (line.paragraphId === "title" || line.titleStyle) return "title";
   if (line.role === "heading") return "openingHeading";
   if (line.role === "cast") return "castList";
   return kind === "title" ? "titlePage" : "openingText";
@@ -605,7 +621,8 @@ export function buildDocument(input: WpInput): WpDocument {
           if (i === 0) contd = line.text;
           continue;
         }
-        if (!line.text.trim()) continue;
+        // A horizontal line has no words, and is still a paragraph of its own.
+        if (!line.text.trim() && line.type !== "horizontalRule") continue;
         const span = spans.get(line.sourceIndex);
         if (!span) spans.set(line.sourceIndex, { start: line.start, end: line.end });
         else {
@@ -656,7 +673,7 @@ export function buildDocument(input: WpInput): WpDocument {
       runs: readonly StyleRun[],
     ): WpParagraph | null => {
       const trimmed = text.replace(/ +$/, "");
-      if (!trimmed.trim()) return null;
+      if (!trimmed.trim() && type !== "horizontalRule") return null;
       return {
         kind: "p",
         style: type as ElementStyleKey,
@@ -799,6 +816,17 @@ export function buildDocument(input: WpInput): WpDocument {
     if (section.kind !== "script") continue;
     section.header = furnitureAt(spec.header, section.at, meta);
     section.footer = furnitureAt(spec.footer, section.at, meta);
+  }
+
+  // The pages after the script, each from a new page, as the pages before it
+  // are written: the engine's rows, and no header, footer or page number.
+  const back = frontParagraphs(
+    selectFrontMatter(paginateBackMatter(frontMatter, spec), input.frontSheets),
+  );
+  if (back.length) {
+    sections.push(
+      furnish({ kind: "back", begins: "page", at: { ...START_POSITION }, items: back }),
+    );
   }
 
   return {

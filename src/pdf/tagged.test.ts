@@ -192,3 +192,54 @@ test("docs/app/formatting/formats-and-layout.md#FMT-61: repeated continuation cu
     excerptNodes.filter((n) => ["/Speaker", "/Dialogue"].includes(n.tag)).map((n) => n.tag),
   ).toEqual(["/Speaker", "/Dialogue"]);
 });
+
+test("the pages after the script are read after the script, each a section of its own", async () => {
+  const frontMatter = {
+    title: "Exemple",
+    backPages: [
+      { id: "about", name: "About the Author", text: "## ABOUT THE AUTHOR\n\nShe writes.\n" },
+      { id: "thanks", name: "Acknowledgments", text: "With thanks.\n" },
+    ],
+  };
+  const parsed = parse("# ACT I\n\n## SCENE 1\n\n@MARA\nA line.\n");
+  const layout = paginateDoc(parsed.doc, spec, {});
+  const pdf = await PDFDocument.load(
+    await renderPdf({ layout, spec, meta: {}, fonts, frontMatter }),
+  );
+  expect(pdf.getPageCount()).toBe(1 + layout.pages.length + 2);
+  const { root, nodes } = structure(pdf);
+  // The document's own children, in reading order: the title page's section,
+  // the script, then one section a page.
+  const top = nodes.filter((n) => n.parent === String(nodes[0].ref)).map((n) => n.tag);
+  expect(top).toEqual(["/Sect", "/Part", "/Sect", "/Sect"]);
+  const part = nodes.findIndex((n) => n.tag === "/Part");
+  const after = nodes.slice(part + 1);
+  const closing = after.filter((n) => n.parent === String(nodes[0].ref));
+  expect(closing.map((n) => n.tag)).toEqual(["/Sect", "/Sect"]);
+  // The first holds its heading and its paragraph, the second its one paragraph.
+  const kidsOf = (ref: PDFRef) => nodes.filter((n) => n.parent === String(ref)).map((n) => n.tag);
+  expect(kidsOf(closing[0].ref)).toEqual(["/H1", "/P"]);
+  expect(kidsOf(closing[1].ref)).toEqual(["/P"]);
+  // Every sequence drawn on those sheets is owned, and nothing on them is loose.
+  const parentTree = root
+    .lookup(PDFName.of("ParentTree"), PDFDict)
+    .lookup(PDFName.of("Nums"), PDFArray);
+  for (const at of [pdf.getPageCount() - 2, pdf.getPageCount() - 1]) {
+    const page = pdf.getPage(at);
+    const content = stream(pdf, at);
+    const ids = [...content.matchAll(/\/MCID (\d+)/g)].map((m) => +m[1]);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids).toEqual(ids.map((_, index) => index));
+    const key = page.node.lookup(PDFName.of("StructParents"), PDFNumber).asNumber();
+    const parents = parentTree.lookup(key * 2 + 1, PDFArray);
+    const owners = new Set(after.map((n) => String(n.ref)));
+    for (const id of ids) expect(owners.has(String(parents.get(id)))).toBe(true);
+    let depth = 0;
+    for (const token of content.matchAll(/\b(BDC|BMC|EMC|Tj)\b/g)) {
+      if (token[1] === "BDC" || token[1] === "BMC") depth++;
+      else if (token[1] === "EMC") depth--;
+      else expect(depth).toBe(1);
+    }
+    expect(depth).toBe(0);
+  }
+});

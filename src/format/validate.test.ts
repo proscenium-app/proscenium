@@ -230,3 +230,30 @@ familyTest("CSS syntax in type.family is refused, and the built-in families pass
   const good = validateFormatSpec(dgModern);
   familyExpect(good.ok).toBe(true);
 });
+
+describe("character names in directions as typed (docs/app/formatting/formats-and-layout.md#FMT-163)", () => {
+  it("is off unless a format says so", () => {
+    const raw = dgCopy();
+    const elements = raw.elements as Record<string, Record<string, unknown>>;
+    delete elements.action!.capitalizeCastNames;
+    expect(mustValidate(raw).elements.action.capitalizeCastNames).toBe(false);
+  });
+
+  it("is a yes or no on the action element", () => {
+    const raw = dgCopy();
+    const elements = raw.elements as Record<string, Record<string, unknown>>;
+    elements.action!.capitalizeCastNames = false;
+    expect(mustValidate(raw).elements.action.capitalizeCastNames).toBe(false);
+    elements.action!.capitalizeCastNames = "yes";
+    expect(mustFail(raw).join("\n")).toContain("elements.action.capitalizeCastNames");
+  });
+
+  it("is refused on any other element, where nothing would read it", () => {
+    for (const key of ["parenthetical", "character", "dialogue"]) {
+      const raw = dgCopy();
+      const elements = raw.elements as Record<string, Record<string, unknown>>;
+      elements[key]!.capitalizeCastNames = true;
+      expect(mustFail(raw).join("\n")).toContain(`elements.${key}.capitalizeCastNames`);
+    }
+  });
+});

@@ -108,6 +108,8 @@ const {
   reorderItem,
   restoreBinderItem,
   importIntoPlay,
+  makeFrontMatterFolder,
+  newPageFile,
 } = await import("./binder-apply");
 const { titleOf } = await import("./binder");
 const { recoverBinderMoves, applyRelocation, decodeRelocation } = await import(
@@ -650,5 +652,90 @@ describe("an import added to the open play", () => {
         ?.path,
     ).toBe("Notes/Harbor.md");
     expect(store.has("Originals/Harbor.pages.zip")).toBe(true);
+  });
+});
+
+describe("pages before the script, as files (docs/app/formatting/formats-and-layout.md#FMT-169)", () => {
+  const pages = [
+    { name: "Title Page", text: "---\nlayout: title\n---\n\n# {TITLE}\n" },
+    { name: "Characters", text: "## CHARACTERS\n\n**MARA**\n" },
+  ];
+
+  it("creates every page's file, then puts the folder just above the script and names it as the script's", async () => {
+    const out = await makeFrontMatterFolder(ctx(), "script", pages);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(store.get("Front Matter/Title Page.md")).toBe(pages[0]!.text);
+    expect(store.get("Front Matter/Characters.md")).toBe(pages[1]!.text);
+    const folder = out.play.binder[0]!;
+    expect(folder.type).toBe("folder");
+    expect(folder.path).toBe("Front Matter");
+    expect(folder.children?.map((c) => c.path)).toEqual([
+      "Front Matter/Title Page.md",
+      "Front Matter/Characters.md",
+    ]);
+    expect(out.play.binder[1]!.id).toBe("script");
+    expect(out.play.scripts.script!.frontMatter).toEqual({ folder: folder.id });
+    expect(out.pageIds).toEqual(folder.children!.map((c) => c.id));
+  });
+
+  it("puts the pages after the script in a folder of their own, just below it, named as the script's Back Matter", async () => {
+    // docs/app/formatting/formats-and-layout.md#FMT-174
+    const about = [{ name: "About the Author", text: "## ABOUT THE AUTHOR\n" }];
+    const front = await makeFrontMatterFolder(ctx(), "script", pages);
+    expect(front.ok).toBe(true);
+    if (!front.ok) return;
+    const out = await makeFrontMatterFolder(
+      { playPath: PLAY_PATH, play: front.play, hash: front.hash },
+      "script",
+      about,
+      "back",
+    );
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(store.get("Back Matter/About the Author.md")).toBe(about[0]!.text);
+    expect(out.play.binder.map((item) => item.path).slice(0, 3)).toEqual([
+      "Front Matter",
+      "The Weight of Water.fountain",
+      "Back Matter",
+    ]);
+    const folder = out.play.binder[2]!;
+    // Each side is the script's by a claim of its own, and neither takes the other's.
+    expect(out.play.scripts.script!.backMatter).toEqual({ folder: folder.id });
+    expect(out.play.scripts.script!.frontMatter).toEqual({ folder: out.play.binder[0]!.id });
+    expect(out.pageIds).toEqual(folder.children!.map((c) => c.id));
+  });
+
+  it("never writes over what is already there: a folder on disk is left alone for the next free name", async () => {
+    store.set("Front Matter/Characters.md", "SOMEONE ELSE'S WORDS");
+    const out = await makeFrontMatterFolder(ctx(), "script", pages);
+    expect(out.ok).toBe(true);
+    expect(store.get("Front Matter/Characters.md")).toBe("SOMEONE ELSE'S WORDS");
+    expect(store.get("Front Matter 2/Characters.md")).toBe(pages[1]!.text);
+  });
+
+  it("claims nothing for the script when the play file cannot be written", async () => {
+    refuseManifest = true;
+    const out = await makeFrontMatterFolder(ctx(), "script", pages);
+    expect(out.ok).toBe(false);
+    const play = JSON.parse(store.get(PLAY_PATH)!) as PlayFile;
+    expect(play.scripts.script!.frontMatter).toBeUndefined();
+    expect(play.binder.some((item) => item.path === "Front Matter")).toBe(false);
+  });
+
+  it("adds one more page where it is asked for", async () => {
+    const made = await makeFrontMatterFolder(ctx(), "script", pages);
+    if (!made.ok) throw new Error("no folder");
+    seedRef = { play: made.play, hash: made.hash };
+    const out = await newPageFile(ctx(), made.folderId!, "Dedication", "For R.\n", 1);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    const folder = out.play.binder.find((item) => item.id === made.folderId)!;
+    expect(folder.children?.map((c) => c.path)).toEqual([
+      "Front Matter/Title Page.md",
+      "Front Matter/Dedication.md",
+      "Front Matter/Characters.md",
+    ]);
+    expect(store.get("Front Matter/Dedication.md")).toBe("For R.\n");
   });
 });

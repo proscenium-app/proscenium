@@ -9,17 +9,17 @@
   - button "All Pages"
   - list "Pages"
     - listitem
-      - button "Title page" [current=true]
+      - button "Title Page" [current=true]
       - none
-        - checkbox "Include title page" [checked]
+        - checkbox "Include Title Page" [checked]
     - listitem
-      - button "Characters page"
+      - button "Characters"
       - none
-        - checkbox "Include characters page" [checked]
+        - checkbox "Include Characters" [checked]
     - listitem
-      - button "Opening notes"
+      - button "Setting"
       - none
-        - checkbox "Include opening notes" [checked]
+        - checkbox "Include Setting" [checked]
     - listitem
       - button "Page 1"
       - none
@@ -30,15 +30,15 @@
         - checkbox "Include page 2"
   - region "Preview of what will export"
   - button "Previous page" [disabled]
-  - group [live=polite]: Title page · sheet 1 of 4
+  - group [live=polite]: Title Page · sheet 1 of 4
   - button "Next page"
   - group "Include"
     - none
-      - checkbox "Title page" [checked]
+      - checkbox "Title Page" [checked]
     - none
-      - checkbox "Characters page" [checked]
+      - checkbox "Characters" [checked]
     - none
-      - checkbox "Opening notes" [checked]
+      - checkbox "Setting" [checked]
   - none
     - checkbox "Anonymous copy"
   - none

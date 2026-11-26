@@ -1,107 +1,378 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
+import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
+import { Selection, TextSelection } from "@tiptap/pm/state";
+import { Button } from "../ui";
+import { keyStyle } from "../ui/keys";
+import { portalHost } from "../ui/portal-host";
+import { takeFocusFromPress, type PressFocusView } from "../ui/caret-on-focus";
 import { ProseEditor } from "../markdown/ProseEditor";
 import { FormatBar } from "../markdown/FormatBar";
-import { toMarkdown, type Node } from "../markdown/doc";
-import type { FrontMatter } from "../fountain";
+import {
+  FIELD_NODE,
+  enterField,
+  fieldTextOf,
+  settleIntoField,
+  type FieldWriter,
+} from "../markdown/page-file-nodes";
+import type { FieldName } from "../markdown/page-fields";
+import type { Field } from "../layout";
+import { DETAIL_HELP, DETAIL_OF, type Detail } from "./play-details";
 
-export { charactersPageText } from "../markdown/characters-page";
-
-function proseText(text: string): Node[] {
-  return text
-    .split("\n")
-    .flatMap((line, i) => [
-      ...(i ? [{ type: "hardBreak" }] : []),
-      ...(line ? [{ type: "text", text: line }] : []),
-    ]);
+/** The element that scrolls `el`: the nearest that can, or the document. */
+function scrollerOf(el: HTMLElement): HTMLElement | null {
+  for (let at = el.parentElement; at; at = at.parentElement) {
+    const { overflowY } = getComputedStyle(at);
+    if ((overflowY === "auto" || overflowY === "scroll") && at.scrollHeight > at.clientHeight)
+      return at;
+  }
+  return document.scrollingElement as HTMLElement | null;
 }
 
-export function openingNotesText(fm: FrontMatter): string {
-  return (
-    fm.openingNotes ??
-    toMarkdown({
-      type: "doc",
-      content: [
-        ["Setting", fm.setting],
-        ["Time", fm.time],
-        ["Place", fm.place],
-      ]
-        .filter(([, text]) => text?.trim())
-        .flatMap(([label, text]): Node[] => [
-          { type: "heading", attrs: { level: 2 }, content: proseText(label!) },
-          { type: "paragraph", content: proseText(text!) },
-        ]),
-    })
+/**
+ * Bring the caret (a viewport y) into view below the bar that sticks at the
+ * top of the script, and with it `head`, the top of the page's sheet, when
+ * the page is opened at its top. What scrolls a caret "into view" knows
+ * nothing of the bar, and left a page's first line under it; and it does not
+ * scroll at all for an editor that has only just been put in the page, so a
+ * page added further down than the writer was looking opened out of sight,
+ * with the keyboard in it. A caret already in view below the bar, with the
+ * head of its page, is left where it is.
+ */
+function reveal(
+  caret: number,
+  head: number | undefined,
+  bar: HTMLElement | null | undefined,
+  from: HTMLElement,
+): void {
+  const scroller = scrollerOf(from);
+  if (!scroller) return;
+  const pane = scroller.getBoundingClientRect();
+  const limit = Math.max(bar?.getBoundingClientRect().bottom ?? 0, pane.top) + 12;
+  // In view: below the bar, with room under it for a few lines to be typed.
+  const floor = Math.min(pane.bottom, window.innerHeight) - 96;
+  const top = Math.min(caret, head ?? caret);
+  if (top >= limit && caret <= floor) return;
+  // The head of the sheet under the bar, when the caret is then in view; the
+  // caret itself a little under the bar when the page is taller than that.
+  const room = floor - limit;
+  const to = head !== undefined && caret - head <= room ? head : caret - Math.min(room, 96);
+  scroller.scrollBy({ top: to - limit });
+}
+
+/** What a writer is told the detail a field writes is; nothing for a field that is no detail. */
+function helpFor(name: FieldName): string {
+  const detail = DETAIL_OF[name];
+  return detail ? DETAIL_HELP[detail].help : "";
+}
+
+/**
+ * One line under the field the caret is in, saying what that detail is: a
+ * caption over the page, never on it, that follows the field as the page
+ * scrolls and its words grow. It takes no press and no key, and a screen
+ * reader has the same words as the field's description, so it is hidden from
+ * one. It stands beside the field, on the field's first line, where a title
+ * page's short lines leave the paper clear; under it where there is no room
+ * beside (above, at the foot of the window); and is not drawn while the field
+ * is under the bar at the top of the script.
+ */
+function FieldNote({
+  at,
+  bar,
+  children,
+}: {
+  at: HTMLElement;
+  bar: HTMLElement | null;
+  children: string;
+}) {
+  const note = useRef<HTMLDivElement | null>(null);
+  const [place, setPlace] = useState<{ top: number; left: number } | null>(null);
+  useEffect(() => {
+    const GAP = 6;
+    const EDGE = 8;
+    const put = () => {
+      if (!at.isConnected) return setPlace(null);
+      const field = at.getBoundingClientRect();
+      const size = note.current?.getBoundingClientRect();
+      const width = size?.width ?? 0;
+      const height = size?.height ?? 0;
+      const floor = bar?.getBoundingClientRect().bottom ?? 0;
+      if (field.bottom < floor || field.top > window.innerHeight) return setPlace(null);
+      // The pane the page is in: the caption stays over it, clear of what is beside it.
+      const pane = scrollerOf(at)?.getBoundingClientRect();
+      const edge = Math.min(window.innerWidth, pane?.right ?? window.innerWidth) - EDGE;
+      const first = at.getClientRects()[0] ?? field;
+      let top: number;
+      let left: number;
+      if (field.right + 2 * GAP + width <= edge) {
+        left = field.right + 2 * GAP;
+        top = first.top + (first.height - height) / 2;
+      } else {
+        const under = field.bottom + GAP;
+        top = under + height > window.innerHeight - EDGE ? field.top - GAP - height : under;
+        left = Math.max(EDGE, Math.min(edge - width, field.left + field.width / 2 - width / 2));
+      }
+      setPlace((was) => (was && was.top === top && was.left === left ? was : { top, left }));
+    };
+    put();
+    window.addEventListener("scroll", put, true);
+    window.addEventListener("resize", put);
+    at.addEventListener("input", put);
+    return () => {
+      window.removeEventListener("scroll", put, true);
+      window.removeEventListener("resize", put);
+      at.removeEventListener("input", put);
+    };
+  }, [at, bar]);
+  return createPortal(
+    <div
+      ref={note}
+      className="fieldnote"
+      aria-hidden="true"
+      style={{
+        top: place?.top ?? 0,
+        left: place?.left ?? 0,
+        visibility: place ? "visible" : "hidden",
+      }}
+    >
+      {children}
+    </div>,
+    portalHost(),
   );
 }
 
-export function titlePageText(fm: FrontMatter): string {
-  return (
-    fm.titlePage ??
-    toMarkdown({
-      type: "doc",
-      content: [
-        ...(fm.title
-          ? [
-              {
-                type: "heading",
-                attrs: { level: 1, textAlign: "center" },
-                content: proseText(fm.title),
-              },
-            ]
-          : []),
-        ...[
-          fm.credit ?? "",
-          (fm.authors ?? []).join(", "),
-          (fm.contact ?? []).join("\n"),
-          fm.draftDate ?? "",
-        ]
-          .filter(Boolean)
-          .map(
-            (text): Node => ({
-              type: "paragraph",
-              attrs: { textAlign: "center" },
-              content: proseText(text),
-            }),
-          ),
-      ],
-    })
-  );
+/** How a page sits on its sheet, for an editor that sets it as it prints. */
+export interface SheetSetting {
+  /** Rows of the format's line above the page's first. */
+  topRows: number;
+  /** Blank rows between one paragraph and the next. */
+  gapRows: number;
+  /** A title page: its level-one heading is the play's title, in the format's title style. */
+  title: boolean;
+  /** How the format sets a heading, the body and a title page's title. */
+  heading: string;
+  body: string;
+  titleStyle: string;
 }
 
-/** Familiar prose controls; print layout remains the shared paginator's job. */
+const weightOf = (style: string) => (style === "bold" || style === "bold-italic" ? "700" : "400");
+const slantOf = (style: string) =>
+  style === "italic" || style === "bold-italic" ? "italic" : "normal";
+
+/** The play's details, as a field of the page writes them. */
+export interface DetailsAccess {
+  set: (detail: Detail, text: string) => void;
+}
+
+/**
+ * A page before or after the script, written in the prose editor
+ * (docs/app/formatting/formats-and-layout.md#FMT-169). With `sheet` it is
+ * set as it prints (docs/app/formatting/formats-and-layout.md#FMT-177): the
+ * format's own type on the script's character grid, its first line where the
+ * layout puts it, the format's gap between paragraphs, and a title page's
+ * foot at the bottom of the sheet, so a click on the page changes nothing but
+ * the caret. Where the words wrap and break across sheets is still the shared
+ * paginator's, when the editing ends.
+ */
 export function FrontPageEditor({
   value,
   onChange,
   label,
   focusAt,
+  barHost,
+  fields,
+  onBlur,
+  name,
+  onDone,
+  onChangeTemplate,
+  details,
+  openField,
+  sheet,
 }: {
   value: string;
   onChange: (text: string) => void;
   label: string;
   /** Put the caret at the start of this top-level paragraph; a new object asks again. */
   focusAt?: { paragraph: number } | null;
+  /** Where the formatting bar stands, when not over the text: the top of the script, for a page edited there. */
+  barHost?: HTMLElement | null;
+  /** A page file's fields and the facts they show (docs/app/formatting/formats-and-layout.md#FMT-169). */
+  fields?: Partial<Record<Field, string>>;
+  /** The editor lost the keyboard: what it holds should not wait for a pause. */
+  onBlur?: () => void;
+  /** The page's name, said in the bar while it is edited. */
+  name?: string;
+  /** Ends the editing: the bar's Done. */
+  onDone?: () => void;
+  /** Opens the templates, to give this page another. */
+  onChangeTemplate?: () => void;
+  /** The play's details: given, a field is where its detail is written, in place. */
+  details?: DetailsAccess;
+  /** A field to put the caret in as the editor opens: the one the writer pressed on the sheet. */
+  openField?: FieldName | null;
+  /** Set the page as it prints. */
+  sheet?: SheetSetting;
 }) {
   const [editor, setEditor] = useState<Editor | null>(null);
+  /** The field the caret is in: the bar says what that detail is. */
+  const [activeField, setActiveField] = useState<{ name: FieldName; at: HTMLElement } | null>(null);
+  const editable = !!details;
+  const access = useRef(details);
+  access.current = details;
+  // A field is written where it stands
+  // (docs/app/formatting/formats-and-layout.md#FMT-180): what is left in it is
+  // the play's detail.
+  const write = useMemo(
+    (): FieldWriter => ({
+      writes: (name) => name in DETAIL_OF,
+      commit: (name, text) => {
+        const detail = DETAIL_OF[name];
+        if (detail) access.current?.set(detail, text);
+      },
+      help: (name) => helpFor(name),
+      onActive: (name, at) => setActiveField(name && at ? { name, at } : null),
+    }),
+    [],
+  );
+  // A page file's editor shows its fields as the facts they hold, kept current
+  // as the play's details change.
+  const pageFile = useMemo(
+    () => (fields ? { values: fields, ...(editable ? { write } : {}) } : undefined),
+    [fields, editable, write],
+  );
+  const box = useRef<HTMLDivElement | null>(null);
+  // The caret at the paragraph asked for, set and focused in two plain steps:
+  // the editor's chained focus sent its selection a frame late, and a page
+  // whose words arrived in that frame met it as a transaction for a document
+  // it no longer held (WebKit stopped on it).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a new request, or the editor arriving, is the cause
   useEffect(() => {
-    if (!editor || !focusAt) return;
-    const doc = editor.state.doc;
+    if (!editor || editor.isDestroyed || !focusAt) return;
+    const { state, view } = editor;
+    const doc = state.doc;
     const index = Math.max(0, Math.min(focusAt.paragraph, doc.childCount - 1));
     let pos = 0;
     for (let i = 0; i < index; i++) pos += doc.child(i).nodeSize;
-    editor
-      .chain()
-      .focus(pos + 1)
-      .scrollIntoView()
-      .run();
+    const selection = Selection.near(doc.resolve(Math.min(pos + 1, doc.content.size)));
+    view.dispatch(state.tr.setSelection(selection).scrollIntoView());
+    // Taken as a press's focus is (docs/app/writing/editor-ux.md#EDIT-211):
+    // ProseMirror looks at the page 20 ms after a focus and writes its own
+    // caret over any it has not read yet, so a key pressed in that moment
+    // (⌘→ to the end of the page's first line) was undone.
+    const now = Date.now();
+    takeFocusFromPress(view as unknown as PressFocusView, now, now);
+    view.focus();
+    // Opened at its top, the page shows the top of its sheet too.
+    const caret = view.coordsAtPos(view.state.selection.head).top;
+    const head = index === 0 ? box.current?.parentElement?.getBoundingClientRect().top : undefined;
+    reveal(caret, head, barHost, view.dom as HTMLElement);
+    if (!editable) return;
+    // The field the writer pressed on the sheet takes the caret with the page.
+    let found: number | null = null;
+    if (openField)
+      doc.descendants((node, at) => {
+        if (found === null && node.type.name === FIELD_NODE && node.attrs.name === openField)
+          found = at;
+        return found === null;
+      });
+    // A caret beside a field that is its whole line is a caret in the field.
+    if (found === null || !enterField(view, found, "end")) settleIntoField(view);
   }, [editor, focusAt]);
-  return (
-    <div className="frontpage-editor" role="group" aria-label={label}>
+  /**
+   * The keys that go to a document's start or end (⌘↑ ⌘↓ on a Mac, with ⇧
+   * to select, and ⇧Home ⇧End; Ctrl+Home and Ctrl+End on a PC) go to the
+   * page's: left to the browser they went to the script's, which the page
+   * stands inside, and the next keys typed went there.
+   */
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!editor || editor.isDestroyed) return;
+    if (!(event.target instanceof Node) || !box.current?.contains(event.target)) return;
+    // A key in a field's own words is the field's.
+    if (fieldTextOf(event.target)) return;
+    const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+    const pc = keyStyle() === "pc";
+    const toEnd = pc
+      ? event.ctrlKey && !event.metaKey && event.key === "End"
+      : (event.metaKey && !event.ctrlKey && event.key === "ArrowDown") ||
+        (plain && event.shiftKey && event.key === "End");
+    const toStart = pc
+      ? event.ctrlKey && !event.metaKey && event.key === "Home"
+      : (event.metaKey && !event.ctrlKey && event.key === "ArrowUp") ||
+        (plain && event.shiftKey && event.key === "Home");
+    if (!toEnd && !toStart) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const { state, view } = editor;
+    const target = toEnd ? Selection.atEnd(state.doc) : Selection.atStart(state.doc);
+    const selection = event.shiftKey
+      ? TextSelection.between(state.selection.$anchor, target.$head)
+      : target;
+    view.dispatch(state.tr.setSelection(selection).scrollIntoView());
+  };
+  const setting = sheet
+    ? ({
+        "--page-top-rows": sheet.topRows,
+        "--page-gap-rows": sheet.gapRows,
+        "--page-heading-weight": weightOf(sheet.heading),
+        "--page-heading-slant": slantOf(sheet.heading),
+        "--page-body-weight": weightOf(sheet.body),
+        "--page-body-slant": slantOf(sheet.body),
+        "--page-title-weight": weightOf(sheet.titleStyle),
+        "--page-title-slant": slantOf(sheet.titleStyle),
+      } as CSSProperties)
+    : undefined;
+  const bar = (
+    <>
+      {name && (
+        <span className="frontedit-bar__name" title={name}>
+          {name}
+        </span>
+      )}
       <FormatBar editor={editor} openingPage />
-      <ProseEditor markdown={value} onChange={onChange} onReady={setEditor} />
+      {(onChangeTemplate || onDone) && <span className="frontedit-bar__spacer" />}
+      {onChangeTemplate && <Button onClick={onChangeTemplate}>Change Template…</Button>}
+      {onDone && (
+        <Button treatment="primary" onClick={onDone}>
+          Done
+        </Button>
+      )}
+    </>
+  );
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: the page's own start and end keys, taken before the script's
+    <div
+      ref={box}
+      className={`frontpage-editor${sheet ? " frontpage-editor--sheet" : ""}${sheet?.title ? " frontpage-editor--title" : ""}`}
+      role="group"
+      aria-label={label}
+      style={setting}
+      onKeyDownCapture={onKeyDown}
+    >
+      {barHost ? createPortal(bar, barHost) : bar}
+      {/* What the detail under the caret is, and what else shows it: said
+          at the work, under the field, in place of a form that listed them all. */}
+      {activeField && helpFor(activeField.name) && (
+        <FieldNote at={activeField.at} bar={barHost ?? null}>
+          {helpFor(activeField.name)}
+        </FieldNote>
+      )}
+      <ProseEditor
+        markdown={value}
+        onChange={onChange}
+        onReady={setEditor}
+        pageFile={pageFile}
+        onBlur={onBlur}
+      />
     </div>
   );
 }

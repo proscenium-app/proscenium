@@ -21,7 +21,9 @@ import { CLOSED_EXPORT, publishExportFacts, tutorialActions } from "../tutorial/
  * eleven pages that were not going, while the title and cast sheets that WERE
  * going never showed at all. The pane draws `plan.chosen` — the ticked front
  * sheets, then the pages in the range, in file order. The rail stays the map
- * of everything that could go, each sheet with its tick.
+ * of everything that could go, each sheet with its tick. The sheets of the
+ * pages after the script (docs/app/formatting/formats-and-layout.md#FMT-174)
+ * follow the script's pages in both, and are chosen as the front sheets are.
  *
  * Selection has one model with two faces: the range field is the truth, and
  * ticking a page rewrites the field. Page numbers are the PRINTED ones — an
@@ -40,10 +42,10 @@ import { CLOSED_EXPORT, publishExportFacts, tutorialActions } from "../tutorial/
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { formatCssVars, inchesToCh, pageSizeIn, type FormatSpec } from "../format";
+import { elementColumnIn, formatCssVars, inchesToCh, pageSizeIn, type FormatSpec } from "../format";
 import type { FrontMatterLine, FrontMatterPage, LayoutPage, LayoutResult } from "../layout";
 import {
-  FRONT_SHEET_LABEL,
+  frontSheetLabel,
   defaultFrontSheets,
   formatPageRange,
   frontKindsOf,
@@ -70,6 +72,7 @@ export const EXPORT_TYPE_LABEL: Record<ExportFileType, string> = {
   pdf: "PDF",
   docx: ".docx",
   odt: ".odt",
+  rtf: ".rtf",
 };
 
 /** Said beside the buttons, and announced, when the file is for a word processor. */
@@ -83,8 +86,15 @@ export interface ExportPanelProps {
   layout: LayoutResult;
   /** Every unnumbered sheet the play has to put before page 1, as the engine lays them out. */
   frontPages: FrontMatterPage[];
-  /** The front sheets the writer chose; null until they choose, which follows the default. */
+  /** Every unnumbered sheet the play has to put after its last page; omitted, none. */
+  backPages?: FrontMatterPage[];
+  /**
+   * The unnumbered sheets the writer chose, before the script and after it;
+   * null until they choose, which follows the default.
+   */
   frontChoice: FrontSheet[] | null;
+  /** Pages (by source) whose file leaves them out of exports until ticked. */
+  leftOut?: ReadonlySet<string>;
   onFrontChoice: (kinds: FrontSheet[]) => void;
   /** Speakers who can have sides, heaviest part first. */
   characters: string[];
@@ -114,6 +124,9 @@ export interface ExportPanelProps {
   onClose: () => void;
 }
 
+/** No sheets after the script: the same list every time, so nothing is laid out again for it. */
+const NO_BACK_PAGES: FrontMatterPage[] = [];
+
 /** Thumbnail width in the page rail. Chrome, not layout — the sheet inside is
  * scaled to it, so the format still owns every proportion. */
 const THUMB_PX = 116;
@@ -136,6 +149,7 @@ function childTops(el: HTMLElement): number[] {
 
 export function ExportPanel(props: ExportPanelProps) {
   const { layout, spec, frontPages, onFrontChoice } = props;
+  const backPages = props.backPages ?? NO_BACK_PAGES;
   const total = layout.pages.length;
   const printing = props.action === "print";
 
@@ -151,16 +165,47 @@ export function ExportPanel(props: ExportPanelProps) {
 
   /* Each kind of front sheet the play has, ticked by the writer — or, until
      they tick one, by the default, which follows the selection: an excerpt
-     that starts past page 1 usually travels without the title page. */
-  const available = useMemo(() => frontKindsOf(frontPages), [frontPages]);
+     that starts past page 1 usually travels without the title page, and one
+     that stops before the last page without the pages after the script. */
+  const frontAvailable = useMemo(() => frontKindsOf(frontPages), [frontPages]);
+  const backAvailable = useMemo(() => frontKindsOf(backPages), [backPages]);
+  const available = useMemo(
+    () => [...frontAvailable, ...backAvailable],
+    [frontAvailable, backAvailable],
+  );
+  const backKinds = useMemo(() => new Set(backAvailable), [backAvailable]);
   const startsAtPageOne = selection.all || selection.pages.includes(1);
+  const endsAtLastPage = selection.all || selection.pages.includes(total);
+  const leftOutKinds = useMemo(
+    () =>
+      new Set(
+        [...frontPages, ...backPages]
+          .filter((page) => page.source !== undefined && props.leftOut?.has(page.source))
+          .map((page) => page.kind),
+      ),
+    [frontPages, backPages, props.leftOut],
+  );
   const frontKinds = useMemo(
     () =>
       (
         props.frontChoice ??
-        defaultFrontSheets(available, { sides: !!props.sidesFor, startsAtPageOne })
+        defaultFrontSheets(available, {
+          sides: !!props.sidesFor,
+          startsAtPageOne,
+          leftOut: leftOutKinds,
+          back: backKinds,
+          endsAtLastPage,
+        })
       ).filter((kind) => available.includes(kind)),
-    [props.frontChoice, available, props.sidesFor, startsAtPageOne],
+    [
+      props.frontChoice,
+      available,
+      props.sidesFor,
+      startsAtPageOne,
+      leftOutKinds,
+      backKinds,
+      endsAtLastPage,
+    ],
   );
 
   const plan = useMemo(
@@ -168,10 +213,11 @@ export function ExportPanel(props: ExportPanelProps) {
       planSheets({
         front: frontPages,
         layout,
+        back: backPages,
         frontKinds,
         pages: selection.error ? null : selection.pages,
       }),
-    [frontPages, layout, frontKinds, selection],
+    [frontPages, layout, backPages, frontKinds, selection],
   );
   const going = useMemo(() => new Set(plan.chosen.map((sheet) => sheet.key)), [plan]);
 
@@ -417,6 +463,7 @@ export function ExportPanel(props: ExportPanelProps) {
                 { value: "pdf", label: EXPORT_TYPE_LABEL.pdf },
                 { value: "docx", label: EXPORT_TYPE_LABEL.docx, section: "For a word processor" },
                 { value: "odt", label: EXPORT_TYPE_LABEL.odt, section: "For a word processor" },
+                { value: "rtf", label: EXPORT_TYPE_LABEL.rtf, section: "For a word processor" },
               ]}
             />
           </label>
@@ -487,24 +534,37 @@ export function ExportPanel(props: ExportPanelProps) {
                 <span className="exportpanel__optlabel" id="export-front-label">
                   Include
                 </span>
-                {available.map((kind) => {
-                  const sheets = frontPages.filter((page) => page.kind === kind).length;
-                  return (
-                    <label className="exportpanel__check" key={kind}>
-                      <Checkbox
+                {frontAvailable.map((kind) => (
+                  <IncludeCheck
+                    key={kind}
+                    kind={kind}
+                    pages={frontPages}
+                    on={frontKinds.includes(kind)}
+                    onToggle={toggleFront}
+                  />
+                ))}
+                {backAvailable.length > 0 && (
+                  /* The pages after the script, said to be so: a page of notes
+                     can stand on either side, and its name alone does not say. */
+                  <div
+                    className="exportpanel__after"
+                    role="group"
+                    aria-labelledby="export-after-label"
+                  >
+                    <span className="exportpanel__optlabel" id="export-after-label">
+                      After the script
+                    </span>
+                    {backAvailable.map((kind) => (
+                      <IncludeCheck
+                        key={kind}
+                        kind={kind}
+                        pages={backPages}
                         on={frontKinds.includes(kind)}
-                        label={FRONT_SHEET_LABEL[kind]}
-                        onChange={() => toggleFront(kind)}
+                        onToggle={toggleFront}
                       />
-                      <span>
-                        {FRONT_SHEET_LABEL[kind]}
-                        {sheets > 1 && (
-                          <span className="exportpanel__hint"> ({sheets} sheets)</span>
-                        )}
-                      </span>
-                    </label>
-                  );
-                })}
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <span className="sheet__hint">
@@ -765,6 +825,28 @@ function PreviewScroller(props: {
   );
 }
 
+/** One kind of unnumbered sheet in the Include list: its name, its tick, and how many sheets it runs to. */
+function IncludeCheck(props: {
+  kind: FrontSheet;
+  /** The sheets on its side of the script. */
+  pages: readonly FrontMatterPage[];
+  on: boolean;
+  onToggle: (kind: FrontSheet) => void;
+}) {
+  const { kind } = props;
+  const sheets = props.pages.filter((page) => page.kind === kind).length;
+  const { label } = frontSheetLabel(props.pages.find((page) => page.kind === kind) ?? { kind });
+  return (
+    <label className="exportpanel__check">
+      <Checkbox on={props.on} label={label} onChange={() => props.onToggle(kind)} />
+      <span>
+        {label}
+        {sheets > 1 && <span className="exportpanel__hint"> ({sheets} sheets)</span>}
+      </span>
+    </label>
+  );
+}
+
 /** One sheet in the rail: a small page, its name, and its tick. An unbuilt
  * thumbnail still holds a full-size blank sheet, so the rail's scroll height is
  * right from the first frame and nothing jumps as pages fill in. */
@@ -780,8 +862,12 @@ function PageThumb(props: {
   const { sheet } = props;
   const { widthIn } = pageSizeIn(props.spec);
   const scale = useMemo(() => THUMB_PX / (widthIn * measurePxPerInch()), [widthIn]);
-  // "Include page 12", "Include title page".
-  const includeLabel = `Include ${sheet.label.charAt(0).toLowerCase()}${sheet.label.slice(1)}`;
+  // "Include page 12", "Include title page"; a page file's name as the writer
+  // wrote it, "Include A Note on the Text", never "Include a Note on the Text".
+  const named = sheet.kind === "front" && !!sheet.front.label;
+  const includeLabel = named
+    ? `Include ${sheet.label}`
+    : `Include ${sheet.label.charAt(0).toLowerCase()}${sheet.label.slice(1)}`;
 
   return (
     <div
@@ -906,7 +992,12 @@ function FrontLines({ lines, spec }: { lines: FrontMatterLine[]; spec: FormatSpe
   );
 }
 
-function FrontPreviewPage(props: { page: FrontMatterPage; spec: FormatSpec; scale: number }) {
+/** A sheet before the script or after it, drawn: the export's preview and the Add Page gallery's thumbnails. */
+export function FrontPreviewPage(props: {
+  page: FrontMatterPage;
+  spec: FormatSpec;
+  scale: number;
+}) {
   const { page, spec } = props;
   return (
     <div className="exportpanel__sheet" style={sheetStyle(spec, props.scale)}>
@@ -947,6 +1038,22 @@ export function PreviewPage(props: {
         <div className="exportpanel__block">
           <FrontLines lines={page.intro ?? []} spec={spec} />
           {page.lines.map((line, i) => {
+            if (line.type === "horizontalRule") {
+              // A hairline across its column, as the PDF draws it.
+              const col = elementColumnIn(spec, line.type);
+              return (
+                <span
+                  key={i}
+                  className="exportpanel__line exportpanel__rule"
+                  aria-hidden="true"
+                  style={{
+                    top: `calc(${line.row} * var(--fmt-line))`,
+                    left: `${inchesToCh(spec, col.leftIn)}ch`,
+                    width: `${inchesToCh(spec, col.widthIn)}ch`,
+                  }}
+                />
+              );
+            }
             if (!line.text) return null;
             const el = spec.elements[line.type];
             const base = {

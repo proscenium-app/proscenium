@@ -147,6 +147,8 @@ describe("edge-case corpus (full element set)", () => {
 
     "page break": ["One.", "", "===", "", "Two."].join("\n"),
 
+    "horizontal line": ["One.", "", "---", "", "Two."].join("\n"),
+
     "all-caps action is forced": ["MARA", "Hello.", "", "!THE LIGHTS DIM."].join("\n"),
 
     "nested section becomes a sub-scene": [
@@ -1971,6 +1973,7 @@ describe("the first line of a script stays in the script", () => {
     const house = [
       ...["Setting", "Time", "Place", "Characters", "Title Page Text"],
       ...["Characters Page Text", "Opening Notes", "Opening Notes First"],
+      "Production Notes Text",
     ];
     const neither = ["She said", "At rise", "Scene", "Lights", "Note", "Dated", "A title"];
     let marked = 0;
@@ -2004,7 +2007,7 @@ describe("the first line of a script stays in the script", () => {
       tried += shapes.length * 2;
     }
     // Both answers were met: the sweep is no proof if it only ever saw one.
-    expect(tried).toBe(952);
+    expect(tried).toBe(986);
     expect(marked).toBeGreaterThan(300);
     expect(marked).toBeLessThan(tried - 300);
   });
@@ -3881,4 +3884,81 @@ it("retains an empty speech and its cue on every reopen, including retained prac
   const literal = "MARA\nThe mark EMPTY-SPEECH stays.\n  \nAnd so does this.\n";
   expectRoundTripStable(literal);
   expect(serialize(parse(literal))).toContain("EMPTY-SPEECH");
+});
+
+/**
+ * A horizontal line is a block of three or more hyphens and nothing else
+ * (docs/engineering/fountain-model.md#EDIT-214), and a stage direction that
+ * says only that keeps its words behind a `\`.
+ */
+describe("a horizontal line", () => {
+  const blocks = (source: string) => parse(source).doc.content;
+
+  it("is read from a block of hyphens, however many and however indented", () => {
+    for (const line of ["---", "----", "----------", "  ---  "]) {
+      expect(blocks(`She waits.\n\n${line}\n\nHe goes.`).map((b) => b.type)).toEqual([
+        "action",
+        "horizontalRule",
+        "action",
+      ]);
+    }
+  });
+
+  it("is read between two speeches, and parts them", () => {
+    const source = "MARA\nYes.\n\n---\n\nMARA\nNo.\n";
+    expect(blocks(source).map((b) => b.type)).toEqual([
+      "character",
+      "dialogue",
+      "horizontalRule",
+      "character",
+      "dialogue",
+    ]);
+    expect(serialize(parse(source))).toBe(source);
+  });
+
+  it("is not read from fewer hyphens, from hyphens inside a block, or from a speech", () => {
+    expect(blocks("She waits.\n\n--\n").map((b) => b.type)).toEqual(["action", "action"]);
+    expect(blocks("She waits.\n---\nHe goes.\n").map((b) => b.type)).toEqual(["action"]);
+    expect(blocks("MARA\n---\n").map((b) => b.type)).toEqual(["character", "dialogue"]);
+    expect(blocks("> --- <\n").map((b) => b.type)).toEqual(["centered"]);
+  });
+
+  it("is written as three hyphens on a line of its own", () => {
+    const doc = {
+      type: "doc" as const,
+      content: [
+        { type: "action" as const, content: [{ type: "text" as const, text: "She waits." }] },
+        { type: "horizontalRule" as const },
+        { type: "action" as const, content: [{ type: "text" as const, text: "He goes." }] },
+      ],
+    };
+    const source = serialize({ frontMatter: {}, doc });
+    expect(source).toBe("She waits.\n\n---\n\nHe goes.\n");
+    expect(parse(source).doc).toEqual(doc);
+  });
+
+  it("is not what a stage direction of hyphens comes back as", () => {
+    for (const words of ["---", "-----", "  ---"]) {
+      const doc = {
+        type: "doc" as const,
+        content: [{ type: "action" as const, content: [{ type: "text" as const, text: words }] }],
+      };
+      const source = serialize({ frontMatter: {}, doc });
+      expect(source.trimStart().startsWith("\\")).toBe(true);
+      expect(parse(source).doc).toEqual(doc);
+    }
+  });
+
+  it("leaves hyphens inside a longer direction as they are written", () => {
+    const doc = {
+      type: "doc" as const,
+      content: [
+        {
+          type: "action" as const,
+          content: [{ type: "text" as const, text: "She waits.\n---\nHe goes." }],
+        },
+      ],
+    };
+    expect(serialize({ frontMatter: {}, doc })).toBe("She waits.\n---\nHe goes.\n");
+  });
 });

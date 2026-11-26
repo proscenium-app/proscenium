@@ -60,4 +60,146 @@ impl<R: Runtime> VaultPicker<R> {
             .map(|r| r.ready)
             .map_err(Into::into)
     }
+
+    /// Ask iCloud for everything in a folder that is not on this device yet,
+    /// and say how much that was. Starts downloads and waits for none of them:
+    /// the caller asks again (docs/engineering/cross-platform.md#PLAT-69).
+    pub fn download_folder(&self, path: String) -> crate::Result<Downloading> {
+        self.0
+            .run_mobile_plugin("downloadFolder", DownloadRequest { path, most: None })
+            .map_err(Into::into)
+    }
+
+    // Every call below blocks its caller until the iPad answers, so none is
+    // made from the main thread, which some of the answers need.
+
+    /// The share sheet for a file (an export), until it closes.
+    pub fn share_file(&self, path: String) -> crate::Result<Shared> {
+        self.0
+            .run_mobile_plugin("shareFile", PathRequest { path })
+            .map_err(Into::into)
+    }
+
+    /// The print panel for a PDF, once it is up.
+    pub fn print_file(&self, path: String, job_title: String) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("printFile", PrintRequest { path, job_title })
+            .map_err(Into::into)
+    }
+
+    /// An `https` page in Safari.
+    pub fn open_url(&self, url: String) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("openUrl", UrlRequest { url })
+            .map_err(Into::into)
+    }
+
+    /// Text onto the pasteboard.
+    pub fn copy_text(&self, text: String) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("copyText", TextRequest { text })
+            .map_err(Into::into)
+    }
+
+    /// Time from iOS to finish as the app leaves; the id gives it back.
+    pub fn begin_background_task(&self) -> crate::Result<i64> {
+        self.0
+            .run_mobile_plugin::<TaskId>("beginBackgroundTask", ())
+            .map(|t| t.id)
+            .map_err(Into::into)
+    }
+
+    pub fn end_background_task(&self, id: i64) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("endBackgroundTask", TaskId { id })
+            .map_err(Into::into)
+    }
+
+    /// Whether TestFlight installed this copy, and the system's version.
+    pub fn store_facts(&self) -> crate::Result<StoreFacts> {
+        self.0
+            .run_mobile_plugin("storeFacts", ())
+            .map_err(Into::into)
+    }
+
+    /// Whether a folder is in iCloud Drive, where access is coordinated.
+    pub fn is_ubiquitous(&self, path: String) -> crate::Result<bool> {
+        self.0
+            .run_mobile_plugin::<Ubiquity>("isUbiquitous", PathRequest { path })
+            .map(|u| u.ubiquitous)
+            .map_err(Into::into)
+    }
+
+    /// Coordinated access to `path` (`list`, `read` or `replace`), granted and
+    /// held until [`Self::end_coordinated`] with its token.
+    pub fn begin_coordinated(
+        &self,
+        path: String,
+        access: &str,
+        wait_ms: Option<u32>,
+    ) -> crate::Result<Coordinated> {
+        self.0
+            .run_mobile_plugin(
+                "beginCoordinated",
+                CoordinateRequest {
+                    path,
+                    access: access.to_string(),
+                    wait_ms,
+                    hold_ms: None,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn end_coordinated(&self, token: i64) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("endCoordinated", TokenRequest { token })
+            .map_err(Into::into)
+    }
+
+    /// Rust's own channel for one of the plugin's events: `menu`, an item
+    /// chosen (`{id}`), and `keyboard`, the keyboard's inset (`{inset}`).
+    /// Tauri's own listener list carries it, as it does a page's.
+    pub fn listen(&self, event: &str, handler: tauri::ipc::Channel) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin(
+                "registerListener",
+                ListenRequest {
+                    event: event.to_string(),
+                    handler,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    /// iPadOS's main menu, built once from the app's menus.
+    pub fn install_menu(&self, request: MenuRequest) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("installMenu", request)
+            .map_err(Into::into)
+    }
+
+    /// The keyboard's frame, watched from the moment the web view exists.
+    pub fn watch_keyboard(&self, request: KeyboardRequest) -> crate::Result<()> {
+        self.0
+            .run_mobile_plugin("watchKeyboard", request)
+            .map_err(Into::into)
+    }
+
+    /// The app's own iCloud container's folder, or `None` where iCloud is not
+    /// there (no account, iCloud Drive off, or the app turned off in it).
+    pub fn cloud_container(&self) -> crate::Result<Option<String>> {
+        self.0
+            .run_mobile_plugin::<CloudContainer>("cloudContainer", ())
+            .map(|c| c.path)
+            .map_err(Into::into)
+    }
+
+    /// The files opened from Files since launch, as the plugin holds them.
+    pub fn opened_files(&self) -> crate::Result<Vec<OpenedFile>> {
+        self.0
+            .run_mobile_plugin::<OpenedFiles>("openedFiles", ())
+            .map(|o| o.files)
+            .map_err(Into::into)
+    }
 }

@@ -194,6 +194,33 @@ export const AutoDetect = Extension.create({
         },
       }),
 
+      // A line of exactly `---` becomes a horizontal line, the way `===`
+      // becomes a page break and the way serialize writes one
+      // (docs/app/writing/editor-ux.md#EDIT-213). Backspace straight after
+      // gives the hyphens back, as it does for every rule.
+      new InputRule({
+        find: /^---$/,
+        handler: ({ state, range, chain }) => {
+          const $to = state.doc.resolve(range.to);
+          if ($to.parent.type.name !== "action") return;
+          if ($to.parentOffset !== $to.parent.content.size) return;
+          const before = $to.before();
+          const after = $to.after();
+          chain()
+            .command(({ tr, state: s, dispatch }) => {
+              const rule = s.schema.nodes.horizontalRule;
+              const action = s.schema.nodes.action;
+              if (!rule || !action) return false;
+              if (!dispatch) return true;
+              tr.replaceWith(before, after, [rule.create(), action.create()]);
+              // The line is an atom (size 1): the new Action starts at +2.
+              tr.setSelection(TextSelection.create(tr.doc, before + 2));
+              return true;
+            })
+            .run();
+        },
+      }),
+
       // Fountain's `> text <`: a trailing `<` on a transition makes it
       // centered text (the `>` already made it a transition as it was typed).
       new InputRule({

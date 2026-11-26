@@ -287,8 +287,11 @@ in panes.ts; pinned in panes.test.ts).
   every spoken "N comments remaining" count conversations. A to-do anywhere in
   a conversation makes it one for the filter and the scene's count, and a
   conversation is listed under an author when any part of it is theirs.
-- <a id="COMM-54"></a> **COMM-54** **Replying.** Every comment has a **Reply** control on its card and its
-  row. It opens a field under the last reply; ⌘⏎ saves, Esc cancels, and a
+- <a id="COMM-54"></a> **COMM-54** **Replying.** Every conversation ends, on its card and its row, in a
+  closed reply field reading "Reply…", under the last reply, where the next
+  one will be written: a conversation goes back and forth, and a control on
+  the comment at its head pointed at where it began. A press opens the field
+  in its place; ⌘⏎ saves, Esc cancels, and a
   reply saved empty is a reply cancelled. The reply is written directly after
   the last comment of the conversation. **⌘⌥M** and `+ Comment` at a place
   that already has a comment open that comment's reply field instead of
@@ -350,7 +353,33 @@ in panes.ts; pinned in panes.test.ts).
   comment and leaves the caret where it was in the script. In the feed it
   goes to the comment ([COMM-28](#COMM-28)), and the row's **Show in the
   script** control does the same from the keyboard, since the words are text
-  now and no longer a button.
+  now and no longer a button. By touch a long press selects them. WebKit lets
+  a long press select only inside the field that has the keyboard and gives
+  the lift a click, so while the script had it, a comment's words could not
+  be selected on an iPad, and a long press in the feed went to the comment in
+  the script. A finger still on a comment's words a fifth of a second after it
+  came down lets the script go (`src/ui/hold-to-select.ts`), and since iPadOS
+  chooses how a press selects as its touch begins, a press held as long as a
+  long press that lifts with nothing selected selects the word under the
+  finger itself, and its lift does not go on to the script. A quick tap keeps
+  the keyboard where it was, and still goes to the comment.
+- <a id="COMM-75"></a> **COMM-75** **A comment's field is as tall as its words**, three lines at the
+  least, and never scrolls inside itself; its card grows, and the cards under
+  it make room. In WebKit a field that scrolls within moves the page by as
+  much: each line a comment wrapped past the field's third scrolled the
+  script a line, keystroke by keystroke, wherever the card stood under the
+  toolbar. The field has no resize handle, since its words size it.
+- <a id="COMM-76"></a> **COMM-76** **A comment still being typed when the script is left is settled,
+  not dropped.** Leaving the play, opening another script, or anything else
+  that lands the script and replaces it, first saves what was typed as the
+  comment or reply it was typed for, and takes out a new comment with no
+  words, as Esc does. A new comment is in the script from the moment it is
+  made, holding its placeholder ([COMM-60](#COMM-60)), and its words were in
+  the field alone: leaving took the field and kept the placeholder, so the
+  script was saved with a comment reading "comment" and the words were gone.
+  A change to a comment already saved keeps its new words the same way; one
+  emptied and left keeps the comment as it was. Moving between the script's
+  own views keeps the field open, as before.
 
 <a id="COMM-D13"></a>
 
@@ -377,7 +406,13 @@ in panes.ts; pinned in panes.test.ts).
   sentence is a place a caret is lost in and a thing a deletion takes half
   of. A word typed inside the stretch or at its
   end is part of it; one typed in front of it, or after its comment, is not.
-  Words typed over the whole of it are the stretch. Deleting its first words
+  That holds however the word reaches the editor: on an iPad a word typed
+  after a tap at the stretch's first word went into the stretch's own element
+  in the page and was read back as part of it, and such a word is let out of
+  it again (`front.ts`). The page's caret where a stretch begins stands in the
+  words before it, so a word typed there goes into the page in front of the
+  stretch, as it goes into the play. Words typed over the whole of it are the
+  stretch. Deleting its first words
   leaves it beginning at what is left, and a line split inside it leaves it
   running across the two. Deleting every word of it leaves the comment at a
   point; deleting the comment leaves the words unmarked. Either way nothing
@@ -480,8 +515,11 @@ not the only one with that text.
 - <a id="COMM-70"></a> **COMM-70** **The inspector counts the comments standing in its scene.** The
   scene is the outline's
   ([docs/app/organizing/workspace-model.md#WORK-D104](../organizing/workspace-model.md#WORK-D104)):
-  a `##` scene title begins one when the script has any, and a scene heading
-  begins one only when it has none. It runs from the line it begins at to the
+  a `##` scene title begins one when the script has any, a scene heading
+  begins one only when it has none, and a script with neither is one scene,
+  the whole of it, whose count reads "N in this play"
+  ([docs/app/organizing/workspace-model.md#WORK-93](../organizing/workspace-model.md#WORK-93)).
+  It runs from the line it begins at to the
   line the next scene begins at, and "N in this scene" is the conversations
   standing in that stretch, one on the scene's own first line among them. No
   heading's text is read. That stretch is where the caret is while the
@@ -567,6 +605,7 @@ line at a time, and that is where it did damage.
 | A comment-dense page overwhelms the margin | `stack.ts` guarantees no overlap and the reading order; the panel is still the dense list, and ⌘⇧C swaps to it. | <a id="COMM-47"></a>COMM-47 |
 | A naive replace-all edits comment text | Find's element scoping already exists; exclude comments from replace by default, mirroring the cue-rename guard, which holds cue matches back from replace so a character is never half-renamed. | <a id="COMM-48"></a>COMM-48 |
 | Words selected up to a comment are typed over, and the hidden comment goes with them | The marker is drawn past the caret, so a caret or a selection that ends at a comment ends in the words before it. Drawn before the caret, it left the selection's end between the marker and the hidden comment, and both engines took the comment out with the words. Smoke types over a commented stretch in each engine and reads the comment back. | <a id="COMM-65"></a>COMM-65 |
+| A comment at the end of a line takes a line of its own | A line that ends in a comment ends in a node that is not text, and the editor puts a placeholder break after it; the format draws a closing `)` or a suffix after the block's text, after that break, so it dropped to a row of its own. The placeholder is the caret's place after the hidden comment, so it stays: hidden, the words typed at the line's end went in front of the comment. Instead the line takes a line-end widget, drawn before the caret and before the placeholder, and the format's `)` and suffix are drawn there (`lineEndAfterComment` in `src/format/css.ts`). That keeps [COMM-16](#COMM-16): a line with a comment at its end is as tall as the line without it. Smoke adds a comment at the end of a parenthetical in each engine, holds its height, and types after it. | <a id="COMM-77"></a>COMM-77 |
 | The `[[` chip surprises a writer who meant literal brackets | Galley chip + margin marker make the state visible; undo reverses the input rule as one step, and literal `[[` is a case no play has hit. | <a id="COMM-49"></a>COMM-49 |
 
 ## Design

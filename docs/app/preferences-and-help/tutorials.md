@@ -163,7 +163,11 @@ lit in place instead.
   card has room. When nothing fits it stays on screen on the roomiest side.
   The line being written stays in view as the play grows: when a page added
   above it (the Characters page, with the first cue) pushes it out of the
-  window, it comes back to the middle, with the lines before it.
+  window, it comes back to the middle, with the lines before it. A finished
+  step's card stays where the work happened, moved only as far as its own new
+  size needs to stay in the window: kept whole where the step's card had been
+  beside the save indicator, its foot ran off the bottom of an iPad's window,
+  and Stop Tutorial with it.
 - **Brought into view top first.** When a step starts pointing at a control or
   a page that its pane does not show whole, the pane scrolls once to show it.
   What a pane shows is its box less the chrome that sticks over it: a note's
@@ -328,7 +332,7 @@ Each lesson starts from where the previous lesson leaves the play:
 | **1. Write Your First Exchange** | Name the speaker → give them a line → choose the next speaker → write the reply → see that it's saved. Leaves a scene with a two-speaker exchange. |
 | **2. Format the Script** | Emphasize a phrase in that exchange → a Line Break inside a speech → a Page Break → choose another format. Leaves the exchange formatted, with a page break after it. |
 | **3. Arrange Scenes on the Board** | Open the Board → add a scene → describe it → move it earlier → see the Outline. Leaves two scenes in their new order. |
-| **4. Characters and Opening Pages** | Open Cast → make the printed Characters page yours → add someone to the cast → write opening notes. Leaves the play's opening pages. |
+| **4. Characters and Opening Pages** | Open Cast & Pages → make the printed Characters page yours → add someone to the cast → turn on and write opening notes. Leaves the play's opening pages. |
 | **5. Organize Files and Tags** | Create a document → write a note → tag it → name it. Leaves a named, tagged note in the play's Binder. |
 | **6. Prepare a PDF or Print** | Open the preview → choose the pages → choose opening sheets → finish at the preview. Saving or printing is the writer's choice; finishing at the preview writes nothing. |
 

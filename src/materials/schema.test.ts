@@ -129,8 +129,8 @@ describe("managed sections", () => {
       sheet,
       "Appearances",
       renderAppearances([
-        { ordinal: 0, label: "ACT ONE · Scene 1" },
-        { ordinal: 2, label: "ACT TWO · Scene 3" },
+        { ordinal: 0, label: "ACT ONE · Scene 1", speeches: 1 },
+        { ordinal: 2, label: "ACT TWO · Scene 3", speeches: 1 },
       ]),
     );
     expect(out).toContain("- ACT TWO · Scene 3");
@@ -141,7 +141,7 @@ describe("managed sections", () => {
   });
 
   it("is idempotent — writing the same list twice is byte-stable", () => {
-    const body = renderAppearances([{ ordinal: 0, label: "ACT ONE · Scene 1" }]);
+    const body = renderAppearances([{ ordinal: 0, label: "ACT ONE · Scene 1", speeches: 1 }]);
     const once = writeManagedSection(sheet, "Appearances", body);
     expect(writeManagedSection(once, "Appearances", body)).toBe(once);
   });
@@ -164,7 +164,7 @@ describe("managed sections", () => {
     const out = writeManagedSection(
       tail,
       "Appearances",
-      renderAppearances([{ ordinal: 0, label: "new" }]),
+      renderAppearances([{ ordinal: 0, label: "new", speeches: 1 }]),
     );
     expect(out).toContain("- new");
     expect(out).not.toContain("- old");

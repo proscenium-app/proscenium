@@ -30,11 +30,14 @@ export function useCommentFocus(editor: Editor | null, root: RefObject<HTMLEleme
     const message = request.id
       ? root.current?.querySelector<HTMLElement>(`[data-message-id="${request.id}"]`)
       : null;
+    // A control on the message itself, or failing that on its conversation:
+    // the reply field waits at the conversation's foot, under every reply.
+    const control = `[aria-label="${request.control ?? "Edit comment"}"]`;
     const target = request.toScript
       ? null
-      : (message?.querySelector<HTMLElement>(
-          `[aria-label="${request.control ?? "Edit comment"}"]`,
-        ) ?? root.current?.querySelector<HTMLElement>("[data-comment-fallback]"));
+      : (message?.querySelector<HTMLElement>(control) ??
+        message?.closest("[data-comment-id]")?.querySelector<HTMLElement>(control) ??
+        root.current?.querySelector<HTMLElement>("[data-comment-fallback]"));
     if (target) target.focus({ preventScroll: true });
     else editor.commands.focus();
     const count = editor.storage.comments.count;

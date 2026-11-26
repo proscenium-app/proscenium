@@ -47,7 +47,7 @@ pub struct PlayStore {
 
 /// A play id is a ULID we minted. Validated before it becomes a directory name
 /// so a malformed one can never reach outside the store.
-fn valid_id(id: &str) -> bool {
+pub(crate) fn valid_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 64
         && id
