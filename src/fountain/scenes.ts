@@ -61,6 +61,16 @@ function boundaryType(blocks: BlockNode[]): BlockType | null {
   return null;
 }
 
+/**
+ * Whether the script is one scene because nothing divides it: it has lines,
+ * and neither a `##` scene title nor a scene heading among them
+ * (docs/app/organizing/workspace-model.md#WORK-41). Its one scene is the whole
+ * script, and has no heading of its own to be named by.
+ */
+export function wholeScript(doc: Doc | null): boolean {
+  return !!doc && doc.content.length > 0 && boundaryType(doc.content) === null;
+}
+
 function firstSynopsis(blocks: BlockNode[], from: number, to: number): string | undefined {
   for (let i = from; i < to; i++) {
     if (blocks[i].type === "synopsis") return textContent(blocks[i].content);

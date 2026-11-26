@@ -127,6 +127,57 @@ describe("WebKit's tree, as the native pass writes it", () => {
     const tree = { role: "checkbox", label: "Show", states: { checked: true } };
     expect(renderWebKitTree(tree)).toBe('- checkbox "Show" [checked]');
   });
+
+  // The Intel slice read the Discard question 600 ms and more after the edit
+  // under it, when the format designer's own sentence had landed in the
+  // dialog's announcer; Apple silicon read it sooner, most runs.
+  const words = (text: string) => ({ role: "text", text });
+  const question = (said: string) => ({
+    role: "alertdialog",
+    label: "Discard your changes?",
+    states: { liveRegionStatus: "assertive" },
+    children: [
+      { role: "heading", states: { headingLevel: 2 }, children: [words("Discard your changes?")] },
+      { role: "paragraph", children: [words("You changed the margins.")] },
+      { role: "button", label: "Keep Editing" },
+      {
+        role: "group",
+        ignored: true,
+        children: [
+          {
+            role: "status",
+            states: { liveRegionStatus: "polite" },
+            children: said ? [words(said)] : [],
+          },
+          { role: "alert", states: { liveRegionStatus: "assertive" } },
+        ],
+      },
+    ],
+  });
+
+  test("an alert dialog's line holds its own words, never what its announcer said last", () => {
+    const held =
+      '- alertdialog "Discard your changes?" [live=assertive]: Discard your changes?You changed the margins.';
+    expect(renderWebKitTree(question(""))).toBe(held);
+    expect(renderWebKitTree(question("Most of the page moved. 4 pages."))).toBe(held);
+  });
+
+  test("a live region's own line still says what it holds", () => {
+    const tree = {
+      role: "main",
+      children: [
+        {
+          role: "status",
+          states: { liveRegionStatus: "polite" },
+          children: [words("Pages counted for 2 plays.")],
+        },
+      ],
+    };
+    expect(renderWebKitTree(tree).split("\n")).toEqual([
+      "- main",
+      "  - status [live=polite]: Pages counted for 2 plays.",
+    ]);
+  });
 });
 
 describe("what a tree's text leaves out", () => {

@@ -14,7 +14,7 @@
  * The OS's words stay out of sight. The diagnostics keep a code for each
  * refusal (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D5), never the text, which can name a path.
  */
-import { pcWords } from "./pc-words";
+import { storageSystem, type StorageSystem } from "./storage-system";
 import type { ErrorCode } from "../diagnostics/error-codes";
 
 /** Why a write did not land, as far as a writer can do anything about it. */
@@ -229,9 +229,52 @@ const PC_WORDING: Readonly<Partial<Record<SaveRefusal, Wording>>> = {
   },
 };
 
+/**
+ * Where an iPad's words differ. Files has no Get Info and no permissions to
+ * change, so a lock is undone where it was made, in Finder on a Mac, and a
+ * folder the writer may not change is one its owner shared.
+ */
+const IPAD_WORDING: Readonly<Partial<Record<SaveRefusal, Wording>>> = {
+  locked: {
+    code: "E-SAVE-LOCKED",
+    title: (name) => `${name} is locked.`,
+    saving: () => "It will save once it's unlocked, in Finder's Get Info window on a Mac.",
+    change: () => "Unlock it in Finder's Get Info window on a Mac, then try again.",
+  },
+  "folder-locked": {
+    code: "E-SAVE-LOCKED",
+    title: (_, folder) => `The folder ${folder} is locked.`,
+    saving: (name) =>
+      `${name} will save once the folder is unlocked, in Finder's Get Info window on a Mac.`,
+    change: () => "Unlock the folder in Finder's Get Info window on a Mac, then try again.",
+  },
+  "no-permission": {
+    code: "E-SAVE-PERMISSION",
+    title: (_, folder) => `You don't have permission to change the folder ${folder}.`,
+    saving: (name) =>
+      `${name} will save once you can make changes there. If the folder was shared with you, its owner can allow that.`,
+    change: () =>
+      "Once you can make changes there, try again. If the folder was shared with you, its owner can allow that.",
+  },
+  "not-allowed": {
+    code: "E-SAVE-NOT-ALLOWED",
+    title: (name) => `iPadOS isn't letting Proscenium save ${name}.`,
+    saving: () =>
+      "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
+    change: () =>
+      "If its folder was shared with you, it may be view-only; if not, choose your Plays folder again in Settings › General.",
+  },
+};
+
+const WORDING_ON: Readonly<Record<StorageSystem, Partial<Record<SaveRefusal, Wording>>>> = {
+  mac: {},
+  pc: PC_WORDING,
+  ipad: IPAD_WORDING,
+};
+
 /** A refusal's words on this system. */
 function wordingOf(refusal: SaveRefusal): Wording {
-  return (pcWords() ? PC_WORDING[refusal] : undefined) ?? WORDING[refusal];
+  return WORDING_ON[storageSystem()][refusal] ?? WORDING[refusal];
 }
 
 /** A refusal this app has words for — for reading one back from a file (quit-note.ts). */

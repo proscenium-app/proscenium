@@ -70,17 +70,22 @@ This contract defines the privacy promise, permitted network traffic, report con
 `reports.proscenium.ink/v1/events`; the page only names an event from its closed
 IPC enum. A release build opts in at compile time with
 `PROSCENIUM_REPORTS=1`, set by release.mjs and, for the Mac App Store's copy,
-release-app-store.mjs; each release's check refuses a binary without the mark
-that build carries. Rehearsals, development builds and app:install builds send
+release-app-store.mjs; the iPad's release build opts in with the crate's `reports`
+feature, given by release-ios.mjs, since Xcode builds its Rust through the Tauri
+CLI, which passes Cargo its features and not the environment. Each release's
+check refuses a binary without the mark that build carries. Rehearsals, development builds and app:install builds send
 no usage or crash reports.
 
 <a id="PRIV-15"></a>
 
 **PRIV-15** The batch is `{ version, platform, arch, os, channel, events }`. `platform` is
-`darwin` on a Mac and `windows` on Windows; `arch` is `aarch64` or `x86_64`; `os`
-is the macOS major/minor version, or Windows' version and build (`10.0.<build>`,
-never the monthly patch number); `channel` is `developer-id` or `app-store` on a
-Mac, and `download` or `microsoft-store` on Windows. Each event is `{ name, props }`.
+`darwin` on a Mac, `windows` on Windows and `ios` on an iPad; `arch` is `aarch64` or
+`x86_64`, and an iPad's is `aarch64`; `os` is the macOS or iPadOS major/minor
+version, or Windows' version and build (`10.0.<build>`, never the monthly patch
+number); `channel` is `developer-id` or `app-store` on a Mac, `download` or
+`microsoft-store` on Windows, and `app-store` on an iPad, whether the App Store or
+TestFlight installed it: a TestFlight copy's whole version says which track it
+is, as a Mac's does (docs/engineering/services-and-feedback.md#SERV-272). Each event is `{ name, props }`.
 There is no client timestamp, session id, user id, locale, device name, cookie
 or user-agent. No property accepts arbitrary text. Unknown names, properties,
 values, versions or platforms cause the Worker to refuse the whole batch.
@@ -258,7 +263,7 @@ Sources:
   `E-EXPORT-FONT`, …), kept in a small local ring log. The local ring excludes the retired `conflict-repro.log` instrumentation.
 - <a id="PRIV-35"></a> **PRIV-35** **Help › Copy Diagnostics** (also in Settings › About) puts plain text on the
   clipboard:
-  - <a id="PRIV-36"></a> **PRIV-36** app version and channel, architecture, the system's version (macOS's major/minor, or Windows' `10.0.<build>`);
+  - <a id="PRIV-36"></a> **PRIV-36** app version and channel, architecture, the system and its version as the system says it (macOS's or iPadOS's, with its patch number, or Windows' `10.0.<build>`);
   - <a id="PRIV-37"></a> **PRIV-37** the accent, and the format ids in use (user formats as `user`);
   - <a id="PRIV-38"></a> **PRIV-38** the settings switches;
   - <a id="PRIV-39"></a> **PRIV-39** the Plays folder's provider kind (iCloud, Dropbox, Syncthing or local) —
@@ -297,10 +302,12 @@ Sources:
 
 <a id="PRIV-52"></a>
 
-**PRIV-52** Your plays and files stay on your Mac or PC. Proscenium never collects your writing:
+**PRIV-52** Your plays and files stay on your Mac, PC or iPad. Proscenium never collects your writing:
 no play text, titles, character names, filenames or paths. Usage counts record
 which features are used, never what you write with them. Send Feedback sends
-only the words you choose to put in its form. Exporting, copying and sharing a
+only the words you choose to put in its form, and TestFlight, Apple's app for
+testing Proscenium for iPad before its release, only the screenshot or crash
+report you choose to send from it. Exporting, copying and sharing a
 file do what you ask them to do. A Plays folder in a sync service and the
 system's own features, such as Writing Tools, Services and Universal Clipboard
 on a Mac, follow their own settings.
@@ -308,15 +315,15 @@ on a Mac, follow their own settings.
 <a id="PRIV-53"></a>
 
 **PRIV-53** **Everything Proscenium collects, and why.** The table below is the complete
-list of data that may leave your Mac or PC; anything not in it is not collected. No
+list of data that may leave your Mac, PC or iPad; anything not in it is not collected. No
 reason, no field. A test holds the table to the app's list of events and to our
 service's, so neither can send something this page does not list.
 
 | What is sent | Fields and allowed values | Why | Requirement |
 |---|---|---| --- |
-| Update check | platform `darwin` or `windows`; chip `aarch64` or `x86_64`; current app version; in `Proscenium-OS`, macOS major/minor, or Windows' version and build (`10.0.<build>`) | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. | <a id="PRIV-54"></a>PRIV-54 |
+| Update check | platform `darwin` or `windows`; chip `aarch64` or `x86_64`; current app version; in `Proscenium-OS`, macOS major/minor, or Windows' version and build (`10.0.<build>`). An iPad sends none: the App Store, or TestFlight, updates it | Find a compatible update and count how often copies of each version are used on each system. This is an estimate of copies, not a count of people. | <a id="PRIV-54"></a>PRIV-54 |
 | Release download | release version and one of its own DMG, Windows installer, signed archive or signature filenames | Deliver the chosen release and count it by version, system and chip, and as a download from our website or Homebrew, an update, or a signature, so downloads and updates are never one number. The route asked, and the name your browser or Homebrew sends with any request, choose which; neither is kept. These are our release filenames, never yours. | <a id="PRIV-55"></a>PRIV-55 |
-| Every usage batch | `version`, `platform`, `arch`, `os`, `channel` (`developer-id` or `app-store` on a Mac; `download` or `microsoft-store` on Windows) | See which releases, systems and delivery channels need support. | <a id="PRIV-56"></a>PRIV-56 |
+| Every usage batch | `version`, `platform` (`darwin` on a Mac, `windows` on Windows, `ios` on an iPad), `arch`, `os` (macOS's or iPadOS's major/minor, or Windows' version and build), `channel` (`developer-id` or `app-store` on a Mac; `download` or `microsoft-store` on Windows; `app-store` on an iPad, from the App Store or TestFlight) | See which releases, systems and delivery channels need support. | <a id="PRIV-56"></a>PRIV-56 |
 | Usage batch shape | `events`: up to 25 items, each with `name` and `props` from the rows below | Group counts into fewer requests without identifying a session. | <a id="PRIV-57"></a>PRIV-57 |
 | `app_launched` | no extra properties | Count how often the app opens each day. | <a id="PRIV-58"></a>PRIV-58 |
 | `play_opened` | `plays`: `1`, `2-5`, `6-20`, `21+` | Guide work on the Plays screen without an exact play count. | <a id="PRIV-59"></a>PRIV-59 |
@@ -330,7 +337,7 @@ service's, so neither can send something this page does not list.
 | `lesson_progress` | `lesson`: `first-exchange`, `format`, `scene-cards`, `characters`, `files`, `export`; `moment`: `started`, `continued`, `finished`, `finished-with-skips` | See which lessons writers start, come back to and finish. Nothing you write in a lesson is sent. | <a id="PRIV-93"></a>PRIV-93 |
 | `lesson_stopped` | `lesson`: `first-exchange`, `format`, `scene-cards`, `characters`, `files`, `export`; `step`: `speaker`, `line`, `speaker-two`, `reply`, `saved`, `emphasis`, `line-break`, `page-break`, `format`, `board`, `scene`, `summary`, `move-scene`, `outline`, `cast`, `characters-page`, `add-character`, `opening-notes`, `document`, `note`, `tags`, `rename`, `export`, `export-range`, `export-opening`, `export-preview` | See which step of a lesson writers leave at, so that step can be made clearer. Sent when you stop a lesson before its end, or open another play during one. | <a id="PRIV-94"></a>PRIV-94 |
 | One crash | `event_id`: a random UUID for that crash, repeated in the envelope | Let Sentry recognize a retry of the same crash. It does not identify a writer, device or session. | <a id="PRIV-65"></a>PRIV-65 |
-| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip, and macOS major/minor or Windows' `10.0.<build>`; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves your computer. | <a id="PRIV-66"></a>PRIV-66 |
+| Crash context | `release`: app version; `platform`: javascript (omitted for native, the protocol default); `tags`: app platform, chip, and macOS's or iPadOS's major/minor, or Windows' `10.0.<build>`; `timestamp`: UTC day at midnight, as Unix seconds | Find the affected build and system, and the day it failed. No precise crash time leaves your computer or iPad. | <a id="PRIV-66"></a>PRIV-66 |
 | Crash failure | `level`: fatal; one `exception` with a kind from the closed list and a `stacktrace` | Group failures by where execution stopped. No exception message or value is allowed. | <a id="PRIV-67"></a>PRIV-67 |
 | Each stack frame | `module`: native or webview; optional compiled `function`, `lineno`, `colno` | Locate the failing code. No filename, path, source line, memory address or local variable is sent. | <a id="PRIV-68"></a>PRIV-68 |
 | Crash envelope | item `type`: event; byte `length`; event id | Give Sentry the format and size of its single crash event. No other item type is allowed. | <a id="PRIV-69"></a>PRIV-69 |
@@ -339,6 +346,7 @@ service's, so neither can send something this page does not list.
 | Optional feedback details | The exact text under View Details, only when Include technical details is checked | Help understand the problem you are reporting. | <a id="PRIV-72"></a>PRIV-72 |
 | Included diagnostic facts | app version/channel, chip, the system's version, accent, built-in format ids or `user`, default format, preference switches, sync-provider kind | Reproduce the setup that matters to your feedback. No play, user-format name, learned word or path appears. | <a id="PRIV-73"></a>PRIV-73 |
 | Included diagnostic history | last 20 error codes with their local times/repeat counts; safe local crash summaries | Understand the failures you chose to show us. These precise local times appear only in details you inspect and include. | <a id="PRIV-74"></a>PRIV-74 |
+| What you send through TestFlight | a screenshot you send, with what you write beside it, or a crash report you choose to share; the build, the iPad's model and its iPadOS version. Never your name or email address | Hear what testers of Proscenium for iPad find before its release. It comes to us through Apple, and nothing is sent unless you send it; Apple's own terms cover what TestFlight keeps. | <a id="PRIV-96"></a>PRIV-96 |
 | A browser link you choose | releases, one release version, license, support or privacy | Open the page you requested. These links are not usage events. | <a id="PRIV-75"></a>PRIV-75 |
 
 <a id="PRIV-76"></a>
@@ -369,16 +377,17 @@ directly.
 Both handle this data only on our behalf. Update checks, downloads and usage
 counts are kept only as daily totals, for two years, with no record of any
 single request. Crash reports are kept for 30 days, and our service keeps no
-copy of them. On your Mac, unsent usage counts wait only in memory, for up to
+copy of them. On your Mac, PC or iPad, unsent usage counts wait only in memory, for up to
 seven days, and at most 20 crash records wait until they are sent or replaced
-by newer ones. The app also keeps on your computer, and never sends, the day
+by newer ones. The app also keeps there, and never sends, the day
 it first ran and the last day, week and month it counted itself as in use.
 
 <a id="PRIV-80"></a>
 
 **PRIV-80** Feedback is held privately and securely by the Proscenium team, and every
 copy is deleted after one year. Only the team reads it, and it is never
-forwarded or shared. Your address is used only to reply to you. The app keeps one unsent
+forwarded or shared. What you send through TestFlight is held the same way.
+Your address is used only to reply to you. The app keeps one unsent
 draft outside the Plays folder until a confirmed send or Discard Draft. It is
 never sent in the background. Technical details are gathered fresh and are not
 saved in the draft.

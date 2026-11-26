@@ -10,11 +10,12 @@
   - paragraph: No plays here yet — start one, or drop a draft you already have.
   - paragraph: Your plays live in OneDrive and appear on your other devices.
   - table "Plays":
-    - row "Play Progress Status Modified":
+    - row "Play Progress Status Modified Actions":
       - columnheader "Play"
       - columnheader "Progress"
       - columnheader "Status"
       - columnheader "Modified"
+      - columnheader "Actions"
   - button "Open the Sample Play"
   - text: Scenes from Noël Coward's Hay Fever, in two acts.
 - contentinfo:

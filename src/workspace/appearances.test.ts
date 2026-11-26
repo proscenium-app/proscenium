@@ -54,6 +54,33 @@ describe("computeAppearances", () => {
     };
     const app = computeAppearances(doc, [scene(0, "SCENE 1")]);
     expect(app.get("MARA")?.length).toBe(1); // same name, same scene → one appearance
+    expect(app.get("MARA")?.[0]?.speeches).toBe(2); // …of two speeches
+  });
+
+  it("counts each scene's speeches, never the play's", () => {
+    const doc: Doc = {
+      type: "doc",
+      content: [
+        b("scene", "SCENE 1"),
+        b("character", "MARA"),
+        b("dialogue", "One.\nA second line of the same speech."),
+        b("character", "JONAH"),
+        b("parenthetical", "(beat)"),
+        b("dialogue", "Two."),
+        b("character", "MARA"),
+        b("dialogue", "Three."),
+        b("scene", "SCENE 2"),
+        b("character", "MARA"),
+        b("dialogue", "Four."),
+      ],
+    };
+    const app = computeAppearances(doc, [scene(0, "SCENE 1"), scene(1, "SCENE 2")]);
+    // One speech per cue: a second line or a parenthetical is not another.
+    expect(app.get("MARA")?.map((a) => [a.ordinal, a.speeches])).toEqual([
+      [0, 2],
+      [1, 1],
+    ]);
+    expect(app.get("JONAH")?.map((a) => [a.ordinal, a.speeches])).toEqual([[0, 1]]);
   });
 
   it("falls back to sceneHeading boundaries and a Sc N label", () => {
@@ -62,7 +89,7 @@ describe("computeAppearances", () => {
       content: [b("sceneHeading", "A kitchen."), b("character", "MARA"), b("dialogue", "Hi.")],
     };
     const app = computeAppearances(doc, []); // no cards → synthesized label
-    expect(app.get("MARA")).toEqual([{ ordinal: 0, label: "Sc 1" }]);
+    expect(app.get("MARA")).toEqual([{ ordinal: 0, label: "Sc 1", speeches: 1 }]);
   });
 
   it("is empty for a null doc", () => {

@@ -42,7 +42,10 @@ replaces A11Y-1 (docs/engineering/withdrawn-requirements.md#A11Y-1).
   stop, and always has a key or a menu item that does the same thing.
 - <a id="A11Y-7"></a> **A11Y-7** **⌃⇥ / ⌃⇧⇥ move between the areas** (`app/regions.ts`): toolbar, a banner
   waiting on an answer, binder, the play, inspector, status bar. Tab in the
-  script is the element ring, so without this the page is a keyboard trap. A
+  script is the element ring, so without this the page is a keyboard trap. On
+  an iPad, whose system keeps Control-Tab from the page, the View menu's Next
+  Area and Previous Area take the same chords and do the same
+  (docs/engineering/cross-platform.md#PLAT-76). A
   banner lands on the answer it leads with, arrows reach the others. Tab in a
   document's list indents, and is spent where it cannot
   (docs/app/organizing/workspace-model.md#WORK-72); in a sheet, where these
@@ -110,9 +113,18 @@ last promise was a human VoiceOver pass that will never run.
   snapshot is Playwright's own reading of the ARIA and HTML-AAM rules, which
   reads the same in both engines, so it is held once and is not either
   engine's platform tree; it gives an editable element no value; a page that
-  boots in the dark scheme is the native self-test's, whose dark pass launches
-  so (A11Y-16), not smoke's; and Playwright's WebKit is a WebKit, not Apple's
-  WKWebView and not the floor's Safari.
+  boots in the dark scheme is the native self-test's, whose dark-launch acts
+  start so (A11Y-20), not smoke's; and Playwright's WebKit is a WebKit, not
+  Apple's WKWebView and not the floor's Safari.
+  **The iPad's acts** give the page the iPad's record, a touch pointer (a
+  coarse pointer that cannot hover) and an iPad's windows: 820 × 1180 and
+  1180 × 820, a third of a Split View at 320 points and a small Stage Manager
+  window. In each they hold every surface's box inside the window, every
+  control reached by a tap with no key pressed, each a 44-point target nothing
+  lies over, nothing drawn only for a hover or said only in a tooltip
+  (docs/engineering/cross-platform.md#PLAT-70), spell checking off wherever a
+  play's words are typed, and the app following Reduce Motion and Increase
+  Contrast; their surfaces are audited and their trees held as every other's.
 - <a id="A11Y-16"></a> **A11Y-16** **The native self-test, in WebKit's own tree.** In the real
   app's WKWebView, on every surface the checks audit, the self-test reads the
   tree WebKit hands its NSAccessibility wrapper, which is what VoiceOver
@@ -130,6 +142,26 @@ last promise was a human VoiceOver pass that will never run.
   its own name, "… on an Intel Mac", with its own tree, which only the Intel
   slice reads. Limits: the tree is not speech,
   and the Mac's own VoiceOver settings, verbosity and rotor never enter it.
+- <a id="A11Y-20"></a> **A11Y-20** **The native self-test, behaviour once and the look in both
+  schemes.** The native self-test runs every check once, in the light scheme,
+  as smoke does (A11Y-19). At each surface a check audits it runs axe-core and
+  holds WebKit's tree (A11Y-16), then switches the window to the dark scheme,
+  which the page follows as it follows the Mac's own, runs axe-core again,
+  holds the tree again (against `<surface>.dark.yml` where the dark scheme
+  reads the surface otherwise, the surface's one file where it does not),
+  keeps a capture of the window and of what WebKit drew, and switches back. So
+  both schemes are read from the same page, in the same state, and a check
+  that only drives behaviour runs once: a whole second pass in dark took as
+  long as the first and held nothing the first had not. An act whose checks
+  mean something else when the app starts dark says why in its `darkLaunch`
+  (`scripts/smoke-checks.mjs`) and runs once more from a dark launch, the
+  window dark from its first frame, its surfaces audited and held in dark
+  there and not in place: the launch act, where a relaunch must be in its
+  scheme from its first frame, and the settings act, whose appearance checks
+  choose the scheme the Mac is not in. Limits: what a check reads off the tree
+  itself (A11Y-19's dedicated checks) is held once, in the scheme the page is
+  in; and a fault only a dark launch shows, in an act that names no
+  `darkLaunch`, is not covered.
 - <a id="A11Y-17"></a> **A11Y-17** **What may be claimed.** The app, the site and the records
   claim only what A11Y-19 and A11Y-16 hold: WCAG 2.2 AA as axe-core checks it,
   the keyboard behaviour the checks press, and an accessibility tree WebKit
@@ -142,6 +174,14 @@ last promise was a human VoiceOver pass that will never run.
   tree. Nothing is claimed of Narrator or any other screen reader, nor of the
   tree Windows' UI Automation builds beyond the window and first screen the
   installed-artifact proof finds.
+  Of the iPad they claim what smoke's iPad acts hold (A11Y-19): under the
+  iPad's record, with a touch pointer, in an iPad's windows, axe-core in both
+  schemes, Playwright's reading of the tree, every control reached by a tap
+  with no key pressed, 44-point targets, nothing drawn only for a hover or said
+  only in a tooltip, and the app following Reduce Motion and Increase Contrast;
+  and what the iPad's native pass holds in the real app. Nothing is claimed of
+  VoiceOver, Voice Control or Full Keyboard Access on an iPad beyond the keys
+  those passes press, nor of Apple Pencil.
 
 ## Design
 

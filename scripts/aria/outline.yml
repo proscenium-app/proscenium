@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "The Weight of Water"
   - tablist "What this pane shows":
     - tab "Script"
@@ -22,9 +23,13 @@
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
     - group "Scenes in The Weight of Water":
-      - treeitem "SCENE 1 1" [level=2] [selected]
-      - treeitem "SCENE 2 1–2" [level=2]
-      - treeitem "SCENE 1 2" [level=2]
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3] [selected]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]
@@ -105,7 +110,7 @@
   - button "Open as a pane"
   - text: ACT ONE · Scene 1
   - heading "SCENE 1" [level=2]
-  - text: Page 1 · 1 page · 5 speeches Summary · not printed
+  - text: Page 1 · 1 page · 3 speeches Summary · not printed
   - textbox "Summary"
   - text: Color
   - radiogroup "Scene color":
@@ -119,9 +124,9 @@
     - text: setup
   - text: Notes · never prints
   - textbox "Notes"
-  - text: On stage MARA 3 JONAH 2 Comments here 0 in this scene
+  - text: On stage MARA 2 JONAH 1 Comments here 0 in this scene
   - button "Show"
-  - paragraph: The synopsis is part of the script. The rest is card metadata.
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "/dev/sample-vault/The Weight of Water"
   - text: <save status>

@@ -24,6 +24,7 @@ const INDENT_RE = /^( {3,}|\t)/;
 const RECOGNIZED = new Set([
   // standard Fountain title keys
   "title",
+  "subtitle",
   "credit",
   "author",
   "authors",
@@ -44,6 +45,10 @@ const RECOGNIZED = new Set([
   "characters page text",
   "opening notes",
   "opening notes first",
+  // Not `Production Notes`: a script with no title page whose first line says
+  // `Production notes: …` would be read as one, and the line would leave the
+  // script (docs/engineering/fountain-model.md#EDIT-199).
+  "production notes text",
 ]);
 
 interface Entry {
@@ -128,6 +133,7 @@ function mapEntries(entries: Entry[]): FrontMatter {
       case "characters page text":
       case "opening notes":
       case "opening notes first":
+      case "production notes text":
         if (wholeValue(e) !== undefined) field.set(e.key, e);
     }
   }
@@ -135,6 +141,9 @@ function mapEntries(entries: Entry[]): FrontMatter {
     switch (e.key) {
       case "title":
         fm.title = linesUnder(fm.title, e);
+        break;
+      case "subtitle":
+        fm.subtitle = linesUnder(fm.subtitle, e);
         break;
       case "credit":
         fm.credit = linesUnder(fm.credit, e);
@@ -168,12 +177,14 @@ function mapEntries(entries: Entry[]): FrontMatter {
       case "title page text":
       case "characters page text":
       case "opening notes":
-      case "opening notes first": {
+      case "opening notes first":
+      case "production notes text": {
         const value = field.get(e.key) === e ? wholeValue(e) : undefined;
         if (typeof value === "boolean") fm.openingNotesBeforeCharacters = value;
         else if (value === undefined) keep(e);
         else if (e.key === "title page text") fm.titlePage = value;
         else if (e.key === "characters page text") fm.charactersPage = value;
+        else if (e.key === "production notes text") fm.productionNotes = value;
         else fm.openingNotes = value;
         break;
       }
@@ -246,6 +257,7 @@ function titlePageLines(fm: FrontMatter): string {
   const out: string[] = [];
 
   if (fm.title != null) out.push(field("Title", splitLines(fm.title), false));
+  if (fm.subtitle != null) out.push(field("Subtitle", splitLines(fm.subtitle), false));
   if (fm.credit != null) out.push(field("Credit", splitLines(fm.credit), false));
   if (fm.authors) {
     out.push(
@@ -283,6 +295,8 @@ function titlePageLines(fm: FrontMatter): string {
     out.push(field("Opening Notes", [JSON.stringify(fm.openingNotes)], false));
   if (fm.openingNotesBeforeCharacters !== undefined)
     out.push(field("Opening Notes First", [String(fm.openingNotesBeforeCharacters)], false));
+  if (fm.productionNotes !== undefined)
+    out.push(field("Production Notes Text", [JSON.stringify(fm.productionNotes)], false));
 
   return out.join("\n");
 }

@@ -32,7 +32,9 @@
  * it has to, since keys go to the key window. Leave the Mac alone while it runs.
  *
  * Judged here rather than trusted from the exit code alone:
- *   - both colour passes ran, and every check in them passed;
+ *   - every pass ran, and every check in them passed: the light pass, which
+ *     runs every act and audits each surface again in dark where it stands,
+ *     and the dark pass, the acts that run again from a dark launch;
  *   - the slice that ran is the one this Mac should run natively — an Intel
  *     runner that quietly ran the arm64 slice under Rosetta would prove nothing
  *     about Intel (a universal binary on Intel has no Rosetta to fall back on,
@@ -62,7 +64,7 @@ const opt = (name) => {
 const BREAK = opt("--break");
 const ONLY = opt("--only");
 const FEATURES = opt("--features");
-/** The acts each pass runs, in their order: each from a fresh first launch and its own start. */
+/** The acts the run makes, in their order: each from a fresh first launch and its own start. */
 const RUN_ACTS = (() => {
   const named = (opt("--acts") ?? "")
     .split(",")
@@ -109,6 +111,12 @@ if (!RUN_ACTS.length) {
   console.log("selftest: none of the acts asked for runs in the Mac's own WebKit: nothing to run");
   process.exit(0);
 }
+/**
+ * Those of them that run again from a dark launch (an act's `darkLaunch`,
+ * scripts/smoke-checks.mjs): the run's dark pass. Every other act's surfaces
+ * are audited in dark where they stand, in the one light pass.
+ */
+const darkActsOf = (acts) => acts.filter((name) => actNamed(name).darkLaunch);
 const QUARANTINE = opt("--quarantine");
 const ARCH = opt("--arch");
 /** Seconds an act may go without reporting back (the app's own watchdog). */
@@ -213,6 +221,7 @@ async function launch(env, acts) {
       ...(ONLY ? { PROSCENIUM_SELFTEST_ONLY: ONLY } : {}),
       ...(FEATURES ? { PROSCENIUM_SELFTEST_FEATURES: FEATURES } : {}),
       PROSCENIUM_SELFTEST_ACTS: JSON.stringify(acts),
+      PROSCENIUM_SELFTEST_DARK_ACTS: JSON.stringify(darkActsOf(acts)),
       PROSCENIUM_SELFTEST_ARIA_DECLARED: JSON.stringify(
         (opt("--aria") ?? "").split(/[,\s]+/).filter(Boolean),
       ),
@@ -405,8 +414,10 @@ if (interrupted) {
       ...report.failures.filter((line) => ![...quiet].some((q) => line.startsWith(`${q}:`))),
     );
   }
-  if (report && report.passes?.length !== 2)
-    problems.push(`${report.passes?.length ?? 0} of 2 passes ran`);
+  // The light pass, and the dark one when an act of the run launches dark.
+  const planned = darkActsOf(REOPEN ? ["opening"] : RUN_ACTS).length ? 2 : 1;
+  if (report && report.passes?.length !== planned)
+    problems.push(`${report.passes?.length ?? 0} of ${planned} passes ran`);
   verdict = problems.length
     ? "FAIL"
     : ONLY

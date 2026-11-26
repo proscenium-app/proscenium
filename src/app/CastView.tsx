@@ -2,71 +2,64 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * The Cast surface — a real, top-level view (peer to Script / Board / Outline).
+ * Cast — a real, top-level view (peer to Script / Board / Outline): the
+ * company, as the script and the pages before it have it
+ * (docs/app/formatting/formats-and-layout.md#FMT-170).
  *
- * The list fills itself. A speaker who says something in the script is a
- * character, so they appear here without anyone pressing a button; what the
- * writer can reorder and describe them. The printed Characters page is an
- * independent prose document once edited; no role receives a rank.
+ * It edits no page. The play's front and back matter are written where they
+ * print, in the script's page view (docs/app/formatting/formats-and-layout.md#FMT-169);
+ * Cast reads them. A speaker who says something in the script is in the
+ * company without anyone pressing a button, and each row says which page
+ * names them, as a way to that page. One who speaks and is named on no page is offered two things:
+ * Add to Characters Page, which writes one paragraph on the page that names
+ * most of the cast (the one thing Cast ever writes on a page, and only when
+ * asked), or Leave Off, which the play file keeps (`castHidden`) so a list
+ * of letters or a voice is never asked about again.
  *
  * Three homes, unchanged (storage rule 3):
- *   - name + short description → the fountain title page (prints on the cast page)
+ *   - what the company reads as → the pages before the script
  *   - deep-dive notes           → the Characters/<Name>.md sheet
  *   - appearances and weight    → derived from the script (read-only)
- * Plus one thing the script cannot express: a speaker deliberately kept OFF the
- * cast page, which lives in the play file so auto-add never undoes a removal.
- *
- * Edits auto-save on blur, matching the Board/Outline surfaces (no Save button).
+ * Plus the speakers deliberately kept off the pages, in the play file.
  */
-import { useId, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { CharacterEntry } from "../fountain";
+import { useId, useMemo } from "react";
+import type { FrontPageSource } from "../fountain";
 import { castSheetFor } from "../materials";
-import type { BinderItem, CharacterWeight, SceneAppearance, SceneCard } from "../workspace";
-import { PresenceGrid } from "./PresenceGrid";
-import { FrontPageEditor, charactersPageText } from "./FrontPageEditor";
+import { namedOnPage, namesOnPages } from "../layout";
 import {
-  Button,
-  CloseIcon,
-  PlusIcon,
-  IconButton,
-  ArrowUpIcon,
-  ArrowDownIcon,
-  announce,
-} from "../ui";
+  type BinderItem,
+  type CharacterWeight,
+  type SceneAppearance,
+  type SceneCard,
+} from "../workspace";
+import { PresenceGrid } from "./PresenceGrid";
+import { Button } from "../ui";
 
 export interface CastViewProps {
-  characters: CharacterEntry[];
-  printedPage?: string;
-  onSavePage: (text: string | undefined) => void;
+  /** The play's pages before and after the script, as the page view draws them: what Cast reads names from. */
+  pages: readonly FrontPageSource[];
+  /** Show a page where it prints, the caret in it: what a row's page name does. */
+  onOpenPage?: (source: string) => void;
   appearances: Map<string, SceneAppearance[]>;
   weights: Map<string, CharacterWeight>;
   /** Scenes in the play — the denominator for "appears throughout". */
   sceneCount: number;
-  /** Speakers kept off the cast page despite speaking. */
+  /** Speakers the writer chose to leave off the pages. */
   hidden: string[];
   binder: BinderItem[];
-  /** A key that changes when the play/script changes, to re-seed local rows. */
-  scriptKey: string | null;
-  onSave: (entries: CharacterEntry[]) => void;
   onOpenSheet: (item: BinderItem) => void;
   onCreateSheet: (name: string) => void;
-  /** Remove from the cast page for good (a speaking name would otherwise return). */
+  /** Leave a speaker off the pages for good: they are not offered again. */
   onHide: (name: string) => void;
   onUnhide: (name: string) => void;
+  /** Write the name on the Characters page, as a paragraph of its own. */
+  onAddToPage: (name: string) => void;
   /** Scene records, for the presence grid's columns. */
   cards: SceneCard[];
   /** Jump to a scene from a grid column heading. */
   onOpenScene?: (ordinal: number) => void;
   /** Open the export dialog on this character's sides. */
   onExportSides?: (name: string) => void;
-  /**
-   * Where the writer asked to start editing, by double-clicking the Characters
-   * sheet in page view: the engine's id of the paragraph hit, or null. A new
-   * object asks again, even for the same paragraph.
-   */
-  focusRequest?: { paragraphId: string | null } | null;
-  /** The request above was acted on, so a later remount does not act on it again. */
-  onFocusHandled?: () => void;
 }
 
 /** "12 lines · 3 scenes" — the evidence behind a row's tier, in plain words. */
@@ -77,321 +70,165 @@ function weightSummary(w: CharacterWeight | undefined): string | null {
   return `${lines} · ${scenes}`;
 }
 
+/**
+ * The company in order: the names a page lists, as it lists them, then
+ * everyone else who speaks, in the order they first speak.
+ */
+export function companyOf(
+  pages: readonly FrontPageSource[],
+  appearances: Map<string, SceneAppearance[]>,
+  weights: Map<string, CharacterWeight>,
+): string[] {
+  const names = namesOnPages(pages);
+  const seen = new Set(names);
+  for (const name of appearances.keys()) {
+    const key = name.trim().toUpperCase();
+    if (!key || seen.has(key) || (weights.get(key)?.cues ?? 0) === 0) continue;
+    seen.add(key);
+    names.push(key);
+  }
+  return names;
+}
+
 export function CastView(props: CastViewProps) {
-  // Local working copy, re-seeded when the play changes (so switching plays or
-  // an external edit is picked up on (re)mount of this surface). A ref
-  // mirrors the rows so save-on-blur never depends on a stale render closure.
-  const [rows, setRows] = useState<CharacterEntry[]>(() => props.characters.map((c) => ({ ...c })));
-  const rowsRef = useRef(rows);
-  const apply = (next: CharacterEntry[]) => {
-    rowsRef.current = next;
-    setRows(next);
-  };
-  const { onSave } = props;
-  const save = useRef(onSave);
-  save.current = onSave;
-  /** Something was typed or removed here since the last save. */
-  const dirty = useRef(false);
-
-  useEffect(() => {
-    dirty.current = false;
-    apply(props.characters.map((c) => ({ ...c })));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [props.scriptKey]);
-
-  // The cast as the script now has it. Clean, the rows follow it whole — a
-  // description changed outside shows here, instead of the stale one being
-  // saved back over it at the next blur. Mid-edit, only new
-  // names are added — never a row being typed into overwritten.
-  useEffect(() => {
-    if (!dirty.current) {
-      apply(props.characters.map((c) => ({ ...c })));
-      return;
-    }
-    const known = new Set(rowsRef.current.map((r) => r.name.trim().toUpperCase()));
-    const fresh = props.characters.filter((c) => !known.has(c.name.trim().toUpperCase()));
-    if (fresh.length) apply([...rowsRef.current, ...fresh.map((c) => ({ ...c }))]);
-  }, [props.characters]);
-
-  // Persist the printed cast list (name + description) from the live ref —
-  // only when something here changed. An untouched field losing focus is not
-  // an edit, and saving it could overwrite a change made outside.
-  const commit = () => {
-    if (!dirty.current) return;
-    dirty.current = false;
-    save.current(
-      rowsRef.current
-        .map((r) => ({ name: r.name.trim(), description: r.description?.trim() || undefined }))
-        .filter((r) => r.name),
-    );
-  };
-
-  /**
-   * Removing a row is two things at once: drop it from the printed list, and —
-   * if the name actually speaks — record that the omission was deliberate.
-   * Otherwise the next save would auto-add it straight back.
-   */
-  const removeRow = (i: number) => {
-    const name = rowsRef.current[i]?.name.trim() ?? "";
-    const next = rowsRef.current.filter((_, j) => j !== i);
-    dirty.current = true;
-    apply(next);
-    commit();
-    if (name && (props.weights.get(name.toUpperCase())?.cues ?? 0) > 0) props.onHide(name);
-  };
-
-  const [focusRow, setFocusRow] = useState<number | null>(null);
-  const names = useRef<(HTMLInputElement | null)[]>([]);
-  const descriptions = useRef<(HTMLInputElement | null)[]>([]);
-  // A double-click on the Characters sheet lands where that line is edited:
-  // an edited page is its own prose, so the caret goes to the paragraph hit;
-  // a page that follows the cast list is these rows, so it goes to the
-  // description of the character hit (the first, from the heading).
-  const [pageFocus, setPageFocus] = useState<{ paragraph: number } | null>(null);
-  const { focusRequest, onFocusHandled } = props;
-  const customPage = props.printedPage !== undefined;
-  useLayoutEffect(() => {
-    if (!focusRequest) return;
-    onFocusHandled?.();
-    const id = focusRequest.paragraphId ?? "";
-    if (customPage) {
-      const prose = /^characters-prose-(\d+)$/.exec(id);
-      setPageFocus({ paragraph: prose ? Number(prose[1]) : 0 });
-      return;
-    }
-    const cast = /^cast-(\d+)$/.exec(id);
-    const row = Math.min(cast ? Number(cast[1]) : 0, rowsRef.current.length - 1);
-    const field = descriptions.current[row] ?? names.current[row];
-    field?.focus();
-    field?.scrollIntoView({ block: "center" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusRequest]);
-  useLayoutEffect(() => {
-    if (focusRow !== null) {
-      names.current[focusRow]?.focus();
-      setFocusRow(null);
-    }
-  }, [focusRow, rows]);
-  const addRow = () => {
-    dirty.current = true;
-    setFocusRow(rowsRef.current.length);
-    apply([...rowsRef.current, { name: "" }]);
-  };
-  const moveRow = (from: number, to: number) => {
-    if (to < 0 || to >= rowsRef.current.length) return;
-    const next = [...rowsRef.current];
-    const [row] = next.splice(from, 1);
-    next.splice(to, 0, row);
-    dirty.current = true;
-    apply(next);
-    commit();
-    setFocusRow(to);
-    announce(`Moved “${row.name}” to ${to + 1}.`);
-  };
-
   const castId = useId();
-
-  const groups = [{ tier: "cast", indices: rows.map((_, i) => i) }];
+  const company = useMemo(
+    () => companyOf(props.pages, props.appearances, props.weights),
+    [props.pages, props.appearances, props.weights],
+  );
+  const hidden = useMemo(
+    () => new Set(props.hidden.map((name) => name.trim().toUpperCase())),
+    [props.hidden],
+  );
   const appearanceFor = (name: string): SceneAppearance[] =>
     props.appearances.get(name.trim().toUpperCase()) ?? [];
+  /** The first row that offers Add to Characters Page: where the guide points (lesson 4). */
+  const firstOffer = company.find(
+    (name) => !props.pages.some((page) => namedOnPage(name, page.text)),
+  );
 
   return (
     <div className="castview">
       <div className="castview__inner">
         <header className="castview__head">
-          <h1 className="castview__title">Characters Page</h1>
+          <h1 className="castview__title">Cast</h1>
           <p className="castview__sub">
-            Edit the page your readers will see. Cast tools and private notes are below.
+            Who speaks, where, and which page of the play names them. Those pages are written in the
+            script’s page view, where they print.
           </p>
         </header>
-
-        <div data-tutorial="characters-page">
-          <FrontPageEditor
-            label="Printed characters page"
-            value={props.printedPage ?? charactersPageText(props.characters)}
-            onChange={props.onSavePage}
-            focusAt={pageFocus}
-          />
-        </div>
-        <details className="castview__page-options">
-          <summary>Page Options</summary>
-          <Button size="small" onClick={() => props.onSavePage(undefined)}>
-            Use Cast List Automatically
-          </Button>
-          <Button
-            size="small"
-            onClick={() =>
-              props.onSavePage(charactersPageText(rowsRef.current.filter((r) => r.name.trim())))
-            }
-          >
-            Replace Page from Cast List
-          </Button>
-          <p className="settings__note">
-            Replacing uses the names and descriptions below. Changes to the cast list do not change
-            a page you have edited.
-          </p>
-        </details>
-        <header className="castview__head">
-          <h2 className="castview__title">Cast Tools</h2>
-          <p className="castview__sub">Names, private notes, appearances and sides.</p>
-        </header>
-        {rows.length === 0 && (
+        {company.length === 0 && (
           <p className="castview__empty">
-            No characters yet — write a cue in the script and they'll appear here.
+            No characters yet — write a cue in the script and they’ll appear here.
           </p>
         )}
 
-        {groups.map((group) => (
-          <section className="castgroup" key={group.tier}>
-            <div className="castview__list">
-              {group.indices.map((i) => {
-                const row = rows[i]!;
-                const characterName = row.name.trim() || `New character ${i + 1}`;
-                const headingId = `${castId}-${i}`;
-                const weight = props.weights.get(row.name.trim().toUpperCase());
-                const appearances = appearanceFor(row.name);
-                // Only a sheet in the Characters folder is this character's
-                // (docs/app/organizing/workspace-model.md#WORK-84): one filed
-                // away with an old draft is not opened as the current one.
-                const sheet = castSheetFor(props.binder, row.name);
-                const setField = (patch: Partial<CharacterEntry>) => {
-                  dirty.current = true;
-                  apply(rowsRef.current.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-                };
-                const summary = weightSummary(weight);
-                return (
-                  <div className="castcard" key={i} role="group" aria-labelledby={headingId}>
-                    <span className="sr-only" id={headingId}>
-                      {characterName}
+        <section className="castgroup">
+          <div className="castview__list">
+            {company.map((name, i) => {
+              const headingId = `${castId}-${i}`;
+              const weight = props.weights.get(name);
+              const appearances = appearanceFor(name);
+              const speaks = (weight?.cues ?? 0) > 0;
+              const page = props.pages.find((p) => namedOnPage(name, p.text));
+              const named = !!page;
+              const leftOff = !named && hidden.has(name);
+              // "On the Characters page", and "On the Title Page" for a page named as one.
+              const onPage = page
+                ? `On the ${page.name}${/\bpage$/i.test(page.name.trim()) ? "" : " page"}`
+                : "";
+              // Only a sheet in the Characters folder is this character's
+              // (docs/app/organizing/workspace-model.md#WORK-84): one filed
+              // away with an old draft is not opened as the current one.
+              const sheet = castSheetFor(props.binder, name);
+              const summary = weightSummary(weight);
+              return (
+                <div className="castcard" key={name} role="group" aria-labelledby={headingId}>
+                  <div className="castcard__fields">
+                    <span className="castcard__name castcard__name--read" id={headingId}>
+                      {name}
                     </span>
-                    <div className="castcard__fields">
-                      <input
-                        ref={(el) => {
-                          names.current[i] = el;
-                        }}
-                        data-tutorial="character-name"
-                        aria-label={`Name — ${characterName}`}
-                        className="castcard__name"
-                        value={row.name}
-                        placeholder="NAME"
-                        onChange={(e) => setField({ name: e.target.value })}
-                        onBlur={commit}
-                      />
-                      <input
-                        ref={(el) => {
-                          descriptions.current[i] = el;
-                        }}
-                        aria-label={`Description — ${characterName}`}
-                        className="castcard__desc"
-                        value={row.description ?? ""}
-                        placeholder="Short description"
-                        onChange={(e) => setField({ description: e.target.value })}
-                        onBlur={commit}
-                      />
+                    {page && props.onOpenPage ? (
                       <button
-                        className="castcard__remove"
-                        title={
-                          (weight?.cues ?? 0) > 0
-                            ? "Remove from the cast list (they will not be added again automatically)"
-                            : "Remove from cast list"
-                        }
-                        aria-label={`Remove ${row.name || "character"}`}
-                        onClick={() => removeRow(i)}
+                        type="button"
+                        className="castcard__onpage castcard__onpage--link"
+                        data-on-page="yes"
+                        title="Show this page in the script, where it prints"
+                        onClick={() => props.onOpenPage?.(page.id)}
                       >
-                        <CloseIcon size={11} />
+                        {onPage}
                       </button>
-                    </div>
-                    <div className="castcard__meta">
-                      <IconButton
-                        label={`Move ${characterName} up`}
-                        disabled={i === 0}
-                        onClick={() => moveRow(i, i - 1)}
-                      >
-                        <ArrowUpIcon size={12} />
-                      </IconButton>
-                      <IconButton
-                        label={`Move ${characterName} down`}
-                        disabled={i === rows.length - 1}
-                        onClick={() => moveRow(i, i + 1)}
-                      >
-                        <ArrowDownIcon size={12} />
-                      </IconButton>
-                      {summary && <span className="castcard__weight">{summary}</span>}
-                      <span className="castcard__appears">
-                        {appearances.length
-                          ? `Appears in ${appearances.map((a) => a.label).join(", ")}`
-                          : "Not in the script yet"}
+                    ) : (
+                      <span className="castcard__onpage" data-on-page={named ? "yes" : "no"}>
+                        {named ? onPage : leftOff ? "Left off the pages" : "Not on a page"}
                       </span>
-                      {row.name.trim() && (weight?.lines ?? 0) > 0 && props.onExportSides && (
-                        <button
-                          className="castcard__notes"
-                          title="Export this character's part — speeches with their cue lines"
-                          onClick={() => props.onExportSides!(row.name.trim().toUpperCase())}
-                        >
-                          Sides (PDF) ↗
-                        </button>
-                      )}
-                      {row.name.trim() &&
-                        (sheet ? (
-                          <button
-                            className="castcard__notes"
-                            onClick={() => props.onOpenSheet(sheet)}
-                          >
-                            Open notes ↗
-                          </button>
-                        ) : (
-                          <button
-                            className="castcard__notes castcard__notes--new"
-                            onClick={() => props.onCreateSheet(row.name.trim())}
-                          >
-                            Add Notes
-                          </button>
-                        ))}
-                    </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-
-        {props.hidden.length > 0 && (
-          <section className="castgroup castgroup--hidden">
-            <h2 className="castgroup__head" title="Speakers removed from the cast list">
-              Removed from the cast list
-              <span className="castgroup__count">{props.hidden.length}</span>
-            </h2>
-            <div className="casthidden">
-              {props.hidden.map((name) => (
-                <button
-                  key={name}
-                  className="casthidden__chip"
-                  title="Put them back on the cast page"
-                  onClick={() => props.onUnhide(name)}
-                >
-                  {name} <span aria-hidden="true">+</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <div className="castview__adders">
-          <Button
-            size="small"
-            treatment="borderless"
-            data-tutorial="add-character"
-            onClick={addRow}
-          >
-            <PlusIcon size={11} />
-            Add Character
-          </Button>
-          <span className="sheet__spacer" />
-        </div>
+                  <div className="castcard__meta">
+                    {summary && <span className="castcard__weight">{summary}</span>}
+                    <span className="castcard__appears">
+                      {appearances.length
+                        ? `Appears in ${appearances.map((a) => a.label).join(", ")}`
+                        : "Not in the script yet"}
+                    </span>
+                    {!named && (
+                      <Button
+                        size="small"
+                        data-tutorial={name === firstOffer ? "add-to-page" : undefined}
+                        onClick={() => {
+                          if (leftOff) props.onUnhide(name);
+                          props.onAddToPage(name);
+                        }}
+                      >
+                        Add to Characters Page
+                      </Button>
+                    )}
+                    {!named && !leftOff && speaks && (
+                      <Button
+                        size="small"
+                        treatment="borderless"
+                        onClick={() => props.onHide(name)}
+                      >
+                        Leave Off
+                      </Button>
+                    )}
+                    {(weight?.lines ?? 0) > 0 && props.onExportSides && (
+                      <button
+                        type="button"
+                        className="castcard__notes"
+                        title="Export this character's part — speeches with their cue lines"
+                        onClick={() => props.onExportSides!(name)}
+                      >
+                        Sides (PDF) ↗
+                      </button>
+                    )}
+                    {sheet ? (
+                      <button
+                        type="button"
+                        className="castcard__notes"
+                        onClick={() => props.onOpenSheet(sheet)}
+                      >
+                        Open notes ↗
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="castcard__notes castcard__notes--new"
+                        onClick={() => props.onCreateSheet(name)}
+                      >
+                        Add Notes
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         {/* The same company, seen as distribution rather than as a list. */}
         <PresenceGrid
-          names={rows.map((r) => r.name)}
+          names={company}
           appearances={props.appearances}
           cards={props.cards}
           onOpenScene={props.onOpenScene}

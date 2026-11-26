@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Practice Play"
   - tablist "What this pane shows":
     - tab "Script" [selected]
@@ -48,7 +49,7 @@
   - button "Open as a pane"
   - text: Scene 1
   - heading "SCENE 1" [level=2]
-  - text: Page 1 · 1 page · 3 speeches Summary · not printed
+  - text: Page 1 · 1 page · 2 speeches Summary · not printed
   - textbox "Summary"
   - text: Color
   - radiogroup "Scene color":
@@ -62,9 +63,9 @@
     - text: no color
   - text: Notes · never prints
   - textbox "Notes"
-  - text: On stage JUNIPER 2 SIMON 1 Comments here 0 in this scene
+  - text: On stage JUNIPER 1 SIMON 1 Comments here 0 in this scene
   - button "Show"
-  - paragraph: The synopsis is part of the script. The rest is card metadata.
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "/dev/app-data/tutorials/sessions/<id>/Practice Play"
   - text: <save status>

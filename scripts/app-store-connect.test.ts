@@ -7,11 +7,13 @@ import { join } from "node:path";
 import {
   PROFILE_MARGIN_MS,
   ascToken,
+  inTheWay,
   makeProfile,
   profileDue,
   readListing,
   replaceScreenshots,
   reviewOf,
+  reviewState,
   storeNotes,
   submitVersion,
 } from "./app-store-connect.mjs";
@@ -434,7 +436,7 @@ describe("the Mac App Store profile, made by the API (docs/engineering/release-e
   const SHA = "A".repeat(40);
   const NOW = Date.parse("2026-10-19T00:00:00Z");
   test("made when there is none, it names another certificate, or it lapses within a month", () => {
-    expect(profileDue(null, SHA, NOW)).toBe("there is no Mac App Store profile");
+    expect(profileDue(null, SHA, NOW)).toBe("there is no profile yet");
     expect(profileDue({ certificates: ["B".repeat(40)], expires: "2027-10-01" }, SHA, NOW)).toBe(
       "the profile names another certificate than the one that signs",
     );
@@ -609,6 +611,23 @@ test("a screenshot App Store Connect could not process, or one never processed, 
       tries: 3,
     }),
   ).rejects.toThrow(/had not processed the screenshots after 15 s/);
+  // Processing that outlasts three minutes is waited out by default.
+  let waits = 0;
+  const longer = asc({
+    delivery: Array.from({ length: SHOTS.length * 40 }, () => ({ state: "UPLOAD_COMPLETE" })),
+  });
+  expect(
+    await replaceScreenshots({
+      api: longer.api,
+      put: longer.put,
+      localization: "loc1",
+      shots: SHOTS,
+      wait: async () => {
+        waits++;
+      },
+    }),
+  ).toBe(SHOTS.length);
+  expect(waits).toBeGreaterThan(36);
 });
 
 test("a refusal says what Apple named under it, not only that it refused", async () => {
@@ -708,4 +727,79 @@ test("the submission's items are read with the version each holds, and one App S
   expect(
     s.calls.filter(([m, p]) => m === "POST" && p === "/v1/reviewSubmissionItems"),
   ).toHaveLength(1);
+});
+
+describe("a newer release while an earlier one is in App Review (docs/engineering/release-engineering.md#REL-56)", () => {
+  const v = (id: string, versionString: string, appVersionState: string) => ({
+    id,
+    attributes: { versionString, appVersionState },
+  });
+
+  test("one waiting for review, in review, or approved and on its way to sale is waited for; one on sale or refused is not", () => {
+    for (const st of [
+      "WAITING_FOR_REVIEW",
+      "WAITING_FOR_EXPORT_COMPLIANCE",
+      "IN_REVIEW",
+      "ACCEPTED",
+      "PENDING_APPLE_RELEASE",
+      "PROCESSING_FOR_DISTRIBUTION",
+    ])
+      expect(inTheWay([v("a", "1.0.4", st)], "1.0.5")).toEqual({
+        wait: { version: "1.0.4", appState: st, id: "a" },
+      });
+    for (const st of [
+      "READY_FOR_DISTRIBUTION",
+      "REJECTED",
+      "METADATA_REJECTED",
+      "DEVELOPER_REJECTED",
+    ])
+      expect(inTheWay([v("a", "1.0.4", st)], "1.0.5")).toBeNull();
+    // Its own version is never in its way.
+    expect(inTheWay([v("a", "1.0.5", "WAITING_FOR_REVIEW")], "1.0.5")).toBeNull();
+  });
+
+  const NEXT = { ...SUBMIT, version: "1.0.5", build: "1.0.5001", wait: async () => {} };
+
+  test("waiting for review: never cancelled; the newer waits, and nothing is changed or sent", async () => {
+    for (const st of ["WAITING_FOR_REVIEW", "IN_REVIEW", "PENDING_APPLE_RELEASE"]) {
+      const s = asc({ versions: [v("old4", "1.0.4", st)] });
+      const done = await submitVersion({ ...NEXT, api: s.api, put: s.put });
+      expect(done).toMatchObject({
+        state: "waiting",
+        submission: null,
+        waiting: { version: "1.0.4", appState: st },
+      });
+      expect(done.steps).toEqual([`1.0.4 is ${st} in App Store Connect: 1.0.5 waits for it`]);
+      expect(s.calls.filter(([m]) => m !== "GET")).toEqual([]);
+      expect(s.calls.some(([, p]) => p.startsWith("/v1/reviewSubmissions"))).toBe(false);
+    }
+  });
+
+  test("once the earlier one is on sale, a new version; once it is refused, the newer takes the version over", async () => {
+    const onSale = asc({ versions: [v("old4", "1.0.4", "READY_FOR_DISTRIBUTION")] });
+    const sent = await submitVersion({ ...NEXT, api: onSale.api, put: onSale.put });
+    expect(sent.state).toBe("WAITING_FOR_REVIEW");
+    expect(body(onSale.calls, "POST", "/v1/appStoreVersions")?.data.attributes).toMatchObject({
+      versionString: "1.0.5",
+    });
+    const refused = asc({ versions: [v("old4", "1.0.4", "REJECTED")] });
+    const taken = await submitVersion({ ...NEXT, api: refused.api, put: refused.put });
+    expect(taken.state).toBe("WAITING_FOR_REVIEW");
+    expect(body(refused.calls, "PATCH", "/v1/appStoreVersions/old4")?.data.attributes).toEqual({
+      versionString: "1.0.5",
+      releaseType: "AFTER_APPROVAL",
+    });
+  });
+
+  test("a version App Store Connect no longer has by its number is gone: a newer one took it over", async () => {
+    const s = asc({ versions: [v("old4", "1.0.5", "WAITING_FOR_REVIEW")] });
+    expect(
+      await reviewState({ api: s.api, identifier: "org.habiby.proscenium", version: "1.0.4" }),
+    ).toEqual({
+      appState: "GONE",
+      state: "gone",
+      kind: null,
+      page: "https://appstoreconnect.apple.com/apps/app1/distribution/macos/version/inflight",
+    });
+  });
 });

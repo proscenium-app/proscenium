@@ -127,7 +127,10 @@ export function readDocument(name: string, bytes: Uint8Array): ImportDocument {
         "Choose a .docx, .pages, .odt, .rtf, .txt, .md, .fountain or .fdx file. The source-app guide below explains how to export one.",
       );
   }
-  result.paragraphs = result.paragraphs.filter((p) => p.kind === "pageBreak" || p.content.length);
+  // A page break and a horizontal line have no words and are kept.
+  result.paragraphs = result.paragraphs.filter(
+    (p) => p.kind === "pageBreak" || styleKind(p.style) === "horizontalRule" || p.content.length,
+  );
   if (!result.paragraphs.length)
     throw new Error(
       "No editable text was found. This may be an empty document or an image-only file.",

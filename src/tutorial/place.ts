@@ -135,6 +135,23 @@ export function placeCard(
   return { left: placed.left, top: placed.top, side, arrow: arrowFor(side, placed) };
 }
 
+/**
+ * A place kept from before (a finished step's card stays where the work
+ * happened), moved only as far as the card, at its size now, needs to stay
+ * inside the window. The finished card is not the size it was: kept where the
+ * step's card had stood beside the save indicator, its foot ran off the
+ * bottom of an iPad's window, and Stop Tutorial with it.
+ */
+export function keepInside(
+  at: Placement,
+  card: { width: number; height: number },
+  bounds: Box,
+): Placement {
+  const left = clamp(at.left, bounds.left + MARGIN, right(bounds) - MARGIN - card.width);
+  const top = clamp(at.top, bounds.top + MARGIN, bottom(bounds) - MARGIN - card.height);
+  return left === at.left && top === at.top ? at : { ...at, left, top };
+}
+
 /** A band of the window, top to bottom. */
 export interface Band {
   top: number;

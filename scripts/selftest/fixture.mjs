@@ -65,6 +65,22 @@ export function installFixture(newPage = false) {
     __prosceniumKeptAtQuit: () => call("keptAtQuit"),
     __prosceniumWhere: (path) => call("where", { path }),
     __prosceniumNextPick: (path) => call("nextPick", { path }),
+    // A Plays folder iCloud has not brought down is the in-memory vault's
+    // alone (docs/engineering/cross-platform.md#PLAT-69): a Mac's and a PC's
+    // iCloud Drive bring a file down when it is read, so in the real apps
+    // nothing ever waits, and the act that stages one runs in the browsers.
+    __prosceniumInCloud: () =>
+      Promise.reject(
+        new Error(
+          "a Plays folder still in iCloud is staged in the browsers alone: a Mac's and a PC's iCloud Drive bring a file down as it is read",
+        ),
+      ),
+    __prosceniumChangedInCloud: () =>
+      Promise.reject(
+        new Error(
+          "a change still in iCloud is staged in the browsers alone: a Mac's and a PC's iCloud Drive bring a file down as it is read",
+        ),
+      ),
     __prosceniumExported: () => call("exported"),
     __prosceniumPrinted: () => call("printed"),
     __prosceniumTutorialProgress: (content) =>

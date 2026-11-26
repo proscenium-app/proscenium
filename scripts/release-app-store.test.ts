@@ -94,9 +94,43 @@ describe("altool's answers", () => {
     ]);
   });
   test("a failure with no JSON is one error of its last words", () => {
-    expect(readAltool(1, "", "first\nsecond\nauthentication failed").errors).toEqual([
+    const r = readAltool(1, "", "first\nsecond\nauthentication failed");
+    expect(r.crashed).toBe(false);
+    expect(r.errors).toEqual([
       { code: null, message: "first second authentication failed", reason: "" },
     ]);
+  });
+  test("altool's own crash, a backtrace and no JSON, is a crash and no refusal", () => {
+    const backtrace = [
+      "Running altool at path…",
+      "Fatal error: Unexpectedly found nil while unwrapping an Optional value",
+      "16  libswift_Concurrency.dylib          0x00000002931f3e10 _ZL23swift_job_runImplP…",
+      "17  libswift_Concurrency.dylib          0x00000002931f3f45 _ZL22completeTaskAndReleasePN5sw…",
+    ].join("\n");
+    const r = readAltool(1, "", backtrace);
+    expect(r).toMatchObject({ ok: false, crashed: true });
+    expect(r.errors).toEqual([
+      {
+        code: null,
+        message:
+          "altool crashed: Fatal error: Unexpectedly found nil while unwrapping an Optional value",
+        reason: "",
+      },
+    ]);
+  });
+  test("altool killed by a signal is a crash, whatever it printed", () => {
+    const r = readAltool(1, "Running altool at path…", "", "SIGTRAP");
+    expect(r).toMatchObject({ ok: false, crashed: true });
+    expect(r.errors[0].message).toBe("altool crashed (SIGTRAP)");
+  });
+  test("Apple's own errors are never a crash", () => {
+    const r = readAltool(
+      1,
+      JSON.stringify({ "product-errors": [{ code: "ITMS-90717", message: "Invalid icon" }] }),
+      "3  altool  0x0000000100f3e10a main",
+    );
+    expect(r.crashed).toBe(false);
+    expect(r.errors[0].code).toBe("ITMS-90717");
   });
 });
 

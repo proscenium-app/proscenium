@@ -86,11 +86,25 @@ impl Drop for WatchHandle {
     }
 }
 
-fn rel_of(root: &Path, abs: &Path) -> String {
-    abs.strip_prefix(root)
-        .unwrap_or(abs)
-        .to_string_lossy()
-        .replace('\\', "/")
+/// An event's path relative to the watched root, or None when it is under the
+/// root by neither spelling. Never the absolute path: the vault's listing once
+/// fell back to one when a second spelling of the root (`/var/…` for
+/// `/private/var/…`) failed to strip, and filed it into a play's binder, which
+/// the play's reader then refused (docs/app/keeping-work/storage-and-file-format.md#STOR-191).
+/// Here the path's folder is resolved once more before the event is dropped.
+fn rel_of(root: &Path, abs: &Path) -> Option<String> {
+    let rel = match abs.strip_prefix(root) {
+        Ok(rel) => rel.to_path_buf(),
+        Err(_) => {
+            let folder = std::fs::canonicalize(abs.parent()?).ok()?;
+            folder
+                .join(abs.file_name()?)
+                .strip_prefix(root)
+                .ok()?
+                .to_path_buf()
+        }
+    };
+    Some(rel.to_string_lossy().replace('\\', "/"))
 }
 
 /// Start watching `root` recursively, emitting events to the frontend.
@@ -395,7 +409,10 @@ fn emit_decision(
     path: &Path,
     decision: WatchDecision,
 ) -> tauri::Result<()> {
-    let rel = rel_of(root, path);
+    // A path under the root by neither spelling is not the vault's to report.
+    let Some(rel) = rel_of(root, path) else {
+        return Ok(());
+    };
     let root = root.to_string_lossy().into_owned();
 
     match decision {

@@ -96,3 +96,28 @@ test("opening placement survives a custom format round trip and rejects bad sett
     expect(validateFormatSpec({ ...formatFileObject(sketch), frontMatter }).ok).toBe(false);
   }
 });
+
+test("docs/app/formatting/formats-and-layout.md#FMT-160: production notes close the compact opening, under their heading", () => {
+  const frontMatter = { ...play.frontMatter, productionNotes: "Played without an interval." };
+  expect(paginateFrontMatter(frontMatter, sketch)).toEqual([]);
+  const layout = paginateDoc(play.doc, sketch, { frontMatter });
+  const page = layout.pages[0];
+  const intro = page.intro!;
+  expect(intro.map((line) => line.text)).toEqual([
+    "THE QUEUE",
+    "by A. Writer",
+    "September 2026",
+    "Characters: NELL, DEV",
+    "Setting: A ticket office.",
+    "PRODUCTION NOTES",
+    "Played without an interval.",
+  ]);
+  const [setting, heading, note] = intro.slice(-3);
+  expect(heading).toMatchObject({ align: "left", role: "heading", xIn: 0 });
+  expect(heading.fontStyle).toBe(sketch.frontMatter.headingFontStyle);
+  expect(heading.row - setting.row).toBe(1 + sketch.frontMatter.fieldGapRows);
+  expect(note.row - heading.row).toBe(1 + sketch.frontMatter.headingGapRows);
+  // The script starts after the notes, as it does after any opening.
+  expect(page.lines[0].text).toBe("NELL");
+  expect(page.lines[0].row).toBe(note.row + 2);
+});

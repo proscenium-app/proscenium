@@ -1,5 +1,6 @@
 - banner
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "The Weight of Water" [haspopup]
   - tablist "What this pane shows"
     - tab "Script"
@@ -20,9 +21,11 @@
     - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
-    - treeitem "SCENE 1 1" [level=2] [selected]
-    - treeitem "SCENE 2 1–2" [level=2]
-    - treeitem "SCENE 1 2" [level=2]
+    - treeitem "ACT ONE 1–2" [level=2] [expanded]
+    - treeitem "SCENE 1 1" [level=3] [selected]
+    - treeitem "SCENE 2 1–2" [level=3]
+    - treeitem "ACT TWO 2" [level=2] [expanded]
+    - treeitem "SCENE 1 2" [level=3]
     - treeitem "Characters" [level=1] [expanded]
     - treeitem "Mara" [level=2]
     - treeitem "Jonah" [level=2]
@@ -41,39 +44,16 @@
       - button "Close Cast"
   - button "Add a surface to this pane" [haspopup]
   - sectionheader
-    - heading "Characters Page" [level=1]
-    - paragraph
-  - group "Printed characters page"
-    - toolbar "Formatting"
-      - button "Paragraph style: Heading 1" [haspopup]
-      - button "Bold"
-      - button "Italic"
-      - button "Text alignment: Align Left" [haspopup]
-      - button "Bulleted list"
-      - button "Numbered list"
-    - textbox
-  - group
-    - none "Page Options"
-  - sectionheader
-    - heading "Cast Tools" [level=2]
+    - heading "Cast" [level=1]
     - paragraph
   - group "MARA"
-    - textbox "Name — MARA"
-    - textbox "Description — MARA"
-    - button "Remove MARA"
-    - button "Move MARA up" [disabled]
-    - button "Move MARA down"
+    - button "On the Characters page"
     - button "Sides (PDF) ↗"
     - button "Open notes ↗"
   - group "JONAH"
-    - textbox "Name — JONAH"
-    - textbox "Description — JONAH"
-    - button "Remove JONAH"
-    - button "Move JONAH up"
-    - button "Move JONAH down" [disabled]
+    - button "On the Characters page"
     - button "Sides (PDF) ↗"
     - button "Open notes ↗"
-  - button "Add Character"
   - heading "Who’s on stage" [level=3]
   - paragraph
   - table

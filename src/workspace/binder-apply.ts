@@ -29,7 +29,9 @@ import { findItem, flatten, insert, isAncestor, reorder } from "./binder";
 import {
   commitPlay,
   readPlayFile,
+  scriptDataFor,
   withBinder,
+  withScriptData,
   type BinderItem,
   type BinderItemType,
   type PlayFile,
@@ -46,6 +48,8 @@ import {
   restoreSubtree,
 } from "./binder-rebase";
 import { applyRelocation, type BinderRelocation } from "./binder-relocation";
+import { rowNote } from "./trash";
+import { SIDE_NAME, type PageSide } from "./front-folder";
 
 // --- path helpers ---
 function dirname(p: string): string {
@@ -381,6 +385,80 @@ export async function newMaterial(
   return res.ok ? { ...res, createdId: id } : res;
 }
 
+/**
+ * A script's pages before the script, written as files in a folder of their
+ * own (docs/app/formatting/formats-and-layout.md#FMT-169), in the order that
+ * cannot lose a word: every page's file is created, never written over, and
+ * only then is the folder put in the binder, just above the script, and named
+ * as the script's in the same write of the play file. A failure before that
+ * write leaves files the binder does not list yet, which the next reconcile
+ * files where they lie, and the script's title page untouched.
+ */
+export async function makeFrontMatterFolder(
+  ctx: BinderContext,
+  scriptId: string,
+  pages: readonly { name: string; text: string }[],
+  /** The pages after the script go in a folder of their own, just below it. */
+  side: PageSide = "front",
+): Promise<ApplyResult & { folderId?: string; pageIds?: string[] }> {
+  const script = findItem(ctx.play.binder, scriptId);
+  if (!script)
+    return { ok: false, reason: "error", message: "The script is no longer in the binder." };
+  const parentPath = script.parentId
+    ? (findItem(ctx.play.binder, script.parentId)?.item.path ?? "")
+    : "";
+  const listed = (path: string) =>
+    flatten(ctx.play.binder).some((row) => sameFileOnDisk(row.path, path));
+  const folderName = SIDE_NAME[side];
+  let folderPath = await freshPath(joinp(parentPath, folderName));
+  for (let n = 2; listed(folderPath); n++)
+    folderPath = await freshPath(joinp(parentPath, `${folderName} ${n}`));
+  const folderId = ulid();
+  const children: BinderItem[] = [];
+  for (const page of pages) {
+    const path = await freshPath(joinp(folderPath, fileName(page.name) + ".md"));
+    await vault.create(path, page.text);
+    children.push({ id: ulid(), type: "document", path });
+  }
+  const res = await commit(ctx, (play) => {
+    const at = findItem(play.binder, scriptId);
+    if (!at) throw new Error(BINDER_CHANGED);
+    const folder: BinderItem = { id: folderId, type: "folder", path: folderPath, children };
+    const claim = side === "front" ? "frontMatter" : "backMatter";
+    return withScriptData(
+      withBinder(
+        play,
+        insert(play.binder, at.parentId, folder, side === "front" ? at.index : at.index + 1),
+      ),
+      scriptId,
+      { ...scriptDataFor(play, scriptId), [claim]: { folder: folderId } },
+    );
+  });
+  return res.ok ? { ...res, folderId, pageIds: children.map((c) => c.id) } : res;
+}
+
+/** One more page in a script's folder: its file created, never written over, then its row. */
+export async function newPageFile(
+  ctx: BinderContext,
+  folderId: string,
+  name: string,
+  text: string,
+  atIndex = Infinity,
+): Promise<ApplyResult> {
+  const folder = findItem(ctx.play.binder, folderId)?.item;
+  if (!folder)
+    return {
+      ok: false,
+      reason: "error",
+      message: "The folder this page goes in is no longer in the binder.",
+    };
+  const id = ulid();
+  const path = await freshPath(joinp(folder.path, fileName(name) + ".md"));
+  await vault.create(path, text);
+  const res = await addAt(ctx, folderId, { id, type: "document", path }, atIndex);
+  return res.ok ? { ...res, createdId: id } : res;
+}
+
 /** The top-level folder row at `path` in `binder`, made if there is none. */
 function withFolder(binder: BinderItem[], path: string): { binder: BinderItem[]; id: string } {
   const found = binder.find((it) => it.type === "folder" && sameFileOnDisk(it.path, path));
@@ -502,7 +580,10 @@ export async function deleteItem(ctx: BinderContext, id: string): Promise<ApplyR
   const item = loc.item;
   try {
     if (await vault.exists(item.path)) {
-      await vault.trash(item.path); // a folder trashes its whole subtree
+      // A folder trashes its whole subtree. Where the delete goes to
+      // Proscenium’s Trash, the row goes with it, so Put Back can return it
+      // where it stood (src/workspace/trash.ts).
+      await vault.trash(item.path, rowNote(ctx.play, ctx.playPath, id));
     }
   } catch (e) {
     // Trash backend unavailable → do NOT orphan: keep the entry, report.

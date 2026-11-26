@@ -15,22 +15,51 @@ const plays = readFileSync(new URL("./VaultScreen.tsx", import.meta.url), "utf8"
 
 /** The label of a menu-bar item, from its `(id, label, accelerator)` row. */
 const barItem = (id: string) => {
-  const row = new RegExp(`\\("${id}",\\s*"([^"]+)",\\s*(None|Some\\("([^"]+)"\\))\\)`).exec(
-    menuBar,
-  );
+  // rustfmt puts a row too long for one line on several, with a trailing comma.
+  const row = new RegExp(
+    `\\(\\s*"${id}",\\s*"([^"]+)",\\s*(None|Some\\("([^"]+)"\\)),?\\s*\\)`,
+  ).exec(menuBar);
   if (!row) throw new Error(`menu.rs has no item ${id}`);
   return { label: row[1], accelerator: row[3] ?? null };
 };
 
 describe("one name for one thing, in the menu bar and the page", () => {
-  test("the opening pages sheet is Edit Opening Pages… in both menus", () => {
-    const inPage = /id: "opening-pages", label: "([^"]+)"/.exec(toolbar)?.[1];
-    expect(inPage).toBe("Edit Opening Pages…");
-    expect(barItem("title-page").label).toBe(inPage!);
+  test("Add Page… is one name in both menus", () => {
+    const gallery = /id: "add-front-page", label: "([^"]+)"/.exec(toolbar)?.[1];
+    expect(gallery).toBe("Add Page…");
+    expect(barItem("title-page").label).toBe(gallery!);
+  });
+  test("the play's details have no form of their own: neither menu names one", () => {
+    // They are written where they print, on the page
+    // (docs/app/formatting/formats-and-layout.md#FMT-180).
+    expect(toolbar).not.toContain("Play Details");
+    expect(menuBar).not.toContain("Play Details");
+  });
+  test("Capitalize Character Names in Directions… is one name in both menus", () => {
+    const inPage = /id: "cast-names",\s*label: "([^"]+)"/.exec(toolbar)?.[1];
+    expect(inPage).toBe("Capitalize Character Names in Directions…");
+    expect(barItem("cast-names").label).toBe(inPage!);
   });
   test("New Play… is ⌘N in the menu bar, as the Plays screen's New Play menu shows", () => {
     expect(barItem("new-play").accelerator).toBe("CmdOrCtrl+N");
     expect(/label: "Blank Play", shortcut: "⌘N"/.test(plays)).toBe(true);
+  });
+  test("Export Fountain… is one name in both menus, after Export .odt…", () => {
+    // docs/app/formatting/formats-and-layout.md#FMT-171
+    const inPage = /id: "export-fountain",\s*label: "([^"]+)"/.exec(toolbar)?.[1];
+    expect(inPage).toBe("Export Fountain…");
+    expect(barItem("export-fountain").label).toBe(inPage!);
+    expect(barItem("export-fountain").accelerator).toBeNull();
+    // Directly after it: no other item stands between the two in either menu.
+    const between = (text: string, first: string, second: string) => {
+      const from = text.indexOf(first);
+      const to = text.indexOf(second);
+      expect(from).toBeGreaterThan(-1);
+      expect(to).toBeGreaterThan(from);
+      return text.slice(from + first.length, to);
+    };
+    expect(between(menuBar, '("export-odt"', '("export-fountain"')).not.toContain('("');
+    expect(between(toolbar, 'id: "export-odt"', 'id: "export-fountain"')).not.toContain("id:");
   });
   test("Export PDF… is one item with one chord", () => {
     expect(barItem("export-pdf")).toEqual({

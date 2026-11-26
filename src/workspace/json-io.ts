@@ -135,6 +135,7 @@ const SCENE_TMPL: KeyTemplate = {
 SCRIPT_DATA_TMPL.scenes = SCENE_TMPL;
 SCRIPT_DATA_TMPL.orphans = SCENE_TMPL;
 SCRIPT_DATA_TMPL.castHidden = true;
+SCRIPT_DATA_TMPL.castKept = { name: true, line: true, nth: true };
 
 /**
  * `scripts` is keyed by binder id, so its keys are DATA and cannot be listed.

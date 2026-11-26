@@ -12,7 +12,7 @@
 export { parse } from "./parse";
 export { cueName, cueNameEnd, cueNamePart, splitCueExtension, trailingExtension } from "./cue";
 export { serialize } from "./serialize";
-export { extractScenes } from "./scenes";
+export { extractScenes, wholeScript } from "./scenes";
 export type { SceneSpan } from "./scenes";
 export { headingHash, headingPath } from "./heading-hash";
 export {
@@ -37,6 +37,7 @@ export type {
   CharacterEntry,
   Doc,
   FrontMatter,
+  FrontPageSource,
   InlineNode,
   Mark,
   MarkType,

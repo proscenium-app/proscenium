@@ -8,16 +8,39 @@
    densities put interactive chrome under Apple's 44pt floor. Gate on the
    POINTER, not the platform — a Mac stays dense, an iPad grows, and a
    future Boox gets its own e-ink pass on top (docs/engineering/cross-platform.md#PLAT-D100). The
-   writing surface itself is untouched: these are the controls AROUND it. */
+   writing surface itself is untouched: these are the controls AROUND it.
+
+   Every control takes its height from the three control heights
+   (tokens.css), so the pass lifts those, and every control with them: a
+   button, an icon button, a segment, a field, a pop-up, a menu row, a
+   switch. It used to name each control's class instead, and a class
+   renamed (the switcher's) went on being named, lifting nothing, while the
+   toolbar's icons and the document menu stayed 28 points. Last in the
+   stylesheet, so it wins. What only shows a state keeps --h-badge. */
 @media (pointer: coarse) {
-  .btn,
-  .viewswitch__btn,
-  .binder__row,
+  :root {
+    --h-regular: max(44px, calc(28px * var(--ui-scale)));
+    --h-small: max(44px, calc(22px * var(--ui-scale)));
+    --h-mini: max(44px, calc(20px * var(--ui-scale)));
+  }
+  /* A menu row is Apple's 24 on a pointer, and the control height on a finger. */
+  .menu__item {
+    height: var(--h-regular);
+    min-height: var(--h-regular);
+  }
+  /* A height, and no display of its own: last in the stylesheet, a display
+     here beat every later rule that hides one of these (a narrow window's
+     Import a Draft…). A button is inline-flex and centred already; the rows
+     are flex. */
   .binder__pinned,
   .binder__add,
-  .playrow--play .playrow__title,
   .castcard__notes,
+  .castcard__onpage--link,
   .casthidden__chip {
+    min-height: 44px;
+  }
+  .binder__row,
+  .playrow--play .playrow__title {
     min-height: 44px;
     display: flex;
     align-items: center;
@@ -40,5 +63,138 @@
   .exportpanel__check {
     min-height: 44px;
     align-items: center;
+  }
+  .exportpanel__thumbfoot {
+    min-width: 44px;
+    justify-content: center;
+  }
+  /* A pull-down's chevron half is a finger's width on its own. */
+  .btn__more {
+    min-width: 44px;
+    justify-content: flex-end;
+  }
+  /* A segment fills the control height, inside the track's own padding. */
+  .seg {
+    height: auto;
+  }
+  .seg__btn {
+    min-height: var(--h-regular);
+  }
+  /* Rows a finger opens, chooses or types into. */
+  .prefs__tab,
+  .tutorials__topic,
+  .playrow__logline,
+  details > summary {
+    min-height: 44px;
+  }
+  .prefs__tab,
+  .tutorials__topic {
+    display: flex;
+    align-items: center;
+  }
+  /* A summary keeps its own display, and its disclosure triangle with it: a
+     line of it is centred in the 44 points by its padding instead. */
+  details > summary {
+    padding-block: max(0px, calc((44px - 1lh) / 2));
+  }
+  /* The binder's own small controls: collapse, and a row's rename and More…,
+     which show on the row a finger last chose. */
+  .binder__iconbtn,
+  .binder__rowactions button {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+  .binder__filter {
+    height: auto;
+  }
+  .binder__filterinput {
+    min-height: 44px;
+  }
+  /* The binder's foot holds New, a finger's height now. */
+  .binder__foot {
+    height: auto;
+    min-height: 44px;
+  }
+  /* A switch, a checkbox and a radio keep the look they have on a pointer;
+     what a finger presses grows around it to 44 points, centred on it. */
+  .switch,
+  .checkbox,
+  .radio {
+    position: relative;
+  }
+  .switch::after,
+  .checkbox::after,
+  .radio::after {
+    content: "";
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
+  /* A play's pages "—", whose why a finger taps to read (TouchTip). */
+  .playrow__why {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* Drawn for a pointer that hovers, and shown to a finger at once, which
+     has no hover: a cast card's remove, a comment's actions, a card's "add a
+     note". Each was invisible on an iPad until something hovered over it. */
+  .castcard__remove,
+  .cthread__actions,
+  .card__addnote {
+    opacity: 1;
+  }
+  /* A pinch never zooms the window, toolbar and sheets with the page: the
+     page has the app's own zoom, which a pinch on it drives (App.tsx). */
+  html {
+    touch-action: pan-x pan-y;
+  }
+  /* A pane's tabs, which a split always shows: the strip a finger's
+     height, each tab and its close box a target. */
+  .pane__tabs {
+    height: auto;
+    min-height: 44px;
+  }
+  .pane__tabbtn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .pane__tabclose {
+    width: 44px;
+    height: 44px;
+  }
+  /* A card's heading on the board, which opens its scene. */
+  .card__heading {
+    min-height: 44px;
+  }
+  /* The outline's own controls: its notes' toggle, a scene's heading and
+     its moves up and down. */
+  .outline-notes__head {
+    height: auto;
+  }
+  .outline-notes__toggle,
+  .outliner__open {
+    min-height: 44px;
+  }
+  .outliner__move button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  /* A document's format bar, in every document and the cast's notes. */
+  .fmt__btn {
+    width: 44px;
+    height: 44px;
+  }
+  /* A cast card's name and description, which a finger types into, and the
+     presence grid's scene headings, which open a scene. */
+  .castcard__name,
+  .castcard__desc,
+  .presence__scenebtn {
+    min-height: 44px;
+  }
+  .presence__scenebtn {
+    min-width: 44px;
   }
 }

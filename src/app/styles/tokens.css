@@ -143,9 +143,16 @@
   --r-pill: 999px; /* capsules, switches, badges, dots: round the ends */
 
   /* Control heights: regular · small · mini ----------------------------- */
+  /* On a finger each is 44 points (touch-controls.css). A badge that only
+     shows a state (a chip, a capsule, a tag) is not a control, and keeps the
+     mini height on every pointer. */
   --h-regular: calc(28px * var(--ui-scale));
   --h-small: calc(22px * var(--ui-scale));
   --h-mini: calc(20px * var(--ui-scale));
+  --h-badge: calc(20px * var(--ui-scale));
+  /* A switch's track, which keeps its look on a finger: what a finger
+     presses grows around it instead (touch-controls.css). */
+  --h-track: calc(22px * var(--ui-scale));
 
   /* Motion: two, and nothing a writer touches mid-sentence animates ----- */
   --motion: 120ms ease-out; /* hover, press, tint */

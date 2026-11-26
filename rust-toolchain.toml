@@ -9,7 +9,9 @@
 # Both macOS targets, because every release is universal (release-engineering
 # §1): `tauri build --target universal-apple-darwin` needs the Intel slice's
 # standard library as well as this Mac's. Both Windows targets, because every
-# Windows release is built for x64 and for Arm64 from the same commit.
+# Windows release is built for x64 and for Arm64 from the same commit. Both
+# iOS targets: the iPad's build is a device's, and every batch with Rust files
+# compiles it for the simulator too, so the iPad cannot fall behind unseen.
 [toolchain]
 channel = "1.96.0"
 components = ["clippy", "rustfmt"]
@@ -18,5 +20,7 @@ targets = [
   "x86_64-apple-darwin",
   "x86_64-pc-windows-msvc",
   "aarch64-pc-windows-msvc",
+  "aarch64-apple-ios",
+  "aarch64-apple-ios-sim",
 ]
 profile = "minimal"

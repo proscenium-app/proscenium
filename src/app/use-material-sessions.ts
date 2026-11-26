@@ -244,13 +244,18 @@ export function useMaterialSessions(host: Host) {
 
   // --- materials (docs/app/organizing/workspace-model.md#WORK-D106) ---
   const openMaterial = useCallback(
-    async (item: BinderItem) => {
+    /**
+     * `quiet`: held for an editor that is not a pane's (a page before the
+     * script, edited where it stands in the page view): nothing is made
+     * active, and the sheet's status line is the pane's to keep.
+     */
+    async (item: BinderItem, opts?: { quiet?: boolean }) => {
       if (!item.path) return;
       // Already open in another pane: adopt it rather than re-reading, so two
       // panes showing one sheet share a buffer and a hash instead of racing
       // each other's saves.
       if (matsRef.current.has(item.id)) {
-        setActiveId(item.id);
+        if (!opts?.quiet) setActiveId(item.id);
         return;
       }
       const path = item.path;
@@ -275,6 +280,7 @@ export function useMaterialSessions(host: Host) {
           ...cur,
           [item.id]: { item, content, reset: cur[item.id]?.reset ?? 0 },
         }));
+        if (opts?.quiet) return;
         setActiveId(item.id);
         setSheetStatus("saved");
       } catch (e) {

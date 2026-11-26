@@ -19,18 +19,20 @@
  * lesson opened first needs) go only to the practice play, add or convert,
  * and never remove the writer's words (perform.ts).
  */
-import { onMacWords } from "../ui/system-words";
+import { movedToTrash } from "../ui/system-words";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EditorState, Transaction } from "@tiptap/pm/state";
 import type { Workspace } from "../app/useWorkspace";
 import type { Surface } from "../app/panes";
 import type { OpenMaterial } from "../app/use-material-sessions";
-import { charactersPageText } from "../markdown/characters-page";
+import { frontPageList, namedOnPage, namesOnPages, writePageFile } from "../layout";
+import type { FrontMatter, FrontPageSource } from "../fountain";
 import { fromEditorDoc, scrollPosIntoView } from "../editor";
 import type { Doc } from "../fountain";
 import { useSettingsLoaded } from "../ui/settings-store";
 import { tutorials } from "../storage/ipc";
 import { flatten, titleOf } from "../workspace/binder";
+import { practiceNote } from "../workspace/trash";
 import { split, reconstruct, parseTags } from "../workspace/front-matter";
 import { announce, anyLayerOpen } from "../ui";
 import { tutorialUse } from "../diagnostics";
@@ -97,6 +99,24 @@ const until = async (ready: () => boolean, ms = 15000) => {
 /** Steps the writer does by typing in the script: the cursor, not the card, is where they belong. */
 const TYPING = new Set(["speaker", "line", "speaker-two", "reply"]);
 /** Steps whose whole action is choosing a view. */
+/** The page that lists the cast: named for it, or headed with it. */
+function charactersPageOf(pages: readonly FrontPageSource[]): FrontPageSource | undefined {
+  return (
+    pages.find((page) => /character|cast/i.test(page.name)) ??
+    pages.find((page) => /^#{1,6}\s+.*(character|cast)/im.test(page.text))
+  );
+}
+
+/** What lesson 4 reads of the pages before the script. */
+function frontFacts(fm: FrontMatter) {
+  const pages = frontPageList(fm);
+  return {
+    charactersPage: charactersPageOf(pages)?.text ?? "",
+    characters: namesOnPages(pages),
+    pages: pages.length,
+  };
+}
+
 const VIEW_STEPS = new Set(["board", "outline", "cast"]);
 const EMPTY_DOC: Doc = { type: "doc", content: [] };
 const byOrder = <T extends { anchor: { ordinal: number } }>(cards: T[]) =>
@@ -302,11 +322,7 @@ export function useTutorial(ws: Workspace, controls: Controls) {
       cards: [...ws.cards]
         .sort((a, b) => a.anchor.ordinal - b.anchor.ordinal)
         .map((c) => ({ id: c.id, heading: c.heading, synopsis: c.synopsis ?? "" })),
-      front: {
-        charactersPage: ws.frontMatter.charactersPage ?? "",
-        characters: (ws.frontMatter.characters ?? []).map((c) => c.name),
-        openingNotes: ws.frontMatter.openingNotes ?? "",
-      },
+      front: frontFacts(ws.frontMatter),
       documents: flatten(ws.binder)
         .filter((i) => i.type === "document")
         .map((i) => i.id),
@@ -509,8 +525,13 @@ export function useTutorial(ws: Workspace, controls: Controls) {
         break;
       }
       case "characters-page":
-      case "add-character":
         c.controls.show({ kind: "cast" });
+        break;
+      case "add-character":
+      case "opening-notes":
+        // The pages before the script are drawn in page view alone.
+        if (!c.ws.paginated) c.ws.setPaginated(true);
+        c.controls.show({ kind: "script" });
         break;
       case "document":
         c.controls.revealBinder();
@@ -594,19 +615,30 @@ export function useTutorial(ws: Workspace, controls: Controls) {
         break;
       }
       case "characters-page": {
-        const page =
-          w.frontMatter.charactersPage || charactersPageText(w.frontMatter.characters ?? []);
-        w.patchFrontMatter(
-          { charactersPage: `${page.trimEnd()}\n\n*${EXAMPLE.castNote}*\n` },
-          w.openScriptKey,
+        // The first speaker no page names, as Cast's Add to Characters Page would.
+        const pages = frontPageList(w.frontMatter);
+        const speaker = [...w.castWeights.keys()].find(
+          (name) =>
+            (w.castWeights.get(name)?.cues ?? 0) > 0 &&
+            !pages.some((p) => namedOnPage(name, p.text)),
         );
+        await w.addToCharactersPage(speaker ?? EXAMPLE.character);
         break;
       }
-      case "add-character":
-        w.saveCharacters([...(w.frontMatter.characters ?? []), { name: EXAMPLE.character }]);
+      case "add-character": {
+        const page = charactersPageOf(frontPageList(w.frontMatter));
+        if (page) await w.appendToFrontPage(page.id, `**${EXAMPLE.character}**`);
         break;
+      }
       case "opening-notes":
-        w.patchFrontMatter({ openingNotes: EXAMPLE.notes }, w.openScriptKey);
+        await w.addFrontPage(
+          "Setting",
+          writePageFile(
+            { layout: "top" },
+            `<!-- proscenium:align=center -->\n\n## SETTING\n\n${EXAMPLE.notes}\n`,
+          ),
+          (existing) => existing.length,
+        );
         break;
       case "document": {
         const n = flatten(w.binder).filter((i) => i.type === "document").length;
@@ -1237,14 +1269,14 @@ export function useTutorial(ws: Workspace, controls: Controls) {
     });
   const trashPractice = (session: string) =>
     run(async () => {
-      await tutorials.trash(session);
+      await tutorials.trash(session, practiceNote());
       checkpoint((p) => ({
         ...p,
         course: p.course?.session === session ? null : p.course,
         attempts: p.attempts.filter((a) => a.session !== session),
       }));
       await refreshSessions();
-      announce(onMacWords() ? "Practice moved to Trash." : "Practice moved to the Recycle Bin.");
+      announce(movedToTrash("Practice"));
     });
   const keepPractice = (title: string) =>
     run(async () => {

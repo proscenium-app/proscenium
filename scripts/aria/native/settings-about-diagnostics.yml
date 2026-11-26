@@ -1,5 +1,5 @@
-- button "Dismiss"
 - dialog "Settings"
+  - button "Close"
   - heading "Settings" [level=2]
   - tablist "Settings sections"
     - tab "General"
@@ -34,6 +34,5 @@
     - paragraph
     - button "Send Feedback…"
     - paragraph
-  - button "Done"
   - status [live=polite]
   - alert [live=assertive]

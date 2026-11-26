@@ -1,0 +1,16 @@
+- dialog "Move “Ashes in Spring” to the Trash?"
+  - heading "Move “Ashes in Spring” to the Trash?" [level=2]
+  - heading "What goes" [level=3]
+  - paragraph
+  - paragraph
+  - paragraph
+  - heading "How to get it back" [level=3]
+  - list
+    - listitem
+    - listitem
+    - listitem
+  - paragraph
+  - button "Cancel"
+  - button "Continue…"
+  - status [live=polite]
+  - alert [live=assertive]

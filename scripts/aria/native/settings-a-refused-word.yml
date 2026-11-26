@@ -1,4 +1,5 @@
 - dialog "Settings"
+  - button "Close"
   - heading "Settings" [level=2]
   - tablist "Settings sections"
     - tab "General" [selected]
@@ -15,6 +16,12 @@
     - heading "SCRIPT" [level=4]
     - none
       - switch "Show scene navigation strip"
+    - paragraph
+    - none
+      - switch "Show your place in the scene"
+    - paragraph
+    - none
+      - switch "Capitalize as you type"
     - paragraph
     - heading "COMMENTS" [level=4]
     - none
@@ -34,6 +41,5 @@
     - group "Added words"
       - listitem
         - button "Remove “Smokewordle”"
-  - button "Done"
   - status [live=polite]
   - alert [live=assertive]

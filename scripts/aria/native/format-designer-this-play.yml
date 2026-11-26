@@ -1,4 +1,3 @@
-- button "Dismiss"
 - dialog "Smoke House"
   - heading "Smoke House" [level=2]
   - group "Format settings"

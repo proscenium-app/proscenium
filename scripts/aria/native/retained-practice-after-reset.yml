@@ -1,5 +1,6 @@
 - banner
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Practice Play" [haspopup]
   - tablist "What this pane shows"
     - tab "Script" [selected]
@@ -66,6 +67,5 @@
   - button "Zoom out"
   - button "Zoom: Fit width · 62%" [haspopup]
   - button "Zoom in"
-- button "Dismiss"
 - status [live=polite]
 - alert [live=assertive]

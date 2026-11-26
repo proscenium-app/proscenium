@@ -227,6 +227,10 @@ function savedCopies(text) {
   return out.join("\n");
 }
 
+/** The roles that are live regions by themselves: what each holds was said in its own time. */
+const LIVE_ROLES = ["status", "alert", "log", "marquee", "timer"];
+const SPEAKS_FOR_ITSELF = new Set(LIVE_ROLES);
+
 /**
  * A surface's snapshot as it is held: normalized, and with the live regions'
  * words left out. The regions themselves stay — that they exist, empty, before
@@ -238,7 +242,7 @@ function savedCopies(text) {
  */
 export function forSurface(text) {
   const lines = normalize(text)
-    .replace(/^(\s*- (?:status|alert|log|marquee|timer)\b[^:\n]*):[^\n]*$/gm, "$1")
+    .replace(new RegExp(`^(\\s*- (?:${LIVE_ROLES.join("|")})\\b[^:\\n]*):[^\\n]*$`, "gm"), "$1")
     // Bold, Italic and Underline say what the caret stands in, which is where
     // the last check left it.
     .replace(/^(\s*- button "(?:Bold|Italic|Underline)") \[pressed\]/gm, "$1")
@@ -383,10 +387,22 @@ export function acceptPlan(present, wanted, { whole, wholeFor = () => whole }) {
  * is written only where its words are the point: inside a live region (what is
  * announced) and inside a text box (its value). A table's children that are
  * not rows are WebKit's column view of the same cells, and are left out.
+ *
+ * A live region inside another speaks in its own time, so its words are left
+ * out of the outer one's line. An alert dialog is a live region to WebKit, and
+ * the announcer's two regions sit inside it (src/ui/announce.ts): what they
+ * hold when the dialog is read is whichever announcement landed last, which is
+ * timing, not the surface (forSurface, above). Left in, a sentence the format
+ * designer says 600 ms after an edit joined the question that had opened over
+ * it whenever the reading came late, as it always does for the Intel slice.
  */
 export function renderWebKitTree(tree) {
   const lines = [];
-  const text = (node) => (node.text ?? "") + (node.children ?? []).map(text).join("");
+  const within = (node) =>
+    SPEAKS_FOR_ITSELF.has(node.role)
+      ? ""
+      : (node.text ?? "") + (node.children ?? []).map(within).join("");
+  const text = (node) => (node.text ?? "") + (node.children ?? []).map(within).join("");
   const walk = (node, depth, parent) => {
     if (!node) return;
     if (parent === "table" && !["row", "rowgroup"].includes(node.role)) return;

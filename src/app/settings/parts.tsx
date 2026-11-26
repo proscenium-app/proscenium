@@ -57,18 +57,27 @@ export function SwitchRow({
   on,
   onChange,
   note,
+  disabled,
 }: {
   label: string;
   on: boolean;
   onChange: (on: boolean) => void;
   note: ReactNode;
+  /** A switch that does nothing until another is on: dimmed, and its note says which. */
+  disabled?: boolean;
 }) {
   const noteId = useId();
   return (
     <>
-      <label className="settings__row">
+      <label className={`settings__row${disabled ? " is-disabled" : ""}`}>
         <span className="settings__rowlabel">{label}</span>
-        <Switch on={on} onChange={onChange} label={label} describedBy={noteId} />
+        <Switch
+          on={on}
+          onChange={onChange}
+          label={label}
+          describedBy={noteId}
+          disabled={disabled}
+        />
       </label>
       <Note id={noteId}>{note}</Note>
     </>

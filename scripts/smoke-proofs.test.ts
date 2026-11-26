@@ -73,6 +73,18 @@ describe("a check is proven in the engines its act runs in", () => {
     expect(proofEngines(held)).toEqual(["webview2"]);
     expect(proofEngines(ACTS[0])).toEqual(["chromium", "webkit"]);
   });
+
+  test("an act that runs again from a dark launch says why, and runs in the Mac's own WebKit", () => {
+    const dark = ACTS.filter((a) => "darkLaunch" in a);
+    for (const act of dark) {
+      expect(typeof act.darkLaunch).toBe("string");
+      expect(act.darkLaunch.length).toBeGreaterThan(20);
+      // Only the native self-test can launch the real app dark.
+      expect(actRunsIn(act, "native")).toBe(true);
+    }
+    // The acts whose checks read the scheme the app launched in, or choose the other one.
+    expect(dark.map((a) => a.name)).toEqual(["settings", "launch"]);
+  });
 });
 
 describe("a new or changed check is proven before it lands", () => {

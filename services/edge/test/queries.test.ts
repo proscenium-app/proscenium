@@ -12,6 +12,7 @@ for (const name of [
   "0006_usage_track.sql",
   "0007_feedback_version.sql",
   "0008_update_kinds.sql",
+  "0009_crawler_kind.sql",
 ])
   db.exec(await Bun.file(new URL(`../migrations/${name}`, import.meta.url)).text());
 const queries = new Map<string, string>();
@@ -108,6 +109,8 @@ test("downloads are the website's and Homebrew's, and every file is told apart (
   file("update", "darwin", "universal", 40);
   file("signature", "darwin", "universal", 40);
   file("own", "darwin", "universal", 3);
+  // A program's fetch is a file served, and a download by no one.
+  file("crawler", "windows", "x86_64", 4);
   expect(query("downloads", "2026-10-24", "2026-10-25")).toEqual([
     { day: "2026-10-24", version: "1.0.4", download_requests: 8 },
   ]);
@@ -119,6 +122,7 @@ test("downloads are the website's and Homebrew's, and every file is told apart (
       r.requests,
     ]),
   ).toEqual([
+    ["crawler", "windows", "x86_64", 4],
     ["homebrew", "darwin", "universal", 1],
     ["own", "darwin", "universal", 3],
     ["signature", "darwin", "universal", 40],
@@ -130,7 +134,7 @@ test("downloads are the website's and Homebrew's, and every file is told apart (
   db.run(
     "INSERT INTO update_counts VALUES ('2026-10-24', 'check', 'darwin', 'aarch64', '1.0.4', '26.0', 9)",
   );
-  expect(query("file-requests", "2026-10-24", "2026-10-25")).toHaveLength(6);
+  expect(query("file-requests", "2026-10-24", "2026-10-25")).toHaveLength(7);
 });
 test("a beta's counts are counted apart: its own launches, and shares over its own launches (docs/engineering/services-and-feedback.md#SERV-272)", () => {
   usage("2026-09-20", "1.0.0", "developer-id", "app_launched", "{}", 50);
@@ -257,6 +261,7 @@ test("a day's counts for the usage page: every event and value by day and track,
       day: "2026-10-03",
       version: "1.0.1-beta.1",
       track: "beta",
+      platform: "darwin",
       channel: "developer-id",
       arch: "aarch64",
       os: "26.0",
@@ -266,6 +271,7 @@ test("a day's counts for the usage page: every event and value by day and track,
       day: "2026-10-03",
       version: "1.0.0",
       track: "stable",
+      platform: "darwin",
       channel: "developer-id",
       arch: "x86_64",
       os: "14.7",
@@ -275,6 +281,7 @@ test("a day's counts for the usage page: every event and value by day and track,
       day: "2026-10-03",
       version: "1.0.0",
       track: "stable",
+      platform: "darwin",
       channel: "developer-id",
       arch: "aarch64",
       os: "15.6",
@@ -284,6 +291,7 @@ test("a day's counts for the usage page: every event and value by day and track,
       day: "2026-10-04",
       version: "1.0.0",
       track: "stable",
+      platform: "darwin",
       channel: "developer-id",
       arch: "aarch64",
       os: "15.6",
@@ -297,6 +305,20 @@ test("a day's counts for the usage page: every event and value by day and track,
       0,
     ),
   ).toBe(15);
+  // A Mac App Store copy and an iPad say the same channel, `app-store`, on
+  // systems with the same numbers: each is its own platform's row, never one
+  // read as the other (docs/engineering/services-and-feedback.md#SERV-282).
+  for (const platform of ["darwin", "ios"])
+    db.query(
+      `INSERT INTO usage_counts (day, version, platform, arch, os, channel, track, event, props, count)
+       VALUES ('2026-10-06', '1.0.0', ?, 'aarch64', '26.5', 'app-store', 'stable', 'app_launched', '{}', ?)`,
+    ).run(platform, platform === "ios" ? 3 : 4);
+  expect(
+    query("launches-by-day", "2026-10-06", "2026-10-07").map((r) => [r.platform, r.launches]),
+  ).toEqual([
+    ["darwin", 4],
+    ["ios", 3],
+  ]);
 });
 test("active copies by day: a period's rows summed over its days are its distinct copies, by system, track and age (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-86)", () => {
   const active = (
@@ -454,6 +476,7 @@ test("a build's copies and feedback for a release's clock, by SQLite's bindings 
     "0004_feedback_list.sql",
     "0007_feedback_version.sql",
     "0008_update_kinds.sql",
+    "0009_crawler_kind.sql",
   ])
     own.exec(
       require("node:fs").readFileSync(new URL(`../migrations/${name}`, import.meta.url), "utf8"),
