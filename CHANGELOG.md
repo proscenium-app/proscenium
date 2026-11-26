@@ -7,10 +7,94 @@ release candidates; 1.0.0 is the first public release.
 
 Each release's notes on GitHub come from its section here, so write entries as
 a playwright would want to read them: what you can do now, what works better,
-what was broken and is fixed. `bun run version <x.y.z>` turns Unreleased into
-that version's section.
+what was broken and is fixed. Keep each entry to one light line of 30 words at
+most; the Guide teaches the rest. `bun run version <x.y.z>` turns Unreleased
+into that version's section.
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-11-26
+
+### Added
+
+- Write every page before the script where it prints: in page view, click
+  the title page, the Characters page or any other, and type.
+- Click a detail on the title page, such as your name, and type: it is
+  written where it prints.
+- A subtitle has a line of its own under the title.
+- Add Page, above Act One and under the last page, adds a page before or
+  after the script.
+- Change Template… gives a page another template and keeps its words, or
+  moves it to the other side of the script.
+- A Contents page lists the acts and scenes with their page numbers.
+- Pages after the script, such as an author's note or a glossary, in a Back
+  Matter folder.
+- Dedication and Epigraph pages start centered a third of the way down.
+- Export Fountain… saves the whole play, its pages with it, as one .fountain
+  file.
+- Export as Rich Text: choose .rtf under File type in the export window.
+- Delete a play from the Plays screen: Move to Trash…, from the … at the end
+  of its row.
+- Character names in stage directions go into capitals as you type them, in
+  the formats that ask for it.
+- Capitalize Character Names in Directions… catches the names already
+  written, and remembers the ones you keep.
+- Capitalize as you type, in Settings › Writing, turns off the capitals
+  Proscenium types for you, names in directions with them.
+- A horizontal line across the page marks a shift inside a scene: type ---
+  on an empty stage direction.
+- The rail shows the acts, with each act's scenes folded under it.
+- The scene navigation strip marks how far through the scene you are
+  reading.
+- All Plays is on the toolbar, before the play's title.
+
+### Changed
+
+- Cast lists the company (⌘4) and says which page names each character. The
+  Characters page is yours to write.
+- Edit Opening Pages… is gone: every page is written where it prints, and
+  Add Page… adds one. A play from an earlier version prints as it did.
+- The fourth tutorial is Pages Before the Script.
+- A new play starts with its title page in a Front Matter folder.
+- Moving a Front Matter or Back Matter folder to the Trash asks first, and
+  Undo puts it back.
+- Settings opens as a window of its own, closed by its ×.
+- Proscenium's window opens at the size and place you left it.
+- Reply at the end of each conversation in the comments.
+- The script's zoom stops where its type would be too small to read.
+
+### Fixed
+
+- A zoom keeps your place in the script.
+- Script in the top bar comes back to your place, not the title page.
+- Two files of a play saved at the same moment are never refused.
+- Every speech keeps its character's name, so none turns into a stage
+  direction when the play opens again.
+- Backspace and Delete stop at a character's name.
+- Typing in the middle of a scene heading or a name no longer splits the
+  word.
+- No page ends on a paragraph's lone first line, and page view breaks a long
+  speech where the printed page does.
+- A format spaced by half a line no longer stops the pages from drawing.
+- A PDF viewer numbers pages as they are printed.
+- A click puts the caret where you clicked, even on a busy page.
+- Bold, Italic and Underline in the Script menu format the document you are
+  in, not the script behind it.
+- Comments: a long one no longer moves the page as you type, one left open
+  keeps its words, and a ")" after one stays on its line.
+- The inspector counts a scene's own speeches, and a play with no scene
+  lines is one scene.
+- On a Mac, Export's Include boxes untick with a click, Restart to Update
+  launches normally, and Release notes works in the Mac App Store copy.
+- A key or a click just after opening a scene stays where you made it.
+- On Windows, Ctrl+Shift+S makes a Scene Heading instead of saving.
+- An imported Rich Text table is read cell by cell.
+
+### Security
+
+- The library for secure connections is updated for four published
+  advisories, and the Windows updater no longer carries unused zip code.
+  Neither could be reached from Proscenium.
 
 ## [1.0.5] - 2026-10-29
 

@@ -106,7 +106,7 @@ kept in [withdrawn requirements](../../engineering/withdrawn-requirements.md#IMP
 | Google Docs | Download Microsoft Word, then import | `.gdoc` is a pointer, not document content. No Google sign-in. | <a id="IMPT-18"></a>IMPT-18 |
 | Pages `.pages`, single file or package | Direct | Paragraph order, named styles, bold/italic/underline, tabs, line breaks, table text, text boxes, visible captions and footnotes. Page layout, headers and footers, images, comments and list numbering stay in the original. Password-protected, tracked-change and Pages ’09 documents: File → Export To → Word. | [IMPT-87](#IMPT-87), [IMPT-88](#IMPT-88) |
 | OpenDocument `.odt` | Direct | Paragraphs, style inheritance and supported inline emphasis. Tables become sequential text. | <a id="IMPT-20"></a>IMPT-20 |
-| Rich Text `.rtf` | Direct | Text, basic styles and emphasis, Unicode escapes and supported Windows code pages. | <a id="IMPT-21"></a>IMPT-21 |
+| Rich Text `.rtf` | Direct | Text, basic styles and emphasis, Unicode escapes and supported Windows code pages. Tables are read cell by cell, in row order, as from Word; a section break ends its paragraph. | <a id="IMPT-21"></a>IMPT-21 |
 | Text `.txt` | Direct | UTF-8 or BOM-marked UTF-16. Line types are inferred and reviewable. | <a id="IMPT-22"></a>IMPT-22 |
 | Markdown `.md` | Direct | Text and compatible inline emphasis. This is a script import, not a rich document or website migration. | <a id="IMPT-23"></a>IMPT-23 |
 | Fountain `.fountain`, `.spmd` | Direct | Existing parser; unchanged imports retain source text without reserialization. | <a id="IMPT-24"></a>IMPT-24 |
@@ -406,6 +406,13 @@ reading mode or fixing a cue recomputes the interpretation of following lines.
 - <a id="IMPT-60"></a> **IMPT-60** Explicit source semantics win, followed by named paragraph styles.
 - <a id="IMPT-61"></a> **IMPT-61** Unstyled text can recognize act/scene headings, conventional scene slugs,
   short uppercase cues, parentheticals and dialogue following a cue.
+- <a id="IMPT-104"></a> **IMPT-104** A horizontal line comes in as one
+  ([docs/app/writing/editor-ux.md#EDIT-213](../writing/editor-ux.md#EDIT-213)):
+  a paragraph in a style named Horizontal Line, which is what an exported
+  `.docx`, `.odt` or `.rtf` gives one and which has no words, and, in unstyled text,
+  a paragraph of three or more hyphens and nothing else. The second is a guess
+  like any other and is marked for review; under **Keep as Stage Directions**
+  the hyphens stay a direction's words.
 - <a id="IMPT-62"></a> **IMPT-62** Every heuristic result is marked for review. Prose stage directions can
   resemble dialogue; the app never claims certainty about them.
 - <a id="IMPT-63"></a> **IMPT-63** **Keep as Stage Directions** disables guesses for unstyled paragraphs.

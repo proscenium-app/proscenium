@@ -6,6 +6,9 @@
  * installs it (docs/engineering/release-engineering.md#REL-D1, docs/engineering/release-engineering.md#REL-D2, docs/engineering/release-engineering.md#REL-D4).
  *
  *   node scripts/check-bundle.mjs <Proscenium.app> [--universal | --arm64] [--release] [--app-store] [--version <x.y.z>]
+ *   node scripts/check-bundle.mjs --ios <Proscenium.ipa | Proscenium.app> [--build N.u]
+ *        [--version X.Y.Z] [--whole X.Y.Z-alpha.N] [--reports]
+ *        the iPad's build, before it is uploaded (scripts/check-bundle-ios.mjs says what it holds)
  *
  * Nobody ever chose which Macs the app runs on, and the bundle said so three
  * different ways: `lipo -archs` printed `arm64` alone, which
@@ -30,9 +33,10 @@
  *                update address among them, all begin PROSCENIUM_UPDATE_PROOF
  *   --reports    automatic reports compiled in (PROSCENIUM_REPORTS=1), as every release's privacy
  *                answers say: the binary's own mark (src-tauri/src/telemetry/client.rs)
- *   --app-store  the Mac App Store build: no updater and no private WebKit key
- *                in the binary, and the category and export-compliance keys
- *                App Store Connect requires
+ *   --app-store  the Mac App Store build: no updater and no code of the app's
+ *                that sets the private WebKit key (by the binary's own mark,
+ *                src-tauri/src/window_color.rs), and the category and
+ *                export-compliance keys App Store Connect requires
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, openSync, readSync, closeSync } from "node:fs";
@@ -41,6 +45,33 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
+
+// The iPad's build is another kind of bundle, checked by its own half.
+if (args.includes("--ios")) {
+  const { checkIpad } = await import("./check-bundle-ios.mjs");
+  const valued = ["--build", "--version", "--whole"];
+  const value = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : null);
+  const target = args.find((a, i) => !a.startsWith("--") && !valued.includes(args[i - 1]));
+  if (!target || !existsSync(target)) {
+    console.error(`check-bundle: no iPad build at ${target ?? "(none given)"}`);
+    process.exit(1);
+  }
+  const { failures, passed } = checkIpad({
+    target,
+    build: value("--build"),
+    version: value("--version"),
+    whole: value("--whole"),
+    reports: args.includes("--reports"),
+    root: ROOT,
+  });
+  if (failures.length) {
+    console.error(`check-bundle: ${target}`);
+    for (const f of failures) console.error(`  FAIL  ${f}`);
+    process.exit(1);
+  }
+  console.log(`bundle check: clean (${passed.join(", ")})`);
+  process.exit(0);
+}
 const app = args.find((a, i) => !a.startsWith("--") && args[i - 1] !== "--version");
 const UNIVERSAL = args.includes("--universal");
 const ARM64 = args.includes("--arm64");
@@ -199,14 +230,20 @@ if (RELEASE) {
 // an updater, since the store updates the app; the private WebKit key the
 // download build turns its background off with; and an upload App Store
 // Connect would refuse for a missing category or export-compliance answer.
+// The key is held by the binary's own mark (src-tauri/src/window_color.rs),
+// never by its name: since wry 0.56 the name is in every build, in code that
+// runs only for a web view that is transparent or given a background
+// colour, which the store build's never is.
 if (APP_STORE) {
   const bytes = readFileSync(exe).toString("latin1");
   const banned = [
     ["the updater", /tauri[-_]plugin[-_]updater|plugin:updater|updates\.proscenium\.ink/],
-    ["the private key drawsBackground", /drawsBackground/],
+    ["the private WebKit key's code", /proscenium-webkit-background-compiled-in/],
   ];
   const found = banned.filter(([, re]) => re.test(bytes)).map(([what]) => what);
   if (found.length) failures.push(`the store build carries ${found.join(" and ")}`);
+  else if (!bytes.includes("proscenium-webkit-background-left-out"))
+    failures.push("the store build carries no mark of whether it sets the private WebKit key");
   else passed.push("no updater, no private WebKit key");
   const key = (k) => {
     try {

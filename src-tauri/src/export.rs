@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! Export delivery: write bytes the frontend rendered (a PDF, a .docx or an
-//! .odt — docs/app/formatting/formats-and-layout.md#FMT-145) to a path the
+//! .odt — docs/app/formatting/formats-and-layout.md#FMT-145 — or the script as
+//! one .fountain with its pages before the script in it,
+//! docs/app/formatting/formats-and-layout.md#FMT-171) to a path the
 //! user chose in the platform save dialog. Same durability manners as the
 //! vault (docs/app/keeping-work/storage-and-file-format.md#STOR-D102 docs/app/keeping-work/storage-and-file-format.md#STOR-106): write a sibling temp file, then rename into place —
 //! a crash never leaves a truncated export. Payload arrives base64-encoded
@@ -37,8 +39,10 @@ fn estr<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
-/// What the save panel says for one kind of export.
+/// What the save panel says for one kind of export. An iPad's share sheet has
+/// no title or filter, only the name.
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(target_os = "ios", allow(dead_code))]
 struct ExportKind {
     title: &'static str,
     filter: &'static str,
@@ -53,6 +57,13 @@ fn export_kind(kind: &str) -> Result<ExportKind, String> {
         "pdf" => ("Export PDF", "PDF", "pdf", "Script.pdf"),
         "docx" => ("Export .docx", ".docx", "docx", "Script.docx"),
         "odt" => ("Export .odt", ".odt", "odt", "Script.odt"),
+        "rtf" => ("Export .rtf", ".rtf", "rtf", "Script.rtf"),
+        "fountain" => (
+            "Export Fountain",
+            ".fountain",
+            "fountain",
+            "Script.fountain",
+        ),
         _ => return Err(format!("cannot export a {kind:?} file")),
     };
     Ok(ExportKind {
@@ -109,8 +120,40 @@ pub async fn save_export(
     deliver(&bytes, picked.and_then(|p| p.into_path().ok()))
 }
 
+/// On an iPad no Save panel names a path, so an export goes through the share
+/// sheet, to Files, a printer, Mail or AirDrop
+/// (docs/engineering/cross-platform.md#PLAT-36). The file is staged in the
+/// app's cache under the name the page suggested; the last one staged is the
+/// only one kept. Returns the file's name once the writer has sent it
+/// somewhere, or null when they dismissed the sheet.
 #[tauri::command]
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
+pub async fn save_export(
+    app: AppHandle,
+    suggested_name: String,
+    base64: String,
+    kind: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_vault_picker::VaultPickerExt;
+    let ExportKind { fallback, .. } = export_kind(&kind)?;
+    let bytes = decode_export(&base64)?;
+    let name = PathBuf::from(suggested_name)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| fallback.into());
+    let staged = stage(&app, "exports", &name, &bytes)?;
+    let shared = tauri::async_runtime::spawn_blocking(move || {
+        app.vault_picker()
+            .share_file(staged.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(estr)?
+    .map_err(estr)?;
+    Ok(shared.completed.then_some(name))
+}
+
+#[tauri::command]
+#[cfg(target_os = "android")]
 pub async fn save_export(
     _app: AppHandle,
     _suggested_name: String,
@@ -118,6 +161,24 @@ pub async fn save_export(
     _kind: String,
 ) -> Result<Option<String>, String> {
     Err("this platform cannot save an export yet".into())
+}
+
+/// `bytes` as `<app cache>/<folder>/<name>`, alone in that folder: what was
+/// staged before is removed first, so the cache never grows.
+#[cfg(target_os = "ios")]
+pub(crate) fn stage(
+    app: &AppHandle,
+    folder: &str,
+    name: &str,
+    bytes: &[u8],
+) -> Result<PathBuf, String> {
+    use tauri::Manager;
+    let dir = app.path().app_cache_dir().map_err(estr)?.join(folder);
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).map_err(estr)?;
+    let path = dir.join(name);
+    std::fs::write(&path, bytes).map_err(estr)?;
+    Ok(path)
 }
 
 /// Open the print panel on the window for a PDF the page rendered. Resolves
@@ -181,9 +242,34 @@ pub async fn print_export(app: AppHandle, job_title: String, base64: String) -> 
     crate::shell::open(&path)
 }
 
-/// A job title as a Windows file name: no character Windows refuses, no
-/// trailing dot or space, a hundred characters at most.
-#[cfg(any(windows, test))]
+/// Print on an iPad (docs/engineering/cross-platform.md#PLAT-35, `print:
+/// "panel"`): the PDF the page rendered, in the system's print panel, as on a
+/// Mac. Staged in the app's cache under the play's name, which the panel shows
+/// as the job's, and removed when the panel closes.
+#[tauri::command]
+#[cfg(target_os = "ios")]
+pub async fn print_export(app: AppHandle, job_title: String, base64: String) -> Result<(), String> {
+    use tauri_plugin_vault_picker::VaultPickerExt;
+    let bytes = decode_export(&base64)?;
+    let staged = stage(
+        &app,
+        "print",
+        &format!("{}.pdf", print_name(&job_title)),
+        &bytes,
+    )?;
+    tauri::async_runtime::spawn_blocking(move || {
+        app.vault_picker()
+            .print_file(staged.to_string_lossy().into_owned(), job_title)
+    })
+    .await
+    .map_err(estr)?
+    .map_err(estr)
+}
+
+/// A job title as a file name: no character Windows refuses, no trailing dot
+/// or space, a hundred characters at most. An iPad's staged print takes the
+/// same name.
+#[cfg(any(windows, target_os = "ios", test))]
 fn print_name(title: &str) -> String {
     let cleaned: String = title
         .chars()
@@ -205,7 +291,7 @@ fn print_name(title: &str) -> String {
 }
 
 #[tauri::command]
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(not(any(target_os = "macos", windows, target_os = "ios")))]
 pub async fn print_export(_job_title: String, _base64: String) -> Result<(), String> {
     Err("this platform cannot print yet".into())
 }
@@ -284,6 +370,7 @@ mod print {
     }
 }
 
+#[cfg(any(desktop, test))]
 fn deliver(bytes: &[u8], selected: Option<PathBuf>) -> Result<Option<String>, String> {
     let Some(target) = selected else {
         return Ok(None);
@@ -326,6 +413,18 @@ mod tests {
         );
         assert_eq!(export_kind("docx").unwrap().extension, "docx");
         assert_eq!(export_kind("odt").unwrap().title, "Export .odt");
+        assert_eq!(export_kind("rtf").unwrap().extension, "rtf");
+        // The script as one Fountain file (docs/app/formatting/formats-and-layout.md#FMT-171),
+        // named as the iPad's share sheet names it too when the page suggests none.
+        assert_eq!(
+            export_kind("fountain").unwrap(),
+            ExportKind {
+                title: "Export Fountain",
+                filter: ".fountain",
+                extension: "fountain",
+                fallback: "Script.fountain"
+            }
+        );
         assert!(export_kind("exe").is_err());
         assert!(export_kind("").is_err());
     }

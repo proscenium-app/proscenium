@@ -26,3 +26,23 @@
   color: inherit;
   opacity: 0.75;
 }
+
+/* Act rows (docs/app/organizing/workspace-model.md#WORK-89): the act's name over its scenes, folding them
+   like a folder. Set a step heavier than a scene so the acts read as the
+   play's outline at a glance, at the scene's own size so a long act name
+   still fits the rail. */
+.binder__row--act {
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--ink);
+}
+.binder__row--act.is-selected {
+  color: inherit;
+}
+.binder__row--act .binder__pages {
+  font-weight: 400;
+}
+.binder__row--act.is-selected .binder__pages {
+  color: inherit;
+  opacity: 0.75;
+}

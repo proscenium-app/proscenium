@@ -160,6 +160,9 @@ describe("leader contract (docs/app/writing/editor-ux.md#EDIT-D100)", () => {
       // Not an element type: the leader arms only on an empty block, which is
       // where a forced page break belongs, so it rides the same menu (docs/app/writing/editor-ux.md#EDIT-60).
       "-": "pageBreak",
+      // Nor is a horizontal line, which goes where an empty line was
+      // (docs/app/writing/editor-ux.md#EDIT-213).
+      h: "horizontalRule",
     });
   });
 

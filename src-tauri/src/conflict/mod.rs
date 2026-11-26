@@ -40,14 +40,17 @@ fn walk(root: &Path, dir: &Path, found: &mut Vec<String>) {
                 walk(root, &path, found);
             }
         } else if is_conflict_copy(&name) {
-            found.push(rel_of(root, &path));
+            // Joined from the root itself, so always under it; one that was not
+            // would be no path in this vault, never an absolute one in a list
+            // the page files by (docs/app/keeping-work/storage-and-file-format.md#STOR-39).
+            if let Some(rel) = rel_of(root, &path) {
+                found.push(rel);
+            }
         }
     }
 }
 
-fn rel_of(root: &Path, abs: &Path) -> String {
-    abs.strip_prefix(root)
-        .unwrap_or(abs)
-        .to_string_lossy()
-        .replace('\\', "/")
+fn rel_of(root: &Path, abs: &Path) -> Option<String> {
+    let rel = abs.strip_prefix(root).ok()?;
+    Some(rel.to_string_lossy().replace('\\', "/"))
 }

@@ -16,7 +16,11 @@
 //!     (scripts/selftest/harness.mjs), which asks this module for native key and
 //!     mouse events, so input arrives through the menu bar and WebKit exactly as
 //!     a writer's does;
-//!  3. runs them in light, then dark, capturing the window after every check;
+//!  3. runs every check once, in the light scheme, capturing the window after
+//!     each; at every surface a check audits, the window is switched to dark,
+//!     audited, held and captured again, and switched back; then the acts
+//!     whose checks mean something else from a dark launch run once more,
+//!     the window dark from its first frame;
 //!  4. writes the report and exits non-zero on any failure, or when the
 //!     watchdog fires because the page never got far enough to say.
 //!
@@ -47,7 +51,11 @@ const OUTSIDE: &[(&str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/selftest_o
 /// scripts/selftest/harness.mjs, bundled by scripts/build-app.mjs --selftest.
 const HARNESS: &str = include_str!(env!("PROSCENIUM_SELFTEST_HARNESS"));
 
-/// Smoke runs every check in both schemes; so does this.
+/// Behaviour once, the look in both schemes, as smoke has it
+/// (docs/app/preferences-and-help/accessibility.md#A11Y-16). The light pass
+/// runs every act, and audits each surface again in dark, in place
+/// (`selftest_scheme`). The dark pass runs only the acts that must start
+/// dark (`Run::dark_acts`), and is no pass at all when the run has none.
 const PASSES: [(&str, Theme); 2] = [("light", Theme::Light), ("dark", Theme::Dark)];
 
 /// How long an act may go without reporting back: long enough for the slowest
@@ -73,9 +81,12 @@ struct Run {
     /// The features a narrowed run keeps (`selftest.mjs --features`, the
     /// pipeline's plan), for the report: the acts below are what it chose.
     features: Option<String>,
-    /// The acts each pass runs, in order (scripts/smoke-checks.mjs ACTS,
+    /// The acts the light pass runs, in order (scripts/smoke-checks.mjs ACTS,
     /// `selftest.mjs --acts`): one per page load, each from a fresh first launch.
     acts: Vec<String>,
+    /// Those of them that run again from a dark launch (an act's `darkLaunch`
+    /// in scripts/smoke-checks.mjs): the dark pass, in the same order.
+    dark_acts: Vec<String>,
     /// Whether an act with a failing check runs once more from its start.
     retry: bool,
     /// Surfaces whose tree a commit declared changed (`ARIA:` trailers): their
@@ -126,6 +137,26 @@ static DRAWING: OnceLock<Value> = OnceLock::new();
 /// Whether the test window stood in as key behind a locked screen
 /// (native::claim_key_status), as the report records it.
 static KEY_STATUS: OnceLock<&'static str> = OnceLock::new();
+
+impl Run {
+    /// The acts a pass runs: every act in light, the dark-launch acts in dark.
+    fn acts_of(&self, pass: usize) -> &[String] {
+        if pass == 0 {
+            &self.acts
+        } else {
+            &self.dark_acts
+        }
+    }
+
+    /// How many passes this run makes: the dark one only when an act asks for it.
+    fn passes(&self) -> usize {
+        if self.dark_acts.is_empty() {
+            1
+        } else {
+            PASSES.len()
+        }
+    }
+}
 
 fn run() -> Result<&'static Run, String> {
     RUN.get()
@@ -634,6 +665,12 @@ fn begin() -> bool {
         );
         std::process::exit(2);
     }
+    // Those of them that run again from a dark launch, in the acts' own order.
+    let dark: Vec<String> = std::env::var("PROSCENIUM_SELFTEST_DARK_ACTS")
+        .ok()
+        .and_then(|a| serde_json::from_str(&a).ok())
+        .unwrap_or_default();
+    let dark_acts: Vec<String> = acts.iter().filter(|a| dark.contains(a)).cloned().collect();
     let retry = std::env::var("PROSCENIUM_SELFTEST_RETRY").map_or(true, |r| r != "0");
     let aria: Vec<String> = std::env::var("PROSCENIUM_SELFTEST_ARIA_DECLARED")
         .ok()
@@ -650,6 +687,7 @@ fn begin() -> bool {
         only,
         features,
         acts,
+        dark_acts,
         retry,
         aria,
         started: Instant::now(),
@@ -699,7 +737,7 @@ fn start_watchdog() {
         }
         finish(Some(format!(
             "timed out: the act {} reported nothing for {timeout}s in the {} pass — the page never reported back",
-            run.acts.get(act).map(String::as_str).unwrap_or("?"),
+            run.acts_of(pass).get(act).map(String::as_str).unwrap_or("?"),
             PASSES.get(pass).map(|p| p.0).unwrap_or("last")
         )));
     });
@@ -734,6 +772,9 @@ fn fresh_launch(run: &Run, window: &WebviewWindow, launch: usize) -> Result<(), 
         }
     }
     lay_world(run, &plays_dir(run, launch))?;
+    // In its pass's scheme, whatever an audit that never finished left it in.
+    let pass = run.state.lock().unwrap_or_else(|p| p.into_inner()).pass;
+    let _ = window.set_theme(Some(PASSES[pass.min(PASSES.len() - 1)].1));
     window
         .eval("try { localStorage.clear(); sessionStorage.clear(); } catch {} location.reload();")
         .map_err(|e| e.to_string())
@@ -897,11 +938,14 @@ pub fn selftest_context() -> Result<Value, String> {
     Ok(json!({
         "pass": PASSES[pass.min(PASSES.len() - 1)].0,
         "index": pass,
-        "total": PASSES.len(),
+        "total": run.passes(),
         "break": run.brk,
         "only": run.only,
         "features": run.features,
-        "acts": run.acts,
+        "acts": run.acts_of(pass),
+        // The acts that audit dark from a dark launch of their own, and so
+        // not in place in the light pass.
+        "darkActs": run.dark_acts,
         "aria": run.aria,
         // A store build: no updater, since the store updates it.
         "store": !cfg!(feature = "updater"),
@@ -942,7 +986,7 @@ pub fn selftest_act_done(window: WebviewWindow, result: Value) -> Result<(), Str
             state.act += 1;
         }
         state.resume_at = 0;
-        let over = state.act >= run.acts.len();
+        let over = state.act >= run.acts_of(state.pass).len();
         if !over {
             state.resets += 1;
         }
@@ -1044,6 +1088,24 @@ pub async fn selftest_click(
     let clicks = clicks.unwrap_or(1).clamp(1, 3);
     on_webview(&window, move |webview, ns_window| {
         native::click(webview, ns_window, x, y, press, clicks)
+    })
+    .await
+}
+
+/// One half of a drag, or the pointer moved with the button held: `down`
+/// presses the left button at a point, `drag` moves it there still pressed,
+/// `up` lets it go there. A click is a down and an up at one point; a drag is
+/// the drags between, which AppKit sends as `LeftMouseDragged` and WebKit turns
+/// into a selection that follows the pointer.
+#[tauri::command]
+pub async fn selftest_mouse(
+    window: WebviewWindow,
+    kind: String,
+    x: f64,
+    y: f64,
+) -> Result<(), String> {
+    on_webview(&window, move |webview, ns_window| {
+        native::mouse(webview, ns_window, &kind, x, y)
     })
     .await
 }
@@ -1177,8 +1239,8 @@ async fn tokio_sleep(d: Duration) {
 /// kept with the run's evidence (`<report dir>/aria/<name>.<scheme>.yml`),
 /// and held against the checked-in expectation, which is returned, or null
 /// when there is none. The expectation is `PROSCENIUM_SELFTEST_ARIA/<name>.yml`,
-/// or `<name>.dark.yml` in the dark pass where the dark scheme reads the
-/// surface otherwise (an Appearance menu naming the scheme it is in).
+/// or `<name>.dark.yml` in the dark scheme where it reads the surface
+/// otherwise (an Appearance menu naming the scheme it is in).
 #[tauri::command]
 pub fn selftest_aria(
     name: String,
@@ -1206,7 +1268,7 @@ pub fn selftest_aria(
     let variant = expected.join(format!("{name}.{scheme}.yml"));
     // A store build reads a surface its own way where it has no updater (the
     // Updates pane): `<name>.store.yml`, or `<name>.store.dark.yml` in the
-    // dark pass, before the download build's.
+    // dark scheme, before the download build's.
     let store = [
         (scheme != "light").then(|| expected.join(format!("{name}.store.{scheme}.yml"))),
         Some(expected.join(format!("{name}.store.yml"))),
@@ -1226,6 +1288,20 @@ pub fn selftest_aria(
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.to_string()),
     }
+}
+
+/// The window in one scheme, for an audit of the surface it shows in the
+/// other (scripts/selftest/harness.mjs `inScheme`): the page follows it as it
+/// follows the Mac's own, through its media query. The harness puts it back.
+#[tauri::command]
+pub fn selftest_scheme(window: WebviewWindow, scheme: String) -> Result<(), String> {
+    run()?;
+    let theme = PASSES
+        .iter()
+        .find(|p| p.0 == scheme)
+        .ok_or_else(|| format!("{scheme:?} is not a scheme"))?
+        .1;
+    window.set_theme(Some(theme)).map_err(|e| e.to_string())
 }
 
 /// A pass is over: keep its results, then start the next from nothing, or end.
@@ -1260,7 +1336,7 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
         .results
         .last()
         .is_some_and(|r| r["stop"] == true);
-    if next >= PASSES.len() || stop {
+    if next >= run.passes() || stop {
         finish(None);
     }
     let launch = run.state.lock().unwrap_or_else(|p| p.into_inner()).resets;
@@ -1271,7 +1347,7 @@ pub fn selftest_done(window: WebviewWindow, result: Value) -> Result<(), String>
     fresh_launch(run, &window, launch)
 }
 
-/// Write the report and exit: 0 only when both passes ran and nothing failed.
+/// Write the report and exit: 0 only when every pass ran and nothing failed.
 fn finish(error: Option<String>) -> ! {
     let Ok(run) = run() else {
         std::process::exit(2)
@@ -1377,8 +1453,8 @@ fn finish(error: Option<String>) -> ! {
         .iter()
         .filter(|p| p.get("unfinished").is_none())
         .count();
-    if completed < PASSES.len() && error.is_none() {
-        failures.push(format!("only {completed} of {} passes ran", PASSES.len()));
+    if completed < run.passes() && error.is_none() {
+        failures.push(format!("only {completed} of {} passes ran", run.passes()));
     }
 
     let ok = failures.is_empty();
@@ -1388,6 +1464,11 @@ fn finish(error: Option<String>) -> ! {
         "failed": failed,
         "flakes": flakes,
         "acts": run.acts,
+        // The passes this run was to make, and the acts of each: every act in
+        // light, each surface audited in dark in place, then the dark-launch acts.
+        "planned": (0..run.passes())
+            .map(|pass| json!({ "scheme": PASSES[pass].0, "acts": run.acts_of(pass) }))
+            .collect::<Vec<_>>(),
         "app": {
             "version": env!("CARGO_PKG_VERSION"),
             "arch": std::env::consts::ARCH,
@@ -1420,7 +1501,12 @@ fn finish(error: Option<String>) -> ! {
 
     if ok {
         say(&format!(
-            "clean — both passes in {}s",
+            "clean — {} in {}s",
+            if run.passes() == 1 {
+                "the light pass, each surface in dark too"
+            } else {
+                "the light pass, each surface in dark too, and the dark-launch acts"
+            },
             run.started.elapsed().as_secs()
         ));
     } else {
@@ -1792,16 +1878,7 @@ mod native {
         let window = unsafe { &*(ns_window as *const NSWindow) };
         let view = unsafe { &*(webview as *const NSView) };
         make_key(mtm, window);
-        let bounds = view.bounds();
-        let local = NSPoint::new(
-            x,
-            if view.isFlipped() {
-                y
-            } else {
-                bounds.size.height - y
-            },
-        );
-        let point = view.convertPoint_toView(local, None);
+        let point = window_point(view, x, y);
         let app = NSApplication::sharedApplication(mtm);
         // Each press carries its place in a run of clicks, as AppKit counts
         // them: the page's `detail`, and its dblclick after the second.
@@ -1831,6 +1908,57 @@ mod native {
             .ok_or("AppKit would not make the mouse event")?;
             app.sendEvent(&ns_event);
         }
+        Ok(())
+    }
+
+    /// A point in the page's CSS pixels, in the window's coordinates.
+    fn window_point(view: &NSView, x: f64, y: f64) -> NSPoint {
+        let bounds = view.bounds();
+        let local = NSPoint::new(
+            x,
+            if view.isFlipped() {
+                y
+            } else {
+                bounds.size.height - y
+            },
+        );
+        view.convertPoint_toView(local, None)
+    }
+
+    /// The left button pressed, moved while pressed, or let go (`selftest_mouse`).
+    pub fn mouse(
+        webview: *mut c_void,
+        ns_window: *mut c_void,
+        kind: &str,
+        x: f64,
+        y: f64,
+    ) -> Result<(), String> {
+        let mtm = MainThreadMarker::new().ok_or("not on the main thread")?;
+        let window = unsafe { &*(ns_window as *const NSWindow) };
+        let view = unsafe { &*(webview as *const NSView) };
+        let (event_type, held) = match kind {
+            "down" => (NSEventType::LeftMouseDown, true),
+            "drag" => (NSEventType::LeftMouseDragged, true),
+            "up" => (NSEventType::LeftMouseUp, false),
+            other => return Err(format!("no mouse event \"{other}\"")),
+        };
+        if event_type == NSEventType::LeftMouseDown {
+            make_key(mtm, window);
+        }
+        PRESSED.store(usize::from(held), Ordering::Relaxed);
+        let ns_event = NSEvent::mouseEventWithType_location_modifierFlags_timestamp_windowNumber_context_eventNumber_clickCount_pressure(
+            event_type,
+            window_point(view, x, y),
+            NSEventModifierFlags(0),
+            now(),
+            window.windowNumber(),
+            None,
+            EVENT_NUMBER.fetch_add(1, Ordering::Relaxed),
+            1,
+            if held { 1.0 } else { 0.0 },
+        )
+        .ok_or("AppKit would not make the mouse event")?;
+        NSApplication::sharedApplication(mtm).sendEvent(&ns_event);
         Ok(())
     }
 

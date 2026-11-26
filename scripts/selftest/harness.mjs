@@ -786,7 +786,11 @@ function clickSeen(timeout = 1500) {
   });
 }
 
+/** Where the native pointer last went, and whether its button is held. */
+let pointer = { x: 0, y: 0, down: false };
+
 async function nativeClick(x, y, clicks = 1) {
+  pointer = { x, y, down: false };
   const seen = clickSeen();
   await invoke("selftest_click", { x, y, clicks });
   if (!(await seen)) {
@@ -858,7 +862,42 @@ const page = {
       }
     },
   },
-  mouse: { click: nativeClick },
+  mouse: {
+    click: nativeClick,
+    /**
+     * Playwright's down, move and up, as AppKit's own events: a move with the
+     * button held is a drag, sent in `steps` as Playwright sends it.
+     */
+    async move(x, y, { steps = 1 } = {}) {
+      const from = pointer;
+      for (let i = 1; i <= steps; i++) {
+        const at = {
+          x: from.x + ((x - from.x) * i) / steps,
+          y: from.y + ((y - from.y) * i) / steps,
+        };
+        if (pointer.down) await invoke("selftest_mouse", { kind: "drag", ...at });
+        else await invoke("selftest_click", { ...at, press: false });
+        pointer = { ...pointer, ...at };
+      }
+      await frame();
+    },
+    async down() {
+      await invoke("selftest_mouse", { kind: "down", x: pointer.x, y: pointer.y });
+      pointer.down = true;
+      await frame();
+    },
+    async up() {
+      const seen = clickSeen();
+      await invoke("selftest_mouse", { kind: "up", x: pointer.x, y: pointer.y });
+      pointer.down = false;
+      if (!(await seen))
+        throw new Error(
+          `a native mouseup at ${Math.round(pointer.x)},${Math.round(pointer.y)} never reached the page`,
+        );
+      await frame();
+      await frame();
+    },
+  },
   evaluate: async (fn, arg) => fn(arg),
   /**
    * Playwright's init script, for the pages after this one: a function from
@@ -898,8 +937,24 @@ const page = {
 const audits = { findings: [], advisories: new Map() };
 window.axe = axe;
 
-/** The check in progress, for a reload that has to report it: its act, and which attempt of it. */
-const running = { index: 0, check: null, started: 0, scheme: "", act: "", attempt: 1 };
+/**
+ * The check in progress, for a reload that has to report it: its act, and
+ * which attempt of it. `scheme` is the pass's, the one the page launched in;
+ * `look` the one it is in right now, which differs only while a surface is
+ * audited in dark in place (inScheme); `darkMs` what those audits have cost
+ * this check.
+ */
+const running = {
+  index: 0,
+  check: null,
+  started: 0,
+  scheme: "",
+  look: "",
+  darkInPlace: false,
+  darkMs: 0,
+  act: "",
+  attempt: 1,
+};
 
 const advisoryObject = () =>
   Object.fromEntries(
@@ -936,6 +991,7 @@ async function report(check, error, skipped = null) {
         ms,
         error,
         screenshot: shot,
+        ...(running.darkMs ? { darkMs: Math.round(running.darkMs) } : {}),
         ...where,
       };
   await invoke("selftest_check", { result }).catch(() => {});
@@ -1025,11 +1081,65 @@ async function settled(surface) {
   }
 }
 
-async function audit(_page, surface) {
+/** One audit of the surface as the page is: settled, axe, and its tree held. Returns the tree's name. */
+async function auditAsItIs(surface, label) {
   await parkPointer();
-  await settled(surface);
-  recordAudit(await runAxe(AUDIT_TAGS), surface, audits);
-  await holdTree(surface);
+  await settled(label);
+  recordAudit(await runAxe(AUDIT_TAGS), label, audits);
+  return holdTree(surface, label);
+}
+
+/**
+ * The window in the other scheme for `fn`, then back, as smoke's inScheme
+ * emulates it: the page follows the window through its media query
+ * (src/ui/use-accent.ts) when its appearance follows the Mac; with a fixed
+ * appearance nothing changes, and the surface is read as it is.
+ */
+async function inScheme(scheme, fn) {
+  const settle = async (want) => {
+    await invoke("selftest_scheme", { scheme: want });
+    const root = document.documentElement;
+    await until(
+      `for the page to follow the window into the ${want} scheme`,
+      () => root.dataset.appearance !== "system" || root.dataset.theme === want,
+    );
+    // Two frames, so the new colours are drawn before anything reads them.
+    // What they set moving is the audit gate's to wait for (settled).
+    await frame();
+    await frame();
+  };
+  try {
+    await settle(scheme);
+    running.look = scheme;
+    return await fn();
+  } finally {
+    running.look = running.scheme;
+    await settle(running.scheme);
+  }
+}
+
+/**
+ * Behaviour once, the look in both schemes
+ * (docs/app/preferences-and-help/accessibility.md#A11Y-16): a surface is
+ * audited as the page is, then, in the light pass, switched to dark where it
+ * stands, audited and held again, captured as the window and WebKit drew it,
+ * and switched back. So the dark audit sees exactly the page the light one
+ * saw, and a check that only drives behaviour runs once. An act that runs
+ * again from a dark launch (ACTS' `darkLaunch`) audits dark there instead.
+ */
+async function audit(_page, surface) {
+  await auditAsItIs(surface, surface);
+  if (!running.darkInPlace) return;
+  const began = performance.now();
+  try {
+    await inScheme("dark", async () => {
+      const name = await auditAsItIs(surface, `${surface} (dark)`);
+      const shot = `dark-${running.act.replace(/[^a-z0-9]+/gi, "-")}-${running.attempt}-surface-${name}`;
+      await invoke("selftest_capture", { name: shot }).catch((e) => log(`capture failed: ${e}`));
+    });
+  } finally {
+    running.darkMs += performance.now() - began;
+  }
 }
 
 /** WebKit's accessibility tree under `selector`, written as a snapshot (normalized). */
@@ -1056,11 +1166,12 @@ async function webkitTree(selector) {
 
 /**
  * The surface's accessibility tree, as WebKit hands it to VoiceOver, held
- * against scripts/aria/native/<surface>.yml, or <surface>.dark.yml in the dark pass where
- * one exists (docs/app/preferences-and-help/accessibility.md#A11Y-16).
+ * against scripts/aria/native/<surface>.yml, or <surface>.dark.yml in the dark
+ * scheme where one exists (docs/app/preferences-and-help/accessibility.md#A11Y-16).
  * The tree is kept with the run's evidence either way, so a changed surface
- * is accepted by copying it (scripts/aria-accept.mjs). The names count within a
- * pass, across a check's reload, so a surface audited twice has two files.
+ * is accepted by copying it (scripts/aria-accept.mjs). The names count within
+ * an act, in each scheme apart, across a check's reload, so a surface audited
+ * twice has two files in each.
  *
  * A surface with no tree yet, and one the batch declared changed (its commit's
  * `ARIA:` trailer, which rewrote the surface's snapshot beside it), is
@@ -1068,21 +1179,22 @@ async function webkitTree(selector) {
  * and no run is red for a change a commit said it made.
  */
 const surfaceNames = new SurfaceNames(() => sessionStorage, "selftest:aria-names");
+/** The same surfaces' names as they are audited in dark in place. */
+const darkNames = new SurfaceNames(() => sessionStorage, "selftest:aria-names-dark");
+const namesNow = () => (running.look === running.scheme ? surfaceNames : darkNames);
 /** The surfaces the batch declared changed (the run's `--aria`). */
 let declaredAria = [];
-async function holdTree(surface) {
+async function holdTree(surface, label = surface) {
   const take = async () => forSurface(await webkitTree("body"));
   let tree;
   try {
     tree = await take();
   } catch (e) {
-    surfaceNames.next(surface);
-    audits.findings.push(
-      `accessibility tree of ${surface}: could not be read — ${e?.message ?? e}`,
-    );
-    return;
+    const name = namesNow().next(surface);
+    audits.findings.push(`accessibility tree of ${label}: could not be read — ${e?.message ?? e}`);
+    return name;
   }
-  await holdText(surface, tree, take);
+  return holdText(surface, tree, take, label);
 }
 
 /** How long a tree that differs is read again before it fails, as smoke waits. */
@@ -1093,15 +1205,16 @@ async function hold(_page, name, text) {
   await holdText(name, normalizeTree(text));
 }
 
-async function holdText(surface, tree, retake) {
-  const name = surfaceNames.next(surface);
-  let expected = await invoke("selftest_aria", { name, text: tree, scheme: running.scheme });
+async function holdText(surface, tree, retake, label = surface) {
+  const name = namesNow().next(surface);
+  const scheme = running.look;
+  let expected = await invoke("selftest_aria", { name, text: tree, scheme });
   const declared = declaredAria.some((d) => d === name || d === name.replace(/--\d+$/, ""));
   if (declared || expected == null) {
     log(
-      `recorded on first read: ${name} (${running.scheme}), ${declared ? "declared changed" : "no tree yet"}`,
+      `recorded on first read: ${name} (${scheme}), ${declared ? "declared changed" : "no tree yet"}`,
     );
-    return;
+    return name;
   }
   // Still settling: read again until it matches or the settle time is up, and
   // keep the last reading as the evidence.
@@ -1113,17 +1226,18 @@ async function holdText(surface, tree, retake) {
       await sleep(250);
       tree = await retake().catch(() => tree);
     }
-    expected = await invoke("selftest_aria", { name, text: tree, scheme: running.scheme });
+    expected = await invoke("selftest_aria", { name, text: tree, scheme });
   }
   if (expected == null) {
     audits.findings.push(
-      `accessibility tree of ${surface}: scripts/aria/native/${name}.yml went while it was read`,
+      `accessibility tree of ${label}: scripts/aria/native/${name}.yml went while it was read`,
     );
   } else if (normalizeTree(expected) !== tree) {
     audits.findings.push(
-      `accessibility tree of ${surface} (scripts/aria/native/${name}.yml), ${firstDifference(normalizeTree(expected), tree)}`,
+      `accessibility tree of ${label} (scripts/aria/native/${name}.yml), ${firstDifference(normalizeTree(expected), tree)}`,
     );
   }
+  return name;
 }
 
 /**
@@ -1170,14 +1284,22 @@ async function main() {
 
   // One act per page load: its start, quietly, then its checks, so an act
   // owes nothing to the act before it. The app reset itself to a fresh
-  // first launch before this page loaded, as it does between passes.
+  // first launch before this page loaded, in the pass's scheme.
   const act = actsOf(smokeChecks({ audit, hold }), [ctx.acts[ctx.act]])[0];
   const start = startOf(act, smokeChecks({ audit: async () => {}, hold: async () => {} }));
   const checks = [
     ...start.map((check) => ({ check, quiet: true })),
     ...act.checks.map((check) => ({ check, quiet: false })),
   ];
-  Object.assign(running, { act: act.name, attempt: ctx.attempt ?? 1 });
+  Object.assign(running, {
+    act: act.name,
+    attempt: ctx.attempt ?? 1,
+    scheme,
+    look: scheme,
+    // Each surface in dark where it stands, in the light pass, unless the act
+    // runs again from a dark launch and audits dark there.
+    darkInPlace: scheme === "light" && !(ctx.darkActs ?? []).includes(act.name),
+  });
   log(
     `act ${ctx.act + 1}/${ctx.acts.length}: ${act.name}${running.attempt > 1 ? ", its second try" : ""}`,
   );
@@ -1200,6 +1322,7 @@ async function main() {
     }
     audits.findings.length = 0;
     running.started = performance.now();
+    running.darkMs = 0;
     let error = null;
     try {
       await parkPointer();

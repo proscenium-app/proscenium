@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "Untitled"
   - tablist "What this pane shows":
     - tab "Script"
@@ -17,6 +18,11 @@
   - button "Collapse all folders"
   - searchbox "Filter the binder"
   - tree "Binder items":
+    - treeitem "Front Matter" [expanded] [level=1]
+    - group "Front Matter":
+      - treeitem "Title Page" [level=2]
+      - treeitem "Characters" [level=2]
+      - treeitem "Setting" [level=2]
     - treeitem "Practice Play" [level=1]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters": Empty

@@ -8,3 +8,4 @@
 - textbox "Status 7 of 8: produced"
 - textbox "Status 8 of 8: shelved"
 - textbox "New status"
+- button "Close"

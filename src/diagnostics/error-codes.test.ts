@@ -111,6 +111,7 @@ describe("error codes", () => {
       ["Printing failed: another panel is already open on this window", "E-PRINT"],
       [".docx export failed: Error: No pages selected.", "E-OTHER"],
       [".odt export failed: TypeError: x is undefined", "E-OTHER"],
+      ["Fountain export failed: Permission denied (os error 13)", "E-OTHER"],
       ["“Hamlet” couldn't be saved to “Act One”, so it is kept in Versions.", "E-SAVE"],
       ["Your version couldn't be kept in Versions, so nothing was replaced.", "E-VERSIONS"],
       ["Couldn't save the change — the play changed on disk.", "E-CHANGED-ON-DISK"],

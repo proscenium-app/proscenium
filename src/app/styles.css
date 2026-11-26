@@ -9,6 +9,7 @@
 @import "./styles/binder.css";
 @import "./styles/materials.css";
 @import "./styles/plays.css";
+@import "./styles/trash.css";
 @import "./styles/panes.css";
 @import "./styles/cast.css";
 @import "./styles/history.css";
@@ -25,7 +26,6 @@
 @import "./styles/version-compare.css";
 @import "./styles/export.css";
 @import "./styles/import.css";
-@import "./styles/touch-controls.css";
 @import "./styles/changes.css";
 @import "./styles/settings.css";
 @import "./styles/format-designer.css";
@@ -34,5 +34,8 @@
 @import "./styles/focus.css";
 @import "./styles/help.css";
 @import "./styles/title-page.css";
+@import "./styles/add-page.css";
 @import "./styles/binder-scenes.css";
 @import "./styles/accessibility.css";
+/* The coarse-pointer pass lifts every control to 44 points on a finger, last so it wins. */
+@import "./styles/touch-controls.css";

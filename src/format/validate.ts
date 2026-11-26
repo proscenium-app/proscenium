@@ -102,6 +102,7 @@ export const DEFAULT_ELEMENT: ElementFormat = {
   startsNewPage: false,
   tightStack: false,
   print: true,
+  capitalizeCastNames: false,
 };
 
 export const DEFAULT_HEADER_FOOTER: Readonly<HeaderFooterSpec> = {
@@ -263,6 +264,18 @@ function checkElement(c: Check, path: string, raw: unknown, base: ElementFormat)
   if ("tightStack" in obj)
     el.tightStack = c.boolean(`${path}.tightStack`, obj.tightStack, base.tightStack);
   if ("print" in obj) el.print = c.boolean(`${path}.print`, obj.print, base.print);
+  if ("capitalizeCastNames" in obj) {
+    // A typing rule for the directions, whose element is Action: anywhere else
+    // it would say something nothing reads.
+    if (path !== "elements.action")
+      c.fail(`${path}.capitalizeCastNames`, "only the action element takes this field");
+    else
+      el.capitalizeCastNames = c.boolean(
+        `${path}.capitalizeCastNames`,
+        obj.capitalizeCastNames,
+        base.capitalizeCastNames,
+      );
+  }
   return el;
 }
 

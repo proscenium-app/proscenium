@@ -113,7 +113,9 @@ both on 2026-09-22, and they are withdrawn (docs/engineering/withdrawn-requireme
      real Rust vault, not the browser fixture;
   2. <a id="REL-26"></a> **REL-26** runs, inside the webview, the assertions `scripts/smoke.mjs` makes — a real
      box on every surface — reusing the check definitions instead of forking
-     them;
+     them; each check once, in the light scheme, each audited surface again in
+     dark where it stands, and the acts that must start dark once more from a
+     dark launch (docs/app/preferences-and-help/accessibility.md#A11Y-20);
   3. <a id="REL-27"></a> **REL-27** writes a JSON report through an IPC command, captures the window
      (`screencapture -l`), and exits non-zero on any failure.
 - <a id="REL-28"></a> **REL-28** The CI job runs it with a timeout and uploads the report and screenshot.
@@ -279,10 +281,15 @@ build has no `selftest` symbols (docs/engineering/release-engineering.md#REL-29)
 **REL-56** **Channel 2 (after 1.0): the Mac App Store.** The build is
 `node scripts/build-app.mjs --universal --app-store`: Cargo's default features
 off, so no updater (the store updates it) and no private WebKit key, which App
-Review refuses; `src-tauri/tauri.appstore.conf.json`, which drops the updater's
+Review refuses. Since wry 0.56 that key's name is in every build, in code that
+sets it for a web view that is transparent or given a background colour, so
+the store build gives its web view neither, and paints its window and the
+page's overscroll through public calls (`window_color.rs`);
+`src-tauri/tauri.appstore.conf.json`, which drops the updater's
 configuration and names the full `Entitlements.plist` and the Mac App Store
 profile; and `check-bundle.mjs --app-store`, which fails a binary carrying
-either and an Info.plist without the category and export-compliance keys App
+either, the key by the binary's own mark of the download build's background
+code, and an Info.plist without the category and export-compliance keys App
 Store Connect requires. The channel reports itself as `app-store`, and the
 Updates pane says the store updates it. Everything the app hands to the
 system goes through NSWorkspace (`shell.rs`), never a child process, which
@@ -407,6 +414,18 @@ draft release, which opens cleanly from a quarantined download.
   writer's word). A Windows track build's whole version, `X.Y.Z-beta.N`, is
   compiled in and kept whole in the executable (`version.rs`), where a check
   from outside reads it as a Mac's reads `ProsceniumVersion`.
+- **What a signature names (since the CLI's 2.12).** `tauri build` writes into
+  a signature's signed comment the version it built: a release's whole
+  version, and on a track the `X.Y.Z` its bundle is built as, not the
+  `X.Y.Z-alpha.N` the track announces. A Windows installer, signed by the
+  build host's `tauri signer sign`, names none. The plugin's
+  `requireSignedVersion` is off, so a signature that names no version is held
+  to the key alone; one that names a version is refused, from the plugin's
+  2.14.0, wherever the plugin checks it against an announced version that
+  differs, which a Windows update's install does. On a Mac the app checks the
+  signature itself, ignoring the version, and holds the archive's own app to
+  the offer (REL-66). Before anything holds a track's signed version to what
+  the track announces, a track build signs with its whole version.
 - <a id="REL-60"></a> **REL-60** **Behaviour:**
   - <a id="REL-61"></a> **REL-61** Check at launch and every 24 hours while the app runs, only if "Check for
     updates automatically" is on (on by default).
@@ -449,6 +468,16 @@ draft release, which opens cleanly from a quarantined download.
   until the swap is durable; failed durability reverses the exchange. If that
   also fails, the error names the retained recovery copy. A process interrupted
   around the exchange leaves a complete app at the original path.
+- <a id="REL-130"></a> **REL-130** **A Mac's restart into an update is an ordinary launch.** The old copy
+  ends the way a quit ends, its last reports sent, and then asks LaunchServices
+  for a new copy of the installed bundle (`open -n`), as a double-click would.
+  The plugin's restart starts the new executable as the old process's child,
+  which macOS does not know as the app: when the old copy quit and its child
+  went on, macOS 27 counted Proscenium as still running after quitting, added
+  "Proscenium - background tasks" to Login Items & Extensions and told the
+  writer so, for an app that does nothing in the background. Only if
+  LaunchServices refuses is the executable started directly, so a writer is
+  never left without the app.
 
 <a id="REL-67"></a>
 

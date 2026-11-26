@@ -40,9 +40,14 @@ export interface SpellMenuProps {
   onLearn: (word: string) => void;
   /** Let it stand for this session only. */
   onIgnore: (word: string) => void;
+  /**
+   * The suggestions wear the script's face, as the page they go on does. A
+   * document's page is not in it, so a document's menu says them in its own.
+   */
+  scriptFace?: boolean;
 }
 
-export function SpellMenu({ editor, onLearn, onIgnore }: SpellMenuProps) {
+export function SpellMenu({ editor, onLearn, onIgnore, scriptFace = true }: SpellMenuProps) {
   const [menu, setMenu] = useState<SpellMenuState | null>(null);
 
   // Same subscription shape as FindBar and ElementBar: the plugin is the truth,
@@ -89,7 +94,7 @@ export function SpellMenu({ editor, onLearn, onIgnore }: SpellMenuProps) {
     ...(menu.suggestions.length === 0
       ? [{ kind: "hint" as const, label: "No suggestions" }]
       : menu.suggestions.map((word) => ({
-          label: <span className="menu__script">{word}</span>,
+          label: scriptFace ? <span className="menu__script">{word}</span> : word,
           text: word,
           onSelect: () => {
             editor.commands.acceptSpelling(menu.from, menu.to, word);

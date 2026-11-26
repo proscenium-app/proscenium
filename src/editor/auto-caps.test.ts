@@ -13,8 +13,8 @@
  */
 import { describe, expect, it } from "bun:test";
 import { getSchema } from "@tiptap/core";
-import { EditorState } from "@tiptap/pm/state";
-import { autoCapsPlugin } from "./auto-caps";
+import { EditorState, TextSelection } from "@tiptap/pm/state";
+import { autoCapsKey, autoCapsPlugin, lowerStretches } from "./auto-caps";
 import { fromEditorDoc, toEditorDoc } from "./bridge";
 import { playExtensions } from "./schema";
 import { parse, serialize, type Doc } from "../fountain";
@@ -267,6 +267,51 @@ describe("what auto-caps leaves alone and what it does not", () => {
     );
   });
 
+  /**
+   * The whole run replaced took a caret inside it to the run's end: typed
+   * from the start of a heading, as a play opened with the caret at the top
+   * of its script, "Kept" came out "KEACT ONEPT" (docs/app/writing/editor-ux.md#EDIT-201).
+   */
+  it("leaves the caret where it was typed in a heading", () => {
+    const keys = (state: EditorState, letters: string): EditorState => {
+      for (const letter of letters)
+        state = state.applyTransaction(state.tr.insertText(letter)).state;
+      return state;
+    };
+    const at = (state: EditorState, pos: number): EditorState =>
+      state.apply(state.tr.setSelection(TextSelection.create(state.doc, pos)));
+
+    const opened = open("# ACT ONE\n\n## SCENE 1\n\n> CUT TO:\n\nMARA\nHello.\n");
+    for (const [i, typed, caret] of [
+      [0, "KEPTACT ONE", 4],
+      [1, "SCENE KEPT1", 10],
+      [2, "CUT KEPTTO:", 8],
+      [3, "MAKEPTRA", 6],
+    ] as const) {
+      const from = startOf(opened, i) + [0, 6, 4, 2][i];
+      const state = keys(at(opened, from), "Kept");
+      expect(state.doc.child(i).textContent).toBe(typed);
+      expect(state.selection.from - startOf(state, i)).toBe(caret);
+    }
+
+    // And a letter that upper-cases to two moves the caret on by both.
+    const street = keys(at(opened, startOf(opened, 0) + 4), "ß");
+    expect(street.doc.child(0).textContent).toBe("ACT SSONE");
+    expect(street.selection.from - startOf(street, 0)).toBe(6);
+  });
+
+  it("finds each stretch that changes, a letter outside the basic plane whole", () => {
+    expect(lowerStretches("ACT ONE")).toEqual([]);
+    expect(lowerStretches("KeACT ONEpt")).toEqual([
+      [1, "e"],
+      [9, "pt"],
+    ]);
+    expect(lowerStretches("straße 𐐨x")).toEqual([
+      [0, "straße"],
+      [7, "𐐨x"],
+    ]);
+  });
+
   it("and past two of them on one line, either side of a comment", () => {
     const text = (t: string) => ({ type: "text" as const, text: t });
     const state = onPage({
@@ -289,5 +334,20 @@ describe("what auto-caps leaves alone and what it does not", () => {
       { type: "note", content: [text("Robin: groß oder klein?")] },
       text(" (AUF DER STRASSE)"),
     ]);
+  });
+});
+
+describe("auto-caps off (docs/app/writing/editor-ux.md#EDIT-54)", () => {
+  it("leaves a cue typed in lower case as it is typed, until it is on again", () => {
+    const off = EditorState.create({
+      doc: schema.nodeFromJSON(toEditorDoc(parse("MARA\nHi.\n").doc)),
+      plugins: [autoCapsPlugin(false)],
+    });
+    const cue = indexOf(off, "character");
+    const typed = type(off, "h", endOf(off, cue));
+    expect(typed.doc.child(cue).textContent).toBe("MARAh");
+    // Turned on, the next change puts the cue in capitals again.
+    const on = typed.applyTransaction(typed.tr.setMeta(autoCapsKey, { on: true })).state;
+    expect(type(on, "a", endOf(on, cue)).doc.child(cue).textContent).toBe("MARAHA");
   });
 });

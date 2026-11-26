@@ -104,8 +104,8 @@ impl Queue {
 
 /// OS granularity is major/minor only; full local diagnostics stay local.
 pub fn os_version(full: &str) -> String {
-    // A Mac's major and minor; Windows' major, minor and build, since its
-    // major and minor are 10.0 on every version that runs the app.
+    // A Mac's or an iPad's major and minor; Windows' major, minor and build,
+    // since its major and minor are 10.0 on every version that runs the app.
     let parts = if cfg!(windows) { 3 } else { 2 };
     full.split('.').take(parts).collect::<Vec<_>>().join(".")
 }
@@ -156,6 +156,11 @@ static REPORTS_MARK: [u8; 30] = *b"proscenium-reports-compiled-in";
 static REPORTS_MARK: [u8; 27] = *b"proscenium-reports-left-out";
 
 impl Client {
+    /// A release build's, on a Mac, a PC or an iPad alike: the iPad's since the
+    /// privacy page names it and the reports service takes its batches
+    /// (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-15). Its TestFlight builds say an alpha's
+    /// whole version, which the service refuses, as a Mac alpha's
+    /// (docs/engineering/services-and-feedback.md#SERV-272).
     pub fn of_this_build() -> Option<Self> {
         (cfg!(proscenium_reports) && !cfg!(debug_assertions))
             .then(Self::new)

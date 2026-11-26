@@ -10,7 +10,8 @@ import {
   validateFormatSpec,
   formatFileObject,
 } from "../format";
-import { paginateFrontMatter } from "./engine";
+import { paginateFrontMatter, PRODUCTION_NOTES_HEADING } from "./engine";
+import { openingParagraphs } from "./opening-prose";
 
 const formats = builtinFormats().filter((s) => s.frontMatter.placement === "separate-pages");
 const spec = formats[0];
@@ -166,4 +167,145 @@ test("empty custom pages explicitly omit the generated originals", () => {
       spec,
     ),
   ).toEqual([]);
+});
+
+const NOTES =
+  "## Casting\n\nSix actors play every role.\n\n- A slash (/) marks an overlap.\n- Brackets mark what is not said.";
+
+test("docs/app/formatting/formats-and-layout.md#FMT-160: production notes print last, on a sheet of their own, under their heading", () => {
+  for (const spec of formats) {
+    const policy = spec.frontMatter;
+    const pages = paginateFrontMatter(
+      {
+        title: "Tideline",
+        characters: [{ name: "Mara" }],
+        setting: "A coast.",
+        productionNotes: NOTES,
+      },
+      spec,
+    );
+    expect(pages.map((page) => page.kind)).toEqual([
+      "title",
+      "characters",
+      "setting",
+      "production",
+    ]);
+    const [heading, ...notes] = pages[3].lines;
+    expect(heading).toMatchObject({
+      text: PRODUCTION_NOTES_HEADING,
+      role: "heading",
+      align: "center",
+      fontStyle: policy.headingFontStyle,
+      row: policy.sectionTopRows,
+      paragraphId: "production-heading",
+    });
+    expect(heading.text).toBe("PRODUCTION NOTES");
+    expect(heading.xIn).toBeCloseTo(
+      (textBlockWidthIn(spec) - heading.text.length * charAdvanceIn(spec)) / 2,
+    );
+    expect(notes.map((line) => line.text)).toEqual([
+      "Casting",
+      "Six actors play every role.",
+      "• A slash (/) marks an overlap.",
+      "• Brackets mark what is not said.",
+    ]);
+    expect(notes.map((line) => line.paragraphId)).toEqual(
+      [0, 1, 2, 3].map((i) => `production-prose-${i}`),
+    );
+    // The heading keeps its gap from the format, and each paragraph the field gap.
+    expect(notes[0].row - heading.row).toBe(1 + policy.headingGapRows);
+    expect(notes[0].role).toBe("heading");
+    expect(notes[0].fontStyle).toBe(policy.headingFontStyle);
+    expect(notes[1].role).toBe("paragraph");
+    expect(notes[1].fontStyle).toBe(policy.bodyFontStyle);
+    for (let i = 1; i < notes.length; i++)
+      expect(notes[i].row - notes[i - 1].row).toBe(1 + policy.fieldGapRows);
+  }
+});
+
+test("docs/app/formatting/formats-and-layout.md#FMT-160: production notes stay last when the opening notes come first", () => {
+  const pages = paginateFrontMatter(
+    {
+      title: "Tideline",
+      characters: [{ name: "Mara" }],
+      openingNotes: "For my mother.",
+      openingNotesBeforeCharacters: true,
+      productionNotes: "Played without an interval.",
+    },
+    spec,
+  );
+  expect(pages.map((page) => page.kind)).toEqual(["title", "setting", "characters", "production"]);
+  // With nothing else to print, they are the only sheet.
+  expect(
+    paginateFrontMatter({ productionNotes: "Played without an interval." }, spec).map((page) =>
+      page.lines.map((line) => line.text),
+    ),
+  ).toEqual([["PRODUCTION NOTES", "Played without an interval."]]);
+});
+
+test("docs/app/formatting/formats-and-layout.md#FMT-160: notes with no word to print make no page and no lone heading", () => {
+  for (const productionNotes of [undefined, "", "   ", "\n\n\n", "   \n\n  \n"]) {
+    const pages = paginateFrontMatter({ title: "Tideline", productionNotes }, spec);
+    expect(pages.map((page) => page.kind)).toEqual(["title"]);
+    expect(
+      pages.flatMap((page) => page.lines).some((line) => line.text === "PRODUCTION NOTES"),
+    ).toBe(false);
+  }
+});
+
+test("docs/app/formatting/formats-and-layout.md#FMT-160: long production notes continue on more unnumbered sheets of their kind", () => {
+  for (const spec of formats) {
+    const productionNotes =
+      "## On the set\n\n" + "The room is bare but for a table. ".repeat(260) + "LAST-WORD";
+    const pages = paginateFrontMatter({ title: "Tideline", productionNotes }, spec);
+    const sheets = pages.filter((page) => page.kind === "production");
+    expect(sheets.length).toBeGreaterThan(1);
+    expect(pages.slice(1).every((page) => page.kind === "production")).toBe(true);
+    // The heading is printed once, at the top of the first sheet.
+    const all = sheets.flatMap((page) => page.lines);
+    expect(all.filter((line) => line.text === "PRODUCTION NOTES")).toHaveLength(1);
+    expect(sheets[0].lines[0].text).toBe("PRODUCTION NOTES");
+    // The subheading travels with the line under it.
+    expect(sheets[0].lines[1].text).toBe("On the set");
+    expect(all[all.length - 1].text.endsWith("LAST-WORD")).toBe(true);
+    for (const page of sheets) {
+      let previous = -1;
+      for (const line of page.lines) {
+        expect(line.row).toBeGreaterThan(previous);
+        expect(line.row + 1).toBeLessThanOrEqual(maxLinesPerPage(spec));
+        expect(line.xIn + line.text.length * charAdvanceIn(spec)).toBeLessThanOrEqual(
+          textBlockWidthIn(spec) + 1e-9,
+        );
+        previous = line.row;
+      }
+    }
+    const words = all
+      .filter((line) => line.paragraphId === "production-prose-1")
+      .map((line) => line.text)
+      .join(" ");
+    expect(words.replace(/\s+/g, " ").trim()).toBe(
+      productionNotes.slice(15).replace(/\s+/g, " ").trim(),
+    );
+  }
+});
+
+test("docs/app/formatting/formats-and-layout.md#FMT-161: a printed paragraph knows the block of the text it came from", () => {
+  expect(openingParagraphs(NOTES + "\n\nLast.").map((p) => [p.text, p.block])).toEqual([
+    ["Casting", 0],
+    ["Six actors play every role.", 1],
+    ["• A slash (/) marks an overlap.", 2],
+    ["• Brackets mark what is not said.", 2],
+    ["Last.", 3],
+  ]);
+  // An alignment comment is part of its paragraph, not a block of its own.
+  expect(
+    openingParagraphs("<!-- proscenium:align=center -->\n\nCentred\n\nNext").map((p) => [
+      p.text,
+      p.align,
+      p.block,
+    ]),
+  ).toEqual([
+    ["Centred", "center", 0],
+    ["Next", "left", 1],
+  ]);
 });

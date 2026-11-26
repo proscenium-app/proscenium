@@ -60,7 +60,9 @@ export function ZoomControl(props: ZoomControlProps) {
   const labelRef = useRef<HTMLButtonElement | null>(null);
   const menu = useMenu();
 
-  const pct = props.mode.kind === "manual" ? `${Math.round(props.mode.level * 100)}%` : props.label;
+  // The hook's label: the level in effect, which a floor may have raised
+  // past the one chosen (docs/app/writing/editor-ux.md#EDIT-195).
+  const pct = props.label;
   const fitting = props.mode.kind !== "manual";
 
   const entries: MenuEntry[] = [
@@ -93,6 +95,12 @@ export function ZoomControl(props: ZoomControlProps) {
       <button
         type="button"
         className="zoomctl__step"
+        // A press keeps the caret where it is, as the element bar's buttons do:
+        // the step acts on click, so a key and an assistive press still reach
+        // it. A press that took focus from the script also took an iPad's
+        // keyboard bar, and the pane, grown under the page, scrolled the line
+        // the zoom held (docs/app/writing/editor-ux.md#EDIT-198).
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => props.onDelta(-ZOOM_STEP)}
         title={`Zoom out (${keys("⌘−")})`}
         aria-label="Zoom out"
@@ -120,6 +128,7 @@ export function ZoomControl(props: ZoomControlProps) {
       <button
         type="button"
         className="zoomctl__step"
+        onMouseDown={(e) => e.preventDefault()}
         onClick={() => props.onDelta(ZOOM_STEP)}
         title={`Zoom in (${keys("⌘+")})`}
         aria-label="Zoom in"

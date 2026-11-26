@@ -8,13 +8,35 @@
  */
 export {
   blocksFromDoc,
+  frontSheetMetrics,
   buildLayoutBlock,
   paginate,
   paginateDoc,
+  paginateBackMatter,
   paginateFrontMatter,
   printOffsetToSrc,
+  PRODUCTION_NOTES_HEADING,
   wrapText,
 } from "./engine";
+export { openingParagraphs } from "./opening-prose";
+export { fountainWithPages } from "./fountain-with-pages";
+export {
+  FIELDS,
+  FOOT_MARK,
+  backPageList,
+  backPagesFor,
+  fieldValue,
+  frontPageList,
+  legacyBlockAt,
+  legacyPageFiles,
+  namedOnPage,
+  namesOnPages,
+  pageBlockAt,
+  readPageFile,
+  writePageFile,
+  type Field,
+  type PageLayout,
+} from "./page-files";
 export {
   pageCountLabel,
   pageRangeLabel,
@@ -37,3 +59,28 @@ export type {
   StyleRun,
   WrappedLine,
 } from "./engine";
+export {
+  contentsFor,
+  contentsWidth,
+  contentsEntries,
+  contentsLines,
+  listsContents,
+  type ContentsEntry,
+} from "./contents";
+export {
+  SCAFFOLDS,
+  SCAFFOLD_PLACES,
+  pageAlready,
+  sideOf,
+  landsAt,
+  pageName,
+  pageSheet,
+  retemplate,
+  scaffoldById,
+  scaffoldOf,
+  scaffoldSheet,
+  type Scaffold,
+  type ScaffoldId,
+  type ScaffoldPlace,
+  type ScaffoldSide,
+} from "./scaffolds";

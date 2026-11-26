@@ -1,5 +1,6 @@
 - banner
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "1953 North Sea Flood" [haspopup]
   - tablist "What this pane shows"
     - tab "Script"

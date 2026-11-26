@@ -15,6 +15,13 @@
  * script** (the `=` line, canonical in the .fountain) and the color and the
  * note write the play file. Getting that backwards is how a
  * board note would end up printed.
+ *
+ * **A play with no scene line is one scene** (docs/app/organizing/workspace-model.md#WORK-93):
+ * a ten-minute play in one place often has no heading anywhere. The board
+ * already held it as one card, and the tab said "No scene here" wherever the
+ * caret stood. It shows that card as the whole play instead: the script's
+ * title, every page, every speech, the same fields, and one line on how to
+ * divide it, since nothing else on the page says a scene begins at `##`.
  */
 import { useEffect, useRef, useState } from "react";
 import type { ScenePageMap } from "../layout";
@@ -92,13 +99,19 @@ export function SceneInspector({
   onShowComments,
   pendingChange,
   onReviewChange,
+  whole = false,
+  scriptTitle = "",
 }: {
   scene: SceneCard | null;
   scenePages?: ScenePageMap;
+  /** The scene is the whole script, which no scene line divides. */
+  whole?: boolean;
+  /** The open script's title: the whole play's name, having no heading. */
+  scriptTitle?: string;
   onSetCard: (sceneId: string, partial: Partial<Card>) => void;
   onEditSynopsis: (ordinal: number, text: string) => void;
-  /** Who speaks here, and how many times. */
-  speakers: { name: string; lines: number }[];
+  /** Who speaks in this scene, and how many speeches each has in it. */
+  speakers: { name: string; speeches: number }[];
   commentCount: number;
   todoCount: number;
   onShowComments: () => void;
@@ -121,19 +134,33 @@ export function SceneInspector({
     );
   }
 
-  const pages = scenePages?.scenes.find((s) => s.ordinal === scene.anchor.ordinal);
+  // The whole play runs from the script's first page to its last; the page
+  // map lists only scenes a line begins, so it has no entry for this one.
+  const total = scenePages?.totalPages ?? 0;
+  const pages = whole
+    ? total > 0
+      ? { firstPage: 1, lastPage: total, pages: total }
+      : undefined
+    : scenePages?.scenes.find((s) => s.ordinal === scene.anchor.ordinal);
   const ordinalInAct = (scenePages?.acts ?? [])
     .find((a) => a.act === scene.act)
     ?.scenes.indexOf(scene.anchor.ordinal);
   const sceneNo = (ordinalInAct ?? scene.anchor.ordinal) + 1;
+  const speechCount = speakers.reduce((n, s) => n + s.speeches, 0);
 
   return (
     <div className="inspector__scroll insp">
       <div className="insp__head">
         <div className="seclabel">
-          {scene.act ? `${scene.act} · Scene ${sceneNo}` : `Scene ${sceneNo}`}
+          {whole
+            ? "Whole play"
+            : scene.act
+              ? `${scene.act} · Scene ${sceneNo}`
+              : `Scene ${sceneNo}`}
         </div>
-        <h2 className="insp__title">{scene.heading || "Untitled scene"}</h2>
+        <h2 className="insp__title">
+          {whole ? scriptTitle.trim() || "Untitled play" : scene.heading || "Untitled scene"}
+        </h2>
         <div className="insp__meta">
           {pages && (
             <>
@@ -143,8 +170,14 @@ export function SceneInspector({
               · {pages.pages} page{pages.pages === 1 ? "" : "s"} ·{" "}
             </>
           )}
-          {speakers.reduce((n, s) => n + s.lines, 0)} speeches
+          {speechCount} speech{speechCount === 1 ? "" : "es"}
         </div>
+        {whole && (
+          <p className="insp__hint">
+            No scene titles, so the play is one scene. To divide it, type{" "}
+            <span className="mono">## Scene</span> where each scene begins.
+          </p>
+        )}
       </div>
 
       <section className="insp__group">
@@ -231,7 +264,7 @@ export function SceneInspector({
           <div className="insp__capsules">
             {speakers.map((s) => (
               <Capsule key={s.name} kind="cast">
-                {s.name} <span className="insp__count">{s.lines}</span>
+                {s.name} <span className="insp__count">{s.speeches}</span>
               </Capsule>
             ))}
           </div>
@@ -242,7 +275,7 @@ export function SceneInspector({
         <div className="seclabel">Comments here</div>
         <div className="insp__row">
           <span>
-            {commentCount} in this scene
+            {commentCount} in this {whole ? "play" : "scene"}
             {todoCount > 0 ? ` · ${todoCount} to-do` : ""}
           </span>
           <button type="button" className="insp__link" onClick={onShowComments}>
@@ -261,7 +294,10 @@ export function SceneInspector({
         </div>
       )}
 
-      <p className="insp__foot">The synopsis is part of the script. The rest is card metadata.</p>
+      <p className="insp__foot">
+        The summary is saved in the script file, though it never prints. Color and notes stay in
+        Proscenium.
+      </p>
     </div>
   );
 }

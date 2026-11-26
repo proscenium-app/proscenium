@@ -33,13 +33,13 @@ describe("keymap table", () => {
   it("every element with a ⌘⌥ key is listed under Elements", () => {
     // The leader menu (`;`) and the ⌘⌥ keys reach the same elements by two
     // routes. Anything reachable by a chord has to appear in the sheet; the
-    // leader-only ones (= synopsis, n note, > centered) are taught by the menu
-    // itself, which draws its own key badges.
+    // leader-only ones (= synopsis, n note, > centered, h horizontal line) are
+    // taught by the menu itself, which draws its own key badges.
     const listed = SHORTCUTS.filter((s) => s.group === "Elements").map((s) =>
       s.what.toLowerCase().replace(/\s+/g, ""),
     );
     const chorded = Object.values(LEADER_ELEMENTS).filter(
-      (n) => !["synopsis", "note", "centered"].includes(n),
+      (n) => !["synopsis", "note", "centered", "horizontalRule"].includes(n),
     );
     for (const name of chorded) {
       expect(listed).toContain(name.toLowerCase());

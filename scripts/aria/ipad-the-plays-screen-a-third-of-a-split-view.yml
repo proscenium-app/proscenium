@@ -1,0 +1,34 @@
+- banner:
+  - button "More"
+- main:
+  - heading "sample-vault" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - heading "Plays" [level=2]
+  - paragraph: 2 plays · sample-vault
+  - paragraph: Your plays live in a folder on this iPad only. They will not appear on other devices.
+  - table "Plays":
+    - 'row "The Lighthouse Status for The Lighthouse: drafting More actions for “The Lighthouse”"':
+      - cell "The Lighthouse":
+        - button "The Lighthouse"
+        - textbox "Logline for The Lighthouse"
+      - 'cell "Status for The Lighthouse: drafting"':
+        - 'button "Status for The Lighthouse: drafting"': drafting
+      - cell "More actions for “The Lighthouse”":
+        - button "More actions for “The Lighthouse”"
+    - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. Status for The Weight of Water: drafting More actions for “The Weight of Water”"':
+      - cell "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull.":
+        - button "The Weight of Water"
+        - textbox "Logline for The Weight of Water"
+      - 'cell "Status for The Weight of Water: drafting"':
+        - 'button "Status for The Weight of Water: drafting"': drafting
+      - cell "More actions for “The Weight of Water”":
+        - button "More actions for “The Weight of Water”"
+    - row "Play Status Actions":
+      - columnheader "Play"
+      - columnheader "Status"
+      - columnheader "Actions"
+  - button "Proscenium’s Trash"
+- contentinfo: /dev/sample-vault
+- status
+- alert

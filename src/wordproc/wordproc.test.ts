@@ -8,7 +8,10 @@
  * language, and the round trip through the document importer.
  */
 import { describe, expect, it } from "bun:test";
-import { readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { DOMParser, type Element } from "@xmldom/xmldom";
@@ -24,12 +27,20 @@ import type { Doc, FrontMatter } from "../fountain/model";
 import type { FormatSpec } from "../format";
 import { validateFormatSpec } from "../format/validate";
 import { readDocx, readOdt } from "../import/office";
-import { EMPTY_CORRECTIONS, makeScript, reviewLines } from "../import/model";
+import { readRtf } from "../import/rtf";
+import {
+  EMPTY_CORRECTIONS,
+  makeScript,
+  paragraphText as paragraphTextOf,
+  reviewLines,
+} from "../import/model";
 import { anonymousFrontMatter, anonymousMeta } from "../pdf/anonymous";
 import { obfuscateFont } from "./docx";
 import type { FontFaces } from "./fonts";
 import { buildDocument, writeScriptDocument, type DocumentType } from "./index";
 import type { WpInput } from "./model";
+import { languageNumber, rtfText } from "./rtf";
+import { elementColumnIn } from "../format/spec";
 
 function ttf(name: string): Uint8Array {
   return new Uint8Array(
@@ -459,6 +470,28 @@ describe("what goes in", () => {
     expect(buildDocument(input({ frontSheets: [] })).sections[0].kind).toBe("script");
   });
 
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: production notes are their own page of opening styles, last before the script", () => {
+    const text = `Title: Tideline\nAuthor: Jo\nProduction Notes Text: ${JSON.stringify(
+      "Six actors play every role.\n\nA *slash* marks an overlap.",
+    )}\n\nMARA\nHello.\n`;
+    const doc = buildDocument(input({ frontSheets: ["title", "production"] }, text));
+    const front = doc.sections[0].items.filter((i) => i.kind === "p");
+    const at = front.findIndex((p) => p.kind === "p" && p.style === "openingHeading");
+    const notes = front.slice(at);
+    expect(notes.map((p) => p.kind === "p" && [p.style, p.align, !!p.pageBreakBefore])).toEqual([
+      ["openingHeading", "center", true],
+      ["openingText", "left", false],
+      ["openingText", "left", false],
+    ]);
+    // The writer's emphasis stays on its words.
+    expect(JSON.stringify(notes[2])).toContain('"italic":true');
+    expect(doc.sections[1].kind).toBe("script");
+    expect(doc.sections[1].begins).toBe("page");
+    // Left out, there is no trace of it.
+    const without = buildDocument(input({ frontSheets: ["title"] }, text));
+    expect(JSON.stringify(without)).not.toContain("PRODUCTION NOTES");
+  });
+
   it("docs/app/formatting/formats-and-layout.md#FMT-148: a page break straight after an inline opening still breaks the page", () => {
     const doc = buildDocument(
       input({ spec: SKETCH }, "Title: Bits\nAuthor: Jo\n\n===\n\nMARA\nHello.\n"),
@@ -703,7 +736,11 @@ describe("type", () => {
  */
 describe("the round trip through the importer", () => {
   const read = (type: DocumentType, bytes: Uint8Array) =>
-    type === "docx" ? readDocx("Tide.docx", bytes) : readOdt("Tide.odt", bytes);
+    type === "docx"
+      ? readDocx("Tide.docx", bytes)
+      : type === "odt"
+        ? readOdt("Tide.odt", bytes)
+        : readRtf("Tide.rtf", new TextDecoder().decode(bytes));
 
   /** Each printed block as (type, words), the way both plays can be compared. */
   const blocks = (doc: Doc) =>
@@ -726,7 +763,7 @@ describe("the round trip through the importer", () => {
       ),
     );
 
-  for (const type of ["docx", "odt"] as DocumentType[]) {
+  for (const type of ["docx", "odt", "rtf"] as DocumentType[]) {
     it(`a .${type} comes back as the same elements, words and emphasis, recognized from its styles`, () => {
       const source = input({ frontSheets: [] });
       const imported = read(type, writeScriptDocument(type, source, FONTS));
@@ -769,4 +806,228 @@ describe("the round trip through the importer", () => {
       ).toBe(true);
     });
   }
+});
+
+/** docs/app/writing/editor-ux.md#EDIT-213 */
+describe("a horizontal line", () => {
+  const LINED = "Title: Lines\n\nShe waits.\n\n---\n\nShe waits again.\n";
+
+  it("is an empty paragraph in its own style, with a rule along its foot", () => {
+    const docx = unzip(writeScriptDocument("docx", input({ frontSheets: [] }, LINED), FONTS));
+    const style = docxStyle(docx, "Horizontal Line");
+    expect(attr(all(style, "w:bottom")[0], "w:val")).toBe("single");
+    const id = attr(style, "w:styleId");
+    const lined = all(xmlOf(docx, "word/document.xml"), "w:p").filter(
+      (p) => attr(all(p, "w:pStyle")[0], "w:val") === id,
+    );
+    expect(lined).toHaveLength(1);
+    expect(all(lined[0], "w:t")).toHaveLength(0);
+
+    const odt = unzip(writeScriptDocument("odt", input({ frontSheets: [] }, LINED), FONTS));
+    const props = all(odtStyle(odt, "Horizontal Line"), "style:paragraph-properties")[0];
+    expect(attr(props, "fo:border-bottom")).toMatch(/solid/);
+  });
+
+  for (const type of ["docx", "odt", "rtf"] as DocumentType[]) {
+    it(`comes back from a .${type} as a horizontal line`, () => {
+      const bytes = writeScriptDocument(type, input({ frontSheets: [] }, LINED), FONTS);
+      const imported =
+        type === "docx"
+          ? readDocx("L.docx", bytes)
+          : type === "odt"
+            ? readOdt("L.odt", bytes)
+            : readRtf("L.rtf", new TextDecoder().decode(bytes));
+      const back = parse(makeScript(imported, "Lines", "detect", EMPTY_CORRECTIONS)).doc.content;
+      expect(back.map((b) => b.type)).toEqual(["action", "horizontalRule", "action"]);
+    });
+  }
+
+  it("is an empty paragraph with a rule along its foot in an .rtf too", () => {
+    const file = new TextDecoder().decode(
+      writeScriptDocument("rtf", input({ frontSheets: [] }, LINED), null),
+    );
+    const number = file.match(/\{\\s(\d+)[^{}]*? Horizontal Line;\}/)?.[1];
+    const lined = file
+      .split("\\pard")
+      .filter((p) => new RegExp(`^\\\\plain\\\\s${number}(?!\\d)`).test(p));
+    expect(lined).toHaveLength(1);
+    expect(lined[0]).toContain("\\brdrb\\brdrs");
+    expect(lined[0]).toMatch(/ \\par\n$/);
+  });
+});
+
+/** docs/app/formatting/formats-and-layout.md#FMT-173 */
+describe("an .rtf", () => {
+  const rtf = (overrides: Partial<WpInput> = {}, text = PLAY) =>
+    new TextDecoder().decode(writeScriptDocument("rtf", input(overrides, text), null));
+
+  /** A style's stylesheet entry, by the name a word processor lists. */
+  const styleEntry = (file: string, name: string) => {
+    const found = [...file.matchAll(/\{\\s(\d+)([^{}]*?) ([^{}\\;]+);\}/g)].find(
+      (m) => m[3] === name,
+    );
+    if (!found) throw new Error(`no ${name} style`);
+    return { number: found[1], props: found[2] };
+  };
+
+  /** Each paragraph of the body that names this style. */
+  const paragraphs = (file: string, name: string) => {
+    const { number } = styleEntry(file, name);
+    const style = new RegExp(`^\\\\plain(?:\\\\intbl)?\\\\s${number}(?!\\d)`);
+    return file.split("\\pard").filter((p) => style.test(p));
+  };
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-173: is plain ASCII in one group, and the same play and choices make the same file", () => {
+    const file = rtf();
+    expect(file.startsWith("{\\rtf1\\ansi")).toBe(true);
+    expect([...file].every((c) => c.charCodeAt(0) < 0x80)).toBe(true);
+    let depth = 0;
+    let closedAt = -1;
+    for (let i = 0; i < file.length; i++) {
+      if (file[i] === "\\") i++;
+      else if (file[i] === "{") depth++;
+      else if (file[i] === "}" && --depth === 0) closedAt = i;
+      expect(depth).toBeGreaterThanOrEqual(0);
+    }
+    expect(depth).toBe(0);
+    expect(file.slice(closedAt + 1).trim()).toBe("");
+    expect(rtf()).toBe(file);
+    expect(file).toContain("{\\*\\generator Proscenium;}");
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-173: escapes its special characters, and writes every other one as a Unicode escape", () => {
+    expect(rtfText("a\\b{c}")).toBe("a\\\\b\\{c\\}");
+    expect(rtfText("Café — “so”")).toBe("Caf\\u233? \\u8212? \\u8220?so\\u8221?");
+    // A character past the first plane is its two UTF-16 halves, each signed.
+    // U+1F3AD: D83C DFAD.
+    expect(rtfText("🎭")).toBe("\\u-10180?\\u-8275?");
+    const back = readRtf("x.rtf", `{\\rtf1\\ansi\\uc1 ${rtfText("Café 🎭 {x}")}\\par}`);
+    expect(paragraphTextOf(back.paragraphs[0])).toBe("Café 🎭 {x}");
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-146: names each element's style, with its column, capitals and emphasis, and each paragraph restates it", () => {
+    const file = rtf({ spec: HOUSE });
+    const character = styleEntry(file, "Character");
+    const column = elementColumnIn(HOUSE, "character", true);
+    expect(character.props).toContain(`\\li${Math.round(column.leftIn * 1440)}`);
+    expect(character.props).toContain("\\caps");
+    expect(character.props).toContain("\\b");
+    expect(character.props).toContain("\\keepn");
+    expect(styleEntry(file, "Dialogue").props).toContain("\\widctlpar");
+    // A reader applies nothing from the stylesheet: each paragraph says it again.
+    const cue = paragraphs(file, "Character")[0];
+    expect(cue).toContain("\\caps");
+    expect(cue).toContain("\\b");
+    // The words stay as typed; capitals are the style's.
+    expect(cue).toMatch(/ MARA\\par\n$/);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-147: takes page, margins, type and pitch from the format", () => {
+    const file = rtf({ spec: DG });
+    const m = DG.page.margins;
+    expect(file).toContain("\\paperw12240\\paperh15840");
+    expect(file).toContain(
+      `\\margl${Math.round(m.left * 1440)}\\margr${Math.round(m.right * 1440)}`,
+    );
+    expect(file).toContain(`\\fs${DG.type.size * 2}`);
+    const pitch = Math.round(((DG.type.size * DG.type.lineHeight) / 72) * 1440);
+    expect(paragraphs(file, "Action")[0]).toContain(`\\sl-${pitch}\\slmult0`);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-154: sets the format's next family, fixed-pitch, which every reader has", () => {
+    expect(rtf()).toContain("{\\fonttbl{\\f0\\fmodern\\fprq1\\fcharset0 Courier New;}}");
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-149: a dual pair is one two-cell row that never splits, the left speech first", () => {
+    const file = rtf();
+    const row = file.slice(file.indexOf("\\trowd"), file.indexOf("\\row"));
+    expect(row).toContain("\\trkeep");
+    expect(row.match(/\\cellx\d+/g)).toHaveLength(2);
+    expect(row.match(/\\cell\n/g)).toHaveLength(2);
+    expect(row.indexOf("Left.")).toBeLessThan(row.indexOf("Right."));
+    // Nothing in the row keeps with the next paragraph, and each cell is its column.
+    for (const p of row.split("\\pard").slice(1)) {
+      expect(p).toContain("\\intbl");
+      expect(p).toContain("\\li0\\ri0");
+      expect(p).not.toContain("\\keepn");
+    }
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-151: numbers pages with a field, leaves page 1 bare where the format says, and starts a section at each heading", () => {
+    const file = rtf({ frontSheets: [] });
+    expect(file).toContain("\\titlepg");
+    expect(file).toContain("\\pgnrestart\\pgnstarts1");
+    expect(file).toMatch(
+      /\{\\header\\pard[^\n]*\{\\field\{\\\*\\fldinst {2}PAGE \}\{\\fldrslt 1\}\}\.\\par\}/,
+    );
+    expect(file).not.toMatch(/\{\\headerf[^\n]*PAGE/);
+
+    const numbered = spec({
+      ...dgModernRaw,
+      id: "numbered",
+      header: { ...dgModernRaw.header, content: { right: "{actRoman}-{sceneNumber}-{page}" } },
+    });
+    const long = rtf({ spec: numbered, frontSheets: [] }, longPlay(2, 3));
+    expect(long.match(/\\sectd/g)).toHaveLength(6);
+    expect(long.match(/\\sect\n/g)).toHaveLength(5);
+    expect(long).toContain("II-2-{\\field");
+    expect(long).toContain("\\sbknone");
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-152: an anonymous copy has no byline, contact or author property", () => {
+    const base = input();
+    const anonymous = new TextDecoder().decode(
+      writeScriptDocument(
+        "rtf",
+        {
+          ...base,
+          meta: anonymousMeta(base.meta, "The Tide Table"),
+          frontMatter: anonymousFrontMatter(base.meta.frontMatter, "The Tide Table"),
+        },
+        null,
+      ),
+    );
+    expect(anonymous).not.toContain("Jo Marlowe");
+    expect(anonymous).not.toContain("jo@example.com");
+    expect(anonymous).not.toContain("\\author");
+    expect(rtf()).toContain("{\\author Jo Marlowe}");
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-153: names the play's language by its Windows number, or leaves it to the reader", () => {
+    expect(rtf({ language: "fr-CA" })).toContain("\\deflang3084");
+    expect(styleEntry(rtf({ language: "fr-CA" }), "Dialogue").props).toContain("\\lang3084");
+    expect(languageNumber("en-US")).toBe(1033);
+    expect(languageNumber("en")).toBe(1033);
+    expect(languageNumber("pt")).toBe(1046);
+    expect(languageNumber("zh-Hant-TW")).toBe(1028);
+    expect(languageNumber("zh")).toBe(2052);
+    expect(languageNumber("no")).toBe(1044);
+    expect(languageNumber("tlh")).toBeNull();
+    expect(rtf({ language: "tlh" })).not.toMatch(/\\(def)?lang\d/);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-153: headings carry outline levels", () => {
+    const file = rtf();
+    expect(styleEntry(file, "Act").props).toContain("\\outlinelevel0");
+    expect(styleEntry(file, "Scene").props).toContain("\\outlinelevel1");
+  });
+
+  it.skipIf(process.platform !== "darwin" || !existsSync("/usr/bin/textutil"))(
+    "docs/app/formatting/formats-and-layout.md#FMT-157: textutil reads it",
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), "rtf-"));
+      try {
+        const path = join(dir, "Tide.rtf");
+        writeFileSync(path, writeScriptDocument("rtf", input(), null));
+        const result = spawnSync("/usr/bin/textutil", ["-convert", "txt", "-stdout", path], {
+          encoding: "utf8",
+        });
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain("crying all night");
+        expect(result.stdout).toContain("Right.");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
 });

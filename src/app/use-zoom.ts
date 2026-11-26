@@ -57,6 +57,27 @@ export function clampZoom(z: number): number {
 }
 
 /**
+ * The smallest type, in CSS pixels, a WebKit view draws for a page that asked
+ * for a legible size, however far the page is zoomed out (WebKit's smart
+ * minimum, its `minimumLogicalFontSize`).
+ */
+const LEGIBLE_PX = 9;
+
+/**
+ * The least a page may be zoomed: the level that puts the format's type at
+ * `LEGIBLE_PX` (docs/app/writing/editor-ux.md#EDIT-195). Below it, WebKit kept
+ * a zoomed script's type at 9px while its page shrank, so its lines wrapped
+ * where the layout engine had not broken them and its sheets ran taller than
+ * the format. About 56% for 12-point type; never below `ZOOM_MIN`, never
+ * above 100%.
+ */
+export function zoomFloor(format: FormatSpec): number {
+  const typePx = (format.type.size * 96) / 72;
+  if (!(typePx > 0)) return ZOOM_MIN;
+  return Math.min(1, Math.max(ZOOM_MIN, Math.ceil((LEGIBLE_PX / typePx) * 100) / 100));
+}
+
+/**
  * The default when nothing has been chosen yet.
  *
  * A touch device gets **fit width**. This is not a platform check dressed up: a
@@ -238,6 +259,13 @@ export function useZoom(args: {
   /** False while no script is open — nothing to measure against. */
   active: boolean;
   /**
+   * Whether a pane shows the script's page, the one the zoom's floor is for
+   * (zoomFloor): a document's page grows with its text and has no sheets for
+   * WebKit's least type to break, so with the script off screen a fit may go
+   * lower. True when not given.
+   */
+  scriptShown?: boolean;
+  /**
    * Any value that changes when the pane's geometry could have changed — a rail
    * opening, the split toggling, the divider moving — or when a different pane
    * could now hold the page: a tab switched, another pane focused.
@@ -266,8 +294,16 @@ export function useZoom(args: {
   /** The observer on the pane the last solve used, which follows the page to its next one. */
   const watchRef = useRef<{ observer: ResizeObserver; pane: HTMLElement | null } | null>(null);
 
+  // Whatever chose it, never below the level that keeps the format's type
+  // legible (zoomFloor): a fit held there says so in its percentage, and a
+  // level chosen under it is kept as the floor, so the menu marks what shows.
+  const floor = args.scriptShown === false ? ZOOM_MIN : zoomFloor(format);
   const setMode = useCallback(
-    (next: ZoomMode) => {
+    (chosen: ZoomMode) => {
+      const next: ZoomMode =
+        chosen.kind === "manual"
+          ? { kind: "manual", level: Math.max(floor, chosen.level) }
+          : chosen;
       if (args.temporary) {
         setPracticeMode(next);
         return;
@@ -279,7 +315,7 @@ export function useZoom(args: {
         /* chrome preference only */
       }
     },
-    [args.temporary],
+    [args.temporary, floor],
   );
 
   const { widthIn, heightIn } = pageSizeIn(format);
@@ -347,16 +383,16 @@ export function useZoom(args: {
     [],
   );
 
-  const zoom = mode.kind === "manual" ? mode.level : fit;
+  const zoom = Math.max(floor, mode.kind === "manual" ? mode.level : fit);
 
   const zoomBy = useCallback(
     (delta: number) => {
       // Stepping out of a fit continues from what the fit produced, so ⌘+ after
       // a fit nudges the page you are looking at rather than jumping to 110%.
-      const from = mode.kind === "manual" ? mode.level : fit;
-      setMode({ kind: "manual", level: clampZoom(from + delta) });
+      const from = Math.max(floor, mode.kind === "manual" ? mode.level : fit);
+      setMode({ kind: "manual", level: Math.max(floor, clampZoom(from + delta)) });
     },
-    [fit, mode, setMode],
+    [fit, floor, mode, setMode],
   );
 
   const reset = useCallback(() => setMode({ kind: "manual", level: 1 }), [setMode]);

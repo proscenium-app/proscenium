@@ -66,7 +66,13 @@
       "correctness": {
         // Every dependency list in the tree is deliberate and says why in its
         // comment; a mechanical fix changes when effects run.
-        "useExhaustiveDependencies": "warn"
+        "useExhaustiveDependencies": "warn",
+        // React's own rule, off with the React domain until named: a component
+        // made inside another is a new one each render, so React takes its
+        // nodes down and puts new ones up every time, and on an iPad a tap
+        // that meets new nodes going up is held back from its click (the
+        // format bar's buttons, docs/engineering/cross-platform.md#PLAT-70).
+        "noNestedComponentDefinitions": "error"
       },
       "suspicious": {
         "noArrayIndexKey": "warn",

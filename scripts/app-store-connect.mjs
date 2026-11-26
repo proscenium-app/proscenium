@@ -117,20 +117,32 @@ export const versionPage = (appId) =>
 // --- What's New ---------------------------------------------------------------------------
 
 /**
- * A list item, or a paragraph, the store's copy leaves out: the download's
- * updater and its tracks, and Windows. The Mac App Store updates its copy
- * itself, and a listing names no other platform.
+ * A list item, or a paragraph, a store's copy leaves out: the download's
+ * updater and its tracks, and the other platform. A store updates its copy
+ * itself, and a listing names no other platform: the Mac App Store's no
+ * Windows, the Microsoft Store's no Mac.
  */
-const NOT_THE_STORES =
-  /\bWindows\b|\bupdater\b|Settings › Updates|\bupdate[sd]? (?:itself|automatically|by itself)\b|\b(?:Alpha|Beta|Stable)\b|\btest version\b|\bproscenium\.ink\/download/i;
+const THE_DOWNLOADS =
+  /\bupdater\b|Settings › Updates|\bupdate[sd]? (?:itself|automatically|by itself)\b|\b(?:Alpha|Beta|Stable)\b|\btest version\b|\bproscenium\.ink\/download/i;
+const NOT_THE_STORES = {
+  mac: /\bWindows\b/i,
+  windows:
+    /\bmacOS\b|\bMac App Store\b|\b(?:the|a|your|this) Mac\b|\bFinder\b|\bHomebrew\b|\bRosetta\b|\bApple silicon\b|\bIntel\b|\bVoiceOver\b/i,
+};
+/** What's New's limit in App Store Connect; What's new in this version's in Partner Center. */
+const NOTES_LIMITS = { mac: 4000, windows: 1500 };
 
 /**
- * A release's public notes (its changelog section) as the store's What's
+ * A release's public notes (its changelog section) as a store's What's
  * New: plain text, a paragraph or an item a line, without what is not the
- * store's, at most 4000 characters. Null when there are no notes at all; a
- * release whose every line was the download's says only that it was mended.
+ * store's, within its limit (the Mac App Store's 4000 characters, the
+ * Microsoft Store's 1500, cut there at a whole line). Null when there are no
+ * notes at all; a release whose every line was the download's says only that
+ * it was mended.
  */
-export function storeNotes(markdown) {
+export function storeNotes(markdown, { store = "mac" } = {}) {
+  if (!NOT_THE_STORES[store]) throw new Error(`no store ${store}`);
+  const notTheStore = (text) => THE_DOWNLOADS.test(text) || NOT_THE_STORES[store].test(text);
   if (!String(markdown ?? "").trim()) return null;
   const inline = (line) =>
     line
@@ -158,20 +170,30 @@ export function storeNotes(markdown) {
       open = true;
     }
   }
-  const kept = blocks.filter((b) => b.heading || !NOT_THE_STORES.test(b.text));
+  const kept = blocks.filter((b) => b.heading || !notTheStore(b.text));
   // A heading with nothing left under it goes too.
   const lines = [];
+  const headings = new Set();
   kept.forEach((b, i) => {
     if (b.heading) {
       const next = kept[i + 1];
       if (!next || next.heading) return;
       if (lines.length) lines.push("");
+      headings.add(lines.length);
       lines.push(b.text);
       lines.push("");
     } else lines.push(b.item ? `• ${b.text}` : b.text);
   });
   const text = lines.join("\n").trim() || "Fixes and improvements.";
-  return text.length <= 4000 ? text : `${text.slice(0, 3998).replace(/\s+\S*$/, "")} …`;
+  const limit = NOTES_LIMITS[store];
+  if (text.length <= limit) return text;
+  if (store === "mac") return `${text.slice(0, limit - 2).replace(/\s+\S*$/, "")} …`;
+  // Whole lines while they fit, and a heading never left last.
+  let n = 0;
+  while (n < lines.length && [...lines.slice(0, n + 1), "…"].join("\n").length <= limit) n++;
+  while (n > 0 && (!lines[n - 1] || headings.has(n - 1))) n--;
+  if (!n) return `${text.slice(0, limit - 2).replace(/\s+\S*$/, "")} …`;
+  return `${lines.slice(0, n).join("\n").trim()}\n…`;
 }
 
 // --- the listing --------------------------------------------------------------------------
@@ -244,7 +266,12 @@ export function reviewOf(appState) {
   return { state: "waiting", kind: null };
 }
 
-/** `version`'s state in App Store Connect now: `{ appState, state, kind, page }`. */
+/**
+ * `version`'s state in App Store Connect now: `{ appState, state, kind, page }`.
+ * A version App Store Connect no longer has by that number is `gone`: App
+ * Review refused it, or it was withdrawn, and a newer release took the
+ * version over and renamed it (submitVersion).
+ */
 export async function reviewState({ api, identifier, version }) {
   const app = await appOf(api, identifier);
   const v = ok(
@@ -254,7 +281,7 @@ export async function reviewState({ api, identifier, version }) {
     ),
     "the version",
   ).data?.[0];
-  if (!v) throw new Error(`App Store Connect has no version ${version}`);
+  if (!v) return { appState: "GONE", state: "gone", kind: null, page: versionPage(app.id) };
   const appState = v.attributes?.appVersionState ?? v.attributes?.appStoreState ?? "UNKNOWN";
   return { appState, ...reviewOf(appState), page: versionPage(app.id) };
 }
@@ -271,6 +298,46 @@ const EDITABLE = new Set([
 ]);
 
 /**
+ * Another version a newer release waits for: in App Review's queue, in
+ * review, or approved and on its way to sale. App Store Connect starts a new
+ * version only once the current one is on sale (Ready for Distribution), and
+ * an earlier version waiting for review is never cancelled for a newer one:
+ * it keeps its place in the queue, and the newer goes the moment it is on
+ * sale, so a release never loses the review it has waited for. A rejected
+ * one takes edits again, and becomes the newer release's.
+ */
+const AWAITED = new Set([
+  "WAITING_FOR_REVIEW",
+  "WAITING_FOR_EXPORT_COMPLIANCE",
+  "IN_REVIEW",
+  "ACCEPTED",
+  "PENDING_APPLE_RELEASE",
+  "PENDING_DEVELOPER_RELEASE",
+  "PROCESSING_FOR_DISTRIBUTION",
+]);
+
+const stateOf = (v) => v?.attributes?.appVersionState ?? v?.attributes?.appStoreState ?? null;
+
+/**
+ * What another version in flight means for submitting `version` (`versions`
+ * the app's Mac versions, as App Store Connect lists them): `{ wait }`, one
+ * waiting for review, in review or approved, which this one waits for; or
+ * null, nothing in the way. Pure.
+ */
+export function inTheWay(versions, version) {
+  const others = (versions ?? []).filter((v) => v.attributes?.versionString !== version);
+  const awaited = others.find((v) => AWAITED.has(stateOf(v)));
+  if (!awaited) return null;
+  return {
+    wait: {
+      version: awaited.attributes?.versionString ?? null,
+      appState: stateOf(awaited),
+      id: awaited.id,
+    },
+  };
+}
+
+/**
  * `shots` (each `{ fileName, bytes }`) as the version's Mac screenshots, in
  * order, in place of the ones it had: each reserved, sent in the parts App
  * Store Connect names, and committed with its checksum.
@@ -281,7 +348,9 @@ export async function replaceScreenshots({
   localization,
   shots,
   wait = sleep,
-  tries = 36,
+  // Twenty minutes. Three were not enough on 2026-11-04: four of seven were
+  // COMPLETE and three still UPLOAD_COMPLETE when the wait gave up.
+  tries = 240,
   every = 5000,
 }) {
   const sets = ok(
@@ -471,15 +540,30 @@ export async function submitVersion({
       steps,
     };
   }
+  // Another release still in flight, waiting for review, in review, or
+  // approved and on its way to sale: waited for, and nothing is changed.
+  const all = v ? null : await versions("&limit=200");
+  const way = v ? null : inTheWay(all, version);
+  if (way?.wait) {
+    steps.push(
+      `${way.wait.version} is ${way.wait.appState} in App Store Connect: ${version} waits for it`,
+    );
+    return {
+      app: app.id,
+      version: null,
+      build: b.id,
+      submission: null,
+      state: "waiting",
+      waiting: { version: way.wait.version, appState: way.wait.appState },
+      page: versionPage(app.id),
+      steps,
+    };
+  }
   // A store has one version open at a time, and refuses a second (409, "You
   // cannot create a new version of the App in the current state", 1.0.4's
   // first submission, 2026-10-23): the version the record was made with, or
   // one an earlier release left open, becomes this release's, renamed.
-  const leftOpen = v
-    ? null
-    : (await versions("&limit=200")).find((x) =>
-        EDITABLE.has(x.attributes?.appVersionState ?? x.attributes?.appStoreState),
-      );
+  const leftOpen = v ? null : all.find((x) => EDITABLE.has(stateOf(x)));
   if (leftOpen) {
     const was = leftOpen.attributes?.versionString ?? "with no number";
     ok(
@@ -678,12 +762,12 @@ export async function submitVersion({
 export const PROFILE_MARGIN_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
- * Whether the Mac App Store profile `current` (readProfile's, or null) needs
- * making again: there is none, it names another certificate than the one
- * that signs, or it lapses within the margin.
+ * Whether an App Store profile `current` (readProfile's, or null), the Mac's
+ * or the iPad's, needs making again: there is none, it names another
+ * certificate than the one that signs, or it lapses within the margin.
  */
 export function profileDue(current, certificateSha1, now = Date.now()) {
-  if (!current) return "there is no Mac App Store profile";
+  if (!current) return "there is no profile yet";
   if (!current.certificates.includes(certificateSha1))
     return "the profile names another certificate than the one that signs";
   const left = Date.parse(current.expires) - now;
@@ -693,21 +777,32 @@ export function profileDue(current, certificateSha1, now = Date.now()) {
 }
 
 /**
- * A new Mac App Store profile for `identifier`, naming the certificate whose
- * SHA-1 is `certificateSha1`: its bytes. Apple keeps the earlier one, which
- * lapses by itself. Throws with `status` 403 when the key may not make one.
+ * A new App Store profile for `identifier`, naming the certificate whose
+ * SHA-1 is `certificateSha1`: its bytes. The Mac App Store's by default; the
+ * iPad's with `profileType: "IOS_APP_STORE"` and `platforms: ["IOS",
+ * "UNIVERSAL"]`, an App ID being the Mac's, the iPad's or both. Apple keeps
+ * the earlier one, which lapses by itself. Throws with `status` 403 when the
+ * key may not make one.
  */
-export async function makeProfile({ api, identifier, certificateSha1, name }) {
+export async function makeProfile({
+  api,
+  identifier,
+  certificateSha1,
+  name,
+  profileType = "MAC_APP_STORE",
+  platforms = ["MAC_OS", "UNIVERSAL"],
+}) {
   const ids = ok(
     await api("GET", `/v1/bundleIds?filter[identifier]=${q(identifier)}&limit=20`),
     "the bundle ID",
   ).data;
   const bundle = (ids ?? []).find(
-    (b) =>
-      b.attributes?.identifier === identifier &&
-      ["MAC_OS", "UNIVERSAL"].includes(b.attributes?.platform),
+    (b) => b.attributes?.identifier === identifier && platforms.includes(b.attributes?.platform),
   );
-  if (!bundle) throw new Error(`the developer account has no Mac bundle ID ${identifier}`);
+  if (!bundle)
+    throw new Error(
+      `the developer account has no bundle ID ${identifier} for ${platforms.join(" or ")}`,
+    );
   const certs = ok(
     await api(
       "GET",
@@ -731,14 +826,14 @@ export async function makeProfile({ api, identifier, certificateSha1, name }) {
     await api("POST", "/v1/profiles", {
       data: {
         type: "profiles",
-        attributes: { name, profileType: "MAC_APP_STORE" },
+        attributes: { name, profileType },
         relationships: {
           bundleId: { data: { type: "bundleIds", id: bundle.id } },
           certificates: { data: [{ type: "certificates", id: cert.id }] },
         },
       },
     }),
-    "the Mac App Store profile",
+    `the ${profileType === "MAC_APP_STORE" ? "Mac App Store" : "App Store"} profile`,
   ).data;
   const content = made?.attributes?.profileContent;
   if (!content) throw new Error("App Store Connect made the profile and sent none of it");

@@ -1,4 +1,4 @@
-// swift-tools-version:5.3
+// swift-tools-version:5.9
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -10,9 +10,9 @@ let package = Package(
     name: "tauri-plugin-vault-picker",
     platforms: [
         .macOS(.v10_13),
-        // v14, not v13: `UTType.folder` — the type the folder picker is opened
-        // with — is iOS 14+. This also matches the app target's own 14.0 floor.
-        .iOS(.v14),
+        // v17: the app's floor, iPadOS 17 (docs/engineering/cross-platform.md#PLAT-26),
+        // which `UTType.folder`, the type the folder picker is opened with (14+), is under.
+        .iOS(.v17),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.

@@ -11,15 +11,20 @@
  *
  * **Two checkers, and the notes say which is which.** This switch and this
  * word list are the script's own checker (editor/spellcheck.ts). Documents and
- * character sheets are checked by macOS through WebKit whatever the switch
- * says, and Learn Spelling there goes to the macOS dictionary.
+ * character sheets are checked by the system through WebKit whatever the
+ * switch says, and Learn Spelling there goes to the system's dictionary. Where
+ * the system's spelling may not run (an iPad, ui/system-traits.ts), nothing
+ * checks a document, and the notes say so rather than name a checker that is
+ * not there.
  */
-import { systemWords } from "../../ui/system-words";
+import { openSpellingMenu, systemWords } from "../../ui/system-words";
+import { systemSpelling } from "../../ui/system-traits";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button, CloseIcon, IconButton, announce } from "../../ui";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
 import { forgetWord, learnWord, updateSettings, useSettings } from "../../ui/settings-store";
 import { cleanCommentName, commentNameInput } from "../../comments/model";
+import { AS_TYPED } from "../../ui/as-typed";
 
 /**
  * The name the writer's comments are signed with (docs/app/writing/comments.md#COMM-52).
@@ -72,7 +77,9 @@ function CommentName() {
 }
 
 export function Writing() {
-  const { runningTimeStrip, spellcheck, learnedWords } = useSettings();
+  const { runningTimeStrip, scenePlaceMarker, spellcheck, learnedWords, autoCaps } = useSettings();
+  const { machine, system } = systemWords();
+  const documentsChecked = systemSpelling();
   const [newWord, setNewWord] = useState("");
   /* A word already in the dictionary used to be "Added" to VoiceOver and
      cleared from the field, with nothing changed and nothing on screen. */
@@ -123,6 +130,27 @@ export function Writing() {
           onChange={(on) => updateSettings({ runningTimeStrip: on })}
           note="Each scene appears at the bottom of the script, sized by its length in pages. Click one to go to that scene."
         />
+        {/* docs/app/preferences-and-help/settings.md#SET-45: the marker lives on
+            the strip, so with the strip off it has nothing to sit on. */}
+        <SwitchRow
+          label="Show your place in the scene"
+          on={scenePlaceMarker}
+          disabled={!runningTimeStrip}
+          onChange={(on) => updateSettings({ scenePlaceMarker: on })}
+          note={
+            runningTimeStrip
+              ? "A line on the strip shows how far through the scene on screen you are."
+              : "A line on the strip shows how far through the scene on screen you are. Turn on the scene navigation strip to use it."
+          }
+        />
+        {/* docs/app/writing/editor-ux.md#EDIT-54: auto-caps, and with it the
+            names in the directions (docs/app/writing/editor-ux.md#EDIT-202). */}
+        <SwitchRow
+          label="Capitalize as you type"
+          on={autoCaps}
+          onChange={(on) => updateSettings({ autoCaps: on })}
+          note="Character cues, act and scene headings and transitions go into capitals as you type them. So do character names in stage directions, in formats that print them that way."
+        />
       </Group>
 
       <CommentName />
@@ -132,15 +160,19 @@ export function Writing() {
           label="Check spelling as you type"
           on={spellcheck}
           onChange={(on) => updateSettings({ spellcheck: on })}
-          note={`Underlines misspelled words in scripts. Documents and character sheets are checked by ${systemWords().system}, which this switch doesn’t affect.`}
+          note={
+            documentsChecked
+              ? `Underlines misspelled words in scripts. Documents and character sheets are checked by ${system}, which this switch doesn’t affect.`
+              : `Underlines misspelled words in scripts. Documents and character sheets aren’t checked on this ${machine}.`
+          }
         />
       </Group>
 
       <Group label="Proscenium dictionary">
         <Note>
-          Words added here are accepted in every script on this {systemWords().machine}. Documents
-          and character sheets use the {systemWords().system} dictionary, which is shared with other
-          apps.
+          Words added here are accepted in every script on this {machine}.
+          {documentsChecked &&
+            ` Documents and character sheets use the ${system} dictionary, which is shared with other apps.`}
         </Note>
         <div>
           <form
@@ -151,6 +183,8 @@ export function Writing() {
             }}
           >
             <input
+              // The word as the writer spells it: no capital or correction of iPadOS's.
+              {...AS_TYPED}
               className="field"
               aria-label="Word or name to add"
               aria-describedby="dictionary-problem"
@@ -177,7 +211,7 @@ export function Writing() {
         </div>
         <p className="settings__note" ref={noteRef} tabIndex={-1}>
           {learnedWords.length === 0
-            ? "No words added. In a script, Control-click an underlined word and choose Learn Spelling to add it."
+            ? `No words added. In a script, ${openSpellingMenu()} and choose Learn Spelling to add it.`
             : `${learnedWords.length} word${learnedWords.length === 1 ? "" : "s"} added.`}
         </p>
         {learnedWords.length > 0 && (

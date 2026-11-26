@@ -1,0 +1,62 @@
+- dialog "Export PDF"
+  - heading "Export PDF" [level=2]
+  - none
+    - button "File type — what the export writes: PDF" [haspopup]
+  - none
+    - button "Part — what to export: Whole Script" [haspopup]
+  - none
+    - textbox "Pages to export"
+  - list "Pages"
+    - listitem
+      - button "Title Page"
+      - none
+        - checkbox "Include Title Page" [checked]
+    - listitem
+      - button "Dedication"
+      - none
+        - checkbox "Include Dedication" [checked]
+    - listitem
+      - button "Characters"
+      - none
+        - checkbox "Include Characters" [checked]
+    - listitem
+      - button "Setting"
+      - none
+        - checkbox "Include Setting" [checked]
+    - listitem
+      - button "Page 1"
+      - none
+        - checkbox "Include page 1" [checked]
+    - listitem
+      - button "Page 2"
+      - none
+        - checkbox "Include page 2" [checked]
+    - listitem
+      - button "About the Author" [current=true]
+      - none
+        - checkbox "Include About the Author" [checked]
+  - region "Preview of what will export"
+  - button "Previous page"
+  - group [live=polite]: About the Author · sheet 7 of 7
+  - button "Next page" [disabled]
+  - group "Include"
+    - none
+      - checkbox "Title Page" [checked]
+    - none
+      - checkbox "Dedication" [checked]
+    - none
+      - checkbox "Characters" [checked]
+    - none
+      - checkbox "Setting" [checked]
+    - group "After the script"
+      - none
+        - checkbox "About the Author" [checked]
+  - none
+    - checkbox "Anonymous copy"
+  - none
+    - textbox "Play language"
+  - button "Cancel"
+  - button "Print…"
+  - button "Export PDF…"
+  - status [live=polite]
+  - alert [live=assertive]

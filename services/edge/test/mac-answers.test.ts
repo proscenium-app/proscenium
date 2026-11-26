@@ -31,9 +31,13 @@ const KEY = `${"k".repeat(22)}Ey_-0123456789abcdefg`;
 const KEY_SHA256 = createHash("sha256").update(KEY).digest("hex");
 const NOW = new Date("2026-09-18T12:34:56Z");
 const migrations = await Promise.all(
-  ["0001_updates.sql", "0003_usage.sql", "0006_usage_track.sql", "0008_update_kinds.sql"].map((f) =>
-    Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text(),
-  ),
+  [
+    "0001_updates.sql",
+    "0003_usage.sql",
+    "0006_usage_track.sql",
+    "0008_update_kinds.sql",
+    "0009_crawler_kind.sql",
+  ].map((f) => Bun.file(new URL(`../migrations/${f}`, import.meta.url)).text()),
 );
 
 type Entries = Record<string, { signature: string; url: string; [field: string]: string }>;

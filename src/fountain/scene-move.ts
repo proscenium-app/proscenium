@@ -13,7 +13,7 @@
  * stop the block at the next scene-or-act, not just the next scene).
  */
 import type { BlockNode, Doc } from "./model";
-import { extractScenes } from "./scenes";
+import { extractScenes, wholeScript } from "./scenes";
 
 export interface SceneBlock {
   ordinal: number;
@@ -95,9 +95,15 @@ export function moveSceneInDoc(doc: Doc, fromOrdinal: number, toOrdinal: number)
  * Set (or clear) a scene's `=` synopsis in the doc — the corkboard editing a
  * card's description writes it back to the canonical `.fountain` (the synopsis
  * is Fountain-expressible, so the file owns it). Empty text removes the line.
+ *
+ * A new line goes under the scene's heading, or, in a script that is one
+ * scene with no heading (docs/app/organizing/workspace-model.md#WORK-93), at
+ * the top of the script: under its first line it could have parted a cue from
+ * its speech.
  */
 export function setSceneSynopsis(doc: Doc, ordinal: number, text: string): Doc {
   const scenes = extractScenes(doc);
+  const under = wholeScript(doc) ? 0 : 1;
   if (ordinal < 0 || ordinal >= scenes.length) return doc;
   const { from, to } = scenes[ordinal].range;
   const blocks = doc.content.slice();
@@ -118,7 +124,7 @@ export function setSceneSynopsis(doc: Doc, ordinal: number, text: string): Doc {
     if (trimmed) blocks[synIdx] = node;
     else blocks.splice(synIdx, 1);
   } else if (trimmed) {
-    blocks.splice(from + 1, 0, node); // immediately after the scene heading
+    blocks.splice(from + under, 0, node); // under the heading, or atop a script with none
   }
   return { type: "doc", content: blocks };
 }

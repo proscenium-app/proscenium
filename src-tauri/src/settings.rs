@@ -166,9 +166,17 @@ pub struct Settings {
     /// Absent means shown: it has been on since it shipped, and an absent
     /// preference must never read as a preference for off.
     pub running_time_strip: bool,
+    /// The place marker inside the lit scene of that strip
+    /// (docs/app/preferences-and-help/settings.md#SET-45). Absent means on.
+    pub scene_place_marker: bool,
     /// Whether the spell checker underlines anything. The document menu's
     /// Check Spelling and Settings › Writing are two views of this one value.
     pub spellcheck: bool,
+    /// Whether the editor puts letters in capitals as they are typed: cues,
+    /// headings and transitions, and character names in the directions where
+    /// the format asks (docs/app/writing/editor-ux.md#EDIT-54). Absent means on,
+    /// as it has always been.
+    pub auto_caps: bool,
     /// Words the writer taught the spell checker, sorted, one spelling each. An
     /// app preference rather than play content: a name learned in one play is
     /// spelled the same in the next.
@@ -228,7 +236,11 @@ pub struct SettingsPatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub running_time_strip: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scene_place_marker: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spellcheck: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auto_caps: Option<bool>,
     /// The whole list: edited in one place, rarely, and in order.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub play_statuses: Option<Vec<String>>,
@@ -316,6 +328,9 @@ pub struct AppInfo {
     channel: &'static str,
     /// The tracks this build is published on, slowest first ([`TRACKS`]).
     tracks: &'static [UpdateTrack],
+    /// TestFlight installed this copy, the iPad's alpha: TestFlight updates it,
+    /// where the App Store updates the iPad's other copies.
+    testflight: bool,
 }
 
 /// One writer at a time, for the whole process. Reads need no lock — a write
@@ -437,7 +452,9 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
             .filter(|n| (100..=200).contains(n))
             .unwrap_or(100) as u16,
         running_time_strip: flag("runningTimeStrip").unwrap_or(true),
+        scene_place_marker: flag("scenePlaceMarker").unwrap_or(true),
         spellcheck: flag("spellcheck").unwrap_or(true),
+        auto_caps: flag("autoCaps").unwrap_or(true),
         learned_words: obj
             .get(LEARNED_WORDS)
             .and_then(Value::as_array)
@@ -1001,15 +1018,73 @@ pub async fn open_formats_folder(app: AppHandle) -> Result<(), String> {
 
 /// The license the About section names, in the writer's own browser. A fixed
 /// address: the webview hands over nothing to open.
-#[cfg(desktop)]
 #[tauri::command]
-pub async fn open_license() -> Result<(), String> {
-    os_open(crate::telemetry::allowlist::LICENSE)
+pub async fn open_license(app: AppHandle) -> Result<(), String> {
+    open_page(app, crate::telemetry::allowlist::LICENSE.to_string()).await
 }
 
 #[cfg(desktop)]
 fn os_open(target: &str) -> Result<(), String> {
     crate::shell::open(target)
+}
+
+/// One of the app's own pages, in the writer's browser: on a desktop the
+/// system's default, on an iPad Safari. Only the fixed addresses in
+/// telemetry/allowlist.rs reach here; the page names none.
+async fn open_page(app: AppHandle, address: String) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        let _ = app;
+        os_open(&address)
+    }
+    #[cfg(target_os = "ios")]
+    {
+        use tauri_plugin_vault_picker::VaultPickerExt;
+        tauri::async_runtime::spawn_blocking(move || app.vault_picker().open_url(address))
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(target_os = "android")]
+    {
+        let _ = (app, address);
+        Err("this platform cannot open a browser from here".to_string())
+    }
+}
+
+/// Release notes in the writer's browser: one version's, or every release's.
+/// The address is fixed; the page supplies at most a version, and only a
+/// version with notes is accepted: a release's `X.Y.Z`, or a beta's
+/// `X.Y.Z-beta.N`, which is what a copy on the beta track is offered. Where
+/// each lands is decided where the link is answered
+/// (docs/engineering/services-and-feedback.md#SERV-281): a release's own page,
+/// and for a beta, which has no such page, the Guide's.
+///
+/// In every build, the stores' copies and the iPad's too: Settings › Updates
+/// offers the link in each, and until it lived here, beside the updater, the
+/// Mac App Store's copy answered its click with nothing.
+#[tauri::command]
+pub async fn open_release_notes(app: AppHandle, version: Option<String>) -> Result<(), String> {
+    use crate::telemetry::allowlist::RELEASES;
+    let url = match version {
+        Some(v) if is_version(&v) => format!("{RELEASES}/v{v}"),
+        Some(v) => return Err(format!("\"{v}\" is not a version")),
+        None => RELEASES.to_string(),
+    };
+    open_page(app, url).await
+}
+
+/// `X.Y.Z`, or `X.Y.Z-beta.N`: digits, at most six to a number, and nothing
+/// before, between or after them. An alpha's version is not one: an alpha has
+/// no notes to open.
+fn is_version(v: &str) -> bool {
+    let number = |p: &str| !p.is_empty() && p.len() <= 6 && p.bytes().all(|b| b.is_ascii_digit());
+    let (release, beta) = match v.split_once("-beta.") {
+        Some((release, n)) => (release, Some(n)),
+        None => (v, None),
+    };
+    let parts: Vec<&str> = release.split('.').collect();
+    parts.len() == 3 && parts.iter().all(|p| number(p)) && beta.map_or(true, number)
 }
 
 /// Mobile has no Finder to open anything in; the frontend hides these through
@@ -1026,37 +1101,17 @@ pub async fn open_formats_folder(_app: AppHandle) -> Result<(), String> {
     Err("this platform has no file manager".to_string())
 }
 
-#[cfg(mobile)]
-#[tauri::command]
-pub async fn open_license() -> Result<(), String> {
-    Err("this platform cannot open a browser from here".to_string())
-}
-
 /// What a sponsorship pays for, in the writer's browser (Settings › About ›
 /// The Program). A fixed address: the webview hands over nothing to open.
 #[tauri::command]
-pub async fn open_support() -> Result<(), String> {
-    #[cfg(desktop)]
-    {
-        os_open(crate::telemetry::allowlist::SUPPORT)
-    }
-    #[cfg(mobile)]
-    {
-        Err("this platform cannot open a browser from here".to_string())
-    }
+pub async fn open_support(app: AppHandle) -> Result<(), String> {
+    open_page(app, crate::telemetry::allowlist::SUPPORT.to_string()).await
 }
 
 /// The complete public field-and-reason table, in the writer's browser.
 #[tauri::command]
-pub async fn open_privacy() -> Result<(), String> {
-    #[cfg(desktop)]
-    {
-        os_open(crate::telemetry::allowlist::PRIVACY)
-    }
-    #[cfg(mobile)]
-    {
-        Err("this platform cannot open a browser from here".to_string())
-    }
+pub async fn open_privacy(app: AppHandle) -> Result<(), String> {
+    open_page(app, crate::telemetry::allowlist::PRIVACY.to_string()).await
 }
 
 /// Version and architecture for Settings › About.
@@ -1067,6 +1122,10 @@ pub async fn app_info(app: AppHandle) -> AppInfo {
         arch: std::env::consts::ARCH,
         channel: crate::telemetry::channel(),
         tracks: TRACKS,
+        #[cfg(target_os = "ios")]
+        testflight: crate::ipad::facts().testflight,
+        #[cfg(not(target_os = "ios"))]
+        testflight: false,
     }
 }
 

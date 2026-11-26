@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  SPDX-FileCopyrightText: 2026 Habiby LLC
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  Keys merged into the iPad app's Info.plist, and no other's
+  (docs/engineering/cross-platform.md#PLAT-79). The Tauri CLI writes an iOS
+  build's plist from, in order: the iOS project's own
+  (gen/apple/proscenium_iOS/Info.plist), the version, the Info.plist beside
+  tauri.conf.json, which is the Mac's, this file, and the document types from
+  tauri.conf.json's fileAssociations. Each later file's keys replace the
+  earlier ones' whole, and none takes a key away: so the Mac's keys reach the
+  iPad too, and its LSApplicationCategoryType and LSRequiresNativeExecution do
+  nothing there. What the iPad needs stands here on its own, never on the
+  Mac's file.
+
+    ITSAppUsesNonExemptEncryption  false: the only encryption the app uses is
+                                 HTTPS, which is exempt, so App Store Connect
+                                 asks no export-compliance question of a build
+                                 before TestFlight has it.
+                                 scripts/check-bundle-ios.mjs refuses a build
+                                 without it.
+    LSSupportsOpeningDocumentsInPlace  true: a play or a script opened from
+                                 Files is opened where it is, with a grant to
+                                 read it there, rather than copied into the
+                                 app's Inbox, where a change would never reach
+                                 the file the writer opened.
+    UIFileSharingEnabled         true: the app's own Documents is a place
+                                 Files shows, On My iPad › Proscenium, which a
+                                 Plays folder may be
+                                 (docs/engineering/cross-platform.md#PLAT-12).
+    NSUbiquitousContainers       The app's iCloud container, published to
+                                 iCloud Drive as a folder called Proscenium, as
+                                 the Mac's is: public, at any depth
+                                 (docs/engineering/cross-platform.md#PLAT-8).
+                                 The app target's entitlements name the same
+                                 container.
+-->
+<plist version="1.0">
+<dict>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
+  <key>LSSupportsOpeningDocumentsInPlace</key>
+  <true/>
+  <key>UIFileSharingEnabled</key>
+  <true/>
+  <key>NSUbiquitousContainers</key>
+  <dict>
+    <key>iCloud.org.habiby.proscenium</key>
+    <dict>
+      <key>NSUbiquitousContainerIsDocumentScopePublic</key>
+      <true/>
+      <key>NSUbiquitousContainerName</key>
+      <string>Proscenium</string>
+      <key>NSUbiquitousContainerSupportedFolderLevels</key>
+      <string>Any</string>
+    </dict>
+  </dict>
+</dict>
+</plist>

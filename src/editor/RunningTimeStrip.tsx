@@ -27,20 +27,40 @@
  * segments stay clickable for the mouse — a minimap, not a control — and the
  * strip says what it shows: how many pages the play runs and where the writer
  * is.
+ *
+ * **Inside the lit scene, a mark says where in it** (docs/app/preferences-and-help/settings.md#SET-45):
+ * a thin upright line at the share of the scene above the reading point, so a
+ * long scene says "nearly done" as well as "this one". It is part of the
+ * picture, not a second sentence: the strip's label is unchanged.
  */
+import type { Editor } from "@tiptap/core";
 import { pageCountLabel, pageRangeLabel, type ScenePageMap } from "../layout";
 import type { SceneCard } from "../workspace";
+import { useSceneProgress } from "./caret-scene";
+
+/** The place marker: its own component, so a scroll redraws this span alone. */
+function PlaceMarker({ editor, ordinal }: { editor: Editor; ordinal: number }) {
+  const through = useSceneProgress(editor, ordinal);
+  if (through === null) return null;
+  return <span className="rts__place" style={{ left: `${through * 100}%` }} aria-hidden="true" />;
+}
 
 export function RunningTimeStrip({
   cards,
   scenePages,
   caretOrdinal,
   onJump,
+  editor,
+  showPlace = true,
 }: {
   cards: SceneCard[];
   scenePages: ScenePageMap;
   caretOrdinal: number | null;
   onJump: (ordinal: number) => void;
+  /** The script, for the place marker; without it the marker is not drawn. */
+  editor?: Editor | null;
+  /** Settings › Writing › Show your place in the scene (docs/app/preferences-and-help/settings.md#SET-45). */
+  showPlace?: boolean;
 }) {
   if (scenePages.scenes.length === 0) return null;
   const cardFor = new Map(cards.map((c) => [c.anchor.ordinal, c]));
@@ -57,14 +77,17 @@ export function RunningTimeStrip({
     const card = cardFor.get(s.ordinal);
     const hue = card?.card.color ?? "cream";
     const heading = card?.heading ?? `Scene ${s.ordinal + 1}`;
+    const here = s.ordinal === caretOrdinal;
     cells.push(
       <span
         key={s.ordinal}
-        className={`rts__seg rts__seg--${hue}${s.ordinal === caretOrdinal ? " is-here" : ""}`}
+        className={`rts__seg rts__seg--${hue}${here ? " is-here" : ""}`}
         style={{ flexGrow: Math.max(1, s.pages) }}
         title={`${heading} · ${pageRangeLabel(s)} · ${pageCountLabel(s.pages)}`}
         onClick={() => onJump(s.ordinal)}
-      />,
+      >
+        {here && showPlace && editor && <PlaceMarker editor={editor} ordinal={s.ordinal} />}
+      </span>,
     );
   }
 

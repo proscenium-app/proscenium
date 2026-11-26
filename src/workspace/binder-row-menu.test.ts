@@ -60,6 +60,38 @@ describe("the binder's row menu", () => {
       "Move to Trash",
     ]);
   });
+  test("a script's folder of pages offers Add Page… where any other folder offers New, and a page in one offers both", () => {
+    // docs/app/formatting/formats-and-layout.md#FMT-175
+    const withAdd = (item: BinderItem) =>
+      rowMenuEntries(
+        item,
+        {
+          onDelete: () => {},
+          onDuplicate: () => {},
+          onReveal: () => {},
+          onOpenInNewPane: () => {},
+        },
+        { create: () => {}, rename: () => {}, move: () => {} },
+        () => {},
+      ).flatMap((e) => ("label" in e ? [e.label] : []));
+    expect(withAdd(folder)).toEqual([
+      "Add Page…",
+      "Rename",
+      "Move…",
+      "Reveal in Finder",
+      "Move to Trash",
+    ]);
+    expect(withAdd(document)).toEqual([
+      "Add Page…",
+      "Open in New Pane",
+      "New",
+      "Rename",
+      "Move…",
+      "Duplicate",
+      "Reveal in Finder",
+      "Move to Trash",
+    ]);
+  });
   test("the shortcuts it shows are the binder's own keys", () => {
     const shown = Object.fromEntries(
       labelled(document)

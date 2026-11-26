@@ -34,7 +34,8 @@ pub fn build(app: AppHandle, window: WindowConfig, background: Color) -> Result<
                 // WebKit paints its own background until the page's first frame
                 // (white in Light mode, grey in Dark), over the window's desk.
                 // `drawsBackground` is private API, the key wry sets for a
-                // transparent window, so only the download build turns it off.
+                // web view that is transparent or given a background colour,
+                // so only the download build turns it off.
                 #[cfg(feature = "webkit-background")]
                 {
                     use objc2_foundation::{NSNumber, NSObjectNSKeyValueCoding};
@@ -45,13 +46,20 @@ pub fn build(app: AppHandle, window: WindowConfig, background: Color) -> Result<
                 }
                 configuration
             };
-            tauri::WebviewWindowBuilder::from_config(&app, &window)
+            let builder = tauri::WebviewWindowBuilder::from_config(&app, &window)
                 .map_err(|e| e.to_string())?
                 .with_webview_configuration(configuration)
-                .background_color(background)
-                .on_navigation(crate::navigation_allowed)
-                .build()
-                .map_err(|e| e.to_string())?;
+                .on_navigation(crate::navigation_allowed);
+            // The desk, through Tauri, in the download build alone: since wry
+            // 0.56 a web view given a background colour has WebKit's own
+            // background turned off through `drawsBackground`, which the
+            // store build never sets. It gets the same desk on the window and
+            // the page's overscroll through public calls (window_color.rs).
+            #[cfg(feature = "webkit-background")]
+            let builder = builder.background_color(background);
+            let _built = builder.build().map_err(|e| e.to_string())?;
+            #[cfg(not(feature = "webkit-background"))]
+            crate::window_color::paint_store_window(&_built, background);
             Ok(())
         })();
         if let Err(error) = result {

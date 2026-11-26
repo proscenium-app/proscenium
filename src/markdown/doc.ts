@@ -18,8 +18,13 @@
  * exactly that over the sample vault. Serializing is therefore only ever done
  * on a real edit, never on open: every write is a file event in a watched tree,
  * and reformatting a file nobody touched would be a change with no author.
+ *
+ * A page before the script is read with `{ pageFile: true }` (page-fields.ts):
+ * its field tokens become `field` nodes and its foot mark a `foot` node, and
+ * each is written back as exactly the token or the line it was read from.
  */
 import { parseBlocks, type Align, type Block, type ListBlock, type Span } from "./parse";
+import { FIELD_TOKEN, FOOT_MARK, fieldToken, isFieldName } from "./page-fields";
 
 /** The subset of ProseMirror JSON this bridge speaks. */
 export interface Node {
@@ -32,22 +37,39 @@ export interface Node {
 
 // ---------------------------------------------------------------- to the doc
 
-export function toDoc(markdown: string): Node {
-  const content = counted(parseBlocks(markdown).map(blockToNode));
+/** How a file is read into the editor. */
+export interface ToDocOptions {
+  /**
+   * The file is a page before the script (src/layout/page-files.ts): each field
+   * token in its text is a `field` node, `{ name }`, carrying the text's marks,
+   * and its first foot mark line is a `foot` node. Without it both stay the
+   * text they are, as in any other document.
+   */
+  pageFile?: boolean;
+}
+
+export function toDoc(markdown: string, options: ToDocOptions = {}): Node {
+  const fields = options.pageFile === true;
+  const content = counted(
+    parseBlocks(markdown, { pageFile: fields }).map((block) => blockToNode(block, fields)),
+  );
   // ProseMirror will not accept an empty doc, and neither would a writer:
   // an empty note still needs somewhere to put the caret.
   return { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
 }
 
-function blockToNode(block: Block): Node {
+/** `fields`: the text's field tokens are fields (a page file). */
+function blockToNode(block: Block, fields: boolean): Node {
   switch (block.kind) {
     case "managedMarker":
       return { type: "managedMarker", attrs: { source: block.text } };
+    case "foot":
+      return { type: "foot" };
     case "paragraph":
       return {
         type: "paragraph",
         ...(block.align ? { attrs: { textAlign: block.align } } : {}),
-        content: spansToNodes(block.spans),
+        content: spansToNodes(block.spans, fields),
       };
     case "heading":
       return {
@@ -56,12 +78,12 @@ function blockToNode(block: Block): Node {
           level: Math.min(block.level, 6),
           ...(block.align ? { textAlign: block.align } : {}),
         },
-        content: spansToNodes(block.spans),
+        content: spansToNodes(block.spans, fields),
       };
     case "quote":
       return {
         type: "blockquote",
-        content: [{ type: "paragraph", content: spansToNodes(block.spans) }],
+        content: [{ type: "paragraph", content: spansToNodes(block.spans, fields) }],
       };
     case "rule":
       return { type: "horizontalRule" };
@@ -72,41 +94,43 @@ function blockToNode(block: Block): Node {
         content: block.text ? [{ type: "text", text: block.text }] : undefined,
       };
     case "list":
-      return listToNode(block);
+      return listToNode(block, fields);
     case "table":
       return {
         type: "table",
         content: [
           {
             type: "tableRow",
-            content: block.head.map((cell, i) => cellNode("tableHeader", cell, block.aligns[i])),
+            content: block.head.map((cell, i) =>
+              cellNode("tableHeader", cell, block.aligns[i], fields),
+            ),
           },
           ...block.rows.map((row) => ({
             type: "tableRow",
-            content: row.map((cell, i) => cellNode("tableCell", cell, block.aligns[i])),
+            content: row.map((cell, i) => cellNode("tableCell", cell, block.aligns[i], fields)),
           })),
         ],
       };
   }
 }
 
-function cellNode(type: string, spans: Span[], align: Align | undefined): Node {
+function cellNode(type: string, spans: Span[], align: Align | undefined, fields: boolean): Node {
   return {
     type,
     attrs: { align: align ?? null },
-    content: [{ type: "paragraph", content: spansToNodes(spans) }],
+    content: [{ type: "paragraph", content: spansToNodes(spans, fields) }],
   };
 }
 
-function listToNode(list: ListBlock): Node {
+function listToNode(list: ListBlock, fields: boolean): Node {
   return {
     type: list.ordered ? "orderedList" : "bulletList",
     attrs: list.ordered ? { start: list.start } : undefined,
     content: list.items.map((item) => ({
       type: "listItem",
       content: [
-        { type: "paragraph", content: spansToNodes(item.spans) },
-        ...counted(item.children.map(listToNode)),
+        { type: "paragraph", content: spansToNodes(item.spans, fields) },
+        ...counted(item.children.map((child) => listToNode(child, fields))),
       ],
     })),
   };
@@ -156,36 +180,56 @@ function merge(nodes: Node[]): Node[] {
 
 type MarkList = NonNullable<Node["marks"]>;
 
-function spansToNodes(spans: Span[], marks: MarkList = []): Node[] {
-  return merge(collectSpans(spans, marks));
+function spansToNodes(spans: Span[], fields: boolean, marks: MarkList = []): Node[] {
+  return merge(collectSpans(spans, marks, fields));
 }
 
-function collectSpans(spans: Span[], marks: MarkList): Node[] {
+function collectSpans(spans: Span[], marks: MarkList, fields: boolean): Node[] {
   const out: Node[] = [];
   for (const span of spans) {
     switch (span.kind) {
       case "text":
-        if (span.text) out.push({ type: "text", text: span.text, ...markProp(marks) });
+        if (fields) out.push(...withFields(span.text, marks));
+        else if (span.text) out.push({ type: "text", text: span.text, ...markProp(marks) });
         break;
       case "break":
         out.push({ type: "hardBreak" });
         break;
       case "code":
+        // Code is what was typed, character for character: a token in it stays one.
         out.push({ type: "text", text: span.text, ...markProp([...marks, { type: "code" }]) });
         break;
       case "strong":
-        out.push(...collectSpans(span.spans, [...marks, { type: "bold" }]));
+        out.push(...collectSpans(span.spans, [...marks, { type: "bold" }], fields));
         break;
       case "em":
-        out.push(...collectSpans(span.spans, [...marks, { type: "italic" }]));
+        out.push(...collectSpans(span.spans, [...marks, { type: "italic" }], fields));
         break;
       case "link":
         out.push(
-          ...collectSpans(span.spans, [...marks, { type: "link", attrs: { href: span.href } }]),
+          ...collectSpans(
+            span.spans,
+            [...marks, { type: "link", attrs: { href: span.href } }],
+            fields,
+          ),
         );
         break;
     }
   }
+  return out;
+}
+
+/** A run of a page file's text, each field token in it a `field` node with the run's marks. */
+function withFields(text: string, marks: MarkList): Node[] {
+  const out: Node[] = [];
+  let last = 0;
+  for (const match of text.matchAll(FIELD_TOKEN)) {
+    const at = match.index ?? 0;
+    if (at > last) out.push({ type: "text", text: text.slice(last, at), ...markProp(marks) });
+    out.push({ type: "field", attrs: { name: match[1] }, ...markProp(marks) });
+    last = at + match[0].length;
+  }
+  if (last < text.length) out.push({ type: "text", text: text.slice(last), ...markProp(marks) });
   return out;
 }
 
@@ -195,8 +239,38 @@ function markProp(marks: Node["marks"]): { marks?: Node["marks"] } {
 
 // ------------------------------------------------------------ back to source
 
-export function toMarkdown(doc: Node): string {
-  const out = (doc.content ?? []).map((n) => blockToText(n, "", true)).filter((s) => s !== null);
+/** How a document is written. */
+export interface ToMarkdownOptions {
+  /**
+   * Keep a paragraph with no words that is centered or at the right, as a
+   * comment of its own (`<!-- proscenium:line=center -->`, which parse.ts
+   * reads back as the empty line): a page's line waiting for words keeps how
+   * it is set (docs/app/formatting/formats-and-layout.md#FMT-177). A page
+   * file is written so; every other document writes nothing for an empty
+   * line, as it always has.
+   */
+  emptyLines?: boolean;
+}
+
+/** The comment an empty line set centered or at the right is written as. */
+export function emptyLineMark(align: "center" | "right"): string {
+  return `<!-- proscenium:line=${align} -->`;
+}
+
+export function toMarkdown(doc: Node, options: ToMarkdownOptions = {}): string {
+  const out = (doc.content ?? [])
+    .map((n) => {
+      const align = n.attrs?.textAlign;
+      if (
+        options.emptyLines &&
+        n.type === "paragraph" &&
+        (align === "center" || align === "right") &&
+        !inlineToText(n.content ?? [], true).trim()
+      )
+        return emptyLineMark(align);
+      return blockToText(n, "", true);
+    })
+    .filter((s) => s !== null);
   // One trailing newline, the way every other writer leaves a text file.
   const body = out
     .join("\n\n")
@@ -216,6 +290,8 @@ function blockToText(node: Node, indent: string, lineStarts: boolean): string | 
   switch (node.type) {
     case "managedMarker":
       return String(node.attrs?.source ?? "");
+    case "foot":
+      return FOOT_MARK;
     case "paragraph": {
       const text = inlineToText(node.content ?? [], lineStarts);
       return text.trim() ? prefix + text : text;
@@ -383,10 +459,15 @@ function inlineToText(nodes: Node[], lineStarts: boolean | "broken" = false): st
       out += "\n";
       continue;
     }
-    if (node.type !== "text") continue;
+    // A page file's field is its token, inside whatever marks it carries
+    // (`**{title}**`), and never escaped: the braces are what make it one.
+    // A code mark on one means nothing on the page, so it is not written.
+    const name = node.type === "field" ? node.attrs?.name : undefined;
+    const token = isFieldName(name) ? fieldToken(name) : null;
+    if (node.type !== "text" && token === null) continue;
 
     const marks = (node.marks ?? []) as Mark[];
-    const isCode = marks.some((m) => m.type === "code");
+    const isCode = token === null && marks.some((m) => m.type === "code");
     const target = reorder(
       NESTING.map((t) => marks.find((m) => m.type === t)).filter((m): m is Mark => !!m),
       open.map((o) => o.mark),
@@ -415,7 +496,8 @@ function inlineToText(nodes: Node[], lineStarts: boolean | "broken" = false): st
       }
     }
 
-    out += isCode ? fenceCode(node.text ?? "") : escapeText(node.text ?? "", out, lineStarts);
+    out +=
+      token ?? (isCode ? fenceCode(node.text ?? "") : escapeText(node.text ?? "", out, lineStarts));
   }
 
   close(0);
@@ -460,6 +542,9 @@ function italicMarker(nodes: Node[], from: number, out: string): string {
     // A break inside the run is not the end of it — keep looking. (A break
     // that IS the end resolves to `*` here, which is safe, just not minimal.)
     if (node.type === "hardBreak") continue;
+    // Nor is a field the run carries on through. One after the run starts
+    // with `{`, which a `_` closes against as it does against a space.
+    if (node.type === "field" && (node.marks ?? []).some((m) => m.type === "italic")) continue;
     if (node.type !== "text") break;
     if ((node.marks ?? []).some((m) => m.type === "italic")) continue;
     return WORD.test((node.text ?? "").slice(0, 1)) ? "*" : "_";

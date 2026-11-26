@@ -14,6 +14,9 @@
 import fontkit from "@pdf-lib/fontkit";
 import {
   PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFNumber,
   popGraphicsState,
   pushGraphicsState,
   setCharacterSpacing,
@@ -22,9 +25,10 @@ import {
 } from "pdf-lib";
 
 import { MONO_ADVANCE_EM } from "../format/metrics";
-import { PAGE_SIZES, type ElementFontStyle, type FormatSpec } from "../format";
+import { PAGE_SIZES, elementColumnIn, type ElementFontStyle, type FormatSpec } from "../format";
 import type { FrontMatter } from "../fountain";
 import {
+  paginateBackMatter,
   paginateFrontMatter,
   type FrontMatterLine,
   type LayoutMeta,
@@ -32,7 +36,13 @@ import {
   type LayoutResult,
   type StyleRun,
 } from "../layout";
-import { selectFrontMatter, styleSegments, type FrontSheet } from "./plan";
+import {
+  pageLabelRanges,
+  selectFrontMatter,
+  styleSegments,
+  type FrontSheet,
+  type PageLabelRange,
+} from "./plan";
 import { TaggedPdf, type PdfElement } from "./tagged";
 import { canonicalLanguage, DEFAULT_PLAY_LANGUAGE } from "../workspace/language";
 
@@ -59,6 +69,22 @@ function pick(faces: Faces, bold: boolean, italic: boolean): PDFFont {
   return faces.regular;
 }
 
+/** The catalog's /PageLabels number tree (ISO 32000-1 §12.4.2), so a viewer
+ * calls each sheet what it prints rather than its position in the file. */
+function setPageLabels(doc: PDFDocument, ranges: readonly PageLabelRange[]): void {
+  const { context } = doc;
+  const nums = ranges.flatMap((range) => {
+    const label = context.obj({});
+    if (range.start !== undefined) {
+      label.set(PDFName.of("S"), PDFName.of("D"));
+      label.set(PDFName.of("St"), PDFNumber.of(range.start));
+    }
+    if (range.prefix) label.set(PDFName.of("P"), PDFHexString.fromText(range.prefix));
+    return [PDFNumber.of(range.index), label];
+  });
+  doc.catalog.set(PDFName.of("PageLabels"), context.obj({ Nums: context.obj(nums) }));
+}
+
 function baseStyle(style: ElementFontStyle): { bold: boolean; italic: boolean } {
   return {
     bold: style === "bold" || style === "bold-italic",
@@ -71,7 +97,11 @@ export async function renderPdf(args: {
   spec: FormatSpec;
   meta: LayoutMeta;
   frontMatter?: FrontMatter | null;
-  /** Which kinds of front sheet to draw, in their own stage order; omitted draws every one. */
+  /**
+   * Which kinds of unnumbered sheet to draw: the front sheets in their own
+   * stage order before the pages, and the sheets of the pages after the script
+   * (`frontMatter.backPages`) after them. Omitted draws every one.
+   */
   frontSheets?: readonly FrontSheet[] | null;
   language?: string;
   fonts: PdfFontBytes;
@@ -140,10 +170,14 @@ export async function renderPdf(args: {
       }),
     );
   };
-  for (const page of selectFrontMatter(paginateFrontMatter(frontMatter, spec), args.frontSheets)) {
+  const frontPages = selectFrontMatter(paginateFrontMatter(frontMatter, spec), args.frontSheets);
+  for (const page of frontPages) {
     const p = doc.addPage([pageW, pageH]);
     for (const line of page.lines) drawFrontLine(p, line, page.kind);
   }
+  // The sheets after the script, chosen from the same list of kinds.
+  const backPages = selectFrontMatter(paginateBackMatter(frontMatter, spec), args.frontSheets);
+  setPageLabels(doc, pageLabelRanges(frontPages, layout.pages, backPages));
   // Establish the opening's semantic order before adding body paragraphs.
   for (const page of layout.pages)
     for (const line of page.intro ?? []) frontParagraph("opening", line);
@@ -236,6 +270,22 @@ export async function renderPdf(args: {
     for (const line of page.intro ?? []) drawFrontLine(p, line, "opening");
 
     for (const line of page.lines) {
+      if (line.type === "horizontalRule") {
+        // A hairline through the middle of its row, across the column the
+        // format gives it (docs/app/writing/editor-ux.md#EDIT-213). It says
+        // nothing to a reader, so it is drawn as an artifact.
+        const col = elementColumnIn(spec, line.type);
+        const y = pageH - m.top * PT_PER_IN - (line.row + 0.5) * pitch;
+        const x = (m.left + col.leftIn) * PT_PER_IN;
+        tags.artifact(p, () =>
+          p.drawLine({
+            start: { x, y },
+            end: { x: x + col.widthIn * PT_PER_IN, y },
+            thickness: 0.6,
+          }),
+        );
+        continue;
+      }
       if (!line.text) continue;
       const el = spec.elements[line.type];
       const base = baseStyle(el.fontStyle);
@@ -255,6 +305,15 @@ export async function renderPdf(args: {
       if (paragraph) tags.content(p, paragraph, drawLine);
       else tags.artifact(p, drawLine);
     }
+  }
+
+  // The pages after the script (docs/app/formatting/formats-and-layout.md#FMT-174),
+  // drawn as the front sheets are: unnumbered, with no header or footer. Each
+  // page's section is made here, after the script's part, so a reader that
+  // follows the tags reads them last, as the paper has them.
+  for (const page of backPages) {
+    const p = doc.addPage([pageW, pageH]);
+    for (const line of page.lines) drawFrontLine(p, line, page.kind);
   }
 
   return doc.save();

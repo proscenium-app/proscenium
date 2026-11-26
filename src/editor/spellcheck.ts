@@ -4,7 +4,11 @@
 /**
  * Spell check over the script (docs/app/writing/editor-ux.md#EDIT-D116) — the
  * ProseMirror half. The judgement lives in src/spell (pure, tested); this draws
- * it, keeps it current as the writer types, and offers the corrections.
+ * it, keeps it current as the writer types, and offers the corrections. The
+ * documents carry it too where the system's own spelling may not run in them
+ * (docs/app/writing/editor-ux.md#EDIT-194): the app hands it to their editor
+ * (markdown/prose-checker.ts), and a document's code is out, as the cues are
+ * out of the script.
  *
  * Four constraints shape it, and three of them are the same ones find.ts has:
  *
@@ -77,6 +81,21 @@ type SpellMeta =
   | { kind: "menu"; menu: SpellMenuState | null };
 
 /**
+ * A document's code, which is no prose to check: its code blocks, and code in
+ * a line (the documents' editor, ProseEditor.tsx). The script has neither.
+ * Named rather than read off a spec's `code`, which the script's boneyard sets
+ * too: a boneyard is the writer's own words, left out of the play, and it is
+ * checked as it always was.
+ */
+const CODE_BLOCKS: ReadonlySet<string> = new Set(["codeBlock"]);
+const CODE_MARKS: ReadonlySet<string> = new Set(["code"]);
+
+/** A block whose words are not checked: the script's cues and headings, a document's code. */
+function unchecked(node: PMNode): boolean {
+  return NO_SPELLCHECK.has(node.type.name) || CODE_BLOCKS.has(node.type.name);
+}
+
+/**
  * A block's text paired with the position of every character, so a word split
  * by a mark ("*un*settling") is still one word and still maps back exactly —
  * the same indexing find.ts uses.
@@ -86,12 +105,14 @@ type SpellMeta =
  * for a fused token: a note is an inline node with its own content, so
  * "coat[[check this]]" would otherwise read as the single word "coatcheck".
  * The note's text is still checked — those are the writer's own words — just
- * not welded to whatever it touches.
+ * not welded to whatever it touches. A document's blocks inside blocks (a
+ * list's items, a quote's paragraphs, a table's cells) are read the same way,
+ * each apart from the next; its code is one "\n", read no further.
  */
 function readInline(node: PMNode, base: number, text: string[], at: number[]): void {
   node.forEach((child, offset) => {
     const pos = base + offset;
-    if (child.isText) {
+    if (child.isText && !child.marks.some((m) => CODE_MARKS.has(m.type.name))) {
       const s = child.text ?? "";
       for (let i = 0; i < s.length; i++) {
         text.push(s[i]);
@@ -99,7 +120,9 @@ function readInline(node: PMNode, base: number, text: string[], at: number[]): v
       }
       return;
     }
-    if (child.type.name === LINE_BREAK || child.isLeaf) {
+    // Code in a line is a leaf like any other here: it parts the words either
+    // side of it, and none of its own is read.
+    if (child.type.name === LINE_BREAK || child.isLeaf || unchecked(child)) {
       text.push("\n");
       at.push(pos);
       return;
@@ -131,18 +154,43 @@ function blockMisspellings(node: PMNode, start: number, speller: Speller, out: D
  * checking one neighbour too many is free next to missing the block that
  * changed.
  */
-function misspellings(doc: PMNode, from: number, to: number, speller: Speller): Decoration[] {
+export function misspellings(
+  doc: PMNode,
+  from: number,
+  to: number,
+  speller: Speller,
+): Decoration[] {
   const out: Decoration[] = [];
   let pos = 0;
   for (let i = 0; i < doc.childCount; i++) {
     const node = doc.child(i);
     const end = pos + node.nodeSize;
-    if (end >= from && pos <= to && !NO_SPELLCHECK.has(node.type.name)) {
+    if (end >= from && pos <= to && !unchecked(node)) {
       blockMisspellings(node, pos, speller, out);
     }
     pos = end;
   }
   return out;
+}
+
+/**
+ * Where the top-level blocks that `misspellings` reads for [from, to] begin and
+ * end, by its own inclusive rule: the stretch whose underlines a re-check
+ * draws again, so all of them have to go first.
+ */
+function blocksOver(doc: PMNode, from: number, to: number): { from: number; to: number } | null {
+  let first = -1;
+  let last = -1;
+  let pos = 0;
+  for (let i = 0; i < doc.childCount; i++) {
+    const end = pos + doc.child(i).nodeSize;
+    if (end >= from && pos <= to) {
+      if (first < 0) first = pos;
+      last = end;
+    }
+    pos = end;
+  }
+  return first < 0 ? null : { from: first, to: last };
 }
 
 function checkAll(doc: PMNode, speller: Speller): DecorationSet {
@@ -166,6 +214,56 @@ function changedSpan(tr: Transaction): { from: number; to: number } | null {
     });
   });
   return from > to ? null : { from, to };
+}
+
+/** The last press in the script was a finger's (a tap), not a pointer's. */
+let fingerDown = false;
+/** Where and when that finger came down. */
+let fingerAt: { x: number; y: number; at: number } | null = null;
+/** A tap's lift, waiting for its click. */
+let liftWait: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * How long a tap's lift waits for its click before it opens the menu itself.
+ * On an iPad the text system may take a tap in the words being edited for its
+ * own (its multi-tap recognizer, placing the caret), and the page then hears
+ * the touch and no click at all: a tap on an underlined word in a document
+ * with the caret opened nothing.
+ */
+const CLICK_AFTER_LIFT_MS = 350;
+/** A finger that moved this far, or stayed down this long, was no tap. */
+const TAP_SLOP_PX = 10;
+const TAP_HELD_MS = 500;
+
+/**
+ * Opens the correction menu for the underlined word at a point, selecting it,
+ * and says whether there was one there.
+ */
+function openSpellingAt(view: EditorView, x: number, y: number): boolean {
+  const state = spellcheckKey.getState(view.state);
+  if (!state?.speller || !view.editable) return false;
+  const at = view.posAtCoords({ left: x, top: y });
+  if (!at) return false;
+  const hit = state.decos.find(at.pos, at.pos).find((d) => d.from <= at.pos && at.pos <= d.to);
+  if (!hit) return false;
+  const word = (hit.spec as { word?: string }).word;
+  if (!word) return false;
+  const menu: SpellMenuState = {
+    word,
+    from: hit.from,
+    to: hit.to,
+    suggestions: state.speller.suggest(word),
+    x,
+    y,
+    wordAt: wordAt(view, hit.from),
+  };
+  // Selecting the word is both the familiar gesture and what makes the
+  // pending correction visible while the menu is up.
+  const tr = view.state.tr
+    .setSelection(TextSelection.create(view.state.doc, hit.from, hit.to))
+    .setMeta(spellcheckKey, { kind: "menu", menu } satisfies SpellMeta);
+  view.dispatch(tr);
+  return true;
 }
 
 export const Spellcheck = Extension.create({
@@ -205,8 +303,12 @@ export const Spellcheck = Extension.create({
             const span = changedSpan(tr);
             if (span) {
               // Remapped underlines in the touched blocks are stale by
-              // definition — the word under them just changed. Drop and redo.
-              decos = decos.remove(decos.find(span.from, span.to));
+              // definition — the word under them just changed. Drop and redo,
+              // every one in the blocks read again, not only those the change
+              // touched: the re-check draws each block whole, so an underline
+              // elsewhere in it was drawn once more at every key.
+              const blocks = blocksOver(tr.doc, span.from, span.to);
+              if (blocks) decos = decos.remove(decos.find(blocks.from + 1, blocks.to - 1));
               decos = decos.add(tr.doc, misspellings(tr.doc, span.from, span.to, prev.speller));
             }
             return { speller: prev.speller, decos, menu };
@@ -223,34 +325,53 @@ export const Spellcheck = Extension.create({
              * feature has no opinion about copy and paste.
              */
             contextmenu: (view, event) => {
-              const state = spellcheckKey.getState(view.state);
-              if (!state?.speller || !view.editable) return false;
-              const at = view.posAtCoords({ left: event.clientX, top: event.clientY });
-              if (!at) return false;
-              const hit = state.decos
-                .find(at.pos, at.pos)
-                .find((d) => d.from <= at.pos && at.pos <= d.to);
-              if (!hit) return false;
-
-              const word = (hit.spec as { word?: string }).word;
-              if (!word) return false;
+              if (!openSpellingAt(view, event.clientX, event.clientY)) return false;
               event.preventDefault();
-              const menu: SpellMenuState = {
-                word,
-                from: hit.from,
-                to: hit.to,
-                suggestions: state.speller.suggest(word),
-                x: event.clientX,
-                y: event.clientY,
-                wordAt: wordAt(view, hit.from),
-              };
-              // Selecting the word is both the familiar gesture and what makes
-              // the pending correction visible while the menu is up.
-              const tr = view.state.tr
-                .setSelection(TextSelection.create(view.state.doc, hit.from, hit.to))
-                .setMeta(spellcheckKey, { kind: "menu", menu } satisfies SpellMeta);
-              view.dispatch(tr);
               return true;
+            },
+            /**
+             * A finger's tap on an underlined word opens the same menu, as a
+             * tap on one does across iPadOS: a long press by touch fires no
+             * `contextmenu` in WebKit (it selects), so right-click and ⌘;
+             * left a finger no way to a correction. A pointer's click only
+             * places the caret, as it always has.
+             */
+            pointerdown: (_view, event) => {
+              fingerDown = event.pointerType === "touch" || event.pointerType === "pen";
+              fingerAt = fingerDown
+                ? { x: event.clientX, y: event.clientY, at: event.timeStamp }
+                : null;
+              if (liftWait) clearTimeout(liftWait);
+              liftWait = null;
+              return false;
+            },
+            /**
+             * The click comes a moment after a tap's lift, or never: where the
+             * text system took the tap for its own, the lift opens the menu.
+             * A finger that moved or stayed down was selecting or scrolling.
+             */
+            pointerup: (view, event) => {
+              const down = fingerAt;
+              fingerAt = null;
+              if (!fingerDown || !down) return false;
+              const moved = Math.hypot(event.clientX - down.x, event.clientY - down.y);
+              if (moved > TAP_SLOP_PX || event.timeStamp - down.at > TAP_HELD_MS) return false;
+              const { clientX: x, clientY: y } = event;
+              if (liftWait) clearTimeout(liftWait);
+              liftWait = setTimeout(() => {
+                liftWait = null;
+                if (!fingerDown || view.isDestroyed) return;
+                fingerDown = false;
+                openSpellingAt(view, x, y);
+              }, CLICK_AFTER_LIFT_MS);
+              return false;
+            },
+            click: (view, event) => {
+              if (!fingerDown) return false;
+              fingerDown = false;
+              if (liftWait) clearTimeout(liftWait);
+              liftWait = null;
+              return openSpellingAt(view, event.clientX, event.clientY);
             },
           },
         },

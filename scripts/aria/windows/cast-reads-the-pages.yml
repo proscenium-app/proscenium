@@ -1,0 +1,162 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "All Plays"
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script"
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast" [selected]
+    - tab "Changes, <n> pending": Changes
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - text: Changes in text
+  - switch "Changes in text — show what arrived from outside, marked in the script"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - heading "Cast" [level=1]
+  - paragraph: Who speaks, where, and which page of the play names them. Those pages are written in the script’s page view, where they print.
+  - group "MARA":
+    - text: MARA
+    - button "On the Characters page"
+    - text: 3 lines · 2 scenes Appears in ACT ONE · SCENE 1, ACT TWO · SCENE 1
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - group "JONAH":
+    - text: JONAH
+    - button "On the Characters page"
+    - text: 2 lines · 2 scenes Appears in ACT ONE · SCENE 1, ACT ONE · SCENE 2
+    - button "Sides (PDF) ↗"
+    - button "Open notes ↗"
+  - group "WREN":
+    - text: WREN Not on a page 1 line · 1 scene Appears in ACT TWO · SCENE 1
+    - button "Add to Characters Page"
+    - button "Leave Off"
+    - button "Sides (PDF) ↗"
+    - button "Add Notes"
+  - group "OTTO":
+    - text: OTTO Not on a page 1 line · 1 scene Appears in ACT TWO · SCENE 1
+    - button "Add to Characters Page"
+    - button "Leave Off"
+    - button "Sides (PDF) ↗"
+    - button "Add Notes"
+  - heading "Who’s on stage" [level=3]
+  - paragraph: A mark where a character speaks. Read across for a part’s shape, down for how full a scene is.
+  - table:
+    - rowgroup:
+      - row "Act ACT ONE ACT TWO Total":
+        - columnheader "Act"
+        - columnheader "ACT ONE"
+        - columnheader "ACT TWO"
+        - columnheader "Total"
+      - row "Character SCENE 1 SCENE 2 SCENE 1 Scenes":
+        - columnheader "Character"
+        - columnheader "SCENE 1":
+          - button "SCENE 1"
+        - columnheader "SCENE 2":
+          - button "SCENE 2"
+        - columnheader "SCENE 1":
+          - button "SCENE 1"
+        - columnheader "Scenes"
+    - rowgroup:
+      - row "JONAH speaks speaks silent 2":
+        - rowheader "JONAH"
+        - cell "speaks"
+        - cell "speaks"
+        - cell "silent"
+        - cell "2"
+      - row "MARA speaks silent, between entrances speaks 2":
+        - rowheader "MARA"
+        - cell "speaks"
+        - cell "silent, between entrances"
+        - cell "speaks"
+        - cell "2"
+      - row "OTTO silent silent speaks 1":
+        - rowheader "OTTO"
+        - cell "silent"
+        - cell "silent"
+        - cell "speaks"
+        - cell "1"
+      - row "WREN silent silent speaks 1":
+        - rowheader "WREN"
+        - cell "silent"
+        - cell "silent"
+        - cell "speaks"
+        - cell "1"
+    - rowgroup:
+      - row "On stage 2 1 3":
+        - rowheader "On stage"
+        - cell "2"
+        - cell "1"
+        - cell "3"
+        - cell
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage MARA 1 WREN 1 OTTO 1 Comments here 0 in this scene
+  - button "Show"
+  - text: Changed somewhere else just now.
+  - button "Review"
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
+- contentinfo:
+  - button "<plays>\\The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
