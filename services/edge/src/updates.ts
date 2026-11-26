@@ -216,10 +216,31 @@ function assetPath(version: string, file: string, via: Via = "download"): string
  */
 type Via = "download" | "update";
 /** What a request for a release's file can count as (docs/engineering/services-and-feedback.md#SERV-286). */
-export type FileKind = "website" | "homebrew" | "update" | "signature" | "own";
+export type FileKind = "website" | "homebrew" | "update" | "signature" | "own" | "crawler";
+/**
+ * A User-Agent that says a program asked, not a person
+ * (docs/engineering/services-and-feedback.md#SERV-290):
+ *
+ * - a program that names itself a bot, crawler, spider or slurp
+ *   (`ClaudeBot/1.0`, `GPTBot/1.3`, `Googlebot/2.1`, `bingbot/2.0`), and the
+ *   PDF reader that names itself `pdfmin` (`msh-pdfmin/1`);
+ * - the stock iPhone string of headless-browser tooling, iOS 13.2.3, which no
+ *   phone runs now and no phone can install either app on;
+ * - a bare Windows operating-system token, `(Windows NT 10.0)`, with no
+ *   `Win64` or `ARM64` after it. No 64-bit Windows browser sends it, and the
+ *   apps are 64-bit only. Medium confidence: a 32-bit browser does send it,
+ *   and its fetch is then counted as a crawler's.
+ */
+const CRAWLER = [
+  /bot\b|crawl|spider|slurp/i,
+  /\bpdfmin\b/i,
+  /iPhone OS 13_2_3/,
+  /\(Windows NT 10\.0\)/,
+];
 /**
  * What a request for a release's file counts as
- * (docs/engineering/services-and-feedback.md#SERV-286):
+ * (docs/engineering/services-and-feedback.md#SERV-286,
+ * docs/engineering/services-and-feedback.md#SERV-290):
  *
  * - `own`: one of the project's own machines (the release's checks and
  *   proofs), which say `proscenium-checks` in their User-Agent;
@@ -228,6 +249,8 @@ export type FileKind = "website" | "homebrew" | "update" | "signature" | "own";
  * - `update`: an installed copy, on the update route it was offered. The app
  *   sends no User-Agent, so the route is how it is told;
  * - `homebrew`: a download by Homebrew, which names itself (`Homebrew/…`);
+ * - `crawler`: a download by a program that is not Homebrew, which says so in
+ *   its User-Agent (`CRAWLER`), so the website's are people's;
  * - `website`: every other download, from the links the website gives.
  */
 export function countedAs(via: Via, file: string, userAgent: string): FileKind {
@@ -235,6 +258,7 @@ export function countedAs(via: Via, file: string, userAgent: string): FileKind {
   if (file.endsWith(".sig")) return "signature";
   if (via === "update") return "update";
   if (/^Homebrew\//i.test(userAgent)) return "homebrew";
+  if (CRAWLER.some((pattern) => pattern.test(userAgent))) return "crawler";
   return "website";
 }
 /** The system and chip a release's file is for, as the counts name them. */
@@ -892,6 +916,20 @@ async function countFile(
     "",
   );
 }
+/**
+ * A release's file's headers, the same on GET and on HEAD
+ * (docs/engineering/services-and-feedback.md#SERV-289): its length when the
+ * source declares one.
+ */
+function fileHeaders(length: string | null): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/octet-stream",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+  };
+  if (length !== null) headers["Content-Length"] = length;
+  return headers;
+}
 async function rate(request: Request, binding: RateLimit): Promise<boolean> {
   // A short-lived rate-limit bucket only; this key is never written to D1 or logged.
   return (await binding.limit({ key: request.headers.get("CF-Connecting-IP") ?? "local" })).success;
@@ -978,11 +1016,22 @@ async function stableAnswer(
   }
 }
 
-/** Only documented GET routes answer. No echo of a request or exception in any response. */
+/** What this host's `robots.txt` says: nothing here is for a crawler (docs/engineering/services-and-feedback.md#SERV-291). */
+export const ROBOTS = "User-agent: *\nDisallow: /\n";
+/**
+ * Only documented GET routes answer, and HEAD on a release's file
+ * (docs/engineering/services-and-feedback.md#SERV-289), and the host's
+ * `robots.txt` (docs/engineering/services-and-feedback.md#SERV-291). No echo of
+ * a request or exception in any response.
+ */
 export async function updates(request: Request, env: Env, deps: Dependencies): Promise<Response> {
   const url = new URL(request.url);
-  if (url.origin !== deps.updatesOrigin || request.method !== "GET" || url.search)
+  const head = request.method === "HEAD";
+  if (url.origin !== deps.updatesOrigin || !(head || request.method === "GET") || url.search)
     return response(404);
+  // Counted as nothing, and asked of no switch, limit, key or store.
+  if (url.pathname === "/robots.txt")
+    return response(200, head ? null : ROBOTS, { "Content-Type": "text/plain; charset=utf-8" });
   // Before anything else answers, so no switch, limit or refusal says the track is there.
   const keyed = await holdsAlphaKey(request, env);
   if (url.pathname.startsWith("/v1/alpha/") && !keyed) return response(404);
@@ -998,6 +1047,8 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
     url.pathname,
   );
   if (!check && !download && !trackCheck && !trackDownload) return response(404);
+  // A check is a copy asking, and counted: only a file answers HEAD.
+  if (head && !download && !trackDownload) return response(404);
   const source = sourceOf(env, deps);
   try {
     if (trackCheck) {
@@ -1059,16 +1110,13 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
         await object.body.cancel();
         return response(502);
       }
+      const headers = fileHeaders(String(object.size));
+      if (head) {
+        await object.body.cancel();
+        return new Response(null, { status: 200, headers });
+      }
       await countFile(env, deps, request, via, version, file);
-      return new Response(object.body, {
-        status: 200,
-        headers: {
-          "Content-Type": "application/octet-stream",
-          "Cache-Control": "no-store",
-          "X-Content-Type-Options": "nosniff",
-          "Content-Length": String(object.size),
-        },
-      });
+      return new Response(object.body, { status: 200, headers });
     }
     if (check) {
       if (env.UPDATES_ENABLED !== "true") return response(503);
@@ -1111,6 +1159,11 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
       await result.body.cancel();
       return response(502);
     }
+    // The headers a GET would answer, from GitHub's own, and none of its body.
+    if (head) {
+      await result.body.cancel();
+      return new Response(null, { status: 200, headers: fileHeaders(length) });
+    }
     let received = 0;
     const stream = result.body.pipeThrough(
       new TransformStream<Uint8Array, Uint8Array>({
@@ -1125,13 +1178,7 @@ export async function updates(request: Request, env: Env, deps: Dependencies): P
       }),
     );
     await countFile(env, deps, request, via, version, file);
-    const headers: Record<string, string> = {
-      "Content-Type": "application/octet-stream",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-    };
-    if (length !== null) headers["Content-Length"] = length;
-    return new Response(stream, { status: 200, headers });
+    return new Response(stream, { status: 200, headers: fileHeaders(length) });
   } catch (error) {
     return response(error instanceof Unavailable ? 502 : 500);
   }

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Button, PopupButton, Sheet } from "../ui";
 import { useAnnouncedStatus } from "../ui/use-announced-status";
 import { canonicalLanguage, languageHelp } from "../workspace/language";
+import { AS_TYPED } from "../ui/as-typed";
 
 export function LanguageSheet({
   language,
@@ -74,6 +75,7 @@ export function LanguageSheet({
         <label className="sheet__field">
           Language code
           <input
+            {...AS_TYPED}
             className="field"
             aria-label="Language code"
             aria-describedby="play-language-help"

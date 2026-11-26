@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  SPDX-FileCopyrightText: 2026 Habiby LLC
+  SPDX-License-Identifier: AGPL-3.0-or-later
+
+  The iPad build's privacy manifest, which App Store Connect requires of an
+  iOS app (docs/engineering/cross-platform.md#PLAT-65).
+
+    NSPrivacyTracking             false: nothing here tracks anyone.
+    NSPrivacyCollectedDataTypes   what the iPad's build sends, as the App
+                                  Store record's privacy answers say it for
+                                  the Mac and the iPad alike
+                                  (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-82):
+                                  usage counts (Product Interaction), crash
+                                  reports (Crash Data) and each batch's
+                                  version, system and error codes (Other
+                                  Diagnostic Data), none of them linked to
+                                  anyone (telemetry/client.rs); and only when
+                                  the writer sends feedback, its words and the
+                                  details they include (Customer Support) and
+                                  the address they give (Email Address),
+                                  which are theirs (feedback/mod.rs). None is
+                                  used for tracking. The bundle's check
+                                  (scripts/check-bundle.mjs) holds a build
+                                  with reports compiled in to these.
+    NSPrivacyAccessedAPITypes     each "required reason" API the binary
+                                  imports, with why. File timestamps: the
+                                  vault reads a file's modification time
+                                  (`stat`, through Rust's `fs::metadata` and
+                                  `read_dir`) for files in the folder the
+                                  writer chose in the picker (3B52.1) and in
+                                  the app's own container (C617.1). The
+                                  bundle's check (scripts/check-bundle.mjs)
+                                  reads the binary's imported symbols and
+                                  refuses one that is not declared here.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCrashData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAnalytics</string>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeCustomerSupport</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeEmailAddress</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>3B52.1</string>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

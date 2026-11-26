@@ -301,8 +301,12 @@ export function FormatDesigner(props: {
   saveRef.current = save;
   const promptRef = useRef(prompt);
   promptRef.current = prompt;
-  useDesignerSaveHandler(() => void saveRef.current(), canSave);
-  // ⌘S where the webview sees it (browser dev; the menu bar takes it natively).
+  // The menu's Save, as the key's below: never under the designer's own prompt.
+  useDesignerSaveHandler(() => {
+    if (promptRef.current === null) void saveRef.current();
+  }, canSave);
+  // ⌘S where the page hears it first: a browser, a Mac and a PC. An iPad's menu
+  // takes it first, and its Save comes through `useDesignerSaveHandler` above.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "s")
@@ -644,6 +648,18 @@ export function FormatDesigner(props: {
                               }
                             />
                           </label>
+                          {key === "action" && (
+                            /* A typing rule, shown on the row for the directions
+                               it governs (docs/app/formatting/formats-and-layout.md#FMT-163). */
+                            <label className="designer__switchrow">
+                              <span>Character names in capitals as you type</span>
+                              <Switch
+                                on={el.capitalizeCastNames}
+                                label={`${label}: character names in capitals as you type`}
+                                onChange={(on) => set((e) => void (e.capitalizeCastNames = on))}
+                              />
+                            </label>
+                          )}
                           <div className="designer__switchrow">
                             <span>Style</span>
                             <PopupButton<ElementFontStyle>

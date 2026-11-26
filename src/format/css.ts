@@ -72,6 +72,24 @@ function emptyParenWrap(sel: string, align: ElementAlign): string[] {
 }
 
 /**
+ * A block whose text ends in a comment: what the format draws after its text
+ * (a closing paren, a suffix) is drawn by the comments' line-end widget instead
+ * (docs/app/writing/comments.md#COMM-77).
+ *
+ * A line ending in a comment ends in a node that is not text, so the editor
+ * puts a placeholder break after it, the caret's place after the comment. The
+ * block's own ::after came after that break, on a line of its own. The widget
+ * stands before the break, so the paren stays on the line and the break keeps
+ * its job.
+ */
+function lineEndAfterComment(sel: string, after: string): string[] {
+  return [
+    `${sel}.pl-ends-in-comment::after { content: none; }`,
+    `${sel} > .pl-line-end::after { content: ${JSON.stringify(after)}; }`,
+  ];
+}
+
+/**
  * The format's physical geometry as custom properties — the page frame, the
  * margins, the header line, the line pitch.
  *
@@ -105,11 +123,20 @@ export function formatToCss(spec: FormatSpec): string {
     `.editor-surface {`,
     ...Object.entries(formatCssVars(spec)).map(([k, v]) => `  ${k}: ${v};`),
     `}`,
+    // The page scales itself by the zoom (`--page-scale`, PlayEditor), never by
+    // CSS `zoom`: iPadOS sets a contenteditable element's type back to its
+    // specified size, so under `zoom` the script's words kept their 100% size
+    // while the sheet around them grew (docs/app/writing/editor-ux.md#EDIT-196).
+    // Each length is the format's times the scale, and the type with them; what
+    // is in `ch`, `em` and `lh` follows the type.
     `.play-page {`,
+    ...Object.entries(formatCssVars(spec)).map(
+      ([k, v]) => `  ${k}: calc(${v} * var(--page-scale, 1));`,
+    ),
     `  width: var(--fmt-page-width);`,
     `  padding: var(--fmt-margin-top) var(--fmt-margin-right) var(--fmt-margin-bottom) var(--fmt-margin-left);`,
     `  font-family: ${spec.type.family};`,
-    `  font-size: ${n(spec.type.size)}pt;`,
+    `  font-size: calc(${n(spec.type.size)}pt * var(--page-scale, 1));`,
     `  line-height: ${n(spec.type.lineHeight)};`,
     `}`,
   );
@@ -145,6 +172,8 @@ export function formatToCss(spec: FormatSpec): string {
       out.push(
         `${sel}::after { content: ${JSON.stringify((el.parenWrap ? ")" : "") + el.suffix)}; }`,
       );
+    const after = (el.parenWrap ? ")" : "") + el.suffix;
+    if (after) out.push(...lineEndAfterComment(sel, after));
     if (el.besideNext) {
       out.push(
         `${sel}.pm-beside { float: left; width: ${n(inchesToCh(spec, col.widthIn))}ch; margin-top: 0; margin-bottom: 0; }`,

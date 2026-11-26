@@ -60,6 +60,16 @@
   font-size: var(--t-mini);
   color: var(--ink-2);
 }
+/* How a play with no scene line is divided: the one place it is said, since
+   the whole play's card is otherwise every other scene's
+   (docs/app/organizing/workspace-model.md#WORK-93). */
+.insp__hint {
+  margin: 0;
+  padding-top: var(--s-2);
+  font-size: var(--t-mini);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
 .insp__group {
   display: flex;
   flex-direction: column;
@@ -172,6 +182,7 @@
 }
 .insp__addtag {
   width: var(--h-mini);
+  height: var(--h-mini);
   padding: 0;
   justify-content: center;
   cursor: pointer;

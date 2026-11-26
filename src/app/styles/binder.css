@@ -432,10 +432,16 @@
   display: none;
   gap: 0.1rem;
 }
-.binder__row:hover .binder__rowactions,
 .binder__row:focus-within .binder__rowactions,
 .binder__row.is-selected .binder__rowactions {
   display: flex;
+}
+/* On hover only where a pointer hovers: a finger's first touch is a hover,
+   and the actions came in under it, over the row's badges, and took the tap. */
+@media (hover: hover) {
+  .binder__row:hover .binder__rowactions {
+    display: flex;
+  }
 }
 .binder__rowactions button {
   display: flex;

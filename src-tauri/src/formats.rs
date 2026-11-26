@@ -19,7 +19,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
-#[cfg(desktop)]
+#[cfg(any(desktop, target_os = "ios"))]
 use tauri_plugin_dialog::DialogExt;
 
 /// A format file is a few kilobytes; anything past this is not one.
@@ -38,7 +38,7 @@ fn formats_dir(app: &AppHandle) -> Option<PathBuf> {
 
 /// A bare `.json` file name: one path component, visible, no separators. A
 /// hand-made format may have any such name, so this is not the id rule.
-fn valid_file_name(name: &str) -> bool {
+pub(crate) fn valid_file_name(name: &str) -> bool {
     name.ends_with(".json")
         && name.len() > ".json".len()
         && name.len() <= 255
@@ -110,8 +110,14 @@ pub async fn save_user_format(
 
 /// Move one format file to the Trash, where the writer can still find it. A
 /// file already gone is not an error: the result the writer asked for holds.
+/// `note` is what the page says of it, kept beside it where the delete goes
+/// to Proscenium’s Trash.
 #[tauri::command]
-pub async fn trash_user_format(app: AppHandle, file_name: String) -> Result<(), String> {
+pub async fn trash_user_format(
+    app: AppHandle,
+    file_name: String,
+    note: Option<String>,
+) -> Result<(), String> {
     if !valid_file_name(&file_name) {
         return Err(format!("\"{file_name}\" is not a format file name"));
     }
@@ -120,26 +126,39 @@ pub async fn trash_user_format(app: AppHandle, file_name: String) -> Result<(), 
     if !path.exists() {
         return Ok(());
     }
-    discard(&path)
+    discard(&app, &path, &file_name, note.as_deref())
 }
 
 #[cfg(not(any(target_os = "ios", target_os = "android")))]
-fn discard(path: &Path) -> Result<(), String> {
+fn discard(_app: &AppHandle, path: &Path, _name: &str, _note: Option<&str>) -> Result<(), String> {
     crate::vault::os_trash(path).map_err(|e| e.to_string())
 }
 
 /// Mobile has no system Trash to hand a file to (and the `trash` crate does not
-/// build there); a format is a small settings file, not writing, so it goes.
+/// build there), so a format goes to Proscenium’s Trash, in a ring of its
+/// own beside the formats folder (trash.rs), and Put Back returns it there.
 #[cfg(any(target_os = "ios", target_os = "android"))]
-fn discard(path: &Path) -> Result<(), String> {
-    fs::remove_file(path).map_err(|e| e.to_string())
+fn discard(app: &AppHandle, path: &Path, name: &str, note: Option<&str>) -> Result<(), String> {
+    let ring = crate::store::app_data_dir(app)
+        .map_err(|e| e.to_string())?
+        .join(crate::trash::FORMATS_RING);
+    let ring = crate::vault::ring::Ring::at(ring);
+    let kept = ring
+        .keep(path, name, note, std::time::SystemTime::now())
+        .map_err(|e| e.to_string())?;
+    // Not removed, it is still where it was: the trash lets its copy go.
+    fs::remove_file(path).map_err(|e| {
+        let _ = ring.forget(&kept);
+        e.to_string()
+    })
 }
 
 /// Read a format file the writer picked in the system's Open panel (a theatre's
-/// style sheet, a colleague's format). Null when they cancel. Nothing is copied
+/// style sheet, a colleague's format), or on an iPad in Files, whose picker
+/// hands over a copy. Null when they cancel. Nothing is copied
 /// here: the frontend validates it, names it, and saves it through
 /// `save_user_format`, so an invalid file never lands in the folder.
-#[cfg(desktop)]
+#[cfg(any(desktop, target_os = "ios"))]
 #[tauri::command]
 pub async fn import_format_file(app: AppHandle) -> Result<Option<UserFormatFile>, String> {
     let handle = app.clone();
@@ -199,14 +218,42 @@ pub async fn export_format_file(
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-/// There is no Open or Save panel to pass a format through on mobile yet.
-#[cfg(mobile)]
+/// On an iPad a format goes out as an export does: through the share sheet,
+/// staged in the app's cache under its own name. Returns that name once it has
+/// gone somewhere, or null when the sheet was dismissed.
+#[cfg(target_os = "ios")]
+#[tauri::command]
+pub async fn export_format_file(
+    app: AppHandle,
+    suggested_name: String,
+    content: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_vault_picker::VaultPickerExt;
+    check_json_object(&content)?;
+    let name = Path::new(&suggested_name)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|n| valid_file_name(n))
+        .unwrap_or_else(|| "format.json".to_string());
+    let staged = crate::export::stage(&app, "formats", &name, content.as_bytes())?;
+    let shared = tauri::async_runtime::spawn_blocking(move || {
+        app.vault_picker()
+            .share_file(staged.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    Ok(shared.completed.then_some(name))
+}
+
+/// There is no Open or Save panel to pass a format through on Android yet.
+#[cfg(target_os = "android")]
 #[tauri::command]
 pub async fn import_format_file(_app: AppHandle) -> Result<Option<UserFormatFile>, String> {
     Err("this platform cannot import a format yet".to_string())
 }
 
-#[cfg(mobile)]
+#[cfg(target_os = "android")]
 #[tauri::command]
 pub async fn export_format_file(
     _app: AppHandle,

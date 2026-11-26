@@ -53,7 +53,22 @@ export {
   duplicateItem,
   commitBinder,
   restoreBinderItem,
+  makeFrontMatterFolder,
+  newPageFile,
 } from "./binder-apply";
+export {
+  SIDE_NAME,
+  backFolderId,
+  backPageItems,
+  frontFolderId,
+  frontPageItems,
+  frontPageSource,
+  hasPageKeys,
+  pageFolderId,
+  pageFolderOf,
+  withoutPageKeys,
+  type PageSide,
+} from "./front-folder";
 export type { BinderContext, ApplyResult } from "./binder-apply";
 
 export {

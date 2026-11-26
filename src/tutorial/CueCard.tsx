@@ -16,7 +16,7 @@
  * it lives inside that sheet's accessible scope; any other sheet hides it
  * until it closes.
  */
-import { keyCap, keyStyle } from "../ui/keys";
+import { keyCap, keyStyle, keys } from "../ui/keys";
 import { forThisSystem } from "../ui/system-words";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -34,15 +34,26 @@ import {
   type MenuEntry,
 } from "../ui";
 import { portalHost } from "../ui/portal-host";
+import { visibleHeight } from "../ui/keyboard-inset";
+import { tapUnderWay } from "../ui/finger";
 import type { Part, Target } from "./coach";
 import { blockPos } from "./ghost";
-import { placeCard, scrollFor, type Band, type Box, type Side } from "./place";
+import { keepInside, placeCard, scrollFor, type Band, type Box, type Side } from "./place";
 import type { Tutorial } from "./useTutorial";
+
+/** A property of an element's style, written only when it is not already the value. */
+function setStyle(el: HTMLElement, property: string, value: string) {
+  if (el.style.getPropertyValue(property) !== value) el.style.setProperty(property, value);
+}
 
 export function Say({ parts }: { parts: Part[] }) {
   const piece = (p: Exclude<Part, string>, i: number) =>
     "key" in p ? (
-      <kbd key={i} className="keycap" aria-label={keyStyle() === "mac" ? p.key : keyCap(p.key)}>
+      <kbd
+        key={i}
+        className="keycap"
+        aria-label={keyStyle() === "pc" ? keyCap(p.key) : keys(p.key)}
+      >
         {keyCap(p.key)}
       </kbd>
     ) : "type" in p ? (
@@ -93,7 +104,8 @@ const first = (selector: string) => [...document.querySelectorAll(selector)].fin
  * pane scrolls, so it shows wherever the pane does.
  */
 function viewOf(el: HTMLElement): Band {
-  const h = window.innerHeight;
+  // What the screen's keyboard leaves of the window (ui/keyboard-inset.ts).
+  const h = visibleHeight();
   let pinned = getComputedStyle(el).position === "sticky";
   for (let p = el.parentElement; p; p = p.parentElement) {
     const s = getComputedStyle(p);
@@ -219,10 +231,7 @@ export function CueCard({ guide: g, editor }: { guide: Tutorial; editor: Editor 
   latest.current = { g, editor };
   const cue = g.cue;
   const sheet = g.ui.sheet;
-  const inSheet =
-    !!g.step &&
-    ((sheet === "export" && g.step.area === "export") ||
-      (sheet === "opening-pages" && g.step.id === "opening-notes"));
+  const inSheet = !!g.step && sheet === "export" && g.step.area === "export";
   const visible = !!g.attempt && (g.inPractice || g.leaving) && !g.open && (!sheet || inSheet);
   /** Where the card last stood, and the target last scrolled into view. */
   const placed = useRef<{
@@ -241,6 +250,10 @@ export function CueCard({ guide: g, editor }: { guide: Tutorial; editor: Editor 
       frame = requestAnimationFrame(place);
       const el = card.current;
       if (!el) return;
+      // Held still while a finger's tap is on its way to its click: a card
+      // that moved under the finger had the click land on its words, not the
+      // button tapped (ui/finger.ts). It goes where it belongs on the next frame.
+      if (placed.current && tapUnderWay()) return;
       const { g, editor } = latest.current;
       const target = g.cue?.target ?? { kind: "none" as const };
       const found = g.finished ? null : resolveTarget(target, editor);
@@ -254,7 +267,7 @@ export function CueCard({ guide: g, editor }: { guide: Tutorial; editor: Editor 
         // and one just under the toolbar hides what comes before it (the speaker's name).
         // Anything else is judged by the part of its pane clear of sticky chrome.
         const r = found.box,
-          h = window.innerHeight,
+          h = visibleHeight(),
           room = el.offsetHeight + 48;
         const block =
           target.kind === "line"
@@ -264,7 +277,8 @@ export function CueCard({ guide: g, editor }: { guide: Tutorial; editor: Editor 
             : scrollFor(r, viewOf(found.el));
         if (block) found.el.scrollIntoView({ block, inline: "nearest" });
       }
-      const bounds = { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+      // Placed in what the screen's keyboard leaves of the window, never under it.
+      const bounds = { left: 0, top: 0, width: window.innerWidth, height: visibleHeight() };
       // A finished step keeps the card where it was, so the check appears where the work happened.
       const at = found
         ? placeCard(
@@ -275,22 +289,27 @@ export function CueCard({ guide: g, editor }: { guide: Tutorial; editor: Editor 
             found.avoid,
           )
         : g.cue?.tone === "done" && placed.current && !g.finished
-          ? placed.current
+          ? keepInside(placed.current, { width: el.offsetWidth, height: el.offsetHeight }, bounds)
           : placeCard(null, { width: el.offsetWidth, height: el.offsetHeight }, bounds);
       placed.current = at;
-      el.style.left = `${Math.round(at.left)}px`;
-      el.style.top = `${Math.round(at.top)}px`;
-      el.dataset.side = at.side ?? "none";
-      if (at.arrow !== null) el.style.setProperty("--arrow", `${Math.round(at.arrow)}px`);
+      // Every frame asks where the card goes; only what moved is written. A
+      // write each frame, the same or not, kept the card changing under a
+      // finger, and on an iPad a tap on it or near it was held back from its
+      // click, WebKit taking it for a hover that showed something.
+      setStyle(el, "left", `${Math.round(at.left)}px`);
+      setStyle(el, "top", `${Math.round(at.top)}px`);
+      const side = at.side ?? "none";
+      if (el.dataset.side !== side) el.dataset.side = side;
+      if (at.arrow !== null) setStyle(el, "--arrow", `${Math.round(at.arrow)}px`);
       const r = ring.current;
       if (r) {
         if (found?.ring) {
-          r.style.display = "block";
-          r.style.left = `${found.box.left - 3}px`;
-          r.style.top = `${found.box.top - 3}px`;
-          r.style.width = `${found.box.width + 6}px`;
-          r.style.height = `${found.box.height + 6}px`;
-        } else r.style.display = "none";
+          setStyle(r, "display", "block");
+          setStyle(r, "left", `${found.box.left - 3}px`);
+          setStyle(r, "top", `${found.box.top - 3}px`);
+          setStyle(r, "width", `${found.box.width + 6}px`);
+          setStyle(r, "height", `${found.box.height + 6}px`);
+        } else setStyle(r, "display", "none");
       }
     };
     place();

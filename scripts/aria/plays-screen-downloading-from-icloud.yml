@@ -1,0 +1,23 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Settings"
+- main:
+  - heading "sample-vault" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - button "Import a Draft…"
+  - heading "Plays" [level=2]
+  - paragraph: Downloading your plays from iCloud Drive…
+  - paragraph: Your plays live in iCloud Drive and appear on your other devices.
+  - table "Plays":
+    - row "Play Progress Status Modified Actions":
+      - columnheader "Play"
+      - columnheader "Progress"
+      - columnheader "Status"
+      - columnheader "Modified"
+      - columnheader "Actions"
+  - button "Proscenium’s Trash"
+- contentinfo: /dev/sample-vault
+- status
+- alert

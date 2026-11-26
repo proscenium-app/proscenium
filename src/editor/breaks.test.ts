@@ -9,7 +9,13 @@
 import { describe, expect, it } from "bun:test";
 import { getSchema } from "@tiptap/core";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
-import { canEmphasize, canSoftBreak, pageBreakTr, sigilAfterBreak } from "./breaks";
+import {
+  canEmphasize,
+  canSoftBreak,
+  horizontalRuleTr,
+  pageBreakTr,
+  sigilAfterBreak,
+} from "./breaks";
 import { fromEditorDoc } from "./bridge";
 import { playExtensions } from "./schema";
 import { parse, serialize } from "../fountain";
@@ -165,6 +171,48 @@ describe("the forced page break", () => {
     });
     expect(text).toContain("===");
     expect(parse(text).doc.content.some((b) => b.type === "pageBreak")).toBe(true);
+  });
+});
+
+/**
+ * A horizontal line (docs/app/writing/editor-ux.md#EDIT-213) goes where a page
+ * break goes, and is the node Fountain's `---` round-trips.
+ */
+describe("the horizontal line", () => {
+  const para = (type: string, text: string) => ({
+    type,
+    content: [{ type: "text", text }],
+  });
+
+  it("replaces the empty line the caret is on", () => {
+    const state = stateAt(
+      [para("action", "She waits."), { type: "action" }, para("action", "He does not.")],
+      1,
+    );
+    const next = state.apply(horizontalRuleTr(state)!);
+    expect(types(next)).toEqual(["action", "horizontalRule", "action"]);
+    expect(next.selection.$from.parent.textContent).toBe("He does not.");
+    expect(next.selection.$from.parentOffset).toBe(0);
+  });
+
+  it("lands after a line with words in it, never inside one", () => {
+    const state = stateAt([para("dialogue", "I never left.")], 0, 4);
+    const next = state.apply(horizontalRuleTr(state)!);
+    expect(types(next)).toEqual(["dialogue", "horizontalRule", "action"]);
+    expect(next.doc.child(0).textContent).toBe("I never left.");
+    // At the end of the play the caret has a line to write on after it.
+    expect(next.selection.$from.parent.type.name).toBe("action");
+  });
+
+  it("serializes to `---` and parses back", () => {
+    const state = stateAt([para("action", "She waits."), { type: "action" }], 1);
+    const next = state.apply(horizontalRuleTr(state)!);
+    const text = serialize({
+      frontMatter: {},
+      doc: fromEditorDoc(next.doc.toJSON() as Doc),
+    });
+    expect(text).toBe("She waits.\n\n---\n");
+    expect(parse(text).doc.content.map((b) => b.type)).toContain("horizontalRule");
   });
 });
 

@@ -104,7 +104,7 @@ describe("the sheets the cast binds to (docs/app/organizing/workspace-model.md#W
     store.clear();
     store.set("Characters/Mara.md", sheet);
     store.set("Archive/First draft/Characters/mara.md", sheet);
-    const appearances = new Map([["MARA", [{ ordinal: 1, label: "Sc 1" }]]]);
+    const appearances = new Map([["MARA", [{ ordinal: 1, label: "Sc 1", speeches: 1 }]]]);
 
     const out = await syncAppearances({ binder, appearances });
 

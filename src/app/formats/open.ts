@@ -29,13 +29,22 @@ export function openFormatDesigner(request: DesignerRequest): void {
 }
 
 /**
- * The menu bar's Save while the designer is up. macOS hands ⌘S to the menu bar
- * before the webview sees it, so without this the key would flush the script
+ * The menu's Save while the designer is up. Where the menu takes ⌘S before
+ * the page hears it, an iPad's, the key would otherwise flush the script
  * behind the sheet instead of saving the format in front of it. True when the
  * designer took the save.
  */
 export function saveInFormatDesigner(): boolean {
   return saver?.() ?? false;
+}
+
+/**
+ * The designer is up and takes a Save: the menu's Save may reach it over the
+ * designer's own sheet (`menu-over-layers.ts`), where an iPad's menu takes ⌘S
+ * before the page hears it.
+ */
+export function formatDesignerUp(): boolean {
+  return saver !== null;
 }
 
 /** The designer registers its Save while it is open. */

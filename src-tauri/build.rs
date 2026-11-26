@@ -10,9 +10,14 @@ fn main() {
     // Whether this build sends reports (telemetry/client.rs), as one cfg that
     // both its behaviour and its mark in the binary read: scripts/check-bundle.mjs
     // `--reports` reads the mark, so a release's privacy answers and its binary
-    // cannot part.
+    // cannot part. A Mac's and a PC's release build says so in its
+    // environment; an iPad's with the `reports` feature, since Xcode builds its
+    // Rust through the Tauri CLI, which hands Cargo its features and not the
+    // environment (scripts/release-ios.mjs).
     println!("cargo:rustc-check-cfg=cfg(proscenium_reports)");
-    if env::var("PROSCENIUM_REPORTS").as_deref() == Ok("1") {
+    if env::var("PROSCENIUM_REPORTS").as_deref() == Ok("1")
+        || env::var_os("CARGO_FEATURE_REPORTS").is_some()
+    {
         println!("cargo:rustc-cfg=proscenium_reports");
     }
     // A Windows track build's whole version (version.rs).

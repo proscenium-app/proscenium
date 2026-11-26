@@ -257,6 +257,18 @@
   white-space: pre;
   line-height: var(--fmt-line);
 }
+/* A horizontal line: its row, with a hairline through the middle, drawn as a
+   border so forced colours keep it (stage-format.css). */
+.exportpanel__rule {
+  display: flex;
+  align-items: center;
+  height: var(--fmt-line);
+}
+.exportpanel__rule::before {
+  content: "";
+  flex: 1;
+  border-top: 1px solid currentColor;
+}
 
 /* The choices keep their width and the hint beside the buttons wraps instead:
    a tick wrapping away from "Include" reads as a different question. Wide
@@ -281,6 +293,17 @@
 .exportpanel__optlabel {
   font-size: var(--t-small);
   color: var(--ink-2);
+}
+/* The ticks for the pages after the script: a row of their own under the front
+   sheets', led by what they are. A 14px tick needs 24px to the one above it
+   (WCAG 2.2 target size), and the row gap alone leaves 22. */
+.exportpanel__after {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4) var(--s-6);
+  flex-basis: 100%;
+  margin-top: var(--s-3);
 }
 .exportpanel__language {
   display: flex;
@@ -324,6 +347,12 @@
 }
 .exportpanel__foothint {
   text-align: right;
+}
+/* A narrow window keeps Export's buttons and leaves out the hint beside them. */
+@media (max-width: 699px) {
+  .exportpanel__foothint {
+    display: none;
+  }
 }
 .exportpanel__check input {
   margin: 0.15rem 0 0;

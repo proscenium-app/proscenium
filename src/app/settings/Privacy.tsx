@@ -7,6 +7,10 @@
  * used and crashes go; nothing of the writing does; switching off drops what
  * was waiting. The update check is not a report and has its own switch, so the
  * section says where it is rather than let "off" read as "silent".
+ *
+ * A copy built without reports (a local build, and one the reports service
+ * does not take yet) has no switch to offer: it says plainly that it sends
+ * none, rather than show a switch that would change nothing.
  */
 import { systemWords } from "../../ui/system-words";
 import { useUpdateState } from "../updates";
@@ -14,26 +18,39 @@ import { Button, useToast } from "../../ui";
 import { settings as ipc } from "../../storage/ipc";
 import { Group, Note, SectionBody, SwitchRow } from "./parts";
 import { updateSettings, useSettings } from "../../ui/settings-store";
+import { NO_REPORTS, useReportsConfigured } from "../privacy-notice";
 
 export function PrivacySlot() {
   const { shareAnalytics } = useSettings();
   // Store copies have no automatic updater setting.
   const checksForUpdates = useUpdateState().kind !== "unavailable";
+  // Until the copy answers, it is taken to send them, as nearly every copy does.
+  const sends = useReportsConfigured() !== false;
   const toast = useToast();
   return (
     <SectionBody title="Privacy">
       <Group label="Reports">
-        <SwitchRow
-          label="Share anonymous usage and crash reports"
-          on={shareAnalytics}
-          onChange={(on) => updateSettings({ shareAnalytics: on })}
-          note={`Counts launches and features used, with the Proscenium and ${systemWords().system} versions and chip. Crash reports include stack traces and the kind of failure. Never includes your writing, titles, character names, file names, paths, error messages or memory dumps.`}
-        />
-        <Note>
-          Turning this off also discards reports that haven’t been sent.
-          {checksForUpdates && " Checking for updates is a separate setting, in Updates."}
-          {" Send Feedback works with reports off."}
-        </Note>
+        {sends ? (
+          <>
+            <SwitchRow
+              label="Share anonymous usage and crash reports"
+              on={shareAnalytics}
+              onChange={(on) => updateSettings({ shareAnalytics: on })}
+              note={`Counts launches and features used, with the Proscenium and ${systemWords().system} versions and chip. Crash reports include stack traces and the kind of failure. Never includes your writing, titles, character names, file names, paths, error messages or memory dumps.`}
+            />
+            <Note>
+              Turning this off also discards reports that haven’t been sent.
+              {checksForUpdates && " Checking for updates is a separate setting, in Updates."}
+              {" Send Feedback works with reports off."}
+            </Note>
+          </>
+        ) : (
+          <Note>
+            {NO_REPORTS}
+            {checksForUpdates && " Checking for updates is a separate setting, in Updates."}
+            {" Send Feedback works without them."}
+          </Note>
+        )}
         <Button
           size="small"
           onClick={() =>

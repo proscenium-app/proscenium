@@ -153,6 +153,10 @@ function styleXml(style: ParagraphStyle, doc: WpDocument, g: Geometry): string {
     // The format's minimums exactly (docs/app/formatting/formats-and-layout.md#FMT-148).
     `fo:orphans="${style.orphans}"`,
     `fo:widows="${style.widows}"`,
+    // A horizontal line is the paragraph's foot (docs/app/writing/editor-ux.md#EDIT-213).
+    ...(style.rule
+      ? [`fo:border-bottom="${points(0.5)} solid #000000"`, `fo:padding-bottom="${NONE}"`]
+      : []),
   ];
   const tabs = style.furniture
     ? `<style:tab-stops><style:tab-stop style:position="${inches(g.blockIn / 2)}" style:type="center"/>` +
@@ -475,8 +479,9 @@ export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
   const g: Geometry = { pitchPt: linePitchIn(spec) * 72, blockIn: textBlockWidthIn(spec), names };
   const auto = new AutoStyles();
 
-  // Master pages: the opening sheets bare, the script with its furniture, and
-  // the script's first page without what the format leaves off it.
+  // Master pages: the opening sheets bare, the script with its furniture, the
+  // script's first page without what the format leaves off it, and, when the
+  // play has pages after the script, those bare as the opening sheets are.
   const script = doc.sections.filter((s) => s.kind === "script");
   const hasHeader = script.some((s) => s.header);
   const hasFooter = script.some((s) => s.footer);
@@ -486,6 +491,7 @@ export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
   const firstMaster = bare && (bare.header || bare.footer) ? "Script_20_First" : "Script";
   const sample = script[0];
 
+  const hasBack = doc.sections.some((s) => s.kind === "back");
   const masters =
     `<style:master-page style:name="Front" style:display-name="Opening Pages" style:page-layout-name="PageFront"/>` +
     `<style:master-page style:name="Script" style:page-layout-name="PageScript">` +
@@ -505,6 +511,10 @@ export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
           ? `<style:footer>${furnitureLine("ftr", sample?.footer ?? null, spec.footer, doc, names.get("footer")!)}</style:footer>`
           : "") +
         `</style:master-page>`
+      : "") +
+    // Last, so a play with no page after the script has the master pages it had.
+    (hasBack
+      ? `<style:master-page style:name="Back" style:display-name="Closing Pages" style:page-layout-name="PageFront"/>`
       : "");
 
   const body: string[] = [variableDecls(doc)];
@@ -513,11 +523,13 @@ export function writeOdt(doc: WpDocument, fonts: FontFaces): Uint8Array {
       master:
         section.kind === "front"
           ? "Front"
-          : section.firstPageNumber !== undefined
-            ? section.bareFirstPage
-              ? firstMaster
-              : "Script"
-            : null,
+          : section.kind === "back"
+            ? "Back"
+            : section.firstPageNumber !== undefined
+              ? section.bareFirstPage
+                ? firstMaster
+                : "Script"
+              : null,
       pageNumber: section.kind === "script" ? (section.firstPageNumber ?? null) : null,
       sets: variableSets(section, doc),
     };

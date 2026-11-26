@@ -1,0 +1,30 @@
+- dialog "Change Template"
+  - heading "Change Template" [level=2]
+  - group "BEFORE THE SCRIPT"
+    - radio "Title Page"
+    - radio "Dedication"
+    - radio "Epigraph"
+    - radio "Contents"
+    - radio "Characters" [checked]
+    - radio "Characters & Setting"
+    - radio "Setting"
+    - radio "A Note on the Text"
+    - radio "Musical Numbers"
+  - group "AFTER THE SCRIPT"
+    - radio "Production Notes"
+    - radio "Production History"
+    - radio "Author's Note"
+    - radio "About the Author"
+    - radio "Acknowledgments"
+    - radio "Glossary"
+  - group "EITHER"
+    - radio "Blank Page"
+  - paragraph
+  - status [live=polite]
+  - tablist "Where the page goes"
+    - tab "Before the script" [selected]
+    - tab "After the script"
+  - button "Cancel"
+  - button "Use Template" [disabled]
+  - status [live=polite]
+  - alert [live=assertive]

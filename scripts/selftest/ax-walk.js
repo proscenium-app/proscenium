@@ -30,8 +30,12 @@ const { nodeId: start } = await D.querySelector(doc.root.nodeId, selector);
 if (!start) return JSON.stringify({ error: `nothing matches ${selector}` });
 
 // A toast is timing, not the surface, and its words went through the
-// announcer: its subtree is left out, as smoke leaves it out.
-const { nodeIds: toasts = [] } = await D.querySelectorAll(doc.root.nodeId, ".toast").catch(() => ({}));
+// announcer: its subtree is left out, as smoke leaves it out. The toast and
+// everything in it, by name: the toast itself is a plain `div`, no object in
+// WebKit's tree, so its button is a child of whatever holds the toast, and
+// leaving out the toast alone left the button in. Fifteen trees then held a
+// "Dismiss" or "Undo" that is on screen for six seconds.
+const { nodeIds: toasts = [] } = await D.querySelectorAll(doc.root.nodeId, ".toast, .toast *").catch(() => ({}));
 const skip = new Set(toasts);
 
 const decoder = new DOMParser();

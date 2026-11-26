@@ -12,6 +12,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { collectPmComments, commentThreads } from "../comments/plugin";
 import { fromEditorDoc, toEditorDoc } from "../editor/bridge";
 import { sceneOrdinalAt } from "../editor/caret-scene";
+import { sceneStarts, wholeScript } from "../editor/scene-starts";
 import { playExtensions } from "../editor/schema";
 import { extractScenes, parse, type Doc } from "../fountain";
 import { countSceneComments } from "./scene-comments";
@@ -139,11 +140,38 @@ describe("the comments in a scene", () => {
     expect(total).toBe(threads.length - 2);
   });
 
-  it("has nothing to count where the inspector shows no scene", () => {
-    const doc = page("Lights. [[one]]", "@MARA\nDark.[[two]]");
+  it("counts a script no scene line divides as one scene, the whole of it", () => {
+    // A short play in one place often has no heading anywhere
+    // (docs/app/organizing/workspace-model.md#WORK-93). The outline holds it
+    // as one card; the caret used to be in no scene anywhere in it, so the
+    // inspector said "No scene here" and counted nothing.
+    const doc = page("Lights. [[one]]", "@MARA\nDark.[[todo: two]]", "@ODILE\nStill.[[three]]");
     const threads = commentThreads(collectPmComments(doc));
-    expect(threads).toHaveLength(2);
-    // No scene line of either kind: the caret is in no scene.
+    expect(threads).toHaveLength(3);
+    expect(outline(doc)).toHaveLength(1);
+    expect(wholeScript(doc)).toBe(true);
+    expect(sceneStarts(doc)).toEqual([0]);
+    for (const thread of threads) expect(sceneOrdinalAt(doc, thread.root.pos)).toBe(0);
+    expect(sceneOrdinalAt(doc, 0)).toBe(0);
+    expect(sceneOrdinalAt(doc, doc.content.size)).toBe(0);
+    expect(counted(doc)).toEqual([[null, "", 3, 1]]);
+    // An act title divides nothing: the play under it is still one scene.
+    const act = page("# ACT ONE", "Lights. [[one]]");
+    expect(sceneStarts(act)).toEqual([0]);
+    expect(counted(act)).toEqual([[null, "", 1, 0]]);
+  });
+
+  it("has nothing to count where the inspector shows no scene", () => {
+    // A script with no words in it is no scene, as the outline has no card:
+    // a new script is one empty line on the page.
+    expect(extractScenes(parse("").doc)).toEqual([]);
+    const empty = schema.node("doc", null, [schema.nodes.action.create()]);
+    expect(wholeScript(empty)).toBe(false);
+    expect(sceneStarts(empty)).toEqual([]);
+    expect(sceneOrdinalAt(empty, 0)).toBeNull();
+    // Above the first scene of a divided one.
+    const doc = page("Lights. [[one]]", "## SCENE 1", "@MARA\nDark.[[two]]");
+    const threads = commentThreads(collectPmComments(doc));
     expect(sceneOrdinalAt(doc, threads[0].root.pos)).toBeNull();
     expect(countSceneComments(doc, threads, null)).toEqual({ total: 0, todo: 0 });
     // A scene the script no longer has.

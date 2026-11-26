@@ -119,7 +119,14 @@
   border-radius: var(--r-control-sm);
 }
 
-/* Pull-down: a button plus a hairline divider and a chevron ("New Play ▾"). */
+/* Pull-down: a button plus a hairline divider and a chevron ("New Play ▾").
+   The divider and the chevron are one half, which opens the menu. */
+.btn__more {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-3);
+}
 .btn__divider {
   width: 1px;
   align-self: stretch;
@@ -280,7 +287,7 @@
 /* Switch --------------------------------------------------------------- */
 .switch {
   width: 38px;
-  height: var(--h-small);
+  height: var(--h-track);
   flex: none;
   padding: var(--s-1);
   border: none;
@@ -306,6 +313,12 @@
 }
 .switch.is-on {
   background: var(--accent);
+}
+/* A switch that waits on another: dimmed, and its note says which. The label
+   beside it keeps its ink, since the note beneath it is read either way. */
+.switch:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .switch.is-on .switch__knob {
   transform: translateX(16px);
@@ -351,6 +364,15 @@
   background: var(--accent);
   border-color: transparent;
   color: var(--on-accent);
+}
+/* The tick is drawn while the box is on and gone the moment a click turns it
+   off. Hit, it was the click's target, and WebKit's <label> checks the target
+   after the click: no longer inside the box, the click was sent to the box
+   again, which ticked itself back. So a ticked box in a label (Export's
+   Include and Anonymous copy) could not be unticked on its tick in the Mac or
+   iPad app. The box itself takes the click. */
+.checkbox svg {
+  pointer-events: none;
 }
 .checkbox:disabled {
   background: var(--track);
@@ -484,7 +506,7 @@
 
 /* Chips, capsules, badges, meters -------------------------------------- */
 .chip {
-  height: var(--h-mini);
+  height: var(--h-badge);
   padding: 0 var(--s-4);
   display: inline-flex;
   align-items: center;
@@ -530,7 +552,7 @@
 }
 
 .capsule {
-  height: var(--h-mini);
+  height: var(--h-badge);
   padding: 0 var(--s-4);
   display: inline-flex;
   align-items: center;
@@ -617,6 +639,23 @@
  * drew behind the sheet it belonged to, and a smoke check that only asked
  * whether `.menu` existed passed straight through.
  */
+/* A tooltip a finger can read (src/ui/TouchTip.tsx): a badge's news, shown
+   beside it on a tap, where a pointer would have rested for its title. */
+.touchtip {
+  position: fixed;
+  z-index: 76;
+  max-width: min(320px, calc(100vw - 12px));
+  padding: var(--s-3) var(--s-4);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-menu);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--sh-menu);
+  font-size: var(--t-small);
+  line-height: 1.35;
+  white-space: pre-line;
+  pointer-events: none;
+}
 .menu {
   position: fixed;
   z-index: 75;
@@ -803,6 +842,30 @@
 .modal-scrim--centred {
   align-items: center;
 }
+/* A window too narrow for a sheet with room either side (a third of a Split
+   View, a small Stage Manager window): the sheet takes nearly all of it. */
+@media (max-width: 699px) {
+  .modal-scrim {
+    padding-left: var(--s-3);
+    padding-right: var(--s-3);
+  }
+  /* Its buttons go onto a second row rather than past the sheet's side,
+     and a foot taller than the sheet can hold (Export's options) scrolls
+     within itself rather than run its buttons off the sheet's bottom. */
+  .sheet__foot {
+    flex-wrap: wrap;
+    padding-left: var(--s-5);
+    padding-right: var(--s-5);
+    max-height: 45vh;
+    overflow-y: auto;
+  }
+  /* And a head that wraps into many rows (Export's) does the same, so the
+     two together never outgrow the sheet. */
+  .sheet__head {
+    max-height: 35vh;
+    overflow-y: auto;
+  }
+}
 /* A sheet attaches under the toolbar, macOS's document-sheet position. */
 .sheet {
   background: var(--paper);
@@ -820,6 +883,17 @@
 .sheet--floating {
   border-radius: var(--r-sheet);
   margin: auto;
+}
+/* A floating sheet's close button: a window's ×, at the top left on a Mac
+   and an iPad, at the top right on a PC (Sheet.tsx). It sits a step into the
+   heading's padding so the title keeps its line. */
+.sheet__close {
+  margin-left: calc(-1 * var(--s-4));
+  margin-right: calc(-1 * var(--s-3));
+}
+.sheet__close--right {
+  margin-left: auto;
+  margin-right: calc(-1 * var(--s-4));
 }
 @keyframes sheet-drop {
   from {

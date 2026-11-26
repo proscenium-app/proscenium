@@ -11,6 +11,7 @@ import { startSystemCaret } from "./app/settings/system-caret";
 import { pageErrorSignal } from "./diagnostics/page-error";
 import { platform, telemetry } from "./storage/ipc";
 import { setKeyStyle } from "./ui/keys";
+import { setSystemTraits } from "./ui/system-traits";
 import { setSystemWords } from "./ui/system-words";
 import "./app/styles.css";
 
@@ -24,18 +25,6 @@ applyStoredAccent();
 // Follow Mac asks the Mac for its accent now, and again whenever the window comes forward.
 startSystemAccent();
 startSystemCaret();
-
-/*
- * macOS draws its traffic lights OVER the toolbar (`titleBarStyle: Overlay` in
- * tauri.conf.json), so the toolbar's left group holds 70px clear for them.
- *
- * Gated on BOTH the platform and the native shell. A media query cannot ask
- * "is this macOS", and browser dev runs in Chrome on the same Mac — where
- * there is no overlay and the reserve would be a 70px hole with nothing in it.
- */
-if (isTauri() && /Mac/i.test(navigator.platform || navigator.userAgent)) {
-  document.documentElement.classList.add("is-macos");
-}
 
 /*
  * A boot failure has to say so.
@@ -106,6 +95,29 @@ void platform
   .then((caps) => {
     setKeyStyle(caps.keys);
     setSystemWords(caps.words);
+    setSystemTraits({
+      menuBar: caps.menuBar !== false,
+      systemSpelling: caps.systemSpelling !== false,
+      windowDrag: caps.windowDrag !== false,
+      closeAt: caps.closeAt === "right" ? "right" : "left",
+    });
+    /* Where the system's spelling may not run (an iPad), no field has spell
+       checking on: WebKit turns smart quotes and dashes off only for a field
+       whose spell checking is off, and iPadOS's Smart Punctuation would
+       otherwise rewrite a quote or a dash as it is typed, in the play's bytes,
+       where no rule can undo it. A Mac turns those substitutions off for the
+       whole app instead (src-tauri/src/smartsubs.rs). Every field inherits
+       this from the body, sheets and menus included; a field that set
+       spellcheck="true" would turn it back on, and none does. */
+    if (caps.systemSpelling === false) document.body.spellcheck = false;
+    /* macOS draws its traffic lights OVER the toolbar (`titleBarStyle:
+       Overlay` in tauri.conf.json), so the toolbar's left group holds 70px
+       clear for them, and a sheet keeps a strip of title bar above it. From
+       the record, never the user agent: an iPad's WebKit says it is a Mac's,
+       and an iPad has no traffic lights. And only in the native shell:
+       browser dev runs in a browser on the same Mac, with no overlay, where
+       the reserve would be a 70px hole with nothing in it. */
+    if (isTauri() && caps.titleBarOverlay) document.documentElement.classList.add("is-macos");
   })
   .catch(() => {})
   .finally(render);

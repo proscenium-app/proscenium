@@ -17,11 +17,13 @@
  * expectation from the run that saw it: the run's evidence, which the build
  * host keeps (scripts/ci-evidence.mjs, `~/.proscenium/ci/evidence/<run>-<attempt>/selftest/`),
  * holds every tree the native pass read, per scheme
- * (`native/aria/<surface>.<scheme>.yml`), whether it matched or not. On the
+ * (`native/aria/<surface>.<scheme>.yml`), whether it matched or not: each
+ * surface in light and, where it stood, in dark, or from a dark launch of
+ * its act where the act has one. On the
  * build host it is read in place; anywhere else it is copied over SSH from
  * the host the `mini` git remote names, since this repository names no
  * machine. This copies them in, as `<surface>.yml` and a
- * `<surface>.dark.yml` where the dark pass reads the surface otherwise, and
+ * `<surface>.dark.yml` where the dark scheme reads the surface otherwise, and
  * removes the files no surface read, so the folder is exactly what one full
  * run of the checks saw. Read the diff
  * before committing it: it is what VoiceOver is now told.
@@ -248,19 +250,20 @@ try {
     process.exit(1);
   }
   const report = JSON.parse(readFileSync(join(kept, "native", "report.json"), "utf8"));
+  // The passes the run was to make (`planned`; a run from before it, two).
   const unfinished =
     (report.passes ?? []).some((p) => p.unfinished || p.interrupted) ||
-    (report.passes ?? []).length < 2;
+    (report.passes ?? []).length < (report.planned?.length ?? 2);
   if (unfinished) {
     console.error(
-      `run ${run}'s native pass did not finish both schemes: its trees are not the whole set`,
+      `run ${run}'s native pass did not finish every pass: its trees are not the whole set`,
     );
     process.exit(1);
   }
   const to = join(ROOT, "scripts", "aria", "native");
   // The run keeps each surface's tree per scheme (<name>.light.yml and
-  // <name>.dark.yml; older runs, one <name>.yml). The light pass is the file;
-  // the dark pass gets its own only where it reads the surface otherwise.
+  // <name>.dark.yml; older runs, one <name>.yml). The light reading is the
+  // file; the dark one gets its own only where it reads the surface otherwise.
   const trees = new Map();
   const take = (dir, only = () => true) => {
     for (const f of readdirSync(dir).filter((f) => f.endsWith(".yml"))) {

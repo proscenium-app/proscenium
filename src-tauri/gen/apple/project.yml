@@ -2,8 +2,7 @@ name: proscenium
 options:
   bundleIdPrefix: org.habiby.proscenium
   deploymentTarget:
-    iOS: 14.0
-fileGroups: [../../src]
+    iOS: 17.0
 configs:
   debug: debug
   release: release
@@ -36,10 +35,22 @@ targets:
         buildPhase: resources
         type: folder
       - path: LaunchScreen.storyboard
+      # The app's icon is the Mac's own Icon Composer document, which Xcode
+      # draws full-bleed for the iPad, light, dark and tinted (scripts/make-icon.ts).
+      # xcodegen 2.46 writes its file type as `wrapper.icon`, which the asset
+      # compiler passes over: after generating, the project says
+      # `folder.iconcomposer.icon`, Xcode 26's own type for it.
+      - path: ../../icons/Proscenium.icon
+        buildPhase: resources
     info:
       path: proscenium_iOS/Info.plist
       properties:
+        # Its one encryption is HTTPS, which is exempt, so App Store Connect
+        # asks no export-compliance question of a build before TestFlight has it.
+        ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
@@ -51,10 +62,20 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 1.0.5
-        CFBundleVersion: "1.0.5"
+        CFBundleShortVersionString: 1.1.0
+        CFBundleVersion: "1.1.0"
     entitlements:
       path: proscenium_iOS/proscenium_iOS.entitlements
+      properties:
+        # The app's own iCloud Drive container, the Mac's: iCloud Drive ›
+        # Proscenium on every device (docs/engineering/cross-platform.md#PLAT-8).
+        # The iPad's App Store profile carries it, as the App ID does.
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.org.habiby.proscenium
+        com.apple.developer.icloud-services:
+          - CloudDocuments
+        com.apple.developer.ubiquity-container-identifiers:
+          - iCloud.org.habiby.proscenium
     scheme:
       environmentVariables:
         RUST_BACKTRACE: full
@@ -62,6 +83,8 @@ targets:
     settings:
       base:
         ENABLE_BITCODE: false
+        ASSETCATALOG_COMPILER_APPICON_NAME: Proscenium
+        TARGETED_DEVICE_FAMILY: 2
         ARCHS: [arm64]
         VALID_ARCHS: arm64 
         LIBRARY_SEARCH_PATHS[arch=x86_64]: $(inherited) $(PROJECT_DIR)/Externals/x86_64/$(CONFIGURATION) $(SDKROOT)/usr/lib/swift $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/$(PLATFORM_NAME) $(DEVELOPER_DIR)/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift-5.0/$(PLATFORM_NAME)

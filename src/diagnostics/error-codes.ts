@@ -69,10 +69,11 @@ const WORKSPACE_PHRASES: readonly [RegExp, ErrorCode][] = [
   [/^(PDF export|Printing) failed:.*\bfont\b/is, "E-EXPORT-FONT"],
   [/^PDF export failed|script open to export/i, "E-EXPORT-PDF"],
   [/^Printing failed|script open to print/i, "E-PRINT"],
-  // A .docx or .odt export (docs/app/formatting/formats-and-layout.md#FMT-145).
+  // A .docx, .odt or .rtf export (docs/app/formatting/formats-and-layout.md#FMT-145),
+  // or the script as one .fountain (docs/app/formatting/formats-and-layout.md#FMT-171).
   // A code of its own would add one to the published list, which is the maintainer's
   // call (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-64); until then it is honestly "other".
-  [/^\.(?:docx|odt) export failed/i, "E-OTHER"],
+  [/^(?:\.(?:docx|odt|rtf)|Fountain) export failed/i, "E-OTHER"],
   [
     /Choose the folder that holds your plays|Choose a folder that isn't inside a play|Choose a folder only one of them keeps|Choose the Plays folder itself/,
     "E-FOLDER-REFUSED",
@@ -86,7 +87,8 @@ const WORKSPACE_PHRASES: readonly [RegExp, ErrorCode][] = [
   [/couldn't be saved|was still changing|typed in .* couldn't be kept/, "E-SAVE"],
   [/binder operation failed|file move needs recovery|file move needs to finish/, "E-BINDER"],
   [
-    /opened before .* so nothing was|in a play that isn't open any more|changed while that change was being saved/,
+    // An Undo overtaken too: what was trashed cannot go back where something stands now.
+    /opened before .* so nothing was|in a play that isn't open any more|changed while that change was being saved|was not put back: something is there now/,
     "E-ACTION-STALE",
   ],
   [

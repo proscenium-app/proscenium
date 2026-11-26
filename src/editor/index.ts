@@ -37,3 +37,4 @@ export { Find } from "./find";
 export { FindBar } from "./FindBar";
 export { scrollPosIntoView } from "./scroll-to";
 export { layoutPending } from "./pagination";
+export type { FrontEditKind, NotesSheetKind } from "./pagination";

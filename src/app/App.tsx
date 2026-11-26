@@ -1,12 +1,28 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { theTrash, trashPlace } from "../ui/system-words";
+import { moveToTrash, theTrash, trashedDetail } from "../ui/system-words";
+import { keyStyle, pressed } from "../ui/keys";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CommentsFeed } from "../comments";
 import { errorShown, playOpened, surfaceShown, workspaceErrorCode } from "../diagnostics";
 import { FeedbackSheet } from "../feedback/FeedbackSheet";
 import { PlayEditor, RedlineScript } from "../editor";
+import { PageOnSheet } from "./PageOnSheet";
+import { AddPageSheet } from "./AddPageSheet";
+import {
+  FIELDS,
+  backPageList,
+  fieldValue,
+  frontPageList,
+  landsAt,
+  pageName,
+  readPageFile,
+  retemplate,
+  scaffoldById,
+  scaffoldOf,
+  type Field,
+} from "../layout";
 import { useCaretScene } from "../editor/caret-scene";
 import {
   ChangesView,
@@ -21,16 +37,21 @@ import { useSavedCopies, useSeenCopies } from "../review/SavedCopies";
 import { useRedlineSteps } from "./use-redline-steps";
 import { settings, vault } from "../storage";
 import type { Surface as ReportedSurface } from "../storage/ipc";
-import { Button, ToastHost, useToast } from "../ui";
+import { Alert, Button, ToastHost, useToast } from "../ui";
+import type { FrontMatter } from "../fountain";
+import { TouchTip } from "../ui/TouchTip";
 import { isCastSheet } from "../materials";
-import { titleOf } from "../workspace";
+import { titleOf, type PageSide } from "../workspace";
+import { flatten } from "../workspace/binder";
 import { Binder } from "../workspace/BinderView";
 import { CorkboardView } from "../workspace/CorkboardView";
 import { MaterialEditor } from "../workspace/MaterialEditor";
 import { OutlinerView } from "../workspace/OutlinerView";
+import { ProseCheckerContext } from "../markdown/prose-checker";
 import { AppDialogs } from "./AppDialogs";
 import { BannerActions } from "./BannerActions";
 import { CastView } from "./CastView";
+import { useDocumentSpelling } from "./document-spelling";
 import type { ExportRequest } from "./ExportDialog";
 import { Inspector, type InspectorTab } from "./Inspector";
 import { PaneTree } from "./PaneTree";
@@ -46,7 +67,7 @@ import { ZoomControl } from "./ZoomControl";
 import { openFormatDesigner, useFormatDesignerRequest } from "./formats/open";
 import { findLeaf, hasSurface, type Surface } from "./panes";
 import { usePrivacyNotice } from "./privacy-notice";
-import { useQuitGate } from "./quit";
+import { useLeavingSettle, useQuitGate } from "./quit";
 import { playLanding } from "./regions";
 import { useSceneComments } from "./scene-comments";
 import {
@@ -64,7 +85,8 @@ import { useKeyboardInset } from "./use-keyboard-inset";
 import { useNarrowLayout } from "./use-narrow-layout";
 import { useShellCommands, VIEW_TO_SURFACE } from "./use-shell-commands";
 import { findBinderItem, useWorkspacePanes } from "./use-workspace-panes";
-import { findFitTarget, useZoom } from "./use-zoom";
+import { clampZoom, findFitTarget, useZoom } from "./use-zoom";
+import { COARSE, useMedia } from "../ui/use-media";
 import { useFinderOpens } from "./useFinderOpens";
 import { useWorkspace } from "./useWorkspace";
 import { useTutorial } from "../tutorial/useTutorial";
@@ -96,6 +118,9 @@ const REPORTED_SURFACE: Record<ViewId, ReportedSurface> = {
 const BINDER_OPEN_KEY = "proscenium:binderOpen";
 const INSPECTOR_OPEN_KEY = "proscenium:inspectorOpen";
 const INSPECTOR_TAB_KEY = "proscenium:inspectorTab";
+/** How long after a finger lifts Focus waits for the tap's click before its
+ * chrome comes back anyway: a click comes well inside it. */
+const TAP_CLICK_WAIT_MS = 400;
 
 /* Multi-pane, so the script and its board or outline can be open at once: an arbitrary split tree of tab groups.
    The model is panes.ts, the state shell use-panes.ts, the renderer
@@ -111,6 +136,8 @@ export function App() {
       <AppShell />
       <FeedbackSheet />
       <UpdateInstallSheet />
+      {/* A badge's tooltip, read by a finger's tap. */}
+      <TouchTip />
     </ToastHost>
   );
 }
@@ -125,12 +152,23 @@ function AppShell() {
   /* Every quit — ⌘Q, the Dock, logging out, the window's close button — asks
      here first, and waits while the play keeps its words (quit.ts). */
   const quitGate = useQuitGate(ws.settleForQuit);
+  // Leaving the front keeps the words as a quit does, and leaves no note (quit.ts).
+  useLeavingSettle(ws.settleForQuit);
   const toast = useToast();
   /* Every preference, from the one store the Settings sheet writes to — so the
      document menu's Check Spelling as You Type and Settings › Writing cannot
      disagree. */
   const prefs = useSettings();
-  const privacyNoticeDue = usePrivacyNotice(ws.booted, !!ws.root);
+  /* The documents' spelling where the system's may not run in them (an
+     iPad): the script's own checker, on the script's switch and words. */
+  const proseChecker = useDocumentSpelling({
+    spellcheck: prefs.spellcheck,
+    language: ws.playLanguage,
+    cast: ws.cast,
+    learnedWords: prefs.learnedWords,
+    onLearnWord: learnWord,
+  });
+  const privacy = usePrivacyNotice(ws.booted, !!ws.root);
   const settingsSheet = useSettingsSheet();
   const designer = useFormatDesignerRequest();
   /* Plays, scripts and .fdx files opened from Finder (docs/app/keeping-work/storage-and-file-format.md#STOR-D5). */
@@ -203,7 +241,9 @@ function AppShell() {
   const [focusMode, setFocusMode] = useState(false);
   /** In focus mode the chrome comes back while the pointer is moving. */
   const [peeking, setPeeking] = useState(false);
-  const [showTitlePage, setShowTitlePage] = useState(false);
+  /** Capitalize Character Names in Directions… (docs/app/writing/editor-ux.md#EDIT-208). */
+  const [showCastNames, setShowCastNames] = useState(false);
+  const openCastNames = useCallback(() => setShowCastNames(true), []);
   /** Latest feed toggle, so the ⌘⇧C listener isn't rebound on every layout. */
   const toggleCommentsRef = useRef<() => void>(() => {});
 
@@ -247,7 +287,6 @@ function AppShell() {
   // The soft keyboard's inset (iOS); a no-op wherever there isn't one.
   useKeyboardInset();
 
-  const openTitlePage = useCallback(() => setShowTitlePage(true), []);
   /**
    * Versions… opens Changes on the writer's own versions of what was in front:
    * the script, or the sheet or outline note being written in (docs/app/keeping-work/storage-and-file-format.md#STOR-119).
@@ -364,43 +403,310 @@ function AppShell() {
     [ws],
   );
 
-  /** A double-click on the Characters sheet: open Cast at the line hit (docs/app/formatting/formats-and-layout.md#FMT-59). */
-  const [castFocus, setCastFocus] = useState<{ paragraphId: string | null } | null>(null);
   const panesRef = useRef(panes);
   panesRef.current = panes;
-  const editCharactersPage = useCallback((paragraphId: string | null) => {
-    setCastFocus({ paragraphId });
-    panesRef.current.open({ kind: "cast" });
-  }, []);
-  const clearCastFocus = useCallback(() => setCastFocus(null), []);
+
+  /**
+   * Add Page…: the pages a script can start from, with the side of the script
+   * it was asked for from, when it was asked for from one
+   * (docs/app/formatting/formats-and-layout.md#FMT-175).
+   */
+  const [showAddPage, setShowAddPage] = useState<{ side: PageSide | null } | null>(null);
+  const openAddPage = useCallback(() => setShowAddPage({ side: null }), []);
+  /** Change Template…: the page of the script that is to take another (docs/app/formatting/formats-and-layout.md#FMT-178). */
+  const [templateOf, setTemplateOf] = useState<string | null>(null);
+  const openChangeTemplate = useCallback((id: string) => setTemplateOf(id), []);
+  const openAddPageOn = useCallback((side: PageSide) => setShowAddPage({ side }), []);
+  /**
+   * The play's details as the two sheets above picture pages with them: with
+   * its contents, worked out as a sheet opens, so a Contents page is pictured
+   * as it will print (docs/app/formatting/formats-and-layout.md#FMT-179).
+   */
+  const { frontMatter: detailsNow, contentsNow } = ws;
+  const galleryOpen = !!showAddPage || !!templateOf;
+  const galleryDetails = useMemo(
+    () => (galleryOpen ? { ...detailsNow, contents: contentsNow() } : detailsNow),
+    [galleryOpen, detailsNow, contentsNow],
+  );
+  /** A page to edit where it stands in the script's page view: one just added, or one asked for by name. */
+  const [frontPageRequest, setFrontPageRequest] = useState<{
+    source: string;
+    back?: boolean;
+  } | null>(null);
+  /** The page being edited where it stands, by its source: the binder lights its row. */
+  const [editingPage, setEditingPage] = useState<string | null>(null);
+  /** A folder of pages asked to go to the Trash: asked about first. */
+  const [trashPages, setTrashPages] = useState<{
+    id: string;
+    title: string;
+    side: PageSide;
+    pages: number;
+  } | null>(null);
+  /** The play's speakers, in the order they first speak: what a Characters scaffold lists. */
+  const speakers = useMemo(
+    () =>
+      [...ws.castAppearances().keys()]
+        .map((name) => name.trim().toUpperCase())
+        .filter((name) => (ws.castWeights.get(name)?.cues ?? 0) > 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ws.castWeights],
+  );
+  /** A page of the open script, shown where it prints with the caret in it. */
+  const openPageInScript = useCallback(
+    (source: string, back?: boolean) => {
+      if (!ws.paginated) ws.setPaginated(true);
+      panesRef.current.show({ kind: "script" });
+      setFrontPageRequest({ source, back });
+    },
+    [ws],
+  );
+  /** The same, for a page named by a row or by Cast: one argument, the page. */
+  const showPage = useCallback((source: string) => openPageInScript(source), [openPageInScript]);
+  const addPage = useCallback(
+    async (scaffoldId: string, side: PageSide) => {
+      const scaffold = scaffoldById(scaffoldId);
+      if (!scaffold) return;
+      const names = [...frontPageList(ws.frontMatter), ...backPageList(ws.frontMatter)].map(
+        (page) => page.name,
+      );
+      const id = await ws.addFrontPage(
+        pageName(scaffold.id, names),
+        scaffold.text({ speakers }),
+        (existing) =>
+          side === "back"
+            ? existing.length
+            : landsAt(
+                scaffold.id,
+                existing.map((page) => ({
+                  name: page.name,
+                  layout: readPageFile(page.text).layout,
+                })),
+              ),
+        side,
+      );
+      // The new page, where it prints, with the caret in it: said to be after
+      // the script when it is, since its folder has not been read yet.
+      if (id) openPageInScript(id, side === "back");
+    },
+    [ws, speakers, openPageInScript],
+  );
+  /**
+   * A page of the script takes another template, the other side of the
+   * script, or both (docs/app/formatting/formats-and-layout.md#FMT-178). With
+   * a template its words stay, and it takes the template's heading, its place
+   * on the sheet and, while it still has a template's name, its name. With a
+   * side it goes where that template's page stands among that side's pages:
+   * last, after the script. The toast takes all of it back.
+   */
+  const changeTemplate = useCallback(
+    async (id: string, change: { template: string | null; side: PageSide | null }) => {
+      const to = change.template ? scaffoldById(change.template) : null;
+      const front = frontPageList(ws.frontMatter);
+      const all = [...front, ...backPageList(ws.frontMatter)];
+      const page = all.find((p) => p.id === id);
+      if (!page || (change.template && !to) || (!to && !change.side)) return;
+      const others = all.filter((p) => p.id !== id).map((p) => p.name);
+      let name: string | null = null;
+      let before: string | null = null;
+      if (to) {
+        before = await ws.rewritePage(id, (text) => {
+          const out = retemplate({ name: page.name, text }, to, { speakers }, others);
+          name = out.name;
+          return out.text;
+        });
+        if (before === null) return;
+      }
+      const renamed = name !== null && name !== page.name ? name : null;
+      if (renamed) ws.renameTo(id, renamed);
+      // The template the page has from here on, which says where it stands.
+      const as =
+        to ?? scaffoldOf({ name: page.name, text: ws.openMaterials[id]?.content ?? page.text });
+      const stood = change.side
+        ? await ws.movePageToSide(id, change.side, (existing) =>
+            change.side === "back"
+              ? existing.length
+              : landsAt(
+                  as.id,
+                  existing.map((p) => ({ name: p.name, layout: readPageFile(p.text).layout })),
+                ),
+          )
+        : null;
+      const moved = stood ? change.side : null;
+      if (!to && !moved) return;
+      const where = moved ? (moved === "back" ? "after the script" : "before the script") : null;
+      const says = !to
+        ? `“${page.name}” is now ${where}`
+        : `${
+            renamed
+              ? `“${page.name}” is now “${renamed}”`
+              : `“${page.name}” uses the ${to.name} template`
+          }${where ? `, ${where}` : ""}`;
+      toast({
+        kind: "ok",
+        title: says,
+        action: {
+          label: "Undo",
+          run: () =>
+            void (async () => {
+              if (before !== null) await ws.rewritePage(id, () => before);
+              if (renamed) ws.renameTo(id, page.name);
+              if (stood) ws.moveTo(id, stood.parentId, stood.index);
+            })(),
+        },
+      });
+      // Shown where it prints, set as its new template sets it.
+      openPageInScript(id, moved ? moved === "back" : !front.some((p) => p.id === id));
+    },
+    [ws, speakers, toast, openPageInScript],
+  );
+  /** A binder row to the Trash, with the toast that says where it went and takes it back. */
+  const trashRow = useCallback(
+    (id: string) => {
+      /* No dialog for a document: the file goes to the OS Trash, which is
+         recoverable, so Finder's rule applies — a recoverable action is not
+         confirmed. The undo is real, not a pointer at the Finder: the bytes
+         were read before the trash. */
+      void ws.remove(id).then((res) => {
+        if (!res) return;
+        toast({
+          kind: "trash",
+          title: `“${res.title}” moved to ${theTrash()}`,
+          detail: trashedDetail(),
+          action: res.undo ? { label: "Undo", run: () => void res.undo?.() } : undefined,
+        });
+      });
+    },
+    [ws, toast],
+  );
+  /** The folders that hold a script's pages, and the side of the script each prints on. */
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the binder changes with the play file that names them
+  const pageFolders = useMemo(() => {
+    const out = new Map<string, PageSide>();
+    // The open script's alone: Add Page… adds to the script that is open, so
+    // another script's folder of pages offers it no more than any folder does.
+    const open = ws.openScriptKey?.split(":").pop() ?? null;
+    for (const row of flatten(ws.binder)) {
+      if (row.type !== "folder") continue;
+      const pages = ws.pageFolderOf(row.id);
+      if (pages && pages.scriptId === open) out.set(row.id, pages.side);
+    }
+    return out;
+  }, [ws.binder, ws.openScriptKey]);
+  /** The open script's pages kept as files, by binder id: a click on one's row goes to its sheet. */
+  const pageIds = useMemo(
+    () =>
+      new Set(
+        [...(ws.frontMatter.pages ?? []), ...backPageList(ws.frontMatter)].map((page) => page.id),
+      ),
+    [ws.frontMatter],
+  );
+  /** What a page's fields show, for a page opened in a pane of its own. */
+  const pageFields = useMemo(() => {
+    const out: Partial<Record<Field, string>> = {};
+    for (const field of FIELDS) out[field] = fieldValue(field, ws.frontMatter);
+    return out;
+  }, [ws.frontMatter]);
+
+  /* Every page before the script, edited where it prints in the script's page
+     view (docs/app/formatting/formats-and-layout.md#FMT-169). */
+  const {
+    frontMatter,
+    openMaterials,
+    materialGates,
+    saveMaterial,
+    registerMaterialBuffer,
+    setMaterialDirty,
+    resolveMaterialGate,
+    holdFrontPage,
+    materializeFrontMatter,
+    settleLeftKeys,
+    format: playFormat,
+    patchFrontMatter,
+    openScriptKey,
+  } = ws;
+  const setDetails = useCallback(
+    (patch: Partial<FrontMatter>) => void patchFrontMatter(patch, openScriptKey),
+    [patchFrontMatter, openScriptKey],
+  );
+  const renderFrontPage = useCallback(
+    (
+      source: string,
+      at: string | null,
+      done: () => void,
+      bar: HTMLElement | null,
+      retarget: (source: string) => void,
+    ) => (
+      <PageOnSheet
+        // One editor for the whole editing, kept when the page's words move to a file.
+        key="page-on-sheet"
+        source={source}
+        name={
+          [...frontPageList(frontMatter), ...backPageList(frontMatter)].find(
+            (page) => page.id === source,
+          )?.name ?? "Page"
+        }
+        spec={playFormat}
+        onSetDetails={setDetails}
+        onChangeTemplate={openChangeTemplate}
+        at={at}
+        frontMatter={frontMatter}
+        material={openMaterials[source] ?? null}
+        gate={materialGates[source] ?? null}
+        onSave={async (id, full, base) => {
+          const ok = await saveMaterial(id, full, base);
+          if (ok) void settleLeftKeys();
+          return ok;
+        }}
+        onRegisterBuffer={registerMaterialBuffer}
+        onDirty={setMaterialDirty}
+        onResolveGate={resolveMaterialGate}
+        onHold={holdFrontPage}
+        onMaterialize={materializeFrontMatter}
+        onRetarget={retarget}
+        onDone={done}
+        bar={bar}
+      />
+    ),
+    [
+      frontMatter,
+      openMaterials,
+      materialGates,
+      saveMaterial,
+      registerMaterialBuffer,
+      setMaterialDirty,
+      resolveMaterialGate,
+      holdFrontPage,
+      materializeFrontMatter,
+      settleLeftKeys,
+      playFormat,
+      setDetails,
+      openChangeTemplate,
+    ],
+  );
 
   const castSurface = useCallback(
     () => (
       <CastView
-        characters={ws.frontMatter.characters ?? []}
-        printedPage={ws.frontMatter.charactersPage}
-        onSavePage={(charactersPage) => ws.patchFrontMatter({ charactersPage }, ws.openScriptKey)}
+        pages={[...frontPageList(ws.frontMatter), ...backPageList(ws.frontMatter)]}
+        onOpenPage={ws.editable ? showPage : undefined}
         appearances={ws.castAppearances()}
         weights={ws.castWeights}
         sceneCount={ws.sceneCount}
         hidden={ws.castHidden}
         binder={ws.binder}
-        scriptKey={ws.scriptPath}
-        onSave={ws.saveCharacters}
         onOpenSheet={openMaterialTab}
         onCreateSheet={(name) =>
           ws.createMaterial(null, "character", name, undefined, { home: true })
         }
         onHide={ws.hideFromCast}
         onUnhide={ws.unhideFromCast}
+        onAddToPage={(name) => void ws.addToCharactersPage(name)}
         cards={ws.cards}
         onOpenScene={ws.openScene}
         onExportSides={(name) => setShowExport({ sidesFor: name })}
-        focusRequest={castFocus}
-        onFocusHandled={clearCastFocus}
       />
     ),
-    [ws, openMaterialTab, castFocus, clearCastFocus],
+    [ws, openMaterialTab, showPage],
   );
 
   const [binderOpen, setBinderOpenState] = useState<boolean>(() => {
@@ -421,6 +727,13 @@ function AppShell() {
   };
 
   const binderVisible = binderOpen && (!narrow || narrowRail === "binder");
+  /* Below 700 points the binder lies over the page, a drawer (window-shell.css):
+     choosing something in it shows that thing, so the drawer closes, rather
+     than leave the writer looking at the binder over what they opened. */
+  const binderOverPage = useMedia("(max-width: 699px)");
+  const shownFromBinder = () => {
+    if (binderOverPage) setBinderOpen(false);
+  };
 
   /* Zoom (use-zoom.ts): still a pure view transform, so
      the engine's geometry and every page break are identical at every level.
@@ -435,6 +748,8 @@ function AppShell() {
     target: () => findFitTarget(scriptScrollerRef.current, paneRootRef.current),
     format: ws.format,
     active: ws.mode === "workspace" && !!ws.scriptTitle,
+    // The floor that keeps the script's type legible holds while its page shows.
+    scriptShown: scriptVisible,
     // The EFFECTIVE layout, not the intent — a rail suppressed by a narrow
     // layout changes the pane's width just as closing it would, and a fit that
     // solved against the wrong width is the bug this token exists to prevent.
@@ -445,6 +760,49 @@ function AppShell() {
     layout: `${binderVisible}:${panes.focusedLeaf}:${JSON.stringify(paneTree)}:${[...hiddenPanes].join()}`,
   });
   const { zoom, zoomBy, refit } = zoomCtl;
+
+  /* A pinch on the page zooms the page, through the app's own zoom: a view
+     of the page that moves no page break, never WebKit's zoom of the whole
+     window, which scaled the toolbar and the sheets with it. WebKit tells the
+     page of a pinch on a touch screen as `gesturestart` and `gesturechange`,
+     with its scale from the pinch's start: taken anywhere, so the window
+     never zooms (touch-controls.css stops it too), and on the page while a
+     script is open, the page's zoom. (A viewport tag that refused to scale
+     would stop it as well, and fails every audit: WCAG 1.4.4.) A pointer
+     keeps the keys and the zoom control, as on a Mac. */
+  const zoomNow = useRef(zoom);
+  zoomNow.current = zoom;
+  const pinchesPage = useRef(false);
+  pinchesPage.current = ws.mode === "workspace" && !!ws.scriptTitle;
+  const setZoomMode = zoomCtl.setMode;
+  useEffect(() => {
+    if (!window.matchMedia(COARSE).matches) return;
+    let from: number | null = null;
+    const onPage = (e: Event) =>
+      pinchesPage.current && !!mainRef.current?.contains(e.target as Node);
+    const start = (e: Event) => {
+      e.preventDefault();
+      from = onPage(e) ? zoomNow.current : null;
+    };
+    const change = (e: Event) => {
+      e.preventDefault();
+      const scale = (e as Event & { scale?: number }).scale;
+      if (from !== null && typeof scale === "number" && scale > 0)
+        setZoomMode({ kind: "manual", level: clampZoom(from * scale) });
+    };
+    const end = (e: Event) => {
+      e.preventDefault();
+      from = null;
+    };
+    document.addEventListener("gesturestart", start, { passive: false });
+    document.addEventListener("gesturechange", change, { passive: false });
+    document.addEventListener("gestureend", end, { passive: false });
+    return () => {
+      document.removeEventListener("gesturestart", start);
+      document.removeEventListener("gesturechange", change);
+      document.removeEventListener("gestureend", end);
+    };
+  }, [setZoomMode]);
   const zoomReset = zoomCtl.reset;
 
   const clearChangesFocus = useCallback(() => setChangesFocus(null), []);
@@ -580,6 +938,7 @@ function AppShell() {
                 zoom={zoom}
                 // Page and Source move the sheet: a fit counts what is above it.
                 onSheetMoved={refit}
+                pageFields={pageIds.has(surface.id) ? pageFields : undefined}
               />
             </div>
           );
@@ -599,6 +958,8 @@ function AppShell() {
       documentPage,
       inScript,
       seenCopies.see,
+      pageIds,
+      pageFields,
     ],
   );
 
@@ -697,16 +1058,18 @@ function AppShell() {
     [ws.cards, caretOrdinal],
   );
 
-  /** Who speaks in this scene, and how often — from the same appearance map
-      the Cast surface and the character sheets read. */
+  /** Who speaks in this scene, and how many speeches each has here — from the
+      same appearance map the Cast surface and the character sheets read. The
+      count is this scene's, never the play's: a part's size across the play
+      summed over the people on stage once read "709 speeches" for one scene. */
   const caretSpeakers = useMemo(() => {
     if (caretOrdinal === null) return [];
-    const out: { name: string; lines: number }[] = [];
+    const out: { name: string; speeches: number }[] = [];
     for (const [name, scenes] of ws.castAppearances()) {
-      if (!scenes.some((sc) => sc.ordinal === caretOrdinal)) continue;
-      out.push({ name, lines: ws.castWeights.get(name)?.lines ?? 0 });
+      const here = scenes.find((sc) => sc.ordinal === caretOrdinal);
+      if (here) out.push({ name, speeches: here.speeches });
     }
-    return out.sort((a, b) => b.lines - a.lines);
+    return out.sort((a, b) => b.speeches - a.speeches);
   }, [caretOrdinal, ws]);
 
   /* Comments in this scene. A comment IS text in the script, so this counts the
@@ -737,6 +1100,7 @@ function AppShell() {
             ordinal: c.anchor.ordinal,
             label: c.heading || `Scene ${c.anchor.ordinal + 1}`,
             color: c.card.color,
+            ...(c.act ? { act: c.act } : {}),
             pages: pages
               ? pages.firstPage === pages.lastPage
                 ? `${pages.firstPage}`
@@ -745,6 +1109,16 @@ function AppShell() {
           };
         }),
     [ws.cards, ws.scenePages],
+  );
+
+  /** The open script's acts, for the rail's act rows (docs/app/organizing/workspace-model.md#WORK-89). */
+  const binderActs = useMemo(
+    () =>
+      ws.scenePages.acts.map((a) => ({
+        label: a.act,
+        pages: a.firstPage === a.lastPage ? `${a.firstPage}` : `${a.firstPage}–${a.lastPage}`,
+      })),
+    [ws.scenePages],
   );
 
   /** The material the focused pane holds, if it holds one — the Sheet tab. */
@@ -839,15 +1213,57 @@ function AppShell() {
       return;
     }
     let timer = 0;
-    const onMove = () => {
+    const onMove = (hold = 2000) => {
       setPeeking(true);
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => setPeeking(false), 2000);
+      timer = window.setTimeout(() => setPeeking(false), hold);
     };
-    window.addEventListener("mousemove", onMove);
+    /* A finger never moves a pointer: a tap brings the chrome back, for
+       longer, since the next tap is the one that reaches it (the document
+       menu's Focus, which leaves). It comes back once the tap's click has
+       landed: brought back at the touch, the bars came in under the finger,
+       an iPad held the tap back from its click, and the first tap on the
+       page in Focus put no caret there (docs/engineering/cross-platform.md#PLAT-70).
+       A tap that gets no click comes back a moment after the finger lifts;
+       a finger that scrolls brings nothing back, as a trackpad's scroll does
+       not. The mouse move WebKit sends after a tap is the tap's, and leaves
+       the longer wait alone. */
+    let touchedAt = 0;
+    let lifted = 0;
+    const mouse = () => {
+      if (Date.now() - touchedAt > 1000) onMove();
+    };
+    const byFinger = (e: PointerEvent) => e.pointerType === "touch" || e.pointerType === "pen";
+    const back = (wait: number) => {
+      window.clearTimeout(lifted);
+      lifted = window.setTimeout(() => {
+        lifted = 0;
+        onMove(5000);
+      }, wait);
+    };
+    const touch = (e: PointerEvent) => {
+      if (byFinger(e)) touchedAt = Date.now();
+    };
+    const lift = (e: PointerEvent) => {
+      if (!byFinger(e)) return;
+      touchedAt = Date.now();
+      back(TAP_CLICK_WAIT_MS);
+    };
+    // After the click's own handlers, so nothing moves under it.
+    const clicked = () => {
+      if (lifted) back(0);
+    };
+    window.addEventListener("mousemove", mouse);
+    window.addEventListener("pointerdown", touch, true);
+    window.addEventListener("pointerup", lift, true);
+    window.addEventListener("click", clicked, true);
     return () => {
-      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mousemove", mouse);
+      window.removeEventListener("pointerdown", touch, true);
+      window.removeEventListener("pointerup", lift, true);
+      window.removeEventListener("click", clicked, true);
       window.clearTimeout(timer);
+      window.clearTimeout(lifted);
     };
   }, [focusMode]);
 
@@ -875,11 +1291,15 @@ function AppShell() {
   }, [focusMode, peeking, binderVisible]);
 
   /* Esc is the way out of focus mode; ⌃⌘F is the way in and out. Separate from
-     the keymap above because it must fire without a modifier, and only then. */
+     the keymap above because it must fire without a modifier, and only then.
+     ⌘. is Esc too, as everywhere on an iPad, some of whose keyboards have no
+     Esc key, and on a Mac; not in a PC's keys, which have no such chord. */
   useEffect(() => {
     if (!focusMode) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const escape = e.key === "Escape" && !e.metaKey && !e.ctrlKey && !e.altKey;
+      if (escape || (keyStyle() !== "pc" && pressed(e, "⌘."))) {
+        if (!escape) e.preventDefault();
         setFocusMode(false);
       }
     };
@@ -888,7 +1308,7 @@ function AppShell() {
   }, [focusMode]);
 
   const guide = useTutorial(ws, {
-    welcomeReady: !privacyNoticeDue,
+    welcomeReady: !privacy.waiting,
     show: panes.show,
     view: switcherView,
     revealBinder: () => {
@@ -898,7 +1318,7 @@ function AppShell() {
     openExport: () => setShowExport({ sidesFor: null }),
     closeDialogs: () => {
       setShowExport(null);
-      setShowTitlePage(false);
+      setShowCastNames(false);
     },
     // Asked one place at a time, not as one selector list: a list answers with its
     // first match in the page, and the toolbar's Help & Tutorials comes before any
@@ -923,7 +1343,7 @@ function AppShell() {
   /** File › New Play… (⌘N): the Plays screen names a blank play for each new count. */
   const [newPlayAsk, setNewPlayAsk] = useState(0);
   const askNewPlay = useCallback(() => setNewPlayAsk((n) => n + 1), []);
-  useShellCommands(ws, {
+  const { runMenuCommand } = useShellCommands(ws, {
     panes,
     binderVisible,
     inspectorVisible,
@@ -935,7 +1355,8 @@ function AppShell() {
     zoomBy,
     zoomReset,
     zoomCtl,
-    openTitlePage,
+    openAddPage,
+    openCastNames,
     openHistory,
     askNewPlay,
     toast,
@@ -949,7 +1370,7 @@ function AppShell() {
   });
 
   return (
-    <>
+    <ProseCheckerContext.Provider value={proseChecker}>
       <div
         className={`app-shell${focusMode ? " is-focus" : ""}${
           focusMode && peeking ? " is-peeking" : ""
@@ -987,14 +1408,18 @@ function AppShell() {
                   onSetPaginated: ws.setPaginated,
                   spellcheck: prefs.spellcheck,
                   onSetSpellcheck: (on) => updateSettings({ spellcheck: on }),
-                  onEditTitlePage: openTitlePage,
+                  onAddFrontPage: openAddPage,
+                  onCapitalizeNames: openCastNames,
                   onShowHistory: () => openHistory(),
                   onExport: () => setShowExport({ sidesFor: null }),
                   onExportAs: (type) => setShowExport({ sidesFor: null, type }),
+                  onExportFountain: ws.exportFountain,
                   onPrint: () => setShowExport({ sidesFor: null, action: "print" }),
                   exporting: ws.exporting,
                   onSettings: () => openSettings(),
                   onEditFormats: () => openFormatDesigner({ kind: "edit", formatId: ws.format.id }),
+                  onCommand: runMenuCommand,
+                  focusMode,
                 }
               : null
           }
@@ -1052,7 +1477,18 @@ function AppShell() {
               readOnly={ws.readOnly}
               justCreated={ws.justCreated}
               onConsumeCreated={ws.consumeCreated}
-              onSelect={onSelectBinderItem}
+              onSelect={(item) => {
+                // A page of the open script is edited on its sheet, where it
+                // prints: one editor for a page, not two
+                // (docs/app/formatting/formats-and-layout.md#FMT-175).
+                if (pageIds.has(item.id) && ws.editable) openPageInScript(item.id);
+                else onSelectBinderItem(item);
+                shownFromBinder();
+              }}
+              pageOpenId={editingPage}
+              pageFolders={pageFolders}
+              onAddPage={ws.editable ? openAddPageOn : undefined}
+              onChangeTemplate={ws.editable ? openChangeTemplate : undefined}
               onOpenInNewPane={(item) => {
                 ws.selectItem(item);
                 panes.openBeside(
@@ -1064,19 +1500,17 @@ function AppShell() {
               onMove={ws.moveTo}
               onRename={ws.renameTo}
               onDelete={(id) => {
-                /* No dialog: the file goes to the OS Trash, which is
-                 recoverable, so Finder's rule applies — a recoverable
-                 action is not confirmed. The undo is real, not a pointer
-                 at the Finder: the bytes were read before the trash. */
-                void ws.remove(id).then((res) => {
-                  if (!res) return;
-                  toast({
-                    kind: "trash",
-                    title: `“${res.title}” moved to ${theTrash()}`,
-                    detail: `It's in ${trashPlace()} if you need it later.`,
-                    action: res.undo ? { label: "Undo", run: () => void res.undo?.() } : undefined,
-                  });
-                });
+                /* A script's folder of pages is asked about: it looks like
+                   any folder, and with it go the title page and every page
+                   beside it (docs/app/formatting/formats-and-layout.md#FMT-175). */
+                const pages = ws.pageFolderOf(id);
+                const folder = pages && findBinderItem(ws.binder, id);
+                const held = folder?.children?.filter((c) => /\.md$/i.test(c.path)).length ?? 0;
+                if (pages && folder && held > 0) {
+                  setTrashPages({ id, title: titleOf(folder), side: pages.side, pages: held });
+                  return;
+                }
+                trashRow(id);
               }}
               onDuplicate={ws.duplicate}
               onReveal={ws.canReveal ? ws.revealItem : undefined}
@@ -1097,8 +1531,12 @@ function AppShell() {
               missingIds={missingIds}
               onAcknowledgeFiled={ws.acknowledgeFiled}
               scenes={binderScenes}
+              acts={binderActs}
               caretScene={caretOrdinal}
-              onOpenScene={ws.openScene}
+              onOpenScene={(ordinal) => {
+                ws.openScene(ordinal);
+                shownFromBinder();
+              }}
               onSetSceneColor={ws.readOnly ? undefined : (id, color) => ws.setCard(id, { color })}
             />
           )}
@@ -1106,8 +1544,17 @@ function AppShell() {
             /* The one `main` landmark: VoiceOver's rotor jumps binder →
              panes → inspector, and with a play open the panes were a div,
              so the rotor listed a navigation and a complementary and no
-             place to write. */
-            <main ref={setPaneRoot} className="paneroot" aria-label="Play">
+             place to write.
+
+             `data-settled`: the open has laid the script out at the
+             writer's place, so what moves the page after it is the writer's
+             own doing. Nothing on screen says it; a check waits on it. */
+            <main
+              ref={setPaneRoot}
+              className="paneroot"
+              aria-label="Play"
+              data-settled={ws.playSettled ? "" : undefined}
+            >
               <PaneTree
                 node={paneTree}
                 activeLeafId={panes.focusedLeaf}
@@ -1135,6 +1582,7 @@ function AppShell() {
                   plays={ws.plays}
                   hint={ws.playsFolderHint}
                   lookingBelow={ws.lookingBelow}
+                  cloud={ws.cloudDownload}
                   onUseFolder={ws.openFolderBelow}
                   onKeepFolder={ws.keepPlaysFolder}
                   onOpen={ws.enterPlay}
@@ -1144,6 +1592,27 @@ function AppShell() {
                     void beginImport(files?.map((file) => ({ file })));
                   }}
                   newPlayAsk={newPlayAsk}
+                  onPutBack={ws.putBackFromTrash}
+                  onTrash={(play) => {
+                    /* Asked twice already (TrashPlayAsk.tsx). The toast says
+                       where it went; the question said how to have it back. */
+                    void ws.trashPlay(play).then((res) =>
+                      toast(
+                        res.ok
+                          ? {
+                              kind: "trash",
+                              title: `“${play.title}” moved to ${theTrash()}`,
+                              detail: trashedDetail(),
+                            }
+                          : {
+                              kind: "error",
+                              title: `“${play.title}” could not be moved to ${theTrash()}`,
+                              detail: res.said,
+                              ms: 12000,
+                            },
+                      ),
+                    );
+                  }}
                 />
               )}
               {!launching && !ws.root && (
@@ -1155,7 +1624,7 @@ function AppShell() {
                   onChooseDocuments={ws.openDocumentsFolder}
                   onChooseFolder={ws.openFolder}
                   onReopenLast={ws.openFolder}
-                  privacyNotice={privacyNoticeDue}
+                  privacyNotice={privacy.notice}
                   onPrivacyNoticeSeen={() => updateSettings({ privacyNoticeSeen: true })}
                   onPrivacySettings={() => openSettings("privacy")}
                 />
@@ -1193,6 +1662,8 @@ function AppShell() {
                     key={caretCard?.id ?? "no-scene"}
                     scene={caretCard}
                     scenePages={ws.scenePages}
+                    whole={ws.wholeScript}
+                    scriptTitle={ws.scriptTitle}
                     onSetCard={ws.setCard}
                     onEditSynopsis={ws.editSynopsis}
                     speakers={caretSpeakers}
@@ -1241,26 +1712,33 @@ function AppShell() {
               paginated={ws.paginated}
               layoutMeta={ws.layoutMeta}
               frontMatter={ws.frontMatter}
-              onEditTitlePage={openTitlePage}
-              onEditCharactersPage={editCharactersPage}
+              // A play that cannot be written keeps its pages as they print.
+              renderFrontPage={ws.editable ? renderFrontPage : undefined}
+              openFrontPage={frontPageRequest}
+              onAddPage={openAddPageOn}
+              onFrontEdit={setEditingPage}
+              scriptKey={ws.openScriptKey}
               redline={ws.trackedRedline}
               zoom={zoom}
               commentsOpen={commentsOpen}
               onToggleComments={toggleComments}
               onShowComments={showComments}
               spellcheck={prefs.spellcheck}
+              autoCaps={prefs.autoCaps}
               learnedWords={prefs.learnedWords}
               onLearnWord={learnWord}
               cards={ws.cards}
               scenePages={ws.scenePages}
               onJumpToScene={ws.openScene}
               showRunningTime={prefs.runningTimeStrip}
+              showScenePlace={prefs.scenePlaceMarker}
             />
           </div>
         </div>
 
         <StatusBar
           root={ws.root}
+          onReveal={ws.canReveal ? () => void vault.reveal() : undefined}
           status={ws.status}
           savedTime={savedTime}
           formatWarnings={ws.formatWarnings}
@@ -1296,10 +1774,75 @@ function AppShell() {
             }}
           />
         )}
+        {showAddPage && (
+          <AddPageSheet
+            spec={ws.format}
+            details={galleryDetails}
+            speakers={speakers}
+            side={showAddPage.side}
+            front={frontPageList(ws.frontMatter)}
+            back={backPageList(ws.frontMatter)}
+            onAdd={(id, side) => {
+              setShowAddPage(null);
+              void addPage(id, side);
+            }}
+            onShow={(source) => {
+              setShowAddPage(null);
+              showPage(source);
+            }}
+            onCancel={() => setShowAddPage(null)}
+          />
+        )}
+        {templateOf &&
+          (() => {
+            const front = frontPageList(ws.frontMatter);
+            const back = backPageList(ws.frontMatter);
+            const page = [...front, ...back].find((p) => p.id === templateOf);
+            if (!page) return null;
+            return (
+              <AddPageSheet
+                spec={ws.format}
+                details={galleryDetails}
+                speakers={speakers}
+                side={null}
+                front={front}
+                back={back}
+                // The page as its file holds it now: its words may be newer than the last reading of its folder.
+                change={{ ...page, text: ws.openMaterials[page.id]?.content ?? page.text }}
+                onAdd={() => {}}
+                onShow={() => {}}
+                onChange={(to) => {
+                  setTemplateOf(null);
+                  void changeTemplate(page.id, to);
+                }}
+                onCancel={() => setTemplateOf(null)}
+              />
+            );
+          })()}
+        {trashPages && (
+          <Alert
+            title={`Move “${trashPages.title}” to ${theTrash()}?`}
+            body={`It holds the ${trashPages.pages === 1 ? "page" : `${trashPages.pages} pages`} ${
+              trashPages.side === "front" ? "before" : "after"
+            } the script${
+              trashPages.side === "front" ? ", the title page among them" : ""
+            }. The script will print without ${trashPages.pages === 1 ? "it" : "them"}.`}
+            confirmLabel={moveToTrash()}
+            cancelLabel="Keep the Pages"
+            destructive
+            cancelIsDefault
+            onConfirm={() => {
+              const { id } = trashPages;
+              setTrashPages(null);
+              trashRow(id);
+            }}
+            onCancel={() => setTrashPages(null)}
+          />
+        )}
         <AppDialogs
           ws={ws}
-          showTitlePage={showTitlePage}
-          setShowTitlePage={setShowTitlePage}
+          showCastNames={showCastNames}
+          setShowCastNames={setShowCastNames}
           showExport={showExport}
           setShowExport={setShowExport}
           showShortcuts={showShortcuts}
@@ -1317,7 +1860,7 @@ function AppShell() {
       </div>
       <Catalogue guide={guide} practicing={ws.practicing} />
       <CueCard guide={guide} editor={ws.editor} />
-    </>
+    </ProseCheckerContext.Provider>
   );
 }
 

@@ -164,7 +164,8 @@ const releasedGithub = (url: URL) =>
   url.pathname.endsWith("/latest.json")
     ? Response.json(manifest)
     : url.pathname.endsWith(`/v1.0.0/${archive}`)
-      ? new Response("signed archive")
+      ? // GitHub declares an asset's length, as a HEAD's answer passes on.
+        new Response("signed archive", { headers: { "Content-Length": "14" } })
       : new Response(null, { status: 404 });
 /** GitHub with these releases published at `base`, the last one newest. */
 const publishedGithub =
@@ -211,6 +212,14 @@ describe("the deployed bundle in workerd", () => {
     const download = await ask(production, `/v1/download/v1.0.0/${archive}`);
     assert.equal(download.status, 200);
     assert.equal(await download.text(), "signed archive");
+    // A header probe: GitHub's length, no body (docs/engineering/services-and-feedback.md#SERV-289).
+    const probe = await production.dispatchFetch(`${UPDATES}/v1/download/v1.0.0/${archive}`, {
+      method: "HEAD",
+    });
+    assert.equal(probe.status, 200);
+    assert.equal(probe.headers.get("Content-Length"), String("signed archive".length));
+    assert.equal(probe.headers.get("Content-Type"), "application/octet-stream");
+    assert.equal(await probe.text(), "");
     assert.ok(outbound.length > 0);
     for (const request of outbound) assert.equal(request.userAgent, "proscenium-updates");
   });

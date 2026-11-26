@@ -13,11 +13,18 @@
   border-radius: var(--r-control);
   background: var(--paper);
 }
+/* The whole box is the page's text, as the material page's is (materials.css):
+   the editor fills it and holds the padding itself. With the padding on the
+   host and the editor as tall as its words, a click below an empty page's
+   first line took no caret, and what was typed next went nowhere. */
 .frontpage-editor .prose-host {
-  padding: var(--s-6);
   min-height: 160px;
+  display: flex;
+  flex-direction: column;
 }
 .frontpage-editor .prose {
+  flex: 1 0 auto;
+  padding: var(--s-6);
   outline: none;
 }
 .frontpage-editor .fmt {
@@ -39,4 +46,205 @@
 
 .card__footspacer {
   flex: 1;
+}
+
+/* A page edited where it stands (PageOnSheet.tsx,
+   docs/app/formatting/formats-and-layout.md#FMT-177): nothing of the app's is
+   on the paper. The sheet holds the page's words alone, set as they print;
+   the page's name, its formatting, Play Details… and Done stand in the strip
+   at the top of the script. */
+.frontedit {
+  display: flex;
+  flex-direction: column;
+  min-height: inherit;
+  white-space: normal;
+  cursor: auto;
+}
+/* Set as it prints: the format's own type on the script's grid, no box round
+   it, its first line where the layout puts it and the format's gap between
+   its paragraphs. The page is a column as tall as the sheet's text block, so
+   that what follows the rule a title page's bottom begins under stands at
+   the bottom of the sheet, as it prints. */
+.frontpage-editor--sheet {
+  /* What the format says of the page, written on the element by its editor
+     (FrontPageEditor.tsx); these are what holds until it has. */
+  --page-top-rows: 0;
+  --page-gap-rows: 1;
+  --page-heading-weight: 700;
+  --page-heading-slant: normal;
+  --page-body-weight: 400;
+  --page-body-slant: normal;
+  --page-title-weight: 700;
+  --page-title-slant: normal;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.frontpage-editor--sheet .prose-host {
+  flex: 1 0 auto;
+  min-height: var(--fmt-block-height);
+}
+.frontpage-editor--sheet .prose {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: var(--fmt-block-height);
+  padding: calc(var(--page-top-rows) * var(--fmt-line)) 0 0;
+  font-size: inherit;
+  line-height: var(--fmt-line);
+  font-weight: var(--page-body-weight);
+  font-style: var(--page-body-slant);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.frontpage-editor--sheet .prose > * {
+  margin: 0;
+}
+.frontpage-editor--sheet .prose > * + * {
+  margin-top: calc(var(--page-gap-rows) * var(--fmt-line));
+}
+.frontpage-editor--sheet .prose :is(h1, h2, h3, h4, h5, h6) {
+  padding: 0;
+  border: 0;
+  font-size: inherit;
+  line-height: var(--fmt-line);
+  letter-spacing: 0;
+  text-transform: none;
+  color: inherit;
+  font-weight: var(--page-heading-weight);
+  font-style: var(--page-heading-slant);
+}
+.frontpage-editor--title .prose h1 {
+  font-weight: var(--page-title-weight);
+  font-style: var(--page-title-slant);
+}
+.frontpage-editor--sheet .prose :is(ul, ol),
+.frontpage-editor--sheet .prose li {
+  margin-bottom: 0;
+}
+.frontpage-editor--sheet .prose li + li {
+  margin-top: 0;
+}
+/* The rule a title page's bottom begins under takes what room the page has
+   left, and what follows it closes up under it. */
+.frontpage-editor--sheet .prose > .pagefoot {
+  margin-top: auto;
+  margin-bottom: 0;
+  padding-top: var(--fmt-line);
+}
+.frontpage-editor--sheet .prose > .pagefoot + * {
+  margin-top: 0;
+}
+/* A field is where its detail is written, in place
+   (docs/app/formatting/formats-and-layout.md#FMT-180): its words are a text
+   of their own, set as the page's are, and one with no value is a prompt,
+   underlined as something to fill in. The title a page sets in capitals is
+   written as it is kept, and set in capitals again as the caret leaves. */
+.prose span.pagefield--editable {
+  cursor: text;
+}
+.prose span.pagefield--editable:hover {
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 0.12em var(--accent-soft);
+}
+.prose span.pagefield--editable.pagefield--empty {
+  box-shadow:
+    0 0 0 0.12em color-mix(in srgb, var(--ink) 8%, transparent),
+    0 0.2em 0 0 var(--rule-strong);
+}
+.prose .pagefield__text {
+  outline: none;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  /* Brought into view, it clears the bar that sticks at the top of the
+     script and keeps a few lines under it. */
+  scroll-margin: 5rem 0 6rem;
+}
+/* The contact block is rows: one box round them all, not a ring that steps
+   in and out with each row's length. */
+.prose span.pagefield--editable[data-page-field="contact"] {
+  display: inline-block;
+  vertical-align: top;
+  text-align: inherit;
+}
+.prose .pagefield--caps:not(.pagefield--editing) .pagefield__text {
+  text-transform: uppercase;
+}
+.prose .pagefield--empty .pagefield__text::before {
+  content: attr(data-placeholder);
+  color: var(--ink-2);
+}
+/* The caret is in it: the field keeps the ring a selected one has, and its
+   shade gives way to the paper, so what is typed reads as the page's words. */
+.prose span.pagefield--editing,
+.prose span.pagefield--editing:hover {
+  background: none;
+  box-shadow: none;
+}
+/* The page's name in the strip, and what ends the editing at its far end. */
+.frontedit-bar__name {
+  flex: none;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.frontedit-bar__spacer {
+  flex: 1;
+}
+/* What the detail under the caret is, and what else shows it: one line under
+   the field, over the page and never on it (FrontPageEditor.tsx). It takes
+   no press, so the line of the page under it is still the page's. */
+.fieldnote {
+  position: fixed;
+  z-index: 60;
+  max-width: 24rem;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-chip);
+  background: var(--paper);
+  box-shadow: 0 0 0 0.5px var(--rule-strong);
+  font-family: var(--font-ui);
+  font-size: var(--t-mini);
+  line-height: 1.45;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+
+/* The page's formatting bar, at the top of the script where the element bar
+   stands (PlayEditor.tsx): the strip is the element bar's, so the bar's own
+   sticking, padding and desk give way to it. Its controls keep a finger's
+   full size: none shorter than 24px. */
+.frontedit-bar .fmt {
+  position: static;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: var(--s-2) 0;
+  background: none;
+}
+.frontedit-bar .btn {
+  flex: none;
+}
+.frontedit-bar .fmt button {
+  min-height: 24px;
+}
+/* Another version of the page's file arrived while its words were unsaved:
+   nothing is written over until the writer chooses (PageOnSheet.tsx). */
+.frontedit__gate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 0.5px solid var(--rule-strong);
+  border-radius: var(--r-control);
+  background: var(--paper);
+  font-size: var(--t-small);
 }

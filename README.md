@@ -647,7 +647,9 @@ each export lets you choose which of those pages go with it.
 Choose Export .docx… or Export .odt… from the title menu. Each line arrives
 with a named style - Character, Dialogue and the rest - on your format’s page,
 with Courier Prime built in. Their word processor sets its own page breaks, so
-the pages can differ a little from the PDF.
+the pages can differ a little from the PDF. If they need Rich Text, choose
+.rtf under File type in the same window; it is set in Courier New, which
+every reader has.
 
 **I need sides for a reading tomorrow.**
 

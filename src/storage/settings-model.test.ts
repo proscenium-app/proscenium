@@ -69,8 +69,9 @@ describe("the model agrees with settings.rs", () => {
   it("leaves the license's address to the allowlist, where every address lives", () => {
     // docs/app/keeping-work/privacy-and-telemetry.md#PRIV-D2: the page names no address at all.
     expect(ipcSource).not.toMatch(/https?:\/\/[a-z0-9]/i);
-    expect(rust).toContain("os_open(crate::telemetry::allowlist::LICENSE)");
-    expect(rust).toContain("os_open(crate::telemetry::allowlist::SUPPORT)");
+    // Through open_page, which opens Safari on an iPad and the browser elsewhere.
+    expect(rust).toContain("open_page(app, crate::telemetry::allowlist::LICENSE.to_string())");
+    expect(rust).toContain("open_page(app, crate::telemetry::allowlist::SUPPORT.to_string())");
   });
 
   it("defaults to what the app did before each was a choice, launch aside", () => {
@@ -80,7 +81,11 @@ describe("the model agrees with settings.rs", () => {
       formatOrder: [],
       interfaceTextSize: 100,
       runningTimeStrip: true,
+      // The place in the scene marked, as the strip it sits on is shown (docs/app/preferences-and-help/settings.md#SET-45).
+      scenePlaceMarker: true,
       spellcheck: true,
+      // Capitals as they are typed, as before they were a choice (docs/app/writing/editor-ux.md#EDIT-54).
+      autoCaps: true,
       learnedWords: [],
       // The list VaultScreen.tsx held before docs/app/preferences-and-help/settings.md#SET-7, and Progress shown.
       playStatuses: [
@@ -108,7 +113,9 @@ describe("the model agrees with settings.rs", () => {
     // settings.rs spells the same defaults.
     expect(rust).toContain('const DEFAULT_ACCENT: &str = "gilt"');
     expect(rust).toMatch(/flag\("runningTimeStrip"\)\.unwrap_or\(true\)/);
+    expect(rust).toMatch(/flag\("scenePlaceMarker"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("spellcheck"\)\.unwrap_or\(true\)/);
+    expect(rust).toMatch(/flag\("autoCaps"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("checkForUpdates"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("shareAnalytics"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("privacyNoticeSeen"\)\.unwrap_or\(false\)/);
@@ -138,7 +145,11 @@ describe("readSettings", () => {
       formatOrder: [],
       interfaceTextSize: 100,
       runningTimeStrip: false,
+      // Absent from every file written before it was a setting: on.
+      scenePlaceMarker: true,
       spellcheck: true,
+      // Absent from every file written before it was a setting: on.
+      autoCaps: true,
       learnedWords: ["Jonah", "Mara"],
       playStatuses: [...DEFAULT_PLAY_STATUSES],
       showProgress: true,
@@ -161,6 +172,7 @@ describe("readSettings", () => {
     const s = readSettings({
       accent: 42,
       runningTimeStrip: "yes",
+      scenePlaceMarker: "no",
       spellcheck: false,
       learnedWords: ["Mara", 7, null, "Jonah"],
       openAtLaunch: "somewhere",
@@ -234,6 +246,9 @@ describe("the status list", () => {
       expect(validatePatch({ playStatuses } as unknown as SettingsPatch)).not.toBeNull();
     }
     expect(validatePatch({ showProgress: "off" } as unknown as SettingsPatch)).not.toBeNull();
+    // The place marker is a switch of its own (docs/app/preferences-and-help/settings.md#SET-45).
+    expect(validatePatch({ scenePlaceMarker: false })).toBeNull();
+    expect(validatePatch({ scenePlaceMarker: "off" } as unknown as SettingsPatch)).not.toBeNull();
   });
 
   it("applies as the whole list, in the order given", () => {

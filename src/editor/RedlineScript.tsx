@@ -15,6 +15,7 @@
  */
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useZoomAnchor } from "../ui/zoom-anchor";
 import { formatCssVars, formatToCss, type FormatSpec } from "../format";
 import { marginRuleCss } from "./redline-margin";
 import { Pagination } from "./pagination";
@@ -84,6 +85,8 @@ export function RedlineScript({
       window.removeEventListener("resize", solve);
     };
   }, [format]);
+  // A pane resized under the page keeps the reader's place (docs/app/writing/editor-ux.md#EDIT-198).
+  useZoomAnchor(frame, zoom);
 
   return (
     <div className="redline" style={vars} ref={frame}>
@@ -99,7 +102,10 @@ export function RedlineScript({
           className="play-page redline__page"
           role="group"
           aria-label={label}
-          style={{ zoom } as CSSProperties}
+          // The page's own scale, as the script's page (formatToCss): iPadOS
+          // keeps a zoomed page's words at their 100% size
+          // (docs/app/writing/editor-ux.md#EDIT-196).
+          style={{ "--page-scale": zoom } as CSSProperties}
         >
           <EditorContent editor={editor} />
         </div>

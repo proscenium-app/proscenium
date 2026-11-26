@@ -6,6 +6,7 @@ import { describe, expect, it } from "bun:test";
 import { builtinFormats } from "../format";
 
 import {
+  paginateBackMatter,
   paginateFrontMatter,
   type FrontMatterPage,
   type LayoutPage,
@@ -15,6 +16,8 @@ import {
 import {
   defaultFrontSheets,
   formatPageRange,
+  FRONT_SHEET_LABEL,
+  pageLabelRanges,
   frontKindsOf,
   frontSheetsFor,
   pageRangeLabel,
@@ -143,6 +146,177 @@ describe("frontSheetsFor", () => {
     ]);
     expect(frontSheetsFor(null, spec)).toEqual([]);
   });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: production notes are the last sheet before the script, and a choice of their own", () => {
+    const fm = {
+      title: "Tideline",
+      characters: [{ name: "Mara" }],
+      setting: "A kitchen.",
+      productionNotes: "Played without an interval.",
+    };
+    expect(frontSheetsFor(fm, spec)).toEqual(["title", "characters", "setting", "production"]);
+    expect(FRONT_SHEET_LABEL.production).toBe("Production notes");
+    const front = paginateFrontMatter(fm, spec);
+    // Left out, the other sheets still go; chosen alone, it goes alone.
+    expect(selectFrontMatter(front, ["title", "characters", "setting"]).map((p) => p.kind)).toEqual(
+      ["title", "characters", "setting"],
+    );
+    expect(selectFrontMatter(front, ["production"]).map((p) => p.kind)).toEqual(["production"]);
+    const plan = planSheets({
+      front,
+      layout: layoutOf(2),
+      frontKinds: ["production"],
+      pages: [1, 2],
+    });
+    expect(plan.chosen.map((sheet) => [sheet.label, sheet.short])).toEqual([
+      ["Production notes", "Production"],
+      ["Page 1", "1"],
+      ["Page 2", "2"],
+    ]);
+  });
+});
+
+describe("the pages after the script", () => {
+  const spec = builtinFormats()[0];
+  const fm = {
+    title: "Tideline",
+    backPages: [
+      {
+        id: "about",
+        name: "About the Author",
+        text: "## ABOUT THE AUTHOR\n\nShe writes by the sea.\n",
+      },
+      { id: "thanks", name: "Acknowledgments", text: "---\nexport: false\n---\n\nWith thanks.\n" },
+    ],
+  };
+
+  it("are kinds of their own, listed after the front sheets, in their folder's order", () => {
+    expect(frontSheetsFor(fm, spec)).toEqual(["title", "page:about", "page:thanks"]);
+    // With no folder, or an empty one, nothing follows the front sheets.
+    expect(frontSheetsFor({ title: "Tideline", backPages: [] }, spec)).toEqual(["title"]);
+  });
+
+  it("stand after the script's pages in the plan, marked as such, and are chosen by kind", () => {
+    const back = paginateBackMatter(fm, spec);
+    const plan = planSheets({
+      front: paginateFrontMatter(fm, spec),
+      layout: layoutOf(3),
+      back,
+      frontKinds: ["title", "page:about"],
+      pages: [1, 2, 3],
+    });
+    expect(plan.all.map((s) => s.key)).toEqual([
+      "front-0",
+      "page-1",
+      "page-2",
+      "page-3",
+      "back-0",
+      "back-1",
+    ]);
+    expect(plan.all.map((s) => s.order)).toEqual(plan.all.map((_, i) => i));
+    expect(plan.all.map((s) => (s.kind === "front" ? !!s.back : null))).toEqual([
+      false,
+      null,
+      null,
+      null,
+      true,
+      true,
+    ]);
+    expect(plan.chosen.map((s) => [s.label, s.short])).toEqual([
+      ["Title page", "Title"],
+      ["Page 1", "1"],
+      ["Page 2", "2"],
+      ["Page 3", "3"],
+      ["About the Author", "About the Author"],
+    ]);
+    // The pager says where a sheet after the script is in the file, by its name.
+    expect(pagerText(plan.chosen, 4)).toBe("About the Author · sheet 5 of 5");
+    // A script with only a sheet after it is no longer "Page n of m" either.
+    const tail = planSheets({
+      front: [],
+      layout: layoutOf(2),
+      back,
+      frontKinds: ["page:thanks"],
+      pages: [1, 2],
+    }).chosen;
+    expect(pagerText(tail, 0)).toBe("Page 1 · sheet 1 of 3");
+    expect(pagerText(tail, 2)).toBe("Acknowledgments · sheet 3 of 3");
+  });
+
+  it("go with nothing while the range can't be read, and none goes unless its kind was chosen", () => {
+    const back = paginateBackMatter(fm, spec);
+    expect(
+      planSheets({ front: [], layout: layoutOf(2), back, frontKinds: ["page:about"], pages: null })
+        .chosen,
+    ).toEqual([]);
+    expect(
+      planSheets({
+        front: [],
+        layout: layoutOf(2),
+        back,
+        frontKinds: [],
+        pages: [1, 2],
+      }).chosen.map((s) => s.key),
+    ).toEqual(["page-1", "page-2"]);
+  });
+
+  it("keep their place in the file when the sheet being read is left out", () => {
+    const back = paginateBackMatter(fm, spec);
+    const plan = planSheets({
+      front: [],
+      layout: layoutOf(2),
+      back,
+      frontKinds: ["page:thanks"],
+      pages: [1, 2],
+    });
+    // "About the Author" was being read and is not going: the next going sheet after it.
+    expect(plan.chosen[resolveFocus(plan, "back-0")].key).toBe("back-1");
+  });
+
+  it("start ticked for a script that runs to its last page, and never for sides", () => {
+    const available = ["title", "page:about", "page:thanks"];
+    const back = new Set(["page:about", "page:thanks"]);
+    const whole = { sides: false, startsAtPageOne: true, endsAtLastPage: true, back };
+    expect(defaultFrontSheets(available, whole)).toEqual(available);
+    // A page whose own file says `export: false` starts unticked, as one before the script does.
+    expect(defaultFrontSheets(available, { ...whole, leftOut: new Set(["page:thanks"]) })).toEqual([
+      "title",
+      "page:about",
+    ]);
+    // An excerpt from page 1 that stops early: the title page, and nothing after.
+    expect(defaultFrontSheets(available, { ...whole, endsAtLastPage: false })).toEqual(["title"]);
+    // An excerpt that runs to the end: what follows the script, and no title page.
+    expect(defaultFrontSheets(available, { ...whole, startsAtPageOne: false })).toEqual([
+      "page:about",
+      "page:thanks",
+    ]);
+    expect(defaultFrontSheets(available, { ...whole, sides: true })).toEqual([]);
+    // Said to be after the script and not said to reach its end: left out.
+    expect(defaultFrontSheets(available, { sides: false, startsAtPageOne: true, back })).toEqual([
+      "title",
+    ]);
+  });
+
+  it("are named in a viewer after the numbered pages, each a run of its own", () => {
+    const pages = [{ pageNumber: 1 }, { pageNumber: 2 }];
+    expect(
+      pageLabelRanges([{ kind: "title" }], pages, [
+        { kind: "page:about", label: "About the Author" },
+        { kind: "page:notes", label: "Notes" },
+        { kind: "page:notes", label: "Notes" },
+      ]),
+    ).toEqual([
+      { index: 0, prefix: "Title" },
+      { index: 1, start: 1 },
+      { index: 3, prefix: "About the Author" },
+      { index: 4, prefix: "Notes 1" },
+      { index: 5, prefix: "Notes 2" },
+    ]);
+    // With none, the labels are what they were.
+    expect(pageLabelRanges([{ kind: "title" }], pages, [])).toEqual(
+      pageLabelRanges([{ kind: "title" }], pages),
+    );
+  });
 });
 
 describe("front sheet choice", () => {
@@ -182,6 +356,15 @@ describe("front sheet choice", () => {
       "characters",
     ]);
     expect(defaultFrontSheets(all, { sides: false, startsAtPageOne: false })).toEqual([]);
+    // A page whose own file says `export: false` starts unticked
+    // (docs/app/formatting/formats-and-layout.md#FMT-169).
+    expect(
+      defaultFrontSheets(["title", "page:notes"], {
+        sides: false,
+        startsAtPageOne: true,
+        leftOut: new Set(["page:notes"]),
+      }),
+    ).toEqual(["title"]);
     expect(defaultFrontSheets(all, { sides: true, startsAtPageOne: true })).toEqual([]);
   });
 });
@@ -321,6 +504,53 @@ describe("styleSegments", () => {
     expect(segs).toEqual([
       { text: "Scene ", start: 0, bold: false, italic: false, underline: true },
       { text: "One", start: 6, bold: true, italic: true, underline: true },
+    ]);
+  });
+});
+
+describe("pageLabelRanges", () => {
+  const pages = (...numbers: number[]) => numbers.map((pageNumber) => ({ pageNumber }));
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: script pages are labelled with their printed number, front sheets by name", () => {
+    expect(pageLabelRanges([{ kind: "title" }], pages(1, 2, 3))).toEqual([
+      { index: 0, prefix: "Title" },
+      { index: 1, start: 1 },
+    ]);
+    expect(pageLabelRanges([], pages(1, 2))).toEqual([{ index: 0, start: 1 }]);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: a cast list over two sheets is Characters 1 and 2, never a number", () => {
+    expect(
+      pageLabelRanges(
+        [{ kind: "title" }, { kind: "characters" }, { kind: "characters" }],
+        pages(1),
+      ),
+    ).toEqual([
+      { index: 0, prefix: "Title" },
+      { index: 1, prefix: "Characters 1" },
+      { index: 2, prefix: "Characters 2" },
+      { index: 3, start: 1 },
+    ]);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: production notes are named in a viewer, never numbered", () => {
+    expect(
+      pageLabelRanges(
+        [{ kind: "title" }, { kind: "production" }, { kind: "production" }],
+        pages(1, 2),
+      ),
+    ).toEqual([
+      { index: 0, prefix: "Title" },
+      { index: 1, prefix: "Production 1" },
+      { index: 2, prefix: "Production 2" },
+      { index: 3, start: 1 },
+    ]);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-159: an excerpt keeps its page numbers, and a gap starts a new run", () => {
+    expect(pageLabelRanges([], pages(12, 13, 14, 20, 21))).toEqual([
+      { index: 0, start: 12 },
+      { index: 3, start: 20 },
     ]);
   });
 });

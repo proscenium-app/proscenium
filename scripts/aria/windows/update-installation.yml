@@ -1,15 +1,18 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "The Weight of Water"
   - tablist "What this pane shows":
     - tab "Script" [selected]
     - tab "Board"
     - tab "Outline"
     - tab "Cast"
-    - tab "Changes"
+    - tab "Changes, <n> pending": Changes
   - button "Open another surface in this pane"
   - button "Help & Tutorials"
   - button "Feedback"
+  - text: Changes in text
+  - switch "Changes in text — show what arrived from outside, marked in the script"
   - button "Split side by side"
   - button "Hide the inspector" [pressed]
 - navigation "Binder":
@@ -17,14 +20,23 @@
   - button "Collapse all folders"
   - searchbox "Filter the binder"
   - tree "Binder items":
+    - treeitem "Front Matter" [expanded] [level=1]
+    - group "Front Matter":
+      - treeitem "Title Page" [level=2]
+      - treeitem "Characters" [level=2]
+      - treeitem "Setting" [level=2]
     - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
       - text: The Weight of Water
       - button "Rename “The Weight of Water”"
       - button "Actions for “The Weight of Water”"
     - group "Scenes in The Weight of Water":
-      - treeitem "SCENE 1 1" [level=2]
-      - treeitem "SCENE 2 1–2" [level=2]
-      - treeitem "SCENE 1 2" [level=2] [selected]
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3] [selected]
     - treeitem "Characters" [expanded] [level=1]
     - group "Characters":
       - treeitem "Mara" [level=2]
@@ -61,7 +73,7 @@
   - button "Open as a pane"
   - text: ACT TWO · Scene 1
   - heading "SCENE 1" [level=2]
-  - text: Page 2 · 1 page · 3 speeches Summary · not printed
+  - text: Page 2 · 1 page · 1 speech Summary · not printed
   - textbox "Summary"
   - text: Color
   - radiogroup "Scene color":
@@ -75,9 +87,9 @@
     - text: no color
   - text: Notes · never prints
   - textbox "Notes"
-  - text: On stage MARA 3 Comments here 0 in this scene
+  - text: On stage MARA 1 Comments here 0 in this scene
   - button "Show"
-  - paragraph: The synopsis is part of the script. The rest is card metadata.
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "<plays>\\The Weight of Water"
   - text: <save status>
@@ -86,43 +98,6 @@
   - button "Zoom in"
 - status
 - alert
-- dialog "Opening Pages":
-  - heading "Opening Pages" [level=2]
-  - text: Title page, Characters page, then optional opening notes. You choose the content. Title
-  - textbox "Title"
-  - text: Credit
-  - textbox "Credit"
-  - text: Authors
-  - textbox "Authors"
-  - text: Contact
-  - textbox "Contact"
-  - text: Draft date
-  - textbox "Draft date"
-  - text: Write the title page freely
-  - checkbox "Write the title page freely"
-  - heading "Opening Notes" [level=2]
-  - paragraph: An optional page for setting, time, place, a dedication or other notes. Write your own headings, or leave it empty to omit the page.
-  - group "Opening notes text":
-    - toolbar "Formatting":
-      - 'button "Paragraph style: Heading 2"': Heading 2
-      - button "Bold"
-      - button "Italic"
-      - 'button "Text alignment: Align Left"': Align Left
-      - button "Bulleted list":
-        - img
-      - button "Numbered list":
-        - img
-    - heading "Setting" [level=2]
-    - paragraph: A coastal kitchen, and the rooms of memory around it.
-    - heading "Time" [level=2]
-    - paragraph: The last night of winter.
-  - text: Place opening notes
-  - 'button "Place opening notes: After Characters"': After Characters
-  - paragraph: Edit the Characters page in Cast. Export lets you choose which opening pages to include.
-  - button "Cancel"
-  - button "Save"
-  - status
-  - alert
 - dialog "Saving and installing the update…":
   - heading "Saving and installing the update…" [level=2]
   - paragraph: Proscenium will reopen when the update is installed.

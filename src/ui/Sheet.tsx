@@ -9,19 +9,28 @@
  * document-sheet position and the one animation kept, because that drop is what
  * a Mac user reads as "this is modal". Esc cancels; ⏎ triggers the default.
  *
+ * A **floating** sheet stands in for a window of its own (Settings): centred,
+ * rounded on every corner, with a close button in its heading at the corner
+ * where this system puts a window's close control — the top left on a Mac and
+ * an iPad, the top right on a PC (`closeAt`, src/ui/system-traits.ts).
+ *
  * An **alert** is centred, 270px, and is used ONLY where the action rewrites the
  * script — Restore and Revert — or loses words nothing can bring back: Quit
  * Anyway, whose alert makes Don't Quit the default. Move to Trash gets a toast
  * instead — Finder's rule is that a recoverable action is not confirmed, and
  * the app already trashes to the OS, so a `confirm()` there was friction with
- * no safety.
+ * no safety. A whole play is the one exception: it is every page the writer
+ * has on it, it leaves every device that syncs the folder, and no Undo brings
+ * it back, so it is asked about twice (src/app/TrashPlayAsk.tsx).
  */
 import { commandKey } from "./keys";
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { AppMarkIcon } from "./Icons";
-import { Button } from "./controls";
+import { Button, IconButton } from "./controls";
+import { CloseIcon } from "./Icons";
 import { keyOwnedByTarget, tabbables, useFocusReturn, useLayer } from "./layers";
+import { closeAt, dragRegion } from "./system-traits";
 import { ensureAnnouncer } from "./announce";
 
 /**
@@ -156,6 +165,7 @@ export function Sheet({
   width,
   height,
   floating,
+  closable,
   onClose,
   onDefault,
   onCommandEnter,
@@ -170,6 +180,8 @@ export function Sheet({
   width?: number;
   height?: number;
   floating?: boolean;
+  /** A close button in the heading, at the system's corner for one. */
+  closable?: boolean;
   onClose: () => void;
   onDefault?: () => void;
   /** An explicit send shortcut, handled only while this sheet owns the layer. */
@@ -190,11 +202,12 @@ export function Sheet({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="modal-scrim__windowbar" data-tauri-drag-region="deep" aria-hidden="true" />
+      <div className="modal-scrim__windowbar" {...dragRegion(true)} aria-hidden="true" />
       <div className={`sheet${floating ? " sheet--floating" : ""}`} style={{ width, height }}>
         {/* Tauri listens at document. Let the event reach it; the scrim's
             target check already prevents clicks inside from dismissing us. */}
-        <div className="sheet__head" data-tauri-drag-region="deep">
+        <div className="sheet__head" {...dragRegion(true)}>
+          {closable && closeAt() === "left" && <SheetClose onClose={onClose} />}
           <h2 className="sheet__title" id={labelledBy}>
             {title}
           </h2>
@@ -204,6 +217,9 @@ export function Sheet({
             </span>
           )}
           {head}
+          {closable && closeAt() === "right" && (
+            <SheetClose onClose={onClose} className="sheet__close--right" />
+          )}
         </div>
         <div className="sheet__body">{children}</div>
         {footer && <div className="sheet__foot">{footer}</div>}
@@ -211,6 +227,19 @@ export function Sheet({
       <div data-modal-portal="" />
     </div>,
     document.body,
+  );
+}
+
+/** A floating sheet's close button: a window's ×, where the system puts one. */
+function SheetClose({ onClose, className }: { onClose: () => void; className?: string }) {
+  return (
+    <IconButton
+      label="Close"
+      className={`sheet__close${className ? ` ${className}` : ""}`}
+      onClick={onClose}
+    >
+      <CloseIcon size={14} />
+    </IconButton>
   );
 }
 
@@ -267,7 +296,7 @@ export function Alert({
         if (e.target === e.currentTarget) onCancel();
       }}
     >
-      <div className="modal-scrim__windowbar" data-tauri-drag-region="deep" aria-hidden="true" />
+      <div className="modal-scrim__windowbar" {...dragRegion(true)} aria-hidden="true" />
       <div className="alert">
         <span className="alert__icon" aria-hidden="true">
           <AppMarkIcon size={52} />

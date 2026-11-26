@@ -18,4 +18,17 @@ describe("the window moves by its top bar", () => {
     expect(capability.windows).toContain("main");
     expect(capability.permissions).toContain("core:window:allow-start-dragging");
   });
+
+  test("every drag region is drawn through the record, so an iPad's bars carry none", () => {
+    // An iPad's shell has no window to drag, and a tap on a drag region there
+    // raised an error (src/ui/system-traits.ts, `windowDrag`). A bar that
+    // wrote the attribute itself would bring it back.
+    const glob = new Bun.Glob("**/*.{ts,tsx}");
+    const literal = [...glob.scanSync({ cwd: join(root, "src") })]
+      .filter((file) => !/\.test\.tsx?$/.test(file) && file !== join("ui", "system-traits.ts"))
+      .filter((file) =>
+        readFileSync(join(root, "src", file), "utf8").includes("data-tauri-drag-region"),
+      );
+    expect(literal).toEqual([]);
+  });
 });

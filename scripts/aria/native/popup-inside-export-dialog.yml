@@ -52,3 +52,4 @@
       - menuitemradio "PDF" [checked] [selected]
       - menuitemradio ".docx"
       - menuitemradio ".odt"
+      - menuitemradio ".rtf"

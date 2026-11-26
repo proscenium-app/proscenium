@@ -21,7 +21,8 @@ export function RawPlaySheet({
   details: RawPlayDetails;
   onClose(): void;
   onRetry(): void;
-  onReveal(): void;
+  /** Show the original file in the file manager; absent where the system has none. */
+  onReveal?: () => void;
 }) {
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
@@ -35,7 +36,7 @@ export function RawPlaySheet({
       onClose={onClose}
       footer={
         <>
-          <Button onClick={onReveal}>Show in Folder</Button>
+          {onReveal && <Button onClick={onReveal}>Show in Folder</Button>}
           <span className="sheet__spacer" />
           <Button onClick={onClose}>Close</Button>
           <Button treatment="primary" onClick={onRetry}>
@@ -46,7 +47,8 @@ export function RawPlaySheet({
     >
       <div className="diagnostics-body">
         <p className="diagnostics-notice" id="raw-play-notice">
-          {details.message} Show in Folder opens the location of the original file.
+          {details.message}
+          {onReveal && " Show in Folder opens the location of the original file."}
         </p>
         {details.text !== null && (
           <textarea

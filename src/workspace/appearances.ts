@@ -19,10 +19,13 @@ export interface SceneAppearance {
   ordinal: number;
   /** Short label like "Sc 1" or the scene heading if present. */
   label: string;
+  /** How many speeches they have in this scene: one per cue. */
+  speeches: number;
 }
 
 /**
- * Map of UPPERCASE cue name → the scenes it appears in, in order. Scenes are
+ * Map of UPPERCASE cue name → the scenes it appears in, in order, each with
+ * how many times the name is cued there. Scenes are
  * counted exactly as the corkboard/outliner counts them (`scene` blocks if the
  * doc has any, else `sceneHeading`), so ordinals line up with the cards.
  */
@@ -48,22 +51,26 @@ export function computeAppearances(
   };
 
   let sceneIdx = -1;
-  const seen = new Map<string, Set<number>>();
+  const seen = new Map<string, Map<number, SceneAppearance>>();
   for (const block of blocks) {
     if (block.type === boundary) sceneIdx += 1;
     if (block.type !== "character") continue;
     const name = cueName(blockText(block));
     if (!name) continue;
     const at = Math.max(0, sceneIdx);
-    let set = seen.get(name);
-    if (!set) {
-      set = new Set();
-      seen.set(name, set);
+    let scenes = seen.get(name);
+    if (!scenes) {
+      scenes = new Map();
+      seen.set(name, scenes);
       out.set(name, []);
     }
-    if (!set.has(at)) {
-      set.add(at);
-      out.get(name)!.push({ ordinal: at, label: labelFor(at) });
+    const here = scenes.get(at);
+    if (here) {
+      here.speeches += 1;
+    } else {
+      const appearance = { ordinal: at, label: labelFor(at), speeches: 1 };
+      scenes.set(at, appearance);
+      out.get(name)!.push(appearance);
     }
   }
   return out;

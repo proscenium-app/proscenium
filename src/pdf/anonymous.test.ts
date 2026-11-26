@@ -11,7 +11,7 @@ import dgModernRaw from "../../formats/dg-modern.json";
 import type { Doc, FrontMatter } from "../fountain/model";
 import type { FormatSpec } from "../format/spec";
 import { validateFormatSpec } from "../format/validate";
-import { paginateDoc, paginateFrontMatter, type LayoutMeta } from "../layout";
+import { paginateBackMatter, paginateDoc, paginateFrontMatter, type LayoutMeta } from "../layout";
 import {
   anonymousFrontMatter,
   anonymousMeta,
@@ -68,6 +68,16 @@ describe("an anonymous copy (docs/app/formatting/formats-and-layout.md#FMT-143)"
     expect(lines.join(" ")).not.toMatch(/Written by|Marlowe|example\.com|555/);
     // The cast is the play's, not the writer's.
     expect(lines.some((line) => line.startsWith("SOPHIE"))).toBe(true);
+  });
+
+  it("docs/app/formatting/formats-and-layout.md#FMT-162: keeps the production notes, which are the play's", () => {
+    const fm = { ...FM, productionNotes: "Six actors play every role." };
+    const sheets = paginateFrontMatter(anonymousFrontMatter(fm, "fallback"), spec());
+    expect(sheets.map((page) => page.kind)).toEqual(["title", "characters", "production"]);
+    expect(sheets[2].lines.map((line) => line.text)).toEqual([
+      "PRODUCTION NOTES",
+      "Six actors play every role.",
+    ]);
   });
 
   it("replaces a title page written as prose with the title alone", () => {
@@ -134,6 +144,43 @@ describe("finding the name the copy could not remove (docs/app/formatting/format
     });
     expect(sheetsNaming(plan.chosen, identityOf(FM))).toEqual(["Page 1"]);
     expect(sheetsNaming(plan.chosen, [])).toEqual([]);
+  });
+
+  it("looks on the sheets after the script too, where a page about the writer names them", () => {
+    const s = spec();
+    const fm = {
+      ...FM,
+      backPages: [
+        { id: "about", name: "About the Author", text: "Jo Marlowe lives by the sea.\n" },
+        { id: "thanks", name: "Acknowledgments", text: "With thanks. {author}\n" },
+      ],
+    };
+    const anonymous = anonymousFrontMatter(fm, "fallback");
+    // The pages go with the copy, their fields emptied as the title page's are.
+    expect(anonymous?.backPages).toEqual(fm.backPages);
+    const back = paginateBackMatter(anonymous, s);
+    expect(back.map((page) => page.lines.map((line) => line.text).join(" "))).toEqual([
+      "Jo Marlowe lives by the sea.",
+      "With thanks.",
+    ]);
+    const plan = planSheets({
+      front: paginateFrontMatter(anonymous, s),
+      layout: paginateDoc(play("Lights up."), s, anonymousMeta(META, "fallback")),
+      back,
+      frontKinds: ["title", "page:about", "page:thanks"],
+      pages: [1],
+    });
+    // The words the writer typed are found; the field, emptied, names no one.
+    expect(sheetsNaming(plan.chosen, identityOf(FM))).toEqual(["About the Author"]);
+    // Left out of the copy, there is nothing to say about it.
+    const without = planSheets({
+      front: paginateFrontMatter(anonymous, s),
+      layout: paginateDoc(play("Lights up."), s, anonymousMeta(META, "fallback")),
+      back,
+      frontKinds: ["title", "page:thanks"],
+      pages: [1],
+    });
+    expect(sheetsNaming(without.chosen, identityOf(FM))).toEqual([]);
   });
 
   it("lists them the way a sentence would", () => {

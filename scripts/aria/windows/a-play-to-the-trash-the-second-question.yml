@@ -1,0 +1,59 @@
+- banner:
+  - button "Help & Tutorials"
+  - button "Feedback"
+- main:
+  - heading "plays" [level=1]
+  - textbox "Search plays"
+  - button "New Play"
+  - button "Import a Draft…"
+  - heading "Plays" [level=2]
+  - paragraph: 3 plays · plays
+  - paragraph: Your plays live in a folder on this PC only. They will not appear on other devices.
+  - table "Plays":
+    - 'row "Ashes in Spring 1 page Status for Ashes in Spring: idea Today, <time> More actions for “Ashes in Spring”"':
+      - cell "Ashes in Spring":
+        - button "Ashes in Spring"
+        - textbox "Logline for Ashes in Spring"
+      - cell "1 page"
+      - 'cell "Status for Ashes in Spring: idea"':
+        - 'button "Status for Ashes in Spring: idea"': idea
+      - cell "Today, <time>"
+      - cell "More actions for “Ashes in Spring”":
+        - button "More actions for “Ashes in Spring”"
+    - 'row "The Lighthouse 1 page Status for The Lighthouse: drafting <date and time> More actions for “The Lighthouse”"':
+      - cell "The Lighthouse":
+        - button "The Lighthouse"
+        - textbox "Logline for The Lighthouse"
+      - cell "1 page"
+      - 'cell "Status for The Lighthouse: drafting"':
+        - 'button "Status for The Lighthouse: drafting"': drafting
+      - cell "<date and time>"
+      - cell "More actions for “The Lighthouse”":
+        - button "More actions for “The Lighthouse”"
+    - 'row "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull. 2 pages Status for The Weight of Water: drafting <date and time> More actions for “The Weight of Water”"':
+      - cell "The Weight of Water A flooded house, a brother who came back, and a plug nobody will pull.":
+        - button "The Weight of Water"
+        - textbox "Logline for The Weight of Water"
+      - cell "2 pages"
+      - 'cell "Status for The Weight of Water: drafting"':
+        - 'button "Status for The Weight of Water: drafting"': drafting
+      - cell "<date and time>"
+      - cell "More actions for “The Weight of Water”":
+        - button "More actions for “The Weight of Water”"
+    - row "Play Progress Status Modified Actions":
+      - columnheader "Play"
+      - columnheader "Progress"
+      - columnheader "Status"
+      - columnheader "Modified"
+      - columnheader "Actions"
+- contentinfo:
+  - button "<plays>"
+- status
+- alert
+- alertdialog "Move “Ashes in Spring” to the Recycle Bin?":
+  - heading "Move “Ashes in Spring” to the Recycle Bin?" [level=2]
+  - paragraph: Last check. The whole play leaves your Plays folder. It goes to the Recycle Bin, where you can put it back.
+  - button "Keep the Play"
+  - button "Move to the Recycle Bin"
+  - status
+  - alert

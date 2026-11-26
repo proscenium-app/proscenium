@@ -1,5 +1,6 @@
 - banner:
   - button "Hide the binder" [pressed]
+  - button "All Plays"
   - button "The Lighthouse"
   - tablist "What this pane shows":
     - tab "Script" [selected]
@@ -22,8 +23,10 @@
       - button "Rename “The Lighthouse”"
       - button "Actions for “The Lighthouse”"
     - group "Scenes in The Lighthouse":
-      - treeitem "THE LAMP ROOM 1" [level=2]
-      - treeitem "THE LEDGER 1" [level=2] [selected]
+      - treeitem "ACT ONE 1" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "THE LAMP ROOM 1" [level=3]
+        - treeitem "THE LEDGER 1" [level=3] [selected]
     - treeitem "Notes" [expanded] [level=1]
     - group "Notes":
       - treeitem "Ideas" [level=2]
@@ -48,7 +51,7 @@
   - button "Open as a pane"
   - text: ACT ONE · Scene 2
   - heading "THE LEDGER" [level=2]
-  - text: Page 1 · 1 page · 3 speeches Summary · not printed
+  - text: Page 1 · 1 page · 1 speech Summary · not printed
   - textbox "Summary"
   - text: Color
   - radiogroup "Scene color":
@@ -62,9 +65,9 @@
     - text: no color
   - text: Notes · never prints
   - textbox "Notes"
-  - text: On stage EDDA 3 Comments here 0 in this scene
+  - text: On stage EDDA 1 Comments here 0 in this scene
   - button "Show"
-  - paragraph: The synopsis is part of the script. The rest is card metadata.
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
 - contentinfo:
   - button "/dev/sample-vault/The Lighthouse"
   - text: <save status>
