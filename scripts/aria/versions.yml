@@ -45,6 +45,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -74,6 +75,7 @@
             - text: Boxes everywhere. The tap is gone, capped with a brass plug. MARA It's quiet now. I keep listening for it.
             - insertion: Still.
         - button "Restore as It Was Before…"
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

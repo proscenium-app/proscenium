@@ -62,8 +62,8 @@ targets:
           - UIInterfaceOrientationPortraitUpsideDown
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        CFBundleShortVersionString: 1.1.0
-        CFBundleVersion: "1.1.0"
+        CFBundleShortVersionString: 1.1.1
+        CFBundleVersion: "1.1.1"
     entitlements:
       path: proscenium_iOS/proscenium_iOS.entitlements
       properties:

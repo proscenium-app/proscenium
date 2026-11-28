@@ -88,6 +88,9 @@ import {
   type FrontPageSource,
 } from "../fountain";
 import type { FormatSpec } from "../format";
+import { defaultVersionPrint, withVersionPrint, type VersionPrint } from "../layout/furniture";
+import { titlePageOf, withVersionLine } from "../layout/page-files";
+import { detailValue } from "./play-details";
 import { useFormatRegistry } from "./formats/use-formats";
 import { settingsStore } from "../ui/settings-store";
 import { theTrash } from "../ui/system-words";
@@ -99,17 +102,21 @@ import {
   frontPageList,
   legacyPageFiles,
   namedOnPage,
+  openingParagraphs,
   paginateDoc,
   readPageFile,
   writePageFile,
   scenePageMap,
+  contentsBothFor,
   contentsFor,
+  listsCast,
   listsContents,
+  speakersListed,
   type LayoutMeta,
   type LayoutResult,
   type ScenePageMap,
 } from "../layout";
-import { pdfExported } from "../diagnostics";
+import { pdfExported, raisedError, type ShownError } from "../diagnostics";
 import { revalidateFiles } from "../storage/revalidate";
 import { writeState } from "../storage/own-writes";
 import { watcherHealth } from "../storage/ipc";
@@ -187,6 +194,20 @@ import {
   reconcileBinder,
   toRecord,
   renameItem,
+  followPlayRename,
+  isKeptScript,
+  saveDraftItem,
+  workingCopyItem,
+  addZippedPlay,
+  carryPlayMemory,
+  duplicatePlay as duplicatePlayIn,
+  newPlayLike as newPlayLikeIn,
+  playZip,
+  PlayNameTaken,
+  readZippedPlay,
+  renamePlay as renamePlayIn,
+  scriptToFollow,
+  titleFacts,
   reorderItem,
   reorderSceneCards,
   scaffoldPlayInVault,
@@ -220,6 +241,7 @@ import {
   type FolderOfPlays,
   type Loaded,
   type PlayFile,
+  type DraftRecord,
   type PlaysFolderHint,
   type ScriptData,
   type VaultPlay,
@@ -644,7 +666,7 @@ export interface Workspace {
   conflictCopies: string[];
   preserved: string[];
   /** A sentence to show, or a refused save's title, detail and code (save-failure.ts). */
-  error: string | SaveProblem | null;
+  error: string | ShownError | null;
   // editor / script
   scriptTitle: string;
   /** Vault-relative path of the open script (null when none). */
@@ -732,6 +754,19 @@ export interface Workspace {
   castKeptNow: () => KeptName[];
   /** Write the command's declined names for the open script. */
   saveCastKept: (entries: KeptName[]) => Promise<void>;
+  /**
+   * Where the open script's version prints besides its title page: as the play
+   * file says, or where it goes when it says nothing
+   * (docs/app/formatting/formats-and-layout.md#FMT-185).
+   */
+  versionPrint: VersionPrint;
+  /** Play Version…: the version, where else it prints, a title page line; whether it was kept. */
+  savePlayVersion: (
+    text: string,
+    print: VersionPrint | undefined,
+    titleLine: boolean,
+    forScript: string | null,
+  ) => Promise<boolean>;
   /** Write a name on the Characters page, as Cast's Add to Characters Page does; whether it landed. */
   addToCharactersPage: (name: string) => Promise<boolean>;
   /** A paragraph at the end of one page before the script (by its source); whether it landed. */
@@ -946,7 +981,69 @@ export interface Workspace {
    * once the writer has said yes twice (docs/app/organizing/workspace-model.md#WORK-91).
    */
   trashPlay: (play: VaultPlay) => Promise<{ ok: true } | { ok: false; said: string }>;
+  /**
+   * Rename a play: its folder and play file, and with `title` its title page
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-208). `dir` is the
+   * play's folder; the open play is left and opened again under its new name.
+   */
+  renamePlay: (dir: string, name: string, title: boolean) => Promise<PlayOpResult>;
+  /**
+   * Copy the open script beside itself under `name`, and open the copy: Save
+   * As's Another Script (docs/app/organizing/workspace-model.md#WORK-95).
+   */
+  duplicateScript: (name: string) => Promise<PlayOpResult>;
+  /** Copy a whole play and open the copy (docs/app/keeping-work/storage-and-file-format.md#STOR-197). */
+  duplicatePlay: (dir: string, name: string) => Promise<PlayOpResult>;
+  /** A new play with a play's setup and none of its writing, opened (docs/app/keeping-work/storage-and-file-format.md#STOR-198). */
+  newPlayLike: (dir: string, name: string) => Promise<PlayOpResult>;
+  /**
+   * The whole play as one .zip, through the save panel
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-199): the open
+   * play with no `dir`, or a play of the Plays screen.
+   */
+  exportPlay: (dir?: string) => void;
+  /** Add the play in a .zip to the Plays folder and open it (docs/app/keeping-work/storage-and-file-format.md#STOR-200). */
+  addPlayFromZip: (file: File) => Promise<PlayOpResult>;
+  /**
+   * The title on a play's title page, and whether it is the play's name: what
+   * the rename sheet asks about. `dir` is the play's folder.
+   */
+  titleOfPlay: (dir: string) => Promise<{ title: string | null; isName: boolean }>;
+  /** A Save the writer asked for: the status says Proscenium saves as they write. */
+  saveNote: boolean;
+  /** The play's saved drafts, by binder id (docs/app/keeping-work/storage-and-file-format.md#STOR-203). */
+  drafts: Record<string, DraftRecord>;
+  /**
+   * Keep the open script as it stands on disk as a saved draft named `name`
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-203). `dir` in
+   * the answer is the draft's binder id.
+   */
+  saveDraft: (name: string) => Promise<PlayOpResult>;
+  /** The saved draft being read, by binder id, or null (docs/app/keeping-work/storage-and-file-format.md#STOR-205). */
+  openDraft: string | null;
+  showDraft: (id: string | null) => void;
+  /** What the draft sheet shows: the draft, and the script it was saved from as it is now. */
+  draftView: (id: string) => Promise<DraftView>;
+  /** The script it was saved from takes the draft's words, after a version of what it held. */
+  restoreDraft: (id: string) => Promise<boolean>;
+  /** A script to work in, holding the draft's words, opened. */
+  workingCopy: (id: string, name: string) => Promise<PlayOpResult>;
 }
+
+/** A saved draft as its sheet reads it (docs/app/keeping-work/storage-and-file-format.md#STOR-205). */
+export interface DraftView {
+  name: string;
+  /** Its record, or null for a .fountain kept as a file that no draft names. */
+  record: DraftRecord | null;
+  text: string;
+  /** The script it was saved from, as it is now; null when it is gone. */
+  from: { id: string; name: string; text: string } | null;
+  /** Its bytes are no longer what was saved. */
+  changed: boolean;
+}
+
+/** What a play's rename, copy or addition came to: the play's folder, or why not. */
+export type PlayOpResult = { ok: true; dir: string } | { ok: false; said: string; taken?: boolean };
 
 export function useWorkspace(): Workspace {
   const [practicing, setPracticing] = useState(false);
@@ -990,6 +1087,10 @@ export function useWorkspace(): Workspace {
   activeRootRef.current = root;
   const [playTitle, setPlayTitle] = useState("");
   const [binder, setBinder] = useState<BinderItem[]>([]);
+  /** The play's saved drafts, as its file says them (docs/app/keeping-work/storage-and-file-format.md#STOR-203). */
+  const [drafts, setDrafts] = useState<Record<string, DraftRecord>>({});
+  /** The saved draft being read, by binder id (docs/app/keeping-work/storage-and-file-format.md#STOR-205). */
+  const [openDraft, setOpenDraft] = useState<string | null>(null);
   // Binder entries whose file is gone from disk (docs/app/keeping-work/storage-and-file-format.md#STOR-D9). Surfaced, never
   // removed — this could be a sync still in flight or an un-downloaded iCloud
   // file, and "fixing" it by deleting the entry is how work disappears.
@@ -1031,7 +1132,7 @@ export function useWorkspace(): Workspace {
   const [conflictCopies, setConflictCopies] = useState<string[]>([]);
   /** Versions pinned because a write could not land (docs/app/keeping-work/storage-and-file-format.md#STOR-D9). */
   const [preserved, setPreserved] = useState<string[]>([]);
-  const [error, setError] = useState<string | SaveProblem | null>(null);
+  const [error, setError] = useState<string | ShownError | null>(null);
   const [view, setViewState] = useState<ScriptView>("editor");
   const [cards, setCards] = useState<SceneCard[]>([]);
   /** Read inside async callbacks that must not close over a stale `cards`. */
@@ -1213,7 +1314,27 @@ export function useWorkspace(): Workspace {
   const [notice, setNotice] = useState<string | null>(null);
   const playRef = useRef<Loaded<PlayFile> | null>(null);
 
-  const resolvedFormat = useMemo(() => registry.resolve(formatId), [registry, formatId]);
+  /**
+   * Where the open script's version prints besides its title page, as the play
+   * file keeps it; null when it does not say
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-196).
+   */
+  const [versionPrint, setVersionPrint] = useState<VersionPrint | null>(null);
+  const formatAsRegistered = useMemo(() => registry.resolve(formatId), [registry, formatId]);
+  // The play's format with its version in the header or footer the writer
+  // chose (docs/app/formatting/formats-and-layout.md#FMT-185): the one spec the
+  // page view, the export window and every export lay out with.
+  const versionPrintShown = useMemo(
+    () => versionPrint ?? defaultVersionPrint(formatAsRegistered.spec),
+    [versionPrint, formatAsRegistered],
+  );
+  const resolvedFormat = useMemo(
+    () => ({
+      ...formatAsRegistered,
+      spec: withVersionPrint(formatAsRegistered.spec, versionPrint, frontMatter.version),
+    }),
+    [formatAsRegistered, versionPrint, frontMatter.version],
+  );
   const formatWarnings = useMemo(() => {
     const all = registry.warnings.map((w) => `${w.source}: ${w.message}`);
     if (resolvedFormat.warning) all.push(resolvedFormat.warning);
@@ -1271,6 +1392,10 @@ export function useWorkspace(): Workspace {
   // assigned once takePlayFromDisk exists below.
   const takePlayFromDiskRef = useRef<(playPath: string) => Promise<void>>(async () => {});
   const reconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The rest of a play's rename, once the play is open (renameTo's, below). */
+  const followRenameRef = useRef<(id: string | null, name: string) => Promise<void>>(
+    async () => {},
+  );
   /** A look at the Plays folder again, for a play that came or went (handleExternalChange). */
   const playsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // The ledger, and the script writer, read from callbacks that must not
@@ -1579,7 +1704,10 @@ export function useWorkspace(): Workspace {
         return false;
       }
       playRef.current = { data: written.data, hash: written.hash };
-      if (ownsBinder) setBinder(written.data.binder);
+      if (ownsBinder) {
+        setBinder(written.data.binder);
+        setDrafts(written.data.drafts ?? {});
+      }
       return true;
     },
     [],
@@ -1763,7 +1891,7 @@ export function useWorkspace(): Workspace {
           // The disk refused: said once, in the writer's words (save-failure.ts).
           // The words stay in the buffer and the recovery snapshot, and the next
           // pause in the typing tries again.
-          if (!(e instanceof VaultWriteError)) setError(String(e));
+          if (!(e instanceof VaultWriteError)) setError(raisedError(e, "E-SAVE"));
           else if (stillOpen())
             saveRefused(`script:${sid ?? path}`, e, saveSubject("script", path));
           else setError(saveProblem(saveRefusal(e), saveSubject("script", path)));
@@ -2010,7 +2138,7 @@ export function useWorkspace(): Workspace {
         // writer, because the alternative is a blank page and silence.
         if (latest()) {
           openPendingRef.current = false;
-          setError(String(e));
+          setError(raisedError(e, "E-SCRIPT-OPEN"));
           setPlaySettled(true);
         }
         return;
@@ -2110,6 +2238,13 @@ export function useWorkspace(): Workspace {
 
   const selectItem = useCallback(
     (item: BinderItem) => {
+      // A script kept as a file no editor writes, a saved draft, is read in a
+      // sheet of its own (docs/app/keeping-work/storage-and-file-format.md#STOR-206),
+      // and never becomes what a pane shows: a pane would take it for a page.
+      if (isKeptScript(item)) {
+        setOpenDraft(item.id);
+        return;
+      }
       setActiveId(item.id);
       if (item.type === "script") {
         // The open script again is a no-op — unless another is still reading,
@@ -2371,6 +2506,7 @@ export function useWorkspace(): Workspace {
       materials.reset();
       outline.reset();
       setCastHidden([]);
+      setVersionPrint(null);
       for (const t of [reconcileTimerRef, appearancesTimerRef]) {
         if (t.current) clearTimeout(t.current);
         t.current = null;
@@ -2385,6 +2521,8 @@ export function useWorkspace(): Workspace {
       backPagesRef.current = { key: null, pages: NO_PAGES };
       loadDocIntoEditor({ type: "doc", content: [] });
       setBinder([]);
+      setDrafts({});
+      setOpenDraft(null);
       setCards([]);
       setActiveId(null);
       setScriptTitle("");
@@ -2569,6 +2707,7 @@ export function useWorkspace(): Workspace {
       // The play's name is its folder's name (docs/app/keeping-work/storage-and-file-format.md#STOR-D4) — never a field in the file.
       setPlayTitle(dir);
       setBinder(play.binder);
+      setDrafts(play.drafts ?? {});
       // A play file newer than this app understands opens READ-ONLY and is
       // never rewritten (docs/app/keeping-work/storage-and-file-format.md#STOR-D14).
       setReadOnly(isReadOnly(play.schemaVersion));
@@ -2773,11 +2912,19 @@ export function useWorkspace(): Workspace {
               : null;
         }
         await loadPlay(play.dir, file, loaded, focusScript);
+        // A rename's last step: the script named as the play was takes its
+        // name now, by the binder's own rename (docs/app/keeping-work/storage-and-file-format.md#STOR-208).
+        // Queued, not awaited: a binder op waits its turn in line, and an open
+        // made from inside a turn (a rename's own) would wait on itself.
+        if (loaded.status === "valid" && typeof loaded.data.renamedFrom === "string") {
+          const follow = scriptToFollow(loaded.data, play.dir);
+          void followRenameRef.current(follow?.id ?? null, play.dir);
+        }
       } catch (e) {
         // Opening changed the native root before reading/recovering metadata.
         // Return it to the Plays folder before the writer can select again.
         await openAny(base).catch(() => {});
-        setError(String(e));
+        setError(raisedError(e, "E-PLAY-OPEN"));
       }
     },
     [teardownWorkspace, loadPlay, openAny, followCloud],
@@ -2789,7 +2936,7 @@ export function useWorkspace(): Workspace {
     try {
       await openAny(base); // teardown inside flushes the open buffer first
     } catch (e) {
-      setError(String(e));
+      setError(raisedError(e, "E-FOLDER-OPEN"));
     }
   }, [openAny]);
 
@@ -2868,7 +3015,7 @@ export function useWorkspace(): Workspace {
         setError(
           published
             ? `“${published}” was created but could not be opened. Open it from your Plays folder rather than importing it again. ${String(e)}`
-            : String(e),
+            : raisedError(e, "E-PLAY-CREATE"),
         );
         return published !== null;
       }
@@ -2914,7 +3061,7 @@ export function useWorkspace(): Workspace {
         await enterPlay(found, script);
         return true;
       } catch (e) {
-        setError(String(e));
+        setError(raisedError(e, "E-PLAY-OPEN"));
         return false;
       }
     },
@@ -2959,7 +3106,7 @@ export function useWorkspace(): Workspace {
         await openAny(picked);
         return true;
       } catch (e) {
-        setError(String(e));
+        setError(raisedError(e, "E-FOLDER-OPEN"));
         return false;
       }
     },
@@ -2998,7 +3145,7 @@ export function useWorkspace(): Workspace {
         if (ok) setPlays(await discoverPlays());
         else setError("Couldn't save the change — the play changed on disk.");
       } catch (e) {
-        setError(String(e));
+        setError(raisedError(e, "E-PLAY-SETTINGS"));
       }
     },
     [plays],
@@ -3035,7 +3182,7 @@ export function useWorkspace(): Workspace {
       }
       if (message) setError(message);
     } catch (e) {
-      setError(String(e));
+      setError(raisedError(e, "E-FOLDER-OPEN"));
     }
   }, [openAny, refusalFor]);
 
@@ -3054,7 +3201,7 @@ export function useWorkspace(): Workspace {
       }
       await openAny(root);
     } catch (e) {
-      setError(String(e));
+      setError(raisedError(e, "E-FOLDER-OPEN"));
     }
   }, [openAny]);
 
@@ -3068,7 +3215,7 @@ export function useWorkspace(): Workspace {
     try {
       await openAny(await vault.documentsRoot());
     } catch (e) {
-      setError(String(e));
+      setError(raisedError(e, "E-FOLDER-OPEN"));
     }
   }, [openAny]);
 
@@ -3154,11 +3301,19 @@ export function useWorkspace(): Workspace {
     autosaveRef.current?.schedule();
     recoveryRef.current?.dirty();
   }, []);
+  /* Said until the next word the writer types, or a save that did not land. */
+  const [saveNote, setSaveNote] = useState(false);
+  useEffect(() => {
+    if (status === "dirty" || status === "conflict" || status === "unsaved") setSaveNote(false);
+  }, [status]);
   const onSaveShortcut = useCallback(() => {
     // An explicit save also retries a refused write after its timer has fired.
     // The ordinary flush still owns conflict and read-only checks.
     autosaveRef.current?.cancel();
     flushRef.current();
+    // The status answers the question a Save asks: it was saved, and Save is
+    // never needed (docs/app/keeping-work/storage-and-file-format.md#STOR-201).
+    setSaveNote(true);
   }, []);
 
   const reloadFromDisk = useCallback(async () => {
@@ -3188,7 +3343,7 @@ export function useWorkspace(): Workspace {
     try {
       fresh = await vault.read(path);
     } catch (e) {
-      if (stillOpen()) setError(String(e));
+      if (stillOpen()) setError(raisedError(e, "E-VAULT-READ"));
       return;
     }
     if (!stillOpen()) return;
@@ -3365,7 +3520,7 @@ export function useWorkspace(): Workspace {
         }
       } else setError("This play changed on disk — reopen it to see the change.");
     } catch (e) {
-      setError(String(e));
+      setError(raisedError(e, "E-SAVE"));
     }
   }, []);
 
@@ -3555,7 +3710,7 @@ export function useWorkspace(): Workspace {
           setStatus(sessionRef.current?.dirty ? "dirty" : "saved");
       } catch (e) {
         // Refused before the script moved: nothing changed, in the writer's words.
-        setError(scriptMoved ? String(e) : changeRefused(e, "script", scriptPath));
+        setError(scriptMoved ? raisedError(e, "E-BINDER") : changeRefused(e, "script", scriptPath));
       }
     },
     [writeScriptDoc, changeRefused, takeWritten],
@@ -3699,10 +3854,15 @@ export function useWorkspace(): Workspace {
         readOnlyRef.current = true;
         setReadOnly(true);
         autosaveRef.current?.cancel();
-        setError(res.message ?? "A file move needs recovery. Reopen the play before writing.");
+        setError(
+          res.message
+            ? raisedError(res.message, "E-BINDER")
+            : "A file move needs recovery. Reopen the play before writing.",
+        );
       } else if (res.reason === "collision") {
         setError("This play changed on disk — reopen it to continue.");
-      } else setError(res.message ?? "binder operation failed");
+      } else
+        setError(res.message ? raisedError(res.message, "E-BINDER") : "binder operation failed");
       return res;
     },
     [
@@ -3981,7 +4141,7 @@ export function useWorkspace(): Workspace {
       setConflictCopies((c) => c.filter((p) => p !== path));
       return true;
     } catch (e) {
-      setError(String(e));
+      setError(raisedError(e, "E-BINDER"));
       return false;
     }
   }, []);
@@ -4125,6 +4285,9 @@ export function useWorkspace(): Workspace {
     (id: string, title: string) => void runBinderOp((c) => renameItem(c, id, title), { id }),
     [runBinderOp],
   );
+  followRenameRef.current = async (id: string | null, name: string) => {
+    await runBinderOp((c) => followPlayRename(c, id, name), id ? { id } : null);
+  };
   const moveTo = useCallback(
     (id: string, parentId: string | null, atIndex: number) =>
       void runBinderOp((c) => moveItem(c, id, parentId, atIndex), { id }),
@@ -4208,7 +4371,7 @@ export function useWorkspace(): Workspace {
         setJustCreated({ id: res.createdId, name: false });
         return true;
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(raisedError(e instanceof Error ? e.message : e, "E-BINDER"));
         return false;
       }
     },
@@ -4222,7 +4385,7 @@ export function useWorkspace(): Workspace {
   const revealItem = useCallback((id: string) => {
     const item = findById(playRef.current?.data.binder ?? [], id);
     if (!item?.path) return;
-    void vault.reveal(item.path).catch((e) => setError(String(e)));
+    void vault.reveal(item.path).catch((e) => setError(raisedError(e, "E-REVEAL")));
   }, []);
 
   /** Copy a file beside itself, then open the copy — you duplicated it to work on it. */
@@ -4236,6 +4399,23 @@ export function useWorkspace(): Workspace {
           if (item) selectItem(item);
         }
       })();
+    },
+    [runBinderOp, selectItem],
+  );
+  const duplicateScript = useCallback(
+    async (name: string): Promise<PlayOpResult> => {
+      const id = activeScriptIdRef.current;
+      if (!id) return { ok: false, said: "Open a script first." };
+      // The copy is made from disk, so what is on screen lands there first.
+      const res = await runBinderOp((c) => duplicateItem(c, id, name), { id });
+      if (!res?.ok || !res.createdId)
+        return {
+          ok: false,
+          said: (res && !res.ok && res.message) || "The script could not be copied. Try again.",
+        };
+      const item = findById(res.play.binder, res.createdId);
+      if (item) selectItem(item);
+      return { ok: true, dir: item?.path ?? "" };
     },
     [runBinderOp, selectItem],
   );
@@ -4343,7 +4523,7 @@ export function useWorkspace(): Workspace {
                           return;
                         }
                     } catch (e) {
-                      setError(String(e));
+                      setError(raisedError(e, "E-BINDER"));
                       return;
                     }
                   }
@@ -4353,7 +4533,7 @@ export function useWorkspace(): Workspace {
                       // arrived there since.
                       await vault.create(f.path, f.content);
                     } catch (e) {
-                      setError(String(e));
+                      setError(raisedError(e, "E-BINDER"));
                       return;
                     }
                   }
@@ -4440,6 +4620,183 @@ export function useWorkspace(): Workspace {
     [line],
   );
 
+  /**
+   * Leave the open play for its Plays folder with every word of it on disk,
+   * as a copy or a rename needs (docs/app/keeping-work/storage-and-file-format.md#STOR-171):
+   * false, with the play still open and nothing changed, when a word is not
+   * there yet. With no play open, true.
+   */
+  const leaveWithEveryWord = useCallback(async (): Promise<boolean> => {
+    const base = vaultRootRef.current;
+    if (!base) return false;
+    if (playDirRef.current === null) return true;
+    if (!(await teardownWorkspace(true))) return false;
+    return openAny(base);
+  }, [teardownWorkspace, openAny]);
+
+  /**
+   * One change to a whole play (docs/app/keeping-work/storage-and-file-format.md#STOR-208
+   * to docs/app/keeping-work/storage-and-file-format.md#STOR-200), in line
+   * with every open and binder op: leave the play when it is the one open,
+   * make the change at the Plays folder, read the list again, then open what
+   * came of it when `open` says so, or the play as it was when the change did
+   * not happen.
+   */
+  const playChange = useCallback(
+    (
+      dir: string | null,
+      change: (nowIso: string) => Promise<string>,
+      open: (wasOpen: boolean) => boolean,
+    ): Promise<PlayOpResult> =>
+      line(async (): Promise<PlayOpResult> => {
+        const base = vaultRootRef.current;
+        if (!base) return { ok: false, said: "Choose where your plays live first." };
+        if (practiceRef.current) return { ok: false, said: "Return to your own plays first." };
+        const wasOpen =
+          dir !== null && playDirRef.current !== null && samePath(playDirRef.current, dir);
+        if (!(await leaveWithEveryWord()))
+          return {
+            ok: false,
+            said: "Some of this play's words aren't saved yet, so nothing was changed. Answer what the play says about them, then try again.",
+          };
+        let made: string | null = null;
+        let failed: PlayOpResult | null = null;
+        try {
+          made = await change(new Date().toISOString());
+        } catch (e) {
+          failed = {
+            ok: false,
+            said: String(e).replace(/^Error:\s*/, ""),
+            ...(e instanceof PlayNameTaken ? { taken: true } : {}),
+          };
+        }
+        const found = await discoverPlays().catch(() => null);
+        if (found && vaultRootRef.current === base && playDirRef.current === null) setPlays(found);
+        const next = made !== null ? (open(wasOpen) ? made : null) : wasOpen ? dir : null;
+        const play = next !== null ? found?.find((p) => samePath(p.dir, next)) : undefined;
+        if (play) await enterPlay(play);
+        return failed ?? { ok: true, dir: made! };
+      }),
+    [line, leaveWithEveryWord, enterPlay],
+  );
+
+  const renamePlay = useCallback(
+    (dir: string, name: string, title: boolean) =>
+      playChange(
+        dir,
+        async (now) => {
+          const to = await renamePlayIn(dir, name, { title }, now);
+          if (vaultRootRef.current) carryPlayMemory(vaultRootRef.current, dir, to, true);
+          return to;
+        },
+        (wasOpen) => wasOpen,
+      ),
+    [playChange],
+  );
+  const duplicatePlay = useCallback(
+    (dir: string, name: string) =>
+      playChange(
+        dir,
+        async (now) => {
+          const to = await duplicatePlayIn(dir, name, now);
+          if (vaultRootRef.current) carryPlayMemory(vaultRootRef.current, dir, to, false);
+          return to;
+        },
+        () => true,
+      ),
+    [playChange],
+  );
+  const newPlayLike = useCallback(
+    (dir: string, name: string) =>
+      playChange(
+        dir,
+        (now) => newPlayLikeIn(dir, name, now, settingsStore.getSnapshot().playStatuses[0] ?? null),
+        () => true,
+      ),
+    [playChange],
+  );
+  const addPlayFromZip = useCallback(
+    async (file: File): Promise<PlayOpResult> => {
+      let zipped: Awaited<ReturnType<typeof readZippedPlay>>;
+      try {
+        zipped = await readZippedPlay(new Uint8Array(await file.arrayBuffer()));
+      } catch (e) {
+        return { ok: false, said: String(e).replace(/^Error:\s*/, "") };
+      }
+      if (!zipped)
+        return {
+          ok: false,
+          said: `“${file.name}” holds no play. A play's .zip holds the play's folder, with its .proscenium file in it.`,
+        };
+      const play = zipped;
+      return playChange(
+        null,
+        async () => addZippedPlay(play, new Set((await discoverPlays()).map((p) => p.id))),
+        () => true,
+      );
+    },
+    [playChange],
+  );
+  const exportPlay = useCallback(
+    async (dir?: string) => {
+      const open = playDirRef.current;
+      const folder = dir ?? open;
+      if (!folder) {
+        setError("No play is open to export.");
+        return;
+      }
+      const inside = open !== null && samePath(open, folder);
+      if (open !== null && !inside) {
+        setError("A play is exported from inside it, or from the Plays screen.");
+        return;
+      }
+      setExporting(true);
+      try {
+        if (inside) {
+          // The .zip holds what is on disk, so every word goes there first.
+          autosaveRef.current?.cancel();
+          await flush();
+          await flushAllMaterials();
+          await outline.flush();
+          if (
+            gateRef.current ||
+            sessionRef.current?.dirty ||
+            materials.unsafe() ||
+            outline.unsafe()
+          ) {
+            setError(
+              "Some of this play's words aren't saved yet, so it was not exported. Answer what the play says about them, then try again.",
+            );
+            return;
+          }
+        }
+        const bytes = await playZip(
+          inside ? "" : folder,
+          inside ? (playDirRef.current ?? folder) : folder,
+        );
+        const saved = await exporter.saveFile(`${folder}.zip`, bytes, "zip");
+        if (saved) setNotice(`Exported ${saved}`);
+      } catch (e) {
+        setError(`The play could not be exported. ${String(e).replace(/^Error:\s*/, "")}`);
+      } finally {
+        setExporting(false);
+      }
+    },
+    [flush, flushAllMaterials, outline.flush, outline.unsafe, materials.unsafe],
+  );
+  const titleOfPlay = useCallback(
+    async (dir: string): Promise<{ title: string | null; isName: boolean }> => {
+      const open = playDirRef.current;
+      if (open !== null)
+        return samePath(open, dir) && playPathRef.current
+          ? titleFacts("", playPathRef.current, dir)
+          : { title: null, isName: false };
+      const play = (await discoverPlays()).find((p) => samePath(p.dir, dir));
+      return play ? titleFacts(play.dir, play.file, dir) : { title: null, isName: false };
+    },
+    [],
+  );
+
   const versionsOf = useCallback(
     (id: string): VersionsTarget | null =>
       id === "outline" || id === outline.record()?.id
@@ -4507,7 +4864,7 @@ export function useWorkspace(): Workspace {
         setError("This play changed on disk — the format choice wasn't saved.");
       }
     } catch (e) {
-      setError(String(e));
+      setError(raisedError(e, "E-PLAY-SETTINGS"));
     }
   }, []);
 
@@ -4899,6 +5256,15 @@ export function useWorkspace(): Workspace {
   // --- cast & characters ---
   // Where each character speaks (derived from the open doc + scene cards).
   const castAppearances = useCallback(() => computeAppearances(docRef.current, cards), [cards]);
+  /** Everyone with a line, in the order they first speak, as they are cued: what a page's cast lists. */
+  const speakersNow = useCallback((): string[] => {
+    const weights = computeWeights(docRef.current);
+    return speakersListed(
+      [...computeAppearances(docRef.current, cards).keys()]
+        .map((name) => name.trim().toUpperCase())
+        .filter((name) => (weights.get(name)?.cues ?? 0) > 0),
+    );
+  }, [cards]);
   // How big each part is, for tiering the Cast surface. Recomputed with the
   // cards (i.e. after every successful save), never stored.
   const castWeights = useMemo(
@@ -4917,26 +5283,34 @@ export function useWorkspace(): Workspace {
    * are: after a save, never at a keystroke.
    */
   // biome-ignore lint/correctness/useExhaustiveDependencies: the cards change with the script the ref holds
-  const contents = useMemo(
-    () =>
-      listsContents([...(frontMatter.pages ?? []), ...(frontMatter.backPages ?? [])])
-        ? contentsFor(docRef.current, resolvedFormat.spec, layoutMeta)
-        : undefined,
-    [cards, resolvedFormat.spec, layoutMeta, frontMatter.pages, frontMatter.backPages],
-  );
-  const contentsRef = useRef(contents);
-  contentsRef.current = contents;
+  const listed = useMemo(() => {
+    const pages = [...(frontMatter.pages ?? []), ...(frontMatter.backPages ?? [])];
+    const out: Pick<FrontMatter, "contents" | "contentsPlainActs" | "cast"> = {};
+    // The contents, and the same with no page beside an act for a page set so
+    // (docs/app/formatting/formats-and-layout.md#FMT-184): one pagination gives both.
+    if (listsContents(pages)) {
+      const both = contentsBothFor(docRef.current, resolvedFormat.spec, layoutMeta);
+      out.contents = both.lines;
+      out.contentsPlainActs = both.plainActs;
+    }
+    // Everyone who speaks, in the order they first speak, for a page that
+    // lists them (docs/app/formatting/formats-and-layout.md#FMT-183).
+    if (listsCast(pages)) out.cast = speakersNow();
+    return Object.keys(out).length ? out : undefined;
+  }, [cards, resolvedFormat.spec, layoutMeta, frontMatter.pages, frontMatter.backPages]);
+  const listedRef = useRef(listed);
+  listedRef.current = listed;
   /** The front matter and the layout's reading of it, as whoever lays the pages out takes them. */
   const frontMatterShown = useMemo(
-    () => (contents ? { ...frontMatter, contents } : frontMatter),
-    [frontMatter, contents],
+    () => (listed ? { ...frontMatter, ...listed } : frontMatter),
+    [frontMatter, listed],
   );
   const layoutMetaShown = useMemo(
     () =>
-      contents && layoutMeta.frontMatter
-        ? { ...layoutMeta, frontMatter: { ...layoutMeta.frontMatter, contents } }
+      listed && layoutMeta.frontMatter
+        ? { ...layoutMeta, frontMatter: { ...layoutMeta.frontMatter, ...listed } }
         : layoutMeta,
-    [layoutMeta, contents],
+    [layoutMeta, listed],
   );
   /** The same, worked out now: what Add Page pictures a Contents page with. */
   const contentsNow = useCallback(
@@ -4967,6 +5341,10 @@ export function useWorkspace(): Workspace {
     setCastHidden((prev) =>
       prev.length === next.length && prev.every((n, i) => n === next[i]) ? prev : next,
     );
+    const print =
+      (scriptId && play ? (scriptDataFor(play, scriptId).versionPrint as VersionPrint) : null) ??
+      null;
+    setVersionPrint((prev) => (JSON.stringify(prev) === JSON.stringify(print) ? prev : print));
   }, [cards]);
 
   /**
@@ -5001,7 +5379,7 @@ export function useWorkspace(): Workspace {
         }
         setError("This play changed on disk — reopen it to see the change.");
       } catch (e) {
-        setError(String(e));
+        setError(raisedError(e, "E-SAVE"));
       }
       return null;
     },
@@ -5127,6 +5505,41 @@ export function useWorkspace(): Workspace {
   );
 
   /**
+   * Play Version… (docs/app/formatting/formats-and-layout.md#FMT-185): the
+   * version written to the script's title page as `Version:`, where else it
+   * prints to the play file when the writer chose (`print`; undefined leaves
+   * it as it is), and, with `titleLine`, a line for it on a title page that is
+   * a file and shows none. Whether the version was kept.
+   */
+  const savePlayVersion = useCallback(
+    async (
+      text: string,
+      print: VersionPrint | undefined,
+      titleLine: boolean,
+      forScript: string | null,
+    ): Promise<boolean> => {
+      if (readOnlyRef.current || forScript !== openKeyNow()) return false;
+      const version = detailValue("version", text);
+      if (version !== frontMatterRef.current.version) {
+        if (!saveFrontMatter({ ...frontMatterRef.current, version }, forScript)) return false;
+      }
+      if (print) {
+        const data = await patchScriptData((d) => ({ ...d, versionPrint: print }));
+        if (!data) return false;
+        setVersionPrint((data.versionPrint as VersionPrint) ?? null);
+      }
+      if (titleLine && version) {
+        const page = titlePageOf(
+          pagesOf(frontPagesRef.current, playIdRef.current, activeScriptIdRef.current),
+        );
+        if (page) await rewritePage(page.id, withVersionLine);
+      }
+      return true;
+    },
+    [openKeyNow, saveFrontMatter, patchScriptData, rewritePage],
+  );
+
+  /**
    * A name written on the page that names most of the cast, as a paragraph of
    * its own (docs/app/formatting/formats-and-layout.md#FMT-170): the one thing
    * Cast writes on a page, and only when the writer asks. With no page that
@@ -5151,7 +5564,7 @@ export function useWorkspace(): Workspace {
         .map((page) => ({
           page,
           score:
-            speakers.filter((speaker) => namedOnPage(speaker, page.text)).length +
+            speakers.filter((speaker) => namedOnPage(speaker, page.text, true)).length +
             (/character|cast/i.test(page.name) ? 0.5 : 0),
         }))
         .filter((entry) => entry.score > 0)
@@ -5168,7 +5581,13 @@ export function useWorkspace(): Workspace {
         });
         return id !== null;
       }
-      const line = /\*\*[^*\n]+\*\*/.test(best.text) ? `**${upper}**` : upper;
+      // In bold where the page's names are, and on a page that names no one
+      // yet, as the Characters template writes a name: a page a play starts
+      // with holds its heading alone (docs/app/formatting/formats-and-layout.md#FMT-183).
+      const named = openingParagraphs(readPageFile(best.text).body).some(
+        (p) => !p.heading && p.text.trim(),
+      );
+      const line = !named || /\*\*[^*\n]+\*\*/.test(best.text) ? `**${upper}**` : upper;
       const ok = await appendToFrontPage(best.id, line);
       if (ok) announce(`${upper} is on the ${best.name} page.`);
       return ok;
@@ -5323,11 +5742,127 @@ export function useWorkspace(): Workspace {
         if (ok) setNotice("Version restored — the replaced state is one pull-back away.");
         return ok;
       } catch (e) {
-        setError(String(e));
+        setError(raisedError(e, "E-VERSIONS"));
         return false;
       }
     },
     [applyScriptText, snapshotBuffer],
+  );
+
+  const saveDraft = useCallback(
+    async (name: string): Promise<PlayOpResult> => {
+      const id = activeScriptIdRef.current;
+      const path = scriptPathRef.current;
+      if (!id || !path) return { ok: false, said: "Open a script first." };
+      if (readOnlyRef.current)
+        return { ok: false, said: "This play is open read-only, so no draft can be saved in it." };
+      // The draft is what is on disk, so every word goes there first.
+      autosaveRef.current?.cancel();
+      await flush();
+      if (gateRef.current || sessionRef.current?.dirty)
+        return {
+          ok: false,
+          said: "Some of this script's words aren't saved yet, so no draft was made. Answer what the script says about them, then try again.",
+        };
+      let read: { content: string; hash: string };
+      try {
+        read = await vault.read(path);
+      } catch (e) {
+        return {
+          ok: false,
+          said: `The script could not be read, so no draft was made. ${String(e)}`,
+        };
+      }
+      const res = await runBinderOp((c) =>
+        saveDraftItem(c, id, name, read.content, read.hash, new Date().toISOString()),
+      );
+      if (!res?.ok || !res.createdId)
+        return {
+          ok: false,
+          said: (res && !res.ok && res.message) || "The draft could not be saved. Try again.",
+        };
+      return { ok: true, dir: res.createdId };
+    },
+    [flush, runBinderOp],
+  );
+
+  const draftView = useCallback(
+    async (id: string): Promise<DraftView> => {
+      const play = playRef.current?.data;
+      const item = play ? findById(play.binder, id) : null;
+      if (!play || !item) throw new Error("The draft is no longer in the binder.");
+      const record = play.drafts?.[id] ?? null;
+      const read = await vault.read(item.path);
+      const source = record ? findById(play.binder, record.of) : null;
+      let from: DraftView["from"] = null;
+      if (source?.type === "script") {
+        const text =
+          source.id === activeScriptIdRef.current
+            ? currentScriptText()
+            : await vault
+                .read(source.path)
+                .then((r) => r.content)
+                .catch(() => null);
+        if (text !== null) from = { id: source.id, name: titleOf(source), text };
+      }
+      return {
+        name: titleOf(item),
+        record,
+        text: read.content,
+        from,
+        changed: record !== null && record.sha256 !== read.hash,
+      };
+    },
+    [currentScriptText],
+  );
+
+  /**
+   * The script a draft was saved from takes the draft's words: opened first
+   * when it is not in front, what it holds kept as a version (`pre-restore`),
+   * then written through the same guarded path as a version's restore, so it
+   * is undone from Versions (docs/app/keeping-work/storage-and-file-format.md#STOR-205).
+   */
+  const restoreDraft = useCallback(
+    async (id: string): Promise<boolean> => {
+      const play = playRef.current?.data;
+      const item = play ? findById(play.binder, id) : null;
+      const record = play?.drafts?.[id];
+      const source = play && record ? findById(play.binder, record.of) : null;
+      if (!item || !source || source.type !== "script") return false;
+      try {
+        const { content } = await vault.read(item.path);
+        if (activeScriptIdRef.current !== source.id) await openScript(source);
+        const session = sessionRef.current;
+        if (activeScriptIdRef.current !== source.id || !session) return false;
+        setActiveId(source.id);
+        await snapshotBuffer("pre-restore");
+        const ok = await applyScriptText(content, session);
+        if (ok)
+          setNotice(
+            `“${titleOf(source)}” holds the draft “${titleOf(item)}” now. What it held is in Versions.`,
+          );
+        return ok;
+      } catch (e) {
+        setError(String(e));
+        return false;
+      }
+    },
+    [openScript, applyScriptText, snapshotBuffer],
+  );
+
+  const workingCopy = useCallback(
+    async (id: string, name: string): Promise<PlayOpResult> => {
+      const res = await runBinderOp((c) => workingCopyItem(c, id, name));
+      if (!res?.ok || !res.createdId)
+        return {
+          ok: false,
+          said: (res && !res.ok && res.message) || "The copy could not be made. Try again.",
+        };
+      const made = findById(res.play.binder, res.createdId);
+      if (made) selectItem(made);
+      return { ok: true, dir: res.createdId };
+    },
+    [runBinderOp, selectItem],
   );
 
   const historyTarget = useCallback(
@@ -5373,8 +5908,8 @@ export function useWorkspace(): Workspace {
   const frontMatterNow = useCallback(async (): Promise<FrontMatter> => {
     await flushAllMaterials();
     // With the contents a page of it lists, as the layout was given them.
-    const listed = contentsRef.current;
-    const fm = listed ? { ...frontMatterRef.current, contents: listed } : frontMatterRef.current;
+    const listed = listedRef.current;
+    const fm = listed ? { ...frontMatterRef.current, ...listed } : frontMatterRef.current;
     if (!fm.pages && !fm.backPages) return fm;
     const asHeld = (page: FrontPageSource) => {
       const held = materialRecord(page.id);
@@ -5572,11 +6107,13 @@ export function useWorkspace(): Workspace {
       setReadOnly(readOnlyRef.current);
       playRef.current = fresh;
       setBinder(fresh.data.binder);
+      setDrafts(fresh.data.drafts ?? {});
       const scriptId = activeScriptIdRef.current;
       const doc = docRef.current;
       if (scriptId && doc) {
         setCards(reconcileCards({ doc, prior: scriptDataFor(fresh.data, scriptId) }).cards);
         setCastHidden(scriptDataFor(fresh.data, scriptId).castHidden ?? []);
+        setVersionPrint((scriptDataFor(fresh.data, scriptId).versionPrint as VersionPrint) ?? null);
       }
       // Renamed or moved somewhere else — another Mac, the iPad. The open
       // script and every open sheet follow their rows, as they do after a
@@ -6307,7 +6844,7 @@ export function useWorkspace(): Workspace {
       if (rawPlay)
         void vault
           .reveal(rawPlay.play.dir + "/" + rawPlay.play.file)
-          .catch((e) => setError(String(e)));
+          .catch((e) => setError(raisedError(e, "E-REVEAL")));
     },
     conflictCopies,
     loadOther,
@@ -6363,6 +6900,8 @@ export function useWorkspace(): Workspace {
     appendToFrontPage,
     castKeptNow,
     saveCastKept,
+    versionPrint: versionPrintShown,
+    savePlayVersion,
     patchFrontMatter,
     frontPages,
     materializeFrontMatter,
@@ -6436,5 +6975,20 @@ export function useWorkspace(): Workspace {
     remove,
     putBackFromTrash,
     trashPlay,
+    renamePlay,
+    duplicateScript,
+    duplicatePlay,
+    newPlayLike,
+    exportPlay: (dir?: string) => void exportPlay(dir),
+    addPlayFromZip,
+    titleOfPlay,
+    saveNote,
+    drafts,
+    saveDraft,
+    openDraft,
+    showDraft: setOpenDraft,
+    draftView,
+    restoreDraft,
+    workingCopy,
   };
 }

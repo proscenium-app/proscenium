@@ -336,8 +336,8 @@ class AutoStyles {
     return `Dual${++this.tables}`;
   }
 
-  paragraph(parent: string, props: string[], master: string | null): string {
-    const key = `${parent}|${props.join(" ")}|${master ?? ""}`;
+  paragraph(parent: string, props: string[], master: string | null, stops = ""): string {
+    const key = `${parent}|${props.join(" ")}|${master ?? ""}|${stops}`;
     const known = this.paragraphs.get(key);
     if (known) return known;
     const name = `P${this.paragraphs.size + 1}`;
@@ -345,7 +345,11 @@ class AutoStyles {
     this.xml.push(
       `<style:style style:name="${name}" style:family="paragraph" style:parent-style-name="${parent}"` +
         `${master ? ` style:master-page-name="${master}"` : ""}>` +
-        (props.length ? `<style:paragraph-properties ${props.join(" ")}/>` : "") +
+        (stops
+          ? `<style:paragraph-properties ${props.join(" ")}><style:tab-stops>${stops}</style:tab-stops></style:paragraph-properties>`
+          : props.length
+            ? `<style:paragraph-properties ${props.join(" ")}/>`
+            : "") +
         `</style:style>`,
     );
     return name;
@@ -405,11 +409,18 @@ function paragraphXml(
   if (p.align) props.push(`fo:text-align="${p.align}"`);
   if (p.inCell)
     props.push(`fo:margin-left="${NONE}" fo:margin-right="${NONE}" fo:keep-with-next="auto"`);
+  else if (p.indentIn) props.push(`fo:margin-left="${inches(p.indentIn)}"`);
   if (opening?.pageNumber) props.push(`style:page-number="${opening.pageNumber}"`);
+  const stops = (p.tabs ?? [])
+    .map(
+      (tab) =>
+        `<style:tab-stop style:position="${inches(tab.atIn)}"${tab.kind === "left" ? "" : ` style:type="${tab.kind}"`}/>`,
+    )
+    .join("");
   const parent = g.names.get(p.style)!;
   const name =
-    props.length || opening?.master
-      ? auto.paragraph(parent, props, opening?.master ?? null)
+    props.length || stops || opening?.master
+      ? auto.paragraph(parent, props, opening?.master ?? null, stops)
       : parent;
   const level =
     p.style === "act" ? 1 : p.style === "scene" ? 2 : p.style === "sceneHeading" ? 3 : 0;

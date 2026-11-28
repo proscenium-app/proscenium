@@ -37,6 +37,7 @@
     - treeitem "Logline" [level=2]
   - sectionfooter
     - button "New" [haspopup]
+- separator "Resize the binder"
 - main "Play"
   - group "Open in this pane"
     - listitem "The Weight of Water"
@@ -53,6 +54,7 @@
   - button "Comments ⌘⇧C"
   - textbox "Script"
   - image "Scene navigation: 2 pages. On screen: <scene>"
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Scene" [selected]
@@ -88,6 +90,9 @@
 - menu "Document"
   - menuitem "All Plays ⌘⇧O"
   - menuitem "Reveal in Finder"
+  - menuitem "Save As… ⌘⇧S"
+  - menuitem "Save Draft…"
+  - menuitem "Rename Play…"
   - separator
   - menuitemcheckbox "Dramatists Guild — Modern"
   - menuitemcheckbox "Proscenium House" [checked]
@@ -100,6 +105,7 @@
   - menuitemcheckbox "Check Spelling as You Type" [checked]
   - separator
   - menuitem "Add Page…"
+  - menuitem "Play Version…"
   - menuitem "Capitalize Character Names in Directions…"
   - menuitem "Versions…"
   - separator
@@ -108,4 +114,5 @@
   - menuitem "Export .docx…"
   - menuitem "Export .odt…"
   - menuitem "Export Fountain…"
+  - menuitem "Export Play…"
   - menuitem "Print… ⌘P" [selected]

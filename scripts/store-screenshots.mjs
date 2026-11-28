@@ -148,8 +148,13 @@ async function scrollTo(page, text, caret, above = 190) {
           (el) => el.textContent.trim() === text,
         );
         if (!line) return null;
+        // The box that scrolls: taller inside than out, and set to scroll. One
+        // that only overflows takes no scrollTop, and the script itself is
+        // such a box once its pages run past its foot.
+        const scrolls = (el) =>
+          el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY);
         let box = line.parentElement;
-        while (box && box.scrollHeight <= box.clientHeight) box = box.parentElement;
+        while (box && !scrolls(box)) box = box.parentElement;
         if (!box) return null;
         const off = line.getBoundingClientRect().top - box.getBoundingClientRect().top - above;
         box.scrollTop += off;

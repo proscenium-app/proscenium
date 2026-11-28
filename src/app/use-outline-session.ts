@@ -10,7 +10,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { VaultWriteError, versions, type SaveProblem, type SaveSubject } from "../storage";
+import type { ShownError } from "../diagnostics";
+import { VaultWriteError, versions, type SaveSubject } from "../storage";
 import type { RecoveryBuffer } from "../storage/buffer-recovery";
 import { defaultDirFor } from "../materials";
 import { findItem } from "../workspace/binder";
@@ -51,7 +52,7 @@ interface Host {
   syncBeacon: () => void;
   captureRecovery: () => void;
   setSheetStatus: (status: SaveStatus) => void;
-  setError: Dispatch<SetStateAction<string | SaveProblem | null>>;
+  setError: Dispatch<SetStateAction<string | ShownError | null>>;
   setPreserved: Dispatch<SetStateAction<string[]>>;
   saveLanded: (key: string) => void;
   /** A save of the writer's own landed: it may keep a version (docs/app/keeping-work/storage-and-file-format.md#STOR-115). */

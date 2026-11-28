@@ -155,11 +155,16 @@ describe("the scaffolds", () => {
       ["", "right"],
     ]);
     expect(headings).toEqual({
+      // The cast is a field that follows the script, not words of the page's own.
       "characters-setting": [
         ["CHARACTERS", true, "center"],
+        ["{cast}", false, "left"],
         ["SETTING", true, "center"],
       ],
-      characters: [["CHARACTERS", true, "center"]],
+      characters: [
+        ["CHARACTERS", true, "center"],
+        ["{cast}", false, "left"],
+      ],
       "note-on-text": [["A NOTE ON THE TEXT", true, "center"]],
       setting: [["SETTING", true, "center"]],
       dedication: [],
@@ -180,29 +185,29 @@ describe("the scaffolds", () => {
     });
   });
 
-  it("list the speakers on a characters page in the order they enter, each once and in bold", () => {
-    expect(openingParagraphs(body("characters-setting")).map((p) => [p.text, p.align])).toEqual([
+  it("list the speakers on a characters page in the order they first speak, each once and in bold", () => {
+    // docs/app/formatting/formats-and-layout.md#FMT-183: the page holds the
+    // cast as a field, and prints whoever speaks in the script it is laid out with.
+    for (const id of ["characters", "characters-setting"] as const)
+      expect(body(id)).toContain("## CHARACTERS\n\n**{cast}**");
+    const speakers = ["MARA", "  JONAH ", "", "Mara", "STAR*", "1. GUARD"];
+    const sheet = scaffoldSheet(scaffold("characters-setting"), { speakers }, {}, dg)!;
+    expect(sheet.lines.map((line) => [line.text, line.align])).toEqual([
       ["CHARACTERS", "center"],
       ["MARA", "left"],
       ["JONAH", "left"],
-      ["OLD WOMAN", "left"],
+      ["STAR*", "left"],
+      ["1. GUARD", "left"],
       ["SETTING", "center"],
+      ["Where and when the play happens", "left"],
     ]);
-    const speakers = ["MARA", "  JONAH ", "", "Mara", "STAR*", "_HE_", "1. GUARD"];
-    for (const id of ["characters", "characters-setting"] as const) {
-      // Cast reads a page's names from its paragraphs that begin in bold.
-      expect(namesOnPages([{ id: "p", name: "Characters", text: body(id, speakers) }])).toEqual([
-        "MARA",
-        "JONAH",
-        "STAR*",
-        "_HE_",
-        "1. GUARD",
+    for (const line of sheet.lines.slice(1, 5))
+      expect(line.runs).toEqual([
+        { start: 0, end: line.text.length, bold: true, italic: false, underline: false },
       ]);
-      for (const p of openingParagraphs(body(id, speakers)).filter((p) => !p.heading))
-        expect(p.runs).toEqual([
-          { start: 0, end: p.text.length, bold: true, italic: false, underline: false },
-        ]);
-    }
+    // The names stand a row apart from the heading and close under one another.
+    const rows = sheet.lines.map((line) => line.row);
+    expect(rows[2]! - rows[1]!).toBe(1);
   });
 
   it("lay out under every built-in format, printing no marker and no field's braces", () => {
@@ -245,7 +250,7 @@ describe("the scaffolds", () => {
       scaffoldSheet(scaffold("characters"), { speakers: [] }, details, dg)?.lines.map(
         (l) => l.text,
       ),
-    ).toEqual(["CHARACTERS", "Each character, with a few words about them"]);
+    ).toEqual(["CHARACTERS", "Everyone who speaks, in the order they first speak"]);
     const title = scaffoldSheet(scaffold("title-page"), ctx, details, dg)!;
     expect(title.kind).toBe("title");
     expect(title.lines[0]!.row).toBeGreaterThan(dg.frontMatter.sectionTopRows);
@@ -401,6 +406,38 @@ describe("a page takes another template (docs/app/formatting/formats-and-layout.
     expect(paras.map((p) => p.text)).toEqual(["AUTHOR'S NOTE", "For M., who waited."]);
     // Its line goes back to the format's own alignment: it was centered for the Dedication.
     expect(paras[1]?.align).not.toBe("center");
+  });
+
+  it("the words keep their order and leave the places the writer gave them on the old template", () => {
+    const page = {
+      name: "Blank Page",
+      text: writePageFile(
+        { layout: "top" },
+        [
+          "<!-- proscenium:align=right -->",
+          "At the top",
+          "<!-- proscenium:head -->",
+          "<!-- proscenium:place rows=6 cell=20 -->",
+          "In the middle",
+          "<!-- proscenium:line -->",
+          "<!-- proscenium:foot -->",
+          "At the bottom",
+          "<!-- proscenium:place beside -->",
+          "Beside it",
+        ].join("\n\n"),
+      ),
+    };
+    const out = retemplate(page, scaffold("authors-note"), ctx);
+    expect(out.text).not.toContain("proscenium:place");
+    expect(out.text).not.toContain("proscenium:head");
+    expect(out.text).not.toContain("proscenium:foot");
+    expect(openingParagraphs(file(out.text).body).map((p) => p.text)).toEqual([
+      "AUTHOR'S NOTE",
+      "At the top",
+      "In the middle",
+      "At the bottom",
+      "Beside it",
+    ]);
   });
 
   it("a blank page with words becomes a Dedication: centered, a third of the way down", () => {

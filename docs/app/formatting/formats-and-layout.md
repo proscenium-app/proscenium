@@ -362,8 +362,8 @@ another one ([FMT-178](#FMT-178)). A page whose file says `export: false`
 starts unticked in an export's Include list. A script's pages after it are kept
 and written the same way ([FMT-174](#FMT-174)).
 
-A play begun blank starts with its title page as a file, in a Front Matter
-folder above its script
+A play begun blank starts with its title page and its Characters page as
+files ([FMT-183](#FMT-183)), in a Front Matter folder above its script
 ([docs/app/keeping-work/storage-and-file-format.md#STOR-195](../keeping-work/storage-and-file-format.md#STOR-195)),
 so the binder lists the play's pages from its first minute. A script whose
 pages are still its title page's keys (every play made before 2026-11-15, and
@@ -386,7 +386,10 @@ in the script's page view with the caret in it. One who speaks and is named on n
 is offered **Add to Characters Page**, which writes their name as a paragraph
 of its own on the page that names most of the cast (in bold when that page's
 names are), or on a new Characters page when none does, and **Leave Off**,
-which the play file keeps (`castHidden`) so Cast does not ask again. Names in
+which the play file keeps (`castHidden`) so Cast does not ask again. A page that holds the cast as a component ([FMT-183](#FMT-183))
+names everyone who speaks, so Cast says so of each ("On the Characters page")
+and offers nothing to add; a name is in bold on a page that names no one yet.
+Names in
 directions take the speakers and the names the pages list.
 
 <a id="FMT-171"></a>
@@ -597,7 +600,8 @@ the rule that begins a title page's bottom stands at the bottom of the sheet.
 So a click on a page changes nothing but the caret. The rule, labelled
 **Bottom of the page**, and the shading of a field are the app's and never
 print. Nothing else of the app's is on the paper: the page's name, its
-formatting, **Change Template…** ([FMT-178](#FMT-178)) and **Done** stand in
+formatting, **Move** ([FMT-182](#FMT-182)), the Trash ([FMT-183](#FMT-183)),
+**Change Template…** ([FMT-178](#FMT-178)) and **Done** stand in
 the bar at the top of the script, and the line that says what the detail
 under the caret is ([FMT-180](#FMT-180)) floats beside its field.
 Where a paragraph wraps and where a long page breaks onto a second sheet are
@@ -613,8 +617,10 @@ centered once it is written, and an Epigraph's source stands at the right. It
 is its own mark, never the alignment's with nothing under it: that one sets
 whatever paragraph follows, and an empty centered line written as it would
 center the next paragraph when the file was read again. A line with no
-alignment and no words is still nothing in the file, and a document that is
-not a page writes nothing for any empty line, as before.
+alignment and no words is a blank row of the page, kept as
+`<!-- proscenium:line -->` when words stand under it
+([FMT-182](#FMT-182)); a document that is not a page writes nothing for any
+empty line, as before.
 
 Unit tests write plays whose pages are title-page keys and plays whose pages
 are files (a title page written freely, centered and right-aligned text, bold
@@ -722,9 +728,12 @@ The page is a heading, CONTENTS, and one field, `{contents}`. The field is not
 written by hand: in the editor it is one object, shaded as a field, which a
 screen reader hears as its rows' names and pages ("Contents: ACT ONE, page 1,
 SCENE 1, page 1, …"), never their dots. With no act or scene it shows the
-prompt "The acts and scenes, once the script has them" and prints nothing. The
-heading and anything else on the page are the writer's. **Insert Field**
-offers **Contents** on any page.
+prompt "The acts and scenes, once the script has them" and prints nothing, and
+a Contents page that then holds its heading alone prints nothing either
+([FMT-183](#FMT-183)). The heading and anything else on the page are the
+writer's. **Insert Field** offers **Contents** on any page. The contents are a
+component of the page, with a setting of their own: whether an act carries
+its page ([FMT-184](#FMT-184)).
 
 The rows are every act and scene in order, each named as the format prints
 its heading, so a renamed act or scene is listed by its new name. A scene
@@ -748,7 +757,8 @@ Unit tests hold the rows' order, indent, width, dots and pages, the blank row
 between acts, a long name's second line, a play with scenes alone and a script
 with neither, a page that prints its heading alone, the pages of a format
 whose opening runs in with the contents among them, a title page that never
-holds the rows, and what a screen reader hears for the field.
+holds the rows, and what a screen reader hears for the field. A page that
+holds its heading alone, for a script with no act or scene, prints nothing.
 
 <a id="FMT-181"></a>
 
@@ -772,6 +782,271 @@ title page from the script's keys and on one that is a file (the same lines
 on the same rows), print nothing and take no room without one, set it in an
 opening that runs in, and find its line of the file from a press on its line
 of the sheet.
+<a id="FMT-182"></a>
+
+**FMT-182** **Every block of a page can be moved, and prints where its writer
+put it.** A page before or after the script arrives laid out by its template
+and prints so with nothing touched. Any paragraph or heading of it, a line
+that is a field included, can be put anywhere on its sheet: on any row, at
+any cell, beside another block, at the very top or at the bottom. The
+template is where the blocks start, never where they must stay.
+
+A page is still lines in order, and a place is never a loose position on the
+paper. A block's place is the blank rows above it, the cell its lines start
+at, and whether it stands beside the block before it. So two blocks never
+print over each other, the order a page is read in is the order it shows, and
+every writer of the pages (the page view, the export window's preview, a PDF,
+a .docx, an .odt, an .rtf) sets them from the one paginator's rows.
+
+- **A blank line is a row.** A line with no words between two lines of a page
+  prints as a blank row, with the gap any line has above it, as the sheet
+  shows it while it is written. Return pushes what is under the caret down;
+  Backspace on a blank line takes it back up. The blank lines at the very end
+  of a page are nothing.
+- **Three ways to move a block.** A handle stands just left of the words of
+  the block under the pointer (or, with no pointer over the page, the block
+  the caret is in): dragged, it carries an outline of the block that snaps to
+  the sheet's rows and cells and stands only where the block can. **Move** in
+  the page's bar ([FMT-177](#FMT-177)) lists Up a Row, Down a Row, Left a
+  Cell and Right a Cell for the block the caret is in. The keys beside each
+  do the same: ⌃⌘ and an arrow on a Mac and an iPad, Alt+Shift and an arrow
+  on a PC, from a field's own words too. A move is one step to undo, the
+  caret stays in the block, and where it now stands is spoken ("Moved to row
+  14, cell 27."). The handle is the pointer's and the finger's: it is no
+  control to the keyboard or a screen reader, which have the menu and the
+  keys.
+- **Nothing else moves.** Every other block stays on its row and at its cell:
+  the block that followed the moved one is told the rows that keep it there,
+  and a block left where the format's own gap would put it is told nothing.
+  A block cannot stand where another's words are, or with less than a cell
+  between them: a drag's outline stays at the last place it could, and the
+  keys step past what is in the way, as a line moved down goes under the
+  line below it. The file's order follows the sheet's, top to bottom and left
+  to right.
+- **Across the sheet.** At the sheet's left a block is set left; with its
+  last cell at the right edge it is set at the right; dragged to within a
+  cell of the middle it is centered; anywhere else its lines start at that
+  cell. Align Left, Center and Align Right in the bar take a block at a cell
+  back to the sheet's own columns. Return under a line at a cell starts the
+  next line at that cell.
+- **Beside another block.** A block put on rows another block has, where
+  their words do not meet, stands beside it: a contact at the left and a
+  draft date at the right on the same rows. What follows starts under the
+  taller of them. If words later grow until the two would meet, the second
+  prints under the first.
+- **The top and the bottom of the page.** A block moved above the page's own
+  first line (above a third of the way down, on a title page) stands in the
+  page's head, set from the top of the sheet; a rule labelled **Top of the
+  page** under it says so, as **Bottom of the page** does for the foot, and
+  neither prints. Any page can have a foot, not only a title page. A block of
+  the foot stays in it as it moves up, and the foot still ends on the sheet's
+  last row unless a blank row at its end holds it up. The page's own first
+  line stays where its layout puts it whatever stands in the head, or under a
+  head that reaches further. A head or a foot left with nothing in it loses
+  its rule.
+- **In the file.** A place is a comment on the line above its block:
+  `<!-- proscenium:place rows=3 cell=24 beside -->`, any of the three. A
+  blank row is `<!-- proscenium:line -->`. The head's rule is
+  `<!-- proscenium:head -->`, a line of its own above the foot's. An app that
+  does not know them shows the page's words in order
+  ([docs/app/keeping-work/storage-and-file-format.md#STOR-195](../keeping-work/storage-and-file-format.md#STOR-195)).
+- **In another format.** Rows and cells are counts of the play's format, not
+  inches, so a page keeps its shape on another sheet. A block whose cell
+  would run its words off the text block is pulled in. A page that would run
+  on to a second sheet only because of rows its writer left gives those rows
+  up, the last first, until it stands on one; a page too long for one sheet
+  whatever is given up keeps every row.
+- **In a file for a word processor.** A .docx, an .odt and an .rtf write a
+  block at a cell as a paragraph indented by it, the rows above a block as
+  space before it, and blocks side by side as one paragraph for each row
+  they take, each block's words at a tab stop where the paginator put them.
+  Export Fountain writes each block as a line, in the sheet's order
+  ([FMT-171](#FMT-171)): a place on a sheet is not Fountain's to say.
+- **What does not move.** A list, a table, a quotation and a rule keep their
+  place in the page's order. A page that runs on to a second sheet moves
+  only what the move leaves on the sheets it had. A format whose opening runs
+  in with the first numbered page has no sheet of the page's own, and there
+  nothing moves. A page given another template
+  ([FMT-178](#FMT-178)) keeps its words in their order and takes the new
+  template's places.
+
+A move is never trusted to its own arithmetic. It is written to the page's
+words, laid out by the paginator, and kept only when the moved block stands
+where it was asked to and every other block where it stood; otherwise there
+is no move. It is worked out on the page as its editor shows it, a prompt in
+each detail not yet written ([FMT-180](#FMT-180)), since that is the page
+being moved about.
+
+On the sheet, a block's rows and cell are set from the block itself, and a
+block beside another is put on its row by measuring where the blocks stand,
+as is the page's own first line under a head. As with the rest of a page set
+as it prints ([FMT-177](#FMT-177)), this agrees with the paginator on a page
+whose lines do not wrap.
+
+Unit tests hold what a file says of a place and reads back; a blank row's
+row; rows, a cell, a block beside another and one whose words would meet it;
+a head and any page's foot; the rows a page gives up on a shorter sheet; a
+move down, up, across, over the line in its way, into the head and back,
+beside another at the foot, and up within the foot, each with every other
+block where it was; a move refused; a detail not yet written; every built-in
+format; and the indent, the rows and the tab stops in a .docx, an .odt and an
+.rtf. Shared smoke checks move a block of the title page with the keys, the
+menu and the handle and read the page's file and the sheet it prints.
+
+<a id="FMT-183"></a>
+
+**FMT-183** **A play begins with a title page and a Characters page, and any
+page can be taken out of it.** A play begun blank has two pages before its
+script, each a file from its first minute
+([docs/app/keeping-work/storage-and-file-format.md#STOR-195](../keeping-work/storage-and-file-format.md#STOR-195)):
+the title page, and a Characters page, since most plays want one. A play
+begun from a script the writer already had keeps the pages that script's
+title page says.
+
+The Characters page fills itself. It is a heading, CHARACTERS, and the cast,
+a component that follows the script: everyone who speaks, in the order they
+first speak, each name on a line of its own under the last, in bold. Nothing
+is kept up by hand: a new speaker is on the page with the next save, and one
+who no longer speaks is off it. The Characters template in **Add a Page** and
+**Change Template** is the same page, as is the Characters half of Characters
+& Setting, and **Insert Field** offers **Cast** on any page. In the editor
+the cast is one object, as the contents are ([FMT-179](#FMT-179)), which a
+screen reader hears as its names ("Cast: MARA, JONAH"); with no one speaking
+it shows the prompt "Everyone who speaks, once someone does". A writer who
+wants a few words beside each name selects it and chooses **Turn into Text**
+from its settings ([FMT-184](#FMT-184)): each name becomes a line of the
+page, in bold, to be written on, and the page no longer follows the script.
+Cast reads either kind of page ([FMT-170](#FMT-170)).
+
+**A page with nothing written on it prints nothing.** A page that holds only
+what its template put there (its heading, or its headings, and a component
+with nothing to show yet) is a page not yet written. It is no sheet of the
+script's print, of an export or of its Include list, and it goes to no
+Fountain file; in page view it stands as a sheet with its name, "Click to
+write on this page." So a new play's Characters page costs a writer nothing
+until someone speaks, and neither does a page added from any template and
+left for later. The first word written under a heading prints the heading
+with it. A heading the writer gave a page is words of theirs and prints
+alone, and so does a title page's title.
+
+**Any page goes to the Trash, the title page too.** A page's row in the
+binder has **Move to Trash** in its menu and takes ⌘⌫, as any document's
+does. The bar of a page being edited ([FMT-177](#FMT-177)) has it too, as a
+button named for the page ("Move to Trash: Characters"), so a page is taken
+out where it is written: the editing ends, the file goes to the Trash (the
+Recycle Bin on a PC, Proscenium's own on an iPad), its row leaves the binder
+and its sheet the script. A page the script's title page still prints is
+written as a file first, with every such page, as its first change would
+([FMT-169](#FMT-169)), since a page is taken out of a play as a file is. The
+toast that follows has **Undo**, which puts the file, its row and its place
+among the pages back. A play with no title page prints without one: its
+title, its author and its other details stay in the script, where headers, a
+file's properties and an anonymous copy read them, and **Add a Page** offers
+the title page again. The whole folder of pages is still asked about before
+it goes ([FMT-175](#FMT-175)).
+
+Unit tests hold the files a blank play is made with; that every template's
+page prints nothing until a word is written on it, before the script and
+after it, and goes to no Fountain file; that a heading the writer gave a page
+and a title page's title print; the cast's lines, their emphasis and their
+rows, nothing while no one speaks, and what Cast is told a page names. Shared
+smoke checks begin a play, find its Characters page a sheet to click and no
+print, send it and then the title page to the Trash from the page's own bar
+and bring each back; write the play's first speech and find the Characters
+page printed with the speaker, in bold, and Cast saying the page names her.
+
+<a id="FMT-184"></a>
+
+**FMT-184** **A page is built from components, each with settings of its
+own.** What stands on a page is words the writer types and components the
+app fills in: the play's details ([FMT-180](#FMT-180)), the contents
+([FMT-179](#FMT-179)) and the cast ([FMT-183](#FMT-183)). Each can be put on
+any page from **Insert Field**, moved anywhere on its sheet as any block can
+([FMT-182](#FMT-182)), and taken off it. A template is an arrangement of
+them, already made and already set; nothing about a template's page is fixed
+once it is in the play.
+
+A component that follows the script (the contents, the cast) has settings.
+Selected, by a press or by the arrow keys, it shows a button just past its
+first line, named for it ("Contents settings"); the button, or Return with
+the component selected, opens a menu of what can be set. The contents have
+**Page Numbers on Acts**, ticked as they come: unticked, an act is its name
+alone over its scenes, since an act's page is its first scene's whenever
+that scene opens the act, and the number is printed twice. The cast has
+**Turn into Text** ([FMT-183](#FMT-183)). A change is one step to undo, the
+component stays selected, and the page shows it at once.
+
+A setting is kept with the component, in the page's file, inside the
+component's own braces after its name: `{contents acts=plain}`. Each is a
+word, an equals sign and a word; a component as it comes has none. A setting
+the app does not know is kept as it is written and changes nothing
+([docs/app/keeping-work/storage-and-file-format.md#STOR-195](../keeping-work/storage-and-file-format.md#STOR-195)).
+Every writer of the pages prints a component as it is set: the page view,
+the export window's preview, a PDF, a .docx, an .odt, an .rtf and Export
+Fountain.
+
+Unit tests hold what a token says of its settings and reads back, through
+the editor's document and to the file again; the contents with and without a
+page beside each act, from one pagination, the same rows either way; and
+that each page prints its own component as it is set. A shared smoke check
+puts the contents on a page, opens their settings by a press and by Return,
+unticks Page Numbers on Acts and reads the file, the component and the
+printed sheet.
+
+<a id="FMT-185"></a>
+
+**FMT-185** **A play can have a version, which prints on its title page and,
+as the writer chooses, in the page header or footer.** The version is free
+text ("Draft 3", "Rev. 11/26/2026"), a detail of the play kept in the
+script's Fountain title page as `Version:`, after the draft date. It is set
+in **Play Version…** in the document menu, after **Add Page…**, a sheet and
+never a control on the page: a **Version** box, **Also in** (**Header**, the
+first choice, **Footer**, or **Title Page Only**) and, for a header or a
+footer, **Side** (**Left**, **Center** or **Right**). Save writes the
+version and where it prints; Cancel and Esc change nothing.
+
+On the title page the version stands in the foot, the format's field gap
+under the draft date (under the contact when there is no date), set as the
+draft date is. A title page the script's keys still print shows it there by
+itself, and keeps it when its pages become files. A title page that is
+already a file shows it through a field, `{version}`, which **Insert Field**
+offers as **Version** and which is written in place as any field is
+([FMT-180](#FMT-180)); its caption says "Also in a header or footer, from
+Play Version… in the document menu." When the play's title page is a file
+with no such field, the sheet adds a tick, **Add a Version line to the title
+page**, ticked: Save writes the field as a paragraph of its own under the
+draft date's, or at the end of the page, kept in Versions as any page's
+change is. Unticked, the page is left as it is, and the field can be put on
+it, moved or taken off it later like any other.
+
+Where else it prints is the writer's choice and is kept in the play file
+([docs/app/keeping-work/storage-and-file-format.md#STOR-196](../keeping-work/storage-and-file-format.md#STOR-196)).
+A play that has not said prints it in the header, on the first side its
+format leaves empty (left, then right, then center), so a version written
+in a format with the page number on the right prints on the left of the same
+line. Header and footer slots may also use the token `{version}`
+([FMT-101](#FMT-101)), the version on one line; a format that prints it
+itself is left as it is, and the choice adds it nowhere else, so it never
+prints twice. In a slot the format already fills, the version comes first,
+two spaces before what the format prints there ("Draft 3  12."). The
+header's and footer's own rules hold: a format that leaves page 1's header
+off leaves the version off it too. A play with no version prints exactly as
+its format does, wherever the choice says, and like a number token
+([FMT-142](#FMT-142)) an empty `{version}` takes its separator with it. The
+page view, the export window's preview, a PDF, a .docx, an .odt and an .rtf
+print the version where the choice puts it; an anonymous copy keeps it, as
+it keeps the title.
+
+Unit tests read and write the key; print the version on a title page from
+the script's keys and on one that is a file, on the same rows, and nothing
+without one; add the field to a title page's file under the draft date and
+at the end, and not twice; put the version in each band and side, before
+what a filled slot prints, nowhere with no version or with Title Page Only,
+and not again where the format prints it; and read and refuse the play
+file's key. Shared smoke checks open Play Version… from the document menu,
+write a version, find it on the title page and in the header of a numbered
+page, move it to the footer's right and find it there and not in the
+header, and choose Title Page Only and find it in neither.
 
 <a id="FMT-162"></a>
 
@@ -1221,7 +1496,7 @@ than a whole page falls back to sequential layout).
 <a id="FMT-101"></a>
 
 **FMT-101** Header/footer content strings may use the tokens `{page}`, `{title}`,
-`{author}`, `{act}`, `{scene}`; `{act}` and `{scene}` are the ones in force where
+`{author}`, `{act}`, `{scene}` (and `{version}`, [FMT-185](#FMT-185)); `{act}` and `{scene}` are the ones in force where
 the page begins. Both sit in the page margins and never move a line of the
 script. The editor, export preview and PDF all draw the header and footer.
 

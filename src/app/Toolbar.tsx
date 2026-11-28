@@ -28,6 +28,8 @@
  */
 import { useRef, useState } from "react";
 import { LanguageSheet } from "./LanguageSheet";
+import { VersionSheet } from "./VersionSheet";
+import type { VersionPrint } from "../layout/furniture";
 import { openSettings } from "./settings";
 import { useSettings } from "../ui/settings-store";
 import { openFeedback } from "../feedback";
@@ -54,7 +56,7 @@ import {
 } from "../ui";
 import type { Surface } from "./panes";
 import type { RedlineSteps } from "./use-redline-steps";
-import { keys } from "../ui/keys";
+import { keyStyle, keys } from "../ui/keys";
 import { dragRegion, menuBar } from "../ui/system-traits";
 import { systemWords } from "../ui/system-words";
 import { COARSE, useMedia, useToolbarFold } from "../ui/use-media";
@@ -87,6 +89,14 @@ const viewsWithKeys = (): SegmentedOption<ViewId>[] => [
 export interface DocumentMenuActions {
   onAllPlays: () => void;
   onReveal?: () => void;
+  /** Save As…: what the copy is for (docs/app/organizing/workspace-model.md#WORK-95). */
+  onSaveAs?: () => void;
+  /** Save Draft…: the script as it is now, kept (docs/app/keeping-work/storage-and-file-format.md#STOR-203). */
+  onSaveDraft?: () => void;
+  /** Rename Play… (docs/app/keeping-work/storage-and-file-format.md#STOR-208). */
+  onRenamePlay?: () => void;
+  /** The whole play as one .zip (docs/app/keeping-work/storage-and-file-format.md#STOR-199). */
+  onExportPlay?: () => void;
   formats: FormatSpec[];
   activeFormatId: string;
   onSetFormat: (id: string) => void;
@@ -100,6 +110,13 @@ export interface DocumentMenuActions {
   onAddFrontPage: () => void;
   /** Capitalize Character Names in Directions… (docs/app/writing/editor-ux.md#EDIT-208). */
   onCapitalizeNames: () => void;
+  /** Play Version… (docs/app/formatting/formats-and-layout.md#FMT-185): what the sheet opens on. */
+  version: { text: string; print: VersionPrint; titleLacksLine: boolean };
+  onSaveVersion: (
+    text: string,
+    print: VersionPrint | undefined,
+    titleLine: boolean,
+  ) => Promise<boolean>;
   onShowHistory: () => void;
   onExport: () => void;
   /** The same dialog, on a word processor's file (docs/app/formatting/formats-and-layout.md#FMT-145). */
@@ -149,13 +166,32 @@ function playCommands(a: DocumentMenuActions): MenuEntry[] {
 }
 
 /** docs/engineering/design-system.md#UI-D107's document menu, in its documented order. */
-export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => void): MenuEntry[] {
+export function documentMenuEntries(
+  a: DocumentMenuActions,
+  onLanguage?: () => void,
+  onVersion?: () => void,
+): MenuEntry[] {
   return [
     { label: "All Plays", shortcut: "⌘⇧O", onSelect: a.onAllPlays },
     {
       label: `Reveal in ${systemWords().fileManager}`,
       disabled: !a.onReveal,
       onSelect: a.onReveal,
+    },
+    {
+      id: "save-as",
+      label: "Save As…",
+      // A PC's Ctrl+Shift+S is Scene Heading's (src/ui/keys.ts), so Save As has no chord there.
+      shortcut: keyStyle() === "pc" ? undefined : "⌘⇧S",
+      disabled: !a.onSaveAs,
+      onSelect: a.onSaveAs,
+    },
+    { id: "save-draft", label: "Save Draft…", disabled: !a.onSaveDraft, onSelect: a.onSaveDraft },
+    {
+      id: "rename-play",
+      label: "Rename Play…",
+      disabled: !a.onRenamePlay,
+      onSelect: a.onRenamePlay,
     },
     ...playCommands(a),
     { kind: "sep" },
@@ -194,6 +230,7 @@ export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => v
     },
     { kind: "sep" },
     { id: "add-front-page", label: "Add Page…", onSelect: a.onAddFrontPage },
+    { id: "play-version", label: "Play Version…", onSelect: onVersion },
     {
       id: "cast-names",
       label: "Capitalize Character Names in Directions…",
@@ -226,6 +263,12 @@ export function documentMenuEntries(a: DocumentMenuActions, onLanguage?: () => v
       label: "Export Fountain…",
       disabled: a.exporting,
       onSelect: a.onExportFountain,
+    },
+    {
+      id: "export-play",
+      label: "Export Play…",
+      disabled: a.exporting || !a.onExportPlay,
+      onSelect: a.onExportPlay,
     },
     { label: "Print…", shortcut: "⌘P", disabled: a.exporting, onSelect: a.onPrint },
   ];
@@ -286,6 +329,7 @@ export function Toolbar({
     }),
   };
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [versionOpen, setVersionOpen] = useState(false);
   const addMenu = useMenu();
   const viewMenu = useMenu();
   const viewRef = useRef<HTMLButtonElement | null>(null);
@@ -422,7 +466,11 @@ export function Toolbar({
             {menu.anchor && (
               <Menu
                 anchor={menu.anchor}
-                entries={documentMenuEntries(orderedDoc!, () => setLanguageOpen(true))}
+                entries={documentMenuEntries(
+                  orderedDoc!,
+                  () => setLanguageOpen(true),
+                  () => setVersionOpen(true),
+                )}
                 onClose={menu.close}
                 width={248}
                 label="Document"
@@ -438,6 +486,15 @@ export function Toolbar({
             language={doc.language}
             onSave={doc.onSaveLanguage}
             onClose={() => setLanguageOpen(false)}
+          />
+        )}
+        {versionOpen && doc && (
+          <VersionSheet
+            version={doc.version.text}
+            print={doc.version.print}
+            titleLacksLine={doc.version.titleLacksLine}
+            onSave={doc.onSaveVersion}
+            onClose={() => setVersionOpen(false)}
           />
         )}
         {scriptOpen && fold === "compact" && (

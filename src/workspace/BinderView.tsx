@@ -35,11 +35,12 @@ import { ancestorsOf, dropPlan, filterBinder, findItem, folderIds, type DropWher
 import { BinderIcon, DisclosureIcon, PencilIcon, type IconKind } from "./BinderIcons";
 import { Menu, PlusIcon, announce, requestPageFocus, useMenu, type MenuEntry } from "../ui";
 import { normalizeType } from "../materials/schema";
-import { titleOf } from "./binder";
+import { isKeptScript, titleOf } from "./binder";
 import type { BinderItem, BinderItemType, CardColor } from "./play-file";
 import { BinderMoveSheet } from "./BinderMoveSheet";
 import { CARD_COLORS, ColorChoice } from "./card-colors";
 import { AS_TYPED } from "../ui/as-typed";
+import { expandedKey } from "./play-memory";
 
 /** One scene, as the rail shows it. Not a file: it opens, and takes a color, and that is all. */
 export interface BinderScene {
@@ -240,10 +241,8 @@ function iconKindFor(type: string): IconKind {
   return normalizeType(type) as IconKind;
 }
 
-/** localStorage key for which folders are open, scoped to the play. */
-function expandKey(playTitle: string): string {
-  return `proscenium.binder.expanded:${playTitle}`;
-}
+/** localStorage key for which folders are open, scoped to the play (play-memory.ts). */
+const expandKey = expandedKey;
 
 /** A row as the tree actually renders it — the unit keyboard navigation moves over. */
 type Row =
@@ -1030,6 +1029,9 @@ function BinderNode(p: NodeProps) {
   const pagesFolder = isFolder && !!actions.pageFolders?.has(item.id);
   const aPage =
     !isFolder && !!p.parentId && !!actions.pageFolders?.has(p.parentId) && /\.md$/i.test(item.path);
+  // A script kept as a file no editor writes: a saved draft
+  // (docs/app/keeping-work/storage-and-file-format.md#STOR-206).
+  const isDraft = !isFolder && isKeptScript(item);
   const editing = p.renamingId === item.id;
   const isNew = actions.newlyFiled?.has(item.id) ?? false;
   const isMissing = actions.missingIds?.has(item.id) ?? false;
@@ -1186,7 +1188,11 @@ function BinderNode(p: NodeProps) {
           <span className="binder__twisty binder__twisty--leaf" />
         )}
         <span className="binder__icon">
-          <BinderIcon kind={pagesFolder ? "pages" : aPage ? "page" : iconKindFor(item.type)} />
+          <BinderIcon
+            kind={
+              pagesFolder ? "pages" : aPage ? "page" : isDraft ? "draft" : iconKindFor(item.type)
+            }
+          />
         </span>
         {editing ? (
           <input
@@ -1223,7 +1229,10 @@ function BinderNode(p: NodeProps) {
             }}
           />
         ) : (
-          <span className="binder__label">{titleOf(item)}</span>
+          <span className="binder__label">
+            {titleOf(item)}
+            {isDraft && <span className="sr-only">, saved draft</span>}
+          </span>
         )}
         {isNew && !editing && (
           <span

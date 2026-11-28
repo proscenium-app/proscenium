@@ -47,6 +47,7 @@
     - group "Loglines": Empty
   - button "New"
   - text: in Loglines
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -61,6 +62,7 @@
   - text: Page 1 of 2
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

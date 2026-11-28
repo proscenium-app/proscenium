@@ -63,6 +63,14 @@ interface ShellActions {
   openHistory: () => void;
   /** File › New Play… (⌘N): the Plays screen names a blank play. */
   askNewPlay: () => void;
+  /** File › Save As… (docs/app/organizing/workspace-model.md#WORK-95). */
+  askSaveAs: () => void;
+  /** File › Rename Play… (docs/app/keeping-work/storage-and-file-format.md#STOR-208). */
+  askRenamePlay: () => void;
+  /** File › Save Draft… (docs/app/keeping-work/storage-and-file-format.md#STOR-203). */
+  askSaveDraft: () => void;
+  /** File › Export Play… (docs/app/keeping-work/storage-and-file-format.md#STOR-199). */
+  exportPlay: () => void;
   toast: ReturnType<typeof useToast>;
   caretOrdinalRef: MutableRefObject<number | null>;
   showShortcutsRef: MutableRefObject<boolean>;
@@ -120,6 +128,10 @@ export function useShellCommands(
     openCastNames,
     openHistory,
     askNewPlay,
+    askSaveAs,
+    askRenamePlay,
+    askSaveDraft,
+    exportPlay,
     toast,
     caretOrdinalRef,
     showShortcutsRef,
@@ -290,6 +302,13 @@ export function useShellCommands(
         window.dispatchEvent(new Event("proscenium:import-draft"));
         return;
       }
+      // ⌘⇧S is File › Save As… where no menu bar takes it; a PC's Ctrl+Shift+S is Scene Heading.
+      if (!menuBar() && !pc() && pressed(e, "⌘⇧S")) {
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+        askSaveAs();
+        return;
+      }
       if (!menuBar() && pressed(e, "⌘S")) {
         if (e.defaultPrevented) return;
         e.preventDefault();
@@ -378,6 +397,7 @@ export function useShellCommands(
     exporting,
     backToVault,
     askNewPlay,
+    askSaveAs,
     openFolder,
     onSaveShortcut,
     editor,
@@ -484,6 +504,18 @@ export function useShellCommands(
           return;
         case "reveal":
           void vault.reveal();
+          return;
+        case "save-as":
+          askSaveAs();
+          return;
+        case "rename-play":
+          askRenamePlay();
+          return;
+        case "save-draft":
+          askSaveDraft();
+          return;
+        case "export-play":
+          if (!exporting) exportPlay();
           return;
         case "export-pdf":
           if (!exporting) setShowExport({ sidesFor: null });
@@ -603,6 +635,10 @@ export function useShellCommands(
       zoomCtl,
       openAddPage,
       openCastNames,
+      askSaveAs,
+      askRenamePlay,
+      askSaveDraft,
+      exportPlay,
       toast,
       stepScene,
     ],

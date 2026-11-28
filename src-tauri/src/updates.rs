@@ -744,6 +744,84 @@ pub async fn update_restart(app: AppHandle) -> Result<RestartOutcome, String> {
     app.restart()
 }
 
+/// The version a quit would install now (docs/engineering/release-engineering.md#REL-133):
+/// a downloaded update, while "Install updates automatically" is on, no
+/// install is under way and nothing is unsaved. In a test build, the update a
+/// check staged stands in for a downloaded one.
+pub fn installs_at_quit(app: &AppHandle) -> Option<String> {
+    if store_copy() || !settings::current(app).install_updates_automatically {
+        return None;
+    }
+    if unsaved_edits(app) {
+        return None;
+    }
+    #[cfg(feature = "selftest")]
+    if let Some(version) = crate::selftest_fixture::staged_update() {
+        return Some(version);
+    }
+    let updates = app.state::<Updates>();
+    let inner = updates.0.lock().unwrap_or_else(|p| p.into_inner());
+    if inner.busy {
+        return None;
+    }
+    inner
+        .ready
+        .as_ref()
+        .map(|(update, _)| update.version.clone())
+}
+
+/// Install the downloaded update as the app quits, and open nothing after it
+/// (docs/engineering/release-engineering.md#REL-133): the next launch is the
+/// new version. Called by the quit gate once the page has settled and said go,
+/// so every word is on disk; the beacon is read again here, as a restart reads
+/// it. Blocking: on a Mac it runs off the main thread while AppKit holds the
+/// quit. A failed install leaves the app as it was and the quit goes on; the
+/// next launch finds the update again. On Windows the installer is started,
+/// passively and with no restart after it, and the process ends there.
+pub fn install_at_quit(app: &AppHandle) {
+    if installs_at_quit(app).is_none() {
+        return;
+    }
+    #[cfg(feature = "selftest")]
+    if crate::selftest_fixture::staged_update().is_some() {
+        return;
+    }
+    let pending = {
+        let updates = app.state::<Updates>();
+        let mut inner = updates.0.lock().unwrap_or_else(|p| p.into_inner());
+        if inner.busy {
+            return;
+        }
+        let taken = inner.ready.take();
+        inner.busy = taken.is_some();
+        taken
+    };
+    let Some((update, bytes)) = pending else {
+        return;
+    };
+    #[cfg(target_os = "macos")]
+    let installed = install::running_bundle()
+        .map_err(UpdaterError::from)
+        .and_then(|bundle| {
+            install::install(
+                &bundle,
+                &bytes,
+                &app.config().identifier,
+                &update.version,
+                &crate::version::whole(app),
+            )
+            .map_err(UpdaterError::from)
+        });
+    #[cfg(not(target_os = "macos"))]
+    let installed = update
+        .clone()
+        .restart_after_install(false)
+        .install(bytes.as_slice());
+    if let Err(e) = installed {
+        eprintln!("updates: the update could not be installed at quit: {e}");
+    }
+}
+
 /// The restart into an update, on a Mac
 /// (docs/engineering/release-engineering.md#REL-130): the new copy is opened
 /// by LaunchServices once this one has ended, as a double-click would open

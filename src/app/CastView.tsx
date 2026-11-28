@@ -103,8 +103,9 @@ export function CastView(props: CastViewProps) {
   const appearanceFor = (name: string): SceneAppearance[] =>
     props.appearances.get(name.trim().toUpperCase()) ?? [];
   /** The first row that offers Add to Characters Page: where the guide points (lesson 4). */
+  const speaksAt = (name: string) => (props.weights.get(name)?.cues ?? 0) > 0;
   const firstOffer = company.find(
-    (name) => !props.pages.some((page) => namedOnPage(name, page.text)),
+    (name) => !props.pages.some((page) => namedOnPage(name, page.text, speaksAt(name))),
   );
 
   return (
@@ -130,7 +131,7 @@ export function CastView(props: CastViewProps) {
               const weight = props.weights.get(name);
               const appearances = appearanceFor(name);
               const speaks = (weight?.cues ?? 0) > 0;
-              const page = props.pages.find((p) => namedOnPage(name, p.text));
+              const page = props.pages.find((p) => namedOnPage(name, p.text, speaks));
               const named = !!page;
               const leftOff = !named && hidden.has(name);
               // "On the Characters page", and "On the Title Page" for a page named as one.

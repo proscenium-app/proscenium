@@ -110,10 +110,42 @@ export function restartProblem(result: RestartResult): string {
 }
 
 /**
- * The quiet notice, once per downloaded version, and the restart it offers.
+ * Restart into the waiting update, and say so in a toast if it did not
+ * happen: the notice's action and the status bar's button both do this.
+ */
+export function restartWithToast(toast: ReturnType<typeof useToast>): void {
+  void restartToUpdate().then((result) => {
+    toast({
+      kind: "error",
+      title: "Proscenium didn’t restart",
+      detail: restartProblem(result),
+      code: "E-UPDATE-RESTART",
+    });
+  });
+}
+
+/**
+ * What the waiting update will do, in a sentence: install as the app quits
+ * when the writer left that on (docs/engineering/release-engineering.md#REL-133),
+ * or wait for Restart to Update.
+ */
+export function readyDetail(atQuit: boolean): string {
+  return atQuit
+    ? "It installs when you quit Proscenium, or restart now to install it straight away."
+    : "Restart to install it. Your work is saved first.";
+}
+
+/**
+ * The notice, once per downloaded version each launch, and the restart it
+ * offers. The status bar's button stays for as long as the update waits
+ * (StatusBar.tsx), so a notice missed is never the only word of it.
  * Called once, by App, with the workspace's flush.
  */
-export function useUpdateNotices(settle: typeof settleEdits, confirm: typeof confirmSaved): void {
+export function useUpdateNotices(
+  settle: typeof settleEdits,
+  confirm: typeof confirmSaved,
+  atQuit: boolean,
+): void {
   const toast = useToast();
   const state = useUpdateState();
   const told = useRef<string | null>(null);
@@ -129,21 +161,11 @@ export function useUpdateNotices(settle: typeof settleEdits, confirm: typeof con
     toast({
       kind: "plain",
       title: `Proscenium ${state.version} is ready to install`,
+      detail: readyDetail(atQuit),
       ms: 12000,
-      action: {
-        label: "Restart to Update",
-        run: () =>
-          void restartToUpdate().then((result) => {
-            toast({
-              kind: "error",
-              title: "Proscenium didn’t restart",
-              detail: restartProblem(result),
-              code: "E-UPDATE-RESTART",
-            });
-          }),
-      },
+      action: { label: "Restart to Update", run: () => restartWithToast(toast) },
     });
-  }, [state, toast]);
+  }, [state, toast, atQuit]);
 }
 
 /**

@@ -21,7 +21,9 @@ import { isTauri } from "@tauri-apps/api/core";
 import { insertLineBreak, insertPageBreak, toggleEmphasis } from "../editor/breaks";
 import { listen } from "../storage/ipc";
 import { formatOnce, formatterWithFocus, markFormat } from "../ui/format-input";
+import { keyStyle } from "../ui/keys";
 import { anyLayerOpen } from "../ui/layers";
+import { actsOnScript, fieldKeepingKeyboard, fieldKeyFor } from "./menu-in-field";
 import { updateIsInstalling } from "./update-lock";
 
 const EVENT_MENU_ACTION = "menu://action";
@@ -39,6 +41,20 @@ export interface MenuHandlers {
  */
 function handleEditorAction(editor: Editor | null, id: string): boolean {
   if (!editor) return false;
+  // A comment being typed keeps the keyboard: an item for the script, its chord
+  // pressed in the comment's field, is the field's or nothing (menu-in-field.ts).
+  if (actsOnScript(id)) {
+    const field =
+      typeof document === "undefined" ? null : fieldKeepingKeyboard(document.activeElement);
+    if (field) {
+      const key = fieldKeyFor(id, keyStyle() === "pc");
+      if (key)
+        field.dispatchEvent(
+          new KeyboardEvent("keydown", { ...key, bubbles: true, cancelable: true }),
+        );
+      return true;
+    }
+  }
   if (id.startsWith("el-")) {
     const name = id.slice(3);
     editor.chain().focus().setNode(name).run();
@@ -95,6 +111,47 @@ export function runMenuItem(editor: Editor | null, run: (id: string) => void, id
   run(id);
 }
 
+/** For how long after a menu-bar item a keyboard left on nothing is given back. */
+const KEEP_FOR_MS = 4000;
+/** When it looks again, for a focus that went without a focusout to say so. */
+const LOOK_AGAIN_MS = [16, 60, 150, 300, 600, 1000, 2000, 3000, 4000];
+
+/** What last had the page's keyboard: where a menu-bar item leaves the writer. */
+let typing: HTMLElement | null = null;
+/** Until when a keyboard left on nothing is given back (performance.now()). */
+let keepUntil = 0;
+
+/**
+ * A menu-bar item leaves the writer typing where they were
+ * (docs/app/preferences-and-help/accessibility.md#A11Y-21). macOS can take the
+ * page's focus as its menu bar takes a key equivalent, at once or a second or
+ * more after, as the sandboxed app's Save did: a word typed after ⌘S then went
+ * nowhere. Only a focus left on nothing is given back, never one an item moved
+ * somewhere, nor while a menu or sheet is up, and the editor takes it itself,
+ * so its caret stays where it was. A press of the pointer ends the watch: the
+ * writer has chosen where the keyboard goes.
+ */
+function keepTheKeyboard(): void {
+  if (performance.now() > keepUntil) return;
+  const active = document.activeElement;
+  if (active && active !== document.body) return;
+  if (anyLayerOpen()) return;
+  const el = typing;
+  if (!el?.isConnected) return;
+  const page = el.closest(".ProseMirror") as
+    | (HTMLElement & { editor?: { view?: { focus(): void } } })
+    | null;
+  if (page?.editor?.view) page.editor.view.focus();
+  else el.focus({ preventScroll: true });
+}
+
+/** Watches the keyboard for a while after a menu-bar item: see keepTheKeyboard. */
+function watchTheKeyboard(): void {
+  keepUntil = performance.now() + KEEP_FOR_MS;
+  keepTheKeyboard();
+  for (const ms of LOOK_AGAIN_MS) window.setTimeout(keepTheKeyboard, ms);
+}
+
 export function useMenuActions({ editor, run, allowWhileLayer }: MenuHandlers): void {
   // Listened for once, for the window's life, with the handlers read when an item
   // arrives. Listening again whenever the editor changed left a gap one IPC round
@@ -104,6 +161,24 @@ export function useMenuActions({ editor, run, allowWhileLayer }: MenuHandlers): 
   useEffect(() => {
     let dead = false;
     let stop: (() => void) | undefined;
+    const onFocus = (e: FocusEvent) => {
+      if (e.target instanceof HTMLElement && e.target !== document.body) typing = e.target;
+    };
+    // A focus that leaves for nothing is looked at once it has gone.
+    const onBlur = (e: FocusEvent) => {
+      if (!e.relatedTarget && performance.now() <= keepUntil) window.setTimeout(keepTheKeyboard, 0);
+    };
+    const onPress = () => {
+      keepUntil = 0;
+    };
+    window.addEventListener("focusin", onFocus, true);
+    window.addEventListener("focusout", onBlur, true);
+    window.addEventListener("pointerdown", onPress, true);
+    const unwatch = () => {
+      window.removeEventListener("focusin", onFocus, true);
+      window.removeEventListener("focusout", onBlur, true);
+      window.removeEventListener("pointerdown", onPress, true);
+    };
     const handle = (id: string) => {
       const { editor, run, allowWhileLayer } = latest.current;
       /* A menu or sheet is up: a menu-bar item waits for it, exactly as its
@@ -113,14 +188,18 @@ export function useMenuActions({ editor, run, allowWhileLayer }: MenuHandlers): 
          the script behind it. */
       if (updateIsInstalling()) return;
       if (anyLayerOpen() && !allowWhileLayer?.(id)) return;
+      watchTheKeyboard();
       if (handleEditorAction(editor, id)) return;
       run(id);
     };
     if (!isTauri()) {
-      if (!(window as unknown as Record<string, unknown>).__PROSCENIUM_FIXTURE__) return;
+      if (!(window as unknown as Record<string, unknown>).__PROSCENIUM_FIXTURE__) return unwatch;
       const fixtureMenu = (event: Event) => handle((event as CustomEvent<string>).detail);
       window.addEventListener("proscenium:fixture-menu", fixtureMenu);
-      return () => window.removeEventListener("proscenium:fixture-menu", fixtureMenu);
+      return () => {
+        window.removeEventListener("proscenium:fixture-menu", fixtureMenu);
+        unwatch();
+      };
     }
     void listen<string>(EVENT_MENU_ACTION, (e) => handle(e.payload)).then((un) => {
       if (dead) un();
@@ -129,6 +208,7 @@ export function useMenuActions({ editor, run, allowWhileLayer }: MenuHandlers): 
     return () => {
       dead = true;
       stop?.();
+      unwatch();
     };
   }, []);
 }

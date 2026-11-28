@@ -110,7 +110,11 @@ const {
   importIntoPlay,
   makeFrontMatterFolder,
   newPageFile,
+  saveDraftItem,
+  workingCopyItem,
+  followPlayRename,
 } = await import("./binder-apply");
+const { validPlayShape } = await import("./play-file");
 const { titleOf } = await import("./binder");
 const { recoverBinderMoves, applyRelocation, decodeRelocation } = await import(
   "./binder-relocation"
@@ -528,6 +532,105 @@ describe("binder-apply disk mapping", () => {
     // A folder has no byte-level copy behind it; better to refuse than to
     // half-copy a subtree.
     expect((await duplicateItem(ctx(), "chars")).ok).toBe(false);
+  });
+
+  it("a named copy takes the name it is given (docs/app/organizing/workspace-model.md#WORK-95)", async () => {
+    const res = await duplicateItem(ctx(), "script", "Chicago");
+    expect(res.ok && store.get("Chicago.fountain")).toBe("# ACT ONE\n");
+  });
+
+  describe("saved drafts (docs/app/keeping-work/storage-and-file-format.md#STOR-203)", () => {
+    it("keeps the script's words in the Drafts folder, filed so no editor writes them, and moves the play to schema 2", async () => {
+      const res = await saveDraftItem(
+        ctx(),
+        "script",
+        "Before the reading",
+        "# ACT ONE\n",
+        "abc",
+        "2026-11-26T12:00:00Z",
+      );
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(store.get("Drafts/Before the reading.fountain")).toBe("# ACT ONE\n");
+      const folder = res.play.binder.find((b) => b.path === "Drafts")!;
+      expect(folder.type).toBe("folder");
+      expect(folder.children).toEqual([
+        { id: res.createdId!, type: "reference", path: "Drafts/Before the reading.fountain" },
+      ]);
+      expect(res.play.drafts).toEqual({
+        [res.createdId!]: { of: "script", savedAt: "2026-11-26T12:00:00Z", sha256: "abc" },
+      });
+      expect(res.play.schemaVersion).toBe(2);
+      // The script's own record is untouched: a draft is not a script.
+      expect(res.play.scripts[res.createdId!]).toBeUndefined();
+      expect(validPlayShape(JSON.parse(store.get(PLAY_PATH)!))).toBe(true);
+
+      // A second with the same name goes beside it, numbered; the Drafts folder is reused.
+      seedRef = { play: res.play, hash: res.hash };
+      const again = await saveDraftItem(
+        ctx(),
+        "script",
+        "Before the reading",
+        "# ACT TWO\n",
+        "def",
+        "2026-11-27T12:00:00Z",
+      );
+      expect(again.ok && store.get("Drafts/Before the reading 2.fountain")).toBe("# ACT TWO\n");
+      if (!again.ok) return;
+      expect(again.play.binder.filter((b) => b.path === "Drafts")).toHaveLength(1);
+      expect(Object.keys(again.play.drafts ?? {})).toHaveLength(2);
+    });
+
+    it("a working copy is a script beside the one the draft was saved from, holding the draft's words", async () => {
+      const saved = await saveDraftItem(
+        ctx(),
+        "script",
+        "Reading",
+        "# ACT ONE\nOld.\n",
+        "x",
+        "2026-11-26T12:00:00Z",
+      );
+      if (!saved.ok) throw new Error("not saved");
+      seedRef = { play: saved.play, hash: saved.hash };
+      const res = await workingCopyItem(ctx(), saved.createdId!, "Reading");
+      expect(res.ok).toBe(true);
+      if (!res.ok) return;
+      expect(store.get("Reading.fountain")).toBe("# ACT ONE\nOld.\n");
+      expect(res.play.binder.map((b) => b.id).slice(0, 2)).toEqual(["script", res.createdId!]);
+      expect(res.play.binder[1].type).toBe("script");
+    });
+
+    it("a draft's binder copy is a script, never a page the Markdown editor writes", async () => {
+      const saved = await saveDraftItem(
+        ctx(),
+        "script",
+        "Reading",
+        "# ACT ONE\n",
+        "x",
+        "2026-11-26T12:00:00Z",
+      );
+      if (!saved.ok) throw new Error("not saved");
+      seedRef = { play: saved.play, hash: saved.hash };
+      const res = await duplicateItem(ctx(), saved.createdId!);
+      if (!res.ok) throw new Error("not copied");
+      const copy = res.play.binder
+        .find((b) => b.path === "Drafts")!
+        .children!.find((b) => b.id === res.createdId);
+      expect(copy?.type).toBe("script");
+    });
+  });
+
+  it("a rename's last step renames the script named for the play and drops the old name (docs/app/keeping-work/storage-and-file-format.md#STOR-208)", async () => {
+    seedRef.play = { ...seedRef.play, renamedFrom: "The Weight of Water" };
+    const content = stringifyCanonical(seedRef.play, PLAY_TMPL);
+    store.set(PLAY_PATH, content);
+    seedRef.hash = hashOf(content);
+    const res = await followPlayRename(ctx(), "script", "Still Water");
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(store.has("Still Water.fountain")).toBe(true);
+    expect(res.play.binder[0].path).toBe("Still Water.fountain");
+    expect("renamedFrom" in res.play).toBe(false);
   });
 
   it("deletes by trashing the file and dropping the entry", async () => {

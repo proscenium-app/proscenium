@@ -1,0 +1,201 @@
+/* SPDX-FileCopyrightText: 2026 Habiby LLC
+ * SPDX-License-Identifier: AGPL-3.0-or-later */
+
+/* A play's name (src/app/PlayNameSheet.tsx) -------------------------------- */
+/* Rename Play, Duplicate Play and New Play Like This ask one thing: a name.
+   What a name cannot hold, or a name the Plays folder has, is said under it. */
+.playname {
+  padding: var(--s-6) var(--s-7) var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  width: 380px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.playname__intro {
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-body);
+  line-height: 1.45;
+  color: var(--ink);
+}
+.playname__label {
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.playname__field {
+  width: 100%;
+  box-sizing: border-box;
+}
+.playname__said,
+.playname__note {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: var(--t-mini);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.playname__said.is-error,
+.saveas__said.is-error {
+  color: var(--warn-text);
+}
+.playname__field[aria-invalid="true"],
+.saveas__field[aria-invalid="true"] {
+  border-color: var(--warn-border);
+}
+.playname__check {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  font-size: var(--t-body);
+  color: var(--ink);
+}
+
+/* Save As (src/app/SaveAsSheet.tsx) ---------------------------------------- */
+/* What is saved first, then what the copy is for: a row is a label over its
+   own radio, which lies under the row at the row's size, as Add a Page's
+   rows are (add-page.css). */
+.saveas {
+  padding: var(--s-6) var(--s-7) var(--s-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  width: 460px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.saveas__saved {
+  margin: 0;
+  font-size: var(--t-body);
+  line-height: 1.45;
+  color: var(--ink);
+}
+.saveas__list {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.saveas__legend {
+  padding: 0 0 var(--s-3);
+}
+.saveas__choice {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  min-height: var(--h-regular);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-control);
+}
+.saveas__radio {
+  appearance: none;
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 1.5px solid transparent;
+  border-radius: inherit;
+  background: transparent;
+  transition:
+    background-color var(--motion),
+    border-color var(--motion);
+}
+.saveas__radio:hover:not(:disabled) {
+  background: var(--hover);
+}
+.saveas__radio:checked {
+  border-color: var(--accent);
+  background: var(--accent-softer);
+}
+.saveas__radio:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* The words let a click through to the radio under them. */
+.saveas__name,
+.saveas__about {
+  pointer-events: none;
+}
+.saveas__name {
+  font-size: var(--t-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+.saveas__about {
+  font-size: var(--t-small);
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.saveas__choice.is-disabled .saveas__name,
+.saveas__choice.is-disabled .saveas__about {
+  color: var(--ink-2);
+}
+.saveas__detail {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+.saveas__label {
+  flex: none;
+  font-size: var(--t-small);
+  color: var(--ink-2);
+}
+.saveas__field {
+  flex: 1;
+  min-width: 0;
+}
+.saveas__said {
+  margin: 0;
+  min-height: 1.5em;
+  font-size: var(--t-mini);
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+/* Forced colours drop the tint and repaint every border alike: the chosen
+   row keeps a border in the system's selection colour. */
+@media (forced-colors: active) {
+  .saveas__radio {
+    forced-color-adjust: none;
+    background: transparent;
+    border-color: transparent;
+  }
+  .saveas__radio:checked {
+    border-color: Highlight;
+  }
+}
+
+/* A saved draft (src/app/DraftSheet.tsx) ----------------------------------- */
+/* The draft on its own page, read-only, in the play's format, with what
+   changed since in the script it came from a choice away. */
+.draftsheet {
+  padding: var(--s-5) var(--s-7) var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-height: 0;
+}
+.draftsheet__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+}
+.draftsheet__note {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.draftsheet__note.is-error {
+  color: var(--warn-text);
+}
+.draftsheet__page {
+  min-width: 0;
+}

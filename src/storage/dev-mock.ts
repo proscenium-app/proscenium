@@ -73,6 +73,8 @@ const EXPORT_MEDIA_TYPE: Record<ExportKind, string> = {
   rtf: "application/rtf",
   // A Fountain script is plain text (docs/app/formatting/formats-and-layout.md#FMT-171).
   fountain: "text/plain;charset=utf-8",
+  // The whole play (docs/app/keeping-work/storage-and-file-format.md#STOR-199).
+  zip: "application/zip",
 };
 
 /*
@@ -184,6 +186,8 @@ const store = seed();
 const mtimes = new Map<string, number>();
 const SEED_MTIME = Date.parse("2026-06-18T22:10:13Z");
 const dirs = new Set<string>(); // directories with no file in them yet
+/** Files whose content is bytes, one per character, not text: what `createBinary` wrote. */
+const binaryKeys = new Set<string>();
 const TUTORIAL_BASE = "/dev/app-data/tutorials";
 const TUTORIAL_ROOT = `${TUTORIAL_BASE}/practice`;
 const tutorialSessionRoot = (id: string) => {
@@ -803,6 +807,54 @@ export const devVault = {
     return through("list", key, go);
   },
 
+  /** A file's bytes as base64: bytes as written for a binary file, UTF-8 for text. */
+  readBinary: (rel: string): Promise<string> => {
+    const key = toKey(rel);
+    return through("read", key, (): Promise<string> => {
+      if (stillInCloud(key))
+        return Promise.reject(
+          new Error(`${rel} is in iCloud and has not finished downloading yet`),
+        );
+      const files = filesFor(key);
+      const actual = matchingPath(key, files.keys()) ?? key;
+      const content = files.get(actual);
+      if (content === undefined) return Promise.reject(new Error("ENOENT " + rel));
+      const bytes = binaryKeys.has(actual)
+        ? Uint8Array.from(content, (c) => c.charCodeAt(0))
+        : new TextEncoder().encode(content);
+      return delay(toBase64(bytes));
+    });
+  },
+
+  /** A create-only write of bytes, as `vault_create_binary` makes one. */
+  writeBinary: async (rel: string, base64: string): Promise<WriteOutcome> => {
+    const out = await devVault.write(rel, atob(base64), "");
+    if (out.status === "ok") binaryKeys.add(toKey(rel));
+    return out;
+  },
+
+  /** One file copied where nothing is yet, and read back, as `vault_copy_file` does. */
+  copyFile: async (from: string, to: string): Promise<void> => {
+    if (
+      [from, to].some(
+        (p) =>
+          p.startsWith("/") ||
+          p.includes("\\") ||
+          p.split("/").some((c) => !c || c === "." || c === ".."),
+      )
+    )
+      throw new Error("Invalid copy path");
+    const fromKey = toKey(from);
+    const content = filesFor(fromKey).get(fromKey);
+    if (content === undefined) throw new Error("ENOENT " + from);
+    const result = await devVault.write(to, content, "");
+    if (result.status !== "ok")
+      throw new Error("The destination already exists. The original play is kept.");
+    if (binaryKeys.has(fromKey)) binaryKeys.add(toKey(to));
+    if (filesFor(toKey(to)).get(toKey(to)) !== content)
+      throw new Error("The copy could not be verified. The original play is kept.");
+  },
+
   read: (rel: string): Promise<ReadResult> => {
     const key = toKey(rel);
     const go = (): Promise<ReadResult> => {
@@ -955,8 +1007,16 @@ export const devVault = {
     if (!existsSync(fromKey)) return Promise.reject(new Error("The original file is missing."));
     for (const k of [...source.keys()]) {
       if (k === fromKey || k.startsWith(fromKey + "/")) {
-        target.set(toKeyPath + k.slice(fromKey.length), source.get(k)!);
+        const moved = toKeyPath + k.slice(fromKey.length);
+        target.set(moved, source.get(k)!);
         source.delete(k);
+        if (binaryKeys.delete(k)) binaryKeys.add(moved);
+        // A rename keeps a file's modified time, as the disk's does: a play
+        // renamed a moment after its script was written is dated today, not
+        // by the seed.
+        const time = mtimes.get(k);
+        mtimes.delete(k);
+        if (time !== undefined) mtimes.set(moved, time);
       }
     }
     for (const dir of [...dirs]) {
@@ -1103,15 +1163,23 @@ export const devVault = {
   },
   /**
    * Dev-only: quit, as ⌘Q would — ask the page, and resolve with what it said
-   * once it answers. Also on `window.__prosceniumQuit`.
+   * once it answers, and the update the quit would install on its way out
+   * (updates.rs `installs_at_quit`). Also on `window.__prosceniumQuit`.
    */
-  mockQuit: (): Promise<{ heard: boolean; go: boolean }> =>
+  mockQuit: (): Promise<{ heard: boolean; go: boolean; installs: string | null }> =>
     new Promise((resolve) => {
       const id = ++quitAsked;
+      const installs = (go: boolean) =>
+        go &&
+        !dirtyBuffer &&
+        updateState.kind === "ready" &&
+        readSettings(readSettingsObject()).installUpdatesAutomatically
+          ? updateState.version
+          : null;
       const entry = {
         heard: false,
         go: null as boolean | null,
-        answered: (go: boolean) => resolve({ heard: entry.heard, go }),
+        answered: (go: boolean) => resolve({ heard: entry.heard, go, installs: installs(go) }),
       };
       quitAnswers.set(id, entry);
       for (const l of quitListeners) l.cb(id);

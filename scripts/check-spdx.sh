@@ -29,7 +29,9 @@ while IFS= read -r f; do
   [ -f "$f" ] || continue
   count=$((count + 1))
   # REUSE-IgnoreStart — the marker below is the thing searched for, not a license
-  if ! head -n 5 "$f" | grep -q "SPDX-License-Identifier:"; then
+  # One process and no pipe: under `pipefail`, `head | grep -q` fails when grep
+  # leaves at its match before head has finished writing.
+  if ! LC_ALL=C awk 'NR > 5 { exit } /SPDX-License-Identifier:/ { found = 1; exit } END { exit !found }' "$f"; then
     missing+=("$f")
   fi
   # REUSE-IgnoreEnd

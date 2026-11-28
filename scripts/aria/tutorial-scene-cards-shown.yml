@@ -31,6 +31,7 @@
     - group "Notes": Empty
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - tablist "Arrange scenes":
     - tab "Across" [selected]
@@ -52,6 +53,7 @@
     - button "Move earlier — SCENE 2"
     - button "Move later — SCENE 2" [disabled]
   - button "New Scene"
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

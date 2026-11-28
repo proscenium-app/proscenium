@@ -33,13 +33,18 @@ import {
   frontSheetMetrics,
   legacyBlockAt,
   legacyPageFiles,
+  movePageBlock,
   pageBlockAt,
+  pageSpots,
   readPageFile,
-  type Field,
+  shownDetails,
+  stepPageBlock,
+  writePageFile,
+  type Moved,
 } from "../layout";
 import { toDoc } from "../markdown/doc";
 import { FIELD_NODE, fieldTextOf } from "../markdown/page-file-nodes";
-import { isFieldName, type FieldName } from "../markdown/page-fields";
+import { fieldKey, isFieldName, type FieldName } from "../markdown/page-fields";
 import { AutosaveScheduler, DEFAULT_AUTOSAVE } from "../storage/autosave";
 import { Button } from "../ui";
 import {
@@ -49,7 +54,12 @@ import {
   type MaterialBuffer,
   type ParkedWords,
 } from "../workspace";
-import { FrontPageEditor, type DetailsAccess, type SheetSetting } from "./FrontPageEditor";
+import {
+  FrontPageEditor,
+  type DetailsAccess,
+  type PagePlacing,
+  type SheetSetting,
+} from "./FrontPageEditor";
 import { detailValue, sameDetail, type Details } from "./play-details";
 
 const DEBOUNCE_MS = 400;
@@ -85,6 +95,11 @@ export interface PageOnSheetProps {
   spec: FormatSpec;
   /** Opens the templates, to give this page another; absent for a page that cannot take one. */
   onChangeTemplate?: (source: string) => void;
+  /**
+   * Moves the page whose file is `id` to the Trash
+   * (docs/app/formatting/formats-and-layout.md#FMT-183).
+   */
+  onRemovePage?: (id: string) => void;
   /** Write details of the play, as a field edited on the page asks. */
   onSetDetails: (patch: Partial<Details>) => void;
 }
@@ -133,6 +148,7 @@ export function PageOnSheet({
   bar,
   spec,
   onChangeTemplate,
+  onRemovePage,
   onSetDetails,
 }: PageOnSheetProps) {
   const legacy = source.startsWith(LEGACY);
@@ -354,6 +370,29 @@ export function PageOnSheet({
    * the page as it is. A page the title page still prints is written as a
    * file first, with the rest, as its first change would have written it.
    */
+  // To the Trash, from where the page is written. A page the title page
+  // still prints is written as a file first, with every such page, since a
+  // page is taken out of a play as a file is.
+  const removePage = async () => {
+    if (!onRemovePage) return;
+    let id = idRef.current;
+    if (id) await flushRef.current();
+    else {
+      if (moving.current) return;
+      moving.current = true;
+      const kind = source.slice(LEGACY.length);
+      const { header } = splitFrontMatter(opening.text);
+      const ids = await onMaterialize({ kind, text: withFrontMatter(header, latest.current) });
+      id = ids?.[kind] ?? null;
+      if (!id) {
+        moving.current = false;
+        return;
+      }
+      onRetarget(id);
+    }
+    onDone();
+    onRemovePage(id);
+  };
   const changeTemplate = async () => {
     if (!onChangeTemplate) return;
     if (idRef.current) {
@@ -376,8 +415,11 @@ export function PageOnSheet({
   };
 
   const values = useMemo(() => {
-    const out: Partial<Record<Field, string>> = {};
+    const out: Partial<Record<string, string>> = {};
     for (const field of FIELDS) out[field] = fieldValue(field, frontMatter);
+    // A component set another way shows what that way prints
+    // (docs/app/formatting/formats-and-layout.md#FMT-184).
+    out[fieldKey("contents", "acts=plain")] = fieldValue("contents", frontMatter, "acts=plain");
     return out;
   }, [frontMatter]);
 
@@ -422,6 +464,25 @@ export function PageOnSheet({
     [onSetDetails],
   );
 
+  // A block of the page moves about its sheet
+  // (docs/app/formatting/formats-and-layout.md#FMT-182): worked out by the
+  // paginator on the page as it is shown, a prompt in each detail not yet
+  // written. A format whose opening runs in with the script has no sheet of
+  // the page's own to move anything about.
+  const place = useMemo((): PagePlacing | undefined => {
+    if (spec.frontMatter.placement === "inline") return undefined;
+    const file = (words: string) => writePageFile({ layout: opening.layout }, words);
+    const words = (moved: Moved | null) =>
+      moved ? { ...moved, text: readPageFile(moved.text).body } : null;
+    return {
+      spots: (body) => pageSpots(file(body), shownDetails(fm.current), spec),
+      move: (body, index, to) =>
+        words(movePageBlock(file(body), shownDetails(fm.current), spec, index, to)),
+      step: (body, index, step) =>
+        words(stepPageBlock(file(body), shownDetails(fm.current), spec, index, step)),
+    };
+  }, [spec, opening.layout]);
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: Esc from anywhere in the page's editor
     <div
@@ -449,9 +510,11 @@ export function PageOnSheet({
         name={name}
         onDone={onDone}
         onChangeTemplate={onChangeTemplate ? () => void changeTemplate() : undefined}
+        onRemove={onRemovePage ? () => void removePage() : undefined}
         details={details}
         openField={opening.field}
         sheet={sheet}
+        place={place}
         // Leaving the page for a sheet (an export, a menu) sends its words.
         onBlur={() => void flushRef.current()}
       />

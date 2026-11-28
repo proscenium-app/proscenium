@@ -24,6 +24,7 @@
       "src/app/styles/status-controls.css",
       "src/app/styles/title-page.css",
       "src/app/styles/add-page.css",
+      "src/app/styles/play-sheets.css",
       "src/app/styles/trash.css",
       "src/app/styles/version-compare.css",
       "src/app/styles/window-shell.css",

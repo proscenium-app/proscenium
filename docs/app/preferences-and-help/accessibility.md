@@ -84,6 +84,17 @@ replaces A11Y-1 (docs/engineering/withdrawn-requirements.md#A11Y-1).
   system's colours.
   Smoke's forced colours act holds both, in Chromium and in the real Windows app.
 - <a id="A11Y-13"></a> **A11Y-13** **The PDF names itself**: title shown in the viewer's title bar, language set.
+- <a id="A11Y-21"></a> **A11Y-21** **A menu-bar item leaves the keyboard where the writer was typing**
+  (`app/menu-actions.ts`). macOS takes a key equivalent the menu bar owns
+  before the page, and can take the page's focus with it, then or seconds
+  later; the sandboxed app's ⌘S did, and the next word typed went nowhere. For
+  four seconds after any menu-bar item, a focus left on nothing goes back to
+  what last had it, the editor through its own focus so its caret stays. A
+  focus an item moved somewhere is left there, nothing is taken while a menu or
+  sheet is up, and a press of the pointer ends the watch. Smoke's "the menu
+  bar's keys" act presses every menu-bar chord from the script, in both
+  engines and the real Mac app, and fails on a keyboard left on nothing at any
+  moment up to four seconds after a key.
 
 <a id="A11Y-D2"></a>
 

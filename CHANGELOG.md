@@ -13,6 +13,34 @@ into that version's section.
 
 ## [Unreleased]
 
+## [1.1.1]
+
+### Added
+
+- Move any line on a page before or after the script: drag the handle beside
+  it, or use Move in the page's bar. Lines can stand side by side.
+- A new play starts with a Characters page, which lists everyone who speaks
+  by itself.
+- Insert Field › Cast puts that list on any page. Turn into Text, in its
+  settings, makes it lines to write on.
+- The Contents can leave page numbers off acts: select them and open their
+  settings.
+- The Trash button in a page's bar removes that page, the title page too.
+  Undo brings it back.
+- Play Version… in the document menu: a version prints on the title page and,
+  as you choose, in the header or footer.
+
+### Changed
+
+- A blank line left on a page before or after the script now prints.
+- A page added from a template prints nothing until something is written on
+  it.
+
+### Fixed
+
+- Backspace or Delete takes away a character line with no name, as it takes
+  any empty line, and ⌘Z brings it back.
+
 ## [1.1.0] - 2026-11-26
 
 ### Added

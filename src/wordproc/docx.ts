@@ -186,16 +186,21 @@ function runXml(inline: WpInline): string {
  * hairline just above it already took (see `hairline`).
  */
 function paragraphXml(p: WpParagraph, g: Geometry, sectPr = "", lessBefore = 0): string {
-  // pPr in schema order: pStyle, keepNext, pageBreakBefore, spacing, ind, jc, sectPr.
+  // pPr in schema order: pStyle, keepNext, pageBreakBefore, tabs, spacing, ind, jc, sectPr.
   const props: string[] = [`<w:pStyle w:val="${g.names.get(p.style)}"/>`];
   if (p.inCell) props.push('<w:keepNext w:val="0"/>');
   if (p.pageBreakBefore !== undefined)
     props.push(p.pageBreakBefore ? "<w:pageBreakBefore/>" : '<w:pageBreakBefore w:val="0"/>');
+  if (p.tabs?.length)
+    props.push(
+      `<w:tabs>${p.tabs.map((tab) => `<w:tab w:val="${tab.kind}" w:pos="${tw(tab.atIn)}"/>`).join("")}</w:tabs>`,
+    );
   const before = p.spaceBeforeRows ?? g.styles.get(p.style)?.spaceBeforeRows ?? 0;
   if (p.spaceBeforeRows !== undefined || lessBefore) {
     props.push(`<w:spacing w:before="${Math.max(0, Math.round(before * g.pitch) - lessBefore)}"/>`);
   }
   if (p.inCell) props.push('<w:ind w:left="0" w:right="0"/>');
+  else if (p.indentIn) props.push(`<w:ind w:left="${tw(p.indentIn)}"/>`);
   if (p.align) props.push(`<w:jc w:val="${JC[p.align]}"/>`);
   props.push(sectPr);
   return `<w:p><w:pPr>${props.join("")}</w:pPr>${p.inlines.map(runXml).join("")}</w:p>`;

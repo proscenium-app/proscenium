@@ -114,12 +114,14 @@ export function contentsLines(
   entries: readonly ContentsEntry[],
   pageOf: (entry: ContentsEntry) => number | null,
   width: number,
+  /** Whether an act carries its page: off, an act is its name alone, over its scenes. */
+  actPages = true,
 ): string[] {
   const out: string[] = [];
   entries.forEach((entry, i) => {
     if (entry.act && i > 0) out.push("");
     const lead = " ".repeat(entry.level * INDENT);
-    const page = pageOf(entry);
+    const page = entry.act && !actPages ? null : pageOf(entry);
     const tail = page === null ? "" : ` ${page}`;
     // Room for the name on the row that carries the page: the page, and at
     // least two leader dots before it.
@@ -140,14 +142,21 @@ export function contentsLines(
 
 /**
  * The play's contents for a format: every act and scene with the page it
- * starts on, as the lines a page's `{contents}` prints. Empty for a script
- * with no act and no scene.
+ * starts on, as the lines a page's `{contents}` prints, and the same with no
+ * page beside an act, as `{contents acts=plain}` prints them
+ * (docs/app/formatting/formats-and-layout.md#FMT-184): an act's page is its
+ * first scene's whenever that scene opens it. Both from one pagination of the
+ * script. Empty for a script with no act and no scene.
  */
-export function contentsFor(doc: Doc | null, spec: FormatSpec, meta: LayoutMeta = {}): string[] {
-  if (!doc) return [];
+export function contentsBothFor(
+  doc: Doc | null,
+  spec: FormatSpec,
+  meta: LayoutMeta = {},
+): { lines: string[]; plainActs: string[] } {
+  if (!doc) return { lines: [], plainActs: [] };
   const blocks = blocksFromDoc(doc, spec);
   const entries = contentsEntries(blocks);
-  if (!entries.length) return [];
+  if (!entries.length) return { lines: [], plainActs: [] };
   const width = contentsWidth(spec);
   // The rows that stand in: the same count of lines, whatever the numbers.
   const standIn = contentsLines(entries, () => null, width);
@@ -160,10 +169,24 @@ export function contentsFor(doc: Doc | null, spec: FormatSpec, meta: LayoutMeta 
     for (const line of page.lines)
       if (line.sourceIndex >= 0 && !firstOn.has(line.sourceIndex))
         firstOn.set(line.sourceIndex, page.pageNumber);
-  return contentsLines(entries, (entry) => firstOn.get(entry.index) ?? null, width);
+  const pageOf = (entry: ContentsEntry) => firstOn.get(entry.index) ?? null;
+  return {
+    lines: contentsLines(entries, pageOf, width),
+    plainActs: contentsLines(entries, pageOf, width, false),
+  };
+}
+
+/** The play's contents for a format, every act and scene with its page. */
+export function contentsFor(doc: Doc | null, spec: FormatSpec, meta: LayoutMeta = {}): string[] {
+  return contentsBothFor(doc, spec, meta).lines;
 }
 
 /** Whether any page of the play lists its contents, so that they are worth working out. */
 export function listsContents(pages: readonly { text: string }[] | null | undefined): boolean {
-  return (pages ?? []).some((page) => page.text.includes("{contents}"));
+  return (pages ?? []).some((page) => /\{contents[ }]/.test(page.text));
+}
+
+/** Whether any page of the play lists everyone who speaks (`{cast}`). */
+export function listsCast(pages: readonly { text: string }[] | null | undefined): boolean {
+  return (pages ?? []).some((page) => /\{cast[ }]/.test(page.text));
 }

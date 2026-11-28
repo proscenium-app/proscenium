@@ -8,8 +8,33 @@
   min-height: 0;
 }
 
+/* The edge a rail is dragged by (RailHandle.tsx,
+   docs/app/organizing/workspace-model.md#WORK-97): a 7px strip astride the
+   rail's hairline, its negative margins giving back the room it takes so the
+   rail and the page meet where they did. It shows the accent while it is
+   pointed at, dragged or focused, as a pane's divider does. */
+.railhandle {
+  position: relative;
+  z-index: 6;
+  flex: none;
+  width: 7px;
+  margin: 0 -3px 0 -4px;
+  cursor: col-resize;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+.railhandle:hover,
+.railhandle:active,
+.railhandle:focus-visible {
+  background-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  outline: none;
+}
+
 .binder {
-  width: 246px;
+  width: var(--binder-w);
   flex: none;
   border-right: 0.5px solid var(--rule);
   background: var(--rail);

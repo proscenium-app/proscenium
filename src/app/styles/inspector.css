@@ -5,7 +5,7 @@
  * ── Inspector (docs/app/organizing/workspace-model.md#WORK-D105) ──────────────────────────────────────────────────────
  */
 .inspector {
-  width: 292px;
+  width: var(--inspector-w);
   flex: none;
   display: flex;
   flex-direction: column;

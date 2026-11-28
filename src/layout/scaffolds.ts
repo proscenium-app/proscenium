@@ -127,22 +127,15 @@ const contents = (): Node => ({
   content: [{ type: "field", attrs: { name: "contents" } }],
 });
 
-/** Each speaker once, in order, with the name in bold. */
-function cast(speakers: readonly string[]): Node[] {
-  const seen = new Set<string>();
-  const out: Node[] = [];
-  for (const speaker of speakers) {
-    const name = speaker.trim();
-    const key = name.toUpperCase();
-    if (!name || seen.has(key)) continue;
-    seen.add(key);
-    out.push({
-      type: "paragraph",
-      content: [{ type: "text", text: name, marks: [{ type: "bold" }] }],
-    });
-  }
-  return out;
-}
+/**
+ * Everyone who speaks, as the field that follows the script
+ * (docs/app/formatting/formats-and-layout.md#FMT-183), each name in bold as a
+ * list of characters is set.
+ */
+const castList = (): Node => ({
+  type: "paragraph",
+  content: [{ type: "field", attrs: { name: "cast" }, marks: [{ type: "bold" }] }],
+});
 
 function page(layout: PageLayout, blocks: Node[], exports = true): string {
   return writePageFile(
@@ -228,14 +221,13 @@ export const SCAFFOLDS: readonly Scaffold[] = [
     id: "characters",
     name: "Characters",
     place: "front",
-    description: "The characters, in the order they first enter.",
-    text: ({ speakers }) => page("top", [heading("CHARACTERS"), ...cast(speakers)]),
+    description:
+      "Everyone who speaks, in the order they first speak. It follows the script, so there is nothing to keep up.",
+    text: () => page("top", [heading("CHARACTERS"), castList()]),
     picture: ({ speakers }) =>
       page("top", [
         heading("CHARACTERS"),
-        ...(speakers.length
-          ? cast(speakers)
-          : [line("Each character, with a few words about them")]),
+        speakers.length ? castList() : line("Everyone who speaks, in the order they first speak"),
       ]),
   },
   {
@@ -244,14 +236,11 @@ export const SCAFFOLDS: readonly Scaffold[] = [
     place: "front",
     description:
       "The characters, then where and when the play happens, on one page, as most submissions ask.",
-    text: ({ speakers }) =>
-      page("top", [heading("CHARACTERS"), ...cast(speakers), heading("SETTING"), empty()]),
+    text: () => page("top", [heading("CHARACTERS"), castList(), heading("SETTING"), empty()]),
     picture: ({ speakers }) =>
       page("top", [
         heading("CHARACTERS"),
-        ...(speakers.length
-          ? cast(speakers)
-          : [line("Each character, with a few words about them")]),
+        speakers.length ? castList() : line("Everyone who speaks, in the order they first speak"),
         heading("SETTING"),
         line("Where and when the play happens"),
       ]),
@@ -462,9 +451,24 @@ export function scaffoldSheet(
 ): FrontMatterPage | null {
   return pageSheet(
     { id: scaffold.id, name: scaffold.name, text: (scaffold.picture ?? scaffold.text)(ctx) },
-    details,
+    // Pictured with the play's own speakers in its cast, as it will print.
+    { ...details, cast: details?.cast ?? speakersListed(ctx.speakers) },
     spec,
   );
+}
+
+/** The speakers as a page lists them: each once, in order, as they are cued. */
+export function speakersListed(speakers: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const speaker of speakers) {
+    const name = speaker.trim();
+    const key = name.toUpperCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
 }
 
 // --- a page takes another scaffold ---------------------------------------------
@@ -486,6 +490,22 @@ const isBlank = (node: Node) => node.type === "paragraph" && !(node.content ?? [
 const isFurniture = (node: Node) =>
   node.type === "foot" ||
   (node.type === "paragraph" && node.content?.length === 1 && node.content[0]?.type === "field");
+
+/** A block with no place of its own: it stands where the page's layout puts it. */
+function unplaced(node: Node): Node {
+  if (!node.attrs) return node;
+  const { placeRows: _rows, placeCell: _cell, placeBeside: _beside, ...attrs } = node.attrs;
+  const { attrs: _old, ...rest } = node;
+  return Object.keys(attrs).length ? { ...rest, attrs } : rest;
+}
+
+/** The templates that put a field on a line of its own: that line is theirs, not the writer's. */
+const FURNISHED: ReadonlySet<string> = new Set([
+  "title-page",
+  "contents",
+  "characters",
+  "characters-setting",
+]);
 
 const sameWords = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
@@ -578,13 +598,21 @@ export function retemplate(
   const from = scaffoldOf(page);
   const name = scaffoldNamed(page.name) ? pageName(to.id, otherNames) : null;
   const theirs = headingsOf(from);
-  const own = blocksOf(page.text).filter(
-    (block) =>
-      !isBlank(block) &&
-      !(isHeading(block) && theirs.some((h) => sameWords(h, wordsOf(block)))) &&
-      // A title page's fields and the contents' own are the template's, not words.
-      !((from.id === "title-page" || from.id === "contents") && isFurniture(block)),
-  );
+  const own = blocksOf(page.text)
+    .filter(
+      (block) =>
+        !isBlank(block) &&
+        // Where a page's head ends and its foot begins are places, not words.
+        block.type !== "head" &&
+        block.type !== "foot" &&
+        !(isHeading(block) && theirs.some((h) => sameWords(h, wordsOf(block)))) &&
+        // A title page's fields, the contents and the cast are the template's, not words.
+        !(FURNISHED.has(from.id) && isFurniture(block)),
+    )
+    // The words keep their order and take the new template's places: where the
+    // writer put each on the old one (docs/app/formatting/formats-and-layout.md#FMT-182)
+    // was a place on that page.
+    .map(unplaced);
   const fresh = to.text(ctx);
   if (!own.length) return { text: fresh, name, kept: false };
 

@@ -374,11 +374,35 @@ export const vault = {
   createBinary: async (rel: string, base64: string): Promise<string> => {
     decodeBytes(base64); // Enforce the document limit before crossing IPC.
     const out = USE_MOCK
-      ? await mock().then((m) => m.write(rel, atob(base64), NO_FILE_YET))
+      ? await mock().then((m) => m.writeBinary(rel, base64))
       : await invoke<WriteOutcome>("vault_create_binary", { rel, base64 });
     if (out.status !== "ok") throw new Error(`“${rel}” is already there, so it was left alone.`);
     return out.hash;
   },
+  /**
+   * A file's bytes, whatever they hold, as base64: an image or a PDF in the
+   * binder as well as a script. Export Play reads a whole play with it
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-199).
+   */
+  readBinary: (rel: string): Promise<string> =>
+    USE_MOCK ? mock().then((m) => m.readBinary(rel)) : invoke("vault_read_binary", { rel }),
+  /**
+   * Copy one file to a place in the open folder where nothing is yet, byte
+   * for byte, and read it back before it counts. Duplicate Play and New Play
+   * Like This copy a play's files with it
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-197).
+   */
+  copyFile: (from: string, to: string): Promise<void> =>
+    USE_MOCK ? mock().then((m) => m.copyFile(from, to)) : invoke("vault_copy_file", { from, to }),
+  /**
+   * Make a directory at the top of the open folder that must not exist yet:
+   * a new play's, before its files go in. Two copies started at once can
+   * never be merged into one folder.
+   */
+  reserveDir: (name: string): Promise<void> =>
+    USE_MOCK
+      ? mock().then((m) => m.tutorialReserveCopy(name))
+      : invoke("tutorials_reserve_copy", { name }),
   exists: (rel: string): Promise<boolean> =>
     USE_MOCK ? mock().then((m) => m.exists(rel)) : invoke("vault_exists", { rel }),
   /**
@@ -870,9 +894,10 @@ export type ExportFileType = "pdf" | "docx" | "odt" | "rtf";
 /**
  * What `save_export` writes: one of the export dialog's files, or the script
  * as one .fountain with its pages before the script in it, which has no
- * dialog (docs/app/formatting/formats-and-layout.md#FMT-171).
+ * dialog (docs/app/formatting/formats-and-layout.md#FMT-171), or the whole
+ * play as one .zip (docs/app/keeping-work/storage-and-file-format.md#STOR-199).
  */
-export type ExportKind = ExportFileType | "fountain";
+export type ExportKind = ExportFileType | "fountain" | "zip";
 
 /**
  * Export delivery. Native: platform save dialog, then the Rust `save_export`

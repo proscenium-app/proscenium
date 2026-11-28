@@ -228,8 +228,8 @@ those (they are legitimate characters elsewhere).
 So after each change the page is put the way the script will read, in the same undo step as the change (`src/editor/speech-cues.ts`):
 
 - **A speech a direction parts from its cue** gets the speaker's name over it again, the way a printed play repeats it after a direction. The name is the cue's own, without its extension and in its own case. A line that stood under no cue before the change, such as a direction set to Dialogue, takes the last cue above it in its scene.
-- **A speech whose cue is gone**, set to another element, deleted or joined into the line above, is the stage direction the file will make of it, now, where the writer sees it. So is a line set to Dialogue with no speaker above it in its scene. A bracketed line keeps its brackets as text. Backspace and Delete no longer take a cue away ([EDIT-210](#EDIT-210)); a cue set to another element, or taken out in a selection, still is.
-- **What is left alone.** A cue with no name yet is a cue, so a name typed again never moves the speech under it. A lyric stands with no cue, because its `~` makes it a lyric wherever it is. A page where every speech has its cue is not touched.
+- **A speech whose cue is gone**, set to another element, deleted or joined into the line above, is the stage direction the file will make of it, now, where the writer sees it. So is a line set to Dialogue with no speaker above it in its scene. A bracketed line keeps its brackets as text. Backspace and Delete take no cue with a name away ([EDIT-210](#EDIT-210)); a cue set to another element, taken out in a selection, or taken with no name in it ([EDIT-215](#EDIT-215)) still is.
+- **What is left alone.** A cue with no name yet is a cue, so a name deleted and typed again never moves the speech under it. A lyric stands with no cue, because its `~` makes it a lyric wherever it is. A page where every speech has its cue is not touched.
 - **A name the page added stays** when the direction above it is taken away again; the cue is then the same speaker twice. ⌘Z takes back the gesture and the name together, and Backspace at the start of the second name makes the two speeches one ([EDIT-210](#EDIT-210)).
 
 `src/editor/speech-cues.test.ts` pins each gesture, saves and reads back every page it leaves, and sweeps every page of one to three cues, speeches, brackets, directions and lyrics with each block set to each element and joined to the block above: none leaves a line of speech with no cue, and each reads back as the elements the page shows.
@@ -241,13 +241,25 @@ So after each change the page is put the way the script will read, in the same u
 So neither key joins a cue to the line beside it (`cueStop`, `src/editor/speech-cues.ts`):
 
 - **A name stays a line of its own.** Backspace at the start of a name changes nothing, and neither does Delete at the end of the line above it. The same goes for Backspace at the start of a speech and Delete at the end of its name.
-- **A cue with no name yet stays over its speech**, so the name typed next goes where the old one was.
+- **A cue with no name yet** stays over its speech while its name is typed, so the name typed next goes where the old one was. That neither key took it away is withdrawn (2026-11-26): it goes as any empty line does ([EDIT-215](#EDIT-215)).
 - **An empty line still goes.** An empty line above or below a cue is taken away as any empty line is. So Backspace takes back the empty line Enter opened under a name, and a speech deleted line by line takes its cue last. An empty line under a cue with no name yet goes, and the cue stays over the rest of the speech.
 - **The same speaker twice in a row is one speech.** Backspace at the start of the second name, or Delete at the end of the speech above it, takes the name away and leaves the caret at the end of the first speech. It is the one cue the keys take, because the speech keeps its speaker. A name with a comment on it stays, so a comment never goes with it.
 - **Every key the editor deletes with** stops the same way: Backspace and Delete, with ⌘, ⇧ or ⌥, and ⌃H, ⌃D and ⌥D on a Mac. An input rule's own undo comes first, so Backspace straight after a rule still takes the rule back.
 - **What is left as it was.** Inside a line the keys delete as they always have, and every other pair of lines joins as before. A cue set to another element, or taken out in a selection, is still a choice made on the cue: its speech becomes the stage direction the file will make of it ([EDIT-193](#EDIT-193)).
 
-`src/editor/speech-cues.test.ts` presses each key at each of these lines, and sweeps every page of two to four cues, speeches, brackets, directions and lyrics, each with words and empty, with both keys at the edge of every line: none leaves a speech without its cue, runs a name into another line, or runs a line into a name. The smoke check "cues · Backspace and Delete leave a cue over its speech" presses the keys in the script and reads the speech back under its cue in the saved file.
+`src/editor/speech-cues.test.ts` presses each key at each of these lines, and sweeps every page of two to four cues, speeches, brackets, directions and lyrics, each with words and empty, with both keys at the edge of every line: none runs a name into another line or a line into a name, and the only cue either key takes from over a speech is one with no name ([EDIT-215](#EDIT-215)). The smoke check "cues · Backspace and Delete leave a cue over its speech" presses the keys in the script and reads the speech back under its cue in the saved file.
+
+<a id="EDIT-215"></a>
+
+**EDIT-215** **A cue with no name is an empty line, and goes as one.** [EDIT-210](#EDIT-210) kept a cue with no name over its speech whatever was pressed, so that one Backspace too many in a name being typed again cost nothing. The price was a key that did nothing: a writer on an empty character line who wanted the line gone pressed Backspace, and nothing answered. An empty line is an empty line, so both keys take it (`cueStop`, `src/editor/speech-cues.ts`):
+
+- **Each key at either edge of it takes it away:** Backspace in it, Delete at the end of the line above it, Delete in it, and Backspace at the start of the speech under it. The caret is left where the same key leaves it at any empty line.
+- **Its speech is what the page makes of a speech whose cue is gone** ([EDIT-193](#EDIT-193)), in the same step: the speaker's above it when a speech or a name stands above, otherwise a stage direction, a bracketed line with its brackets. ⌘Z puts the cue and the speech back together.
+- **A name with a letter in it is no empty line**, and both keys still stop at it ([EDIT-210](#EDIT-210)). A name deleted letter by letter leaves the cue, with no name, over its speech; it is the next press that takes it.
+- **An empty line under it goes first**, and the cue stays over the rest of the speech, as before.
+- **At the top of the script** the key is the editor's own: an empty first line becomes a stage direction, whatever it was, and the speech under it with it.
+
+The cost is the one EDIT-210 closed, a press too many while a name is typed again. It is one ⌘Z, and it is seen at once, where the key that did nothing cost a writer the line they could not delete. `src/editor/speech-cues.test.ts` presses each of the four keys under a direction, under a speech and under a name, and sweeps every page of two or three lines with the page put right after each key: none leaves a line of speech with no cue. The smoke check "cues · a character line with no name goes with Backspace or Delete, and Undo brings it back" presses them in the script.
 
 <a id="EDIT-178"></a>
 

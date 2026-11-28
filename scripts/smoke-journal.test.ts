@@ -6,6 +6,7 @@ import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  endedWithin,
   CRASHED_CODE,
   STOPPED_CODE,
   exitMeaning,
@@ -181,4 +182,18 @@ test("`said` speaks once for a stopped run, and never for one that finished", ()
   expect(said(never, "--unsaid").stdout).toBe("");
   writeFileSync(join(dir, "empty.ndjson"), "");
   expect(said(join(dir, "empty.ndjson"), "--unsaid").stdout).toBe("");
+});
+
+test("a step that may never end is waited on for its time and no longer", async () => {
+  // Ended, by returning or by failing: either way the run goes on to say what it found.
+  expect(await endedWithin(1000, async () => {})).toBe(true);
+  expect(
+    await endedWithin(1000, async () => {
+      throw new Error("the page had already gone");
+    }),
+  ).toBe(true);
+  // A close that never comes back, as one browser's did for sixteen hours.
+  const began = Date.now();
+  expect(await endedWithin(40, () => new Promise(() => {}))).toBe(false);
+  expect(Date.now() - began).toBeLessThan(1000);
 });

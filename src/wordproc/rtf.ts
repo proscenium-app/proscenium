@@ -185,6 +185,8 @@ interface ParagraphProps {
   spaceBefore: number;
   pageBreakBefore: boolean;
   keepWithNext: boolean;
+  /** Tab stops of the paragraph's own, as RTF writes them. */
+  tabs?: string;
 }
 
 /** A style's paragraph properties, with whatever this paragraph changes. */
@@ -213,6 +215,7 @@ function paragraphProps(style: ParagraphStyle, g: Geometry, own: Partial<Paragra
   // (docs/app/writing/editor-ux.md#EDIT-213).
   if (style.rule) out.push("\\brdrb\\brdrs\\brdrw10\\brsp0");
   if (style.furniture) out.push(`\\tqc\\tx${Math.round(g.block / 2)}\\tqr\\tx${g.block}`);
+  if (p.tabs) out.push(p.tabs);
   if (style.outlineLevel) out.push(`\\outlinelevel${style.outlineLevel - 1}`);
   return out.join("");
 }
@@ -272,7 +275,14 @@ function paragraphRtf(p: WpParagraph, g: Geometry, end: Ending, lessBefore = 0):
     own.leftIn = 0;
     own.rightIn = 0;
     own.keepWithNext = false;
-  }
+  } else if (p.indentIn) own.leftIn = style.leftIn + p.indentIn;
+  if (p.tabs?.length)
+    own.tabs = p.tabs
+      .map(
+        (tab) =>
+          `${tab.kind === "center" ? "\\tqc" : tab.kind === "right" ? "\\tqr" : ""}\\tx${tw(tab.atIn)}`,
+      )
+      .join("");
   return (
     `\\pard\\plain${p.inCell ? "\\intbl" : ""}\\s${g.numbers.get(p.style)}` +
     `${paragraphProps(style, g, own)}${g.base}${characterProps(style)} ` +

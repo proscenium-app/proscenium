@@ -103,6 +103,7 @@ describe("the model agrees with settings.rs", () => {
       openAtLaunch: "lastPlay",
       lastPlay: null,
       checkForUpdates: true,
+      installUpdatesAutomatically: true,
       updateTrack: "stable",
       hasUpdateTrackKey: false,
       defaultFormat: null,
@@ -117,6 +118,7 @@ describe("the model agrees with settings.rs", () => {
     expect(rust).toMatch(/flag\("spellcheck"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("autoCaps"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("checkForUpdates"\)\.unwrap_or\(true\)/);
+    expect(rust).toMatch(/flag\("installUpdatesAutomatically"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("shareAnalytics"\)\.unwrap_or\(true\)/);
     expect(rust).toMatch(/flag\("privacyNoticeSeen"\)\.unwrap_or\(false\)/);
     expect(rust).toMatch(/#\[default\]\s*LastPlay,/);
@@ -157,6 +159,8 @@ describe("readSettings", () => {
       lastPlay: null,
       // Absent from every file written before updates existed: on.
       checkForUpdates: true,
+      // And before installing at quit existed: on.
+      installUpdatesAutomatically: true,
       // And before tracks existed: stable, with no key for alpha.
       updateTrack: "stable",
       hasUpdateTrackKey: false,

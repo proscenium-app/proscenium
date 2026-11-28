@@ -30,6 +30,7 @@
       - button "Actions for “Untitled”"
   - sectionfooter
     - button "New" [haspopup]
+- separator "Resize the binder"
 - main "Play"
   - group "Open in this pane"
     - listitem "Untitled"
@@ -54,6 +55,7 @@
     - button "Insert table"
     - button "Insert divider"
   - textbox
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Sheet" [selected]

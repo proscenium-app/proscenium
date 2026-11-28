@@ -21,6 +21,7 @@ export {
 export { openingParagraphs } from "./opening-prose";
 export { fountainWithPages } from "./fountain-with-pages";
 export {
+  CHARACTERS_PAGE_FILE,
   FIELDS,
   FOOT_MARK,
   backPageList,
@@ -37,6 +38,18 @@ export {
   type Field,
   type PageLayout,
 } from "./page-files";
+export {
+  movePageBlock,
+  pageSpots,
+  shownDetails,
+  stepPageBlock,
+  type MoveStep,
+  type MoveTo,
+  type Moved,
+  type PageGrid,
+  type PageSpot,
+  type PageSpots,
+} from "./page-move";
 export {
   pageCountLabel,
   pageRangeLabel,
@@ -60,10 +73,12 @@ export type {
   WrappedLine,
 } from "./engine";
 export {
+  contentsBothFor,
   contentsFor,
   contentsWidth,
   contentsEntries,
   contentsLines,
+  listsCast,
   listsContents,
   type ContentsEntry,
 } from "./contents";
@@ -83,4 +98,5 @@ export {
   type ScaffoldId,
   type ScaffoldPlace,
   type ScaffoldSide,
+  speakersListed,
 } from "./scaffolds";

@@ -4,13 +4,14 @@
 import { describe, expect, it } from "bun:test";
 import { readFileSync } from "node:fs";
 import { playsFolderRefusal } from "../workspace/plays-folder";
-import { ERROR_CODES, workspaceErrorCode } from "./error-codes";
+import { ERROR_CODES, phraseCodes, raisedError, workspaceErrorCode } from "./error-codes";
 
 const rust = readFileSync(
   new URL("../../src-tauri/src/telemetry/events.rs", import.meta.url),
   "utf8",
 );
 const workspace = readFileSync(new URL("../app/useWorkspace.ts", import.meta.url), "utf8");
+const tutorial = readFileSync(new URL("../tutorial/useTutorial.ts", import.meta.url), "utf8");
 
 /** A template literal's text from just past its opening backtick, `${…}` as "X". */
 function readTemplate(src: string, i: number): [string, number] {
@@ -58,12 +59,12 @@ function readString(src: string, i: number, quote: string): [string, number] {
   return [text, i + 1];
 }
 
-/** The sentences inside each `setError(…)` call: its string and template literals. */
-function setErrorSentences(source: string): string[] {
+/** The sentences inside each `call(…)`: its string and template literals. */
+function setErrorSentences(source: string, call = "setError("): string[] {
   const sentences: string[] = [];
-  let at = source.indexOf("setError(");
+  let at = source.indexOf(call);
   while (at !== -1) {
-    let i = at + "setError(".length;
+    let i = at + call.length;
     let depth = 1;
     while (i < source.length && depth > 0) {
       const c = source[i];
@@ -78,7 +79,7 @@ function setErrorSentences(source: string): string[] {
       if (c === ")") depth--;
       i++;
     }
-    at = source.indexOf("setError(", i);
+    at = source.indexOf(call, i);
   }
   return sentences;
 }
@@ -95,6 +96,49 @@ describe("error codes", () => {
     expect(sentences.length).toBeGreaterThan(15);
     const uncoded = sentences.filter((s) => workspaceErrorCode(s) === "E-WORKSPACE");
     expect(uncoded).toEqual([]);
+  });
+
+  it("give every sentence the app shows exactly one code, and name it", () => {
+    // Every sentence the workspace and practice put on screen, or throw to be shown.
+    const shown = [
+      ...setErrorSentences(workspace).map((s) => [s, workspaceErrorCode(s)] as const),
+      ...setErrorSentences(workspace, "throw new Error(").map(
+        (s) => [s, raisedError(s, "E-WORKSPACE").code] as const,
+      ),
+      ...[...setErrorSentences(tutorial), ...setErrorSentences(tutorial, "throw new Error(")].map(
+        (s) => [s, raisedError(s, "E-PRACTICE").code] as const,
+      ),
+    ];
+    expect(shown.length).toBeGreaterThan(40);
+    // No sentence carries the phrases of two codes, so none is read by order alone.
+    const ambiguous = shown.filter(([s]) => phraseCodes(s).length > 1).map(([s]) => s);
+    expect(ambiguous).toEqual([]);
+    // What was one E-PLAY-OPEN, told apart: each sentence as the source writes it.
+    const named = (part: string) => shown.filter(([s]) => s.includes(part)).map(([, c]) => c);
+    expect(named("This play has no script yet.")).toEqual(["E-PLAY-NO-SCRIPT"]);
+    expect(named("but could not be opened")).toEqual(["E-IMPORT-OPEN", "E-IMPORT-OPEN"]);
+    expect(named("details changed and could not be read")).toEqual(["E-PLAY-DETAILS"]);
+    expect(named("practice folder could not be opened")).toEqual(["E-PRACTICE"]);
+    expect(named("This practice could not be opened")).toEqual(["E-PRACTICE"]);
+    expect(named("The copy could not be opened")).toEqual(["E-PRACTICE"]);
+    expect(named("Practice is still opening")).toEqual(["E-PRACTICE"]);
+  });
+
+  it("code an error passed on in the system's words by its cause, else by where", () => {
+    expect(raisedError(new Error("Permission denied (os error 13)"), "E-PLAY-OPEN")).toEqual({
+      title: "Error: Permission denied (os error 13)",
+      code: "E-VAULT-PERMISSION",
+    });
+    expect(raisedError(new Error("ENOENT Hamlet/Hamlet.fountain"), "E-SCRIPT-OPEN").code).toBe(
+      "E-VAULT-READ",
+    );
+    expect(raisedError("unexpected end of JSON input", "E-PLAY-SETTINGS")).toEqual({
+      title: "unexpected end of JSON input",
+      code: "E-PLAY-SETTINGS",
+    });
+    expect(raisedError(new Error("something nobody has seen"), "E-PRACTICE").code).toBe(
+      "E-PRACTICE",
+    );
   });
 
   it("read the sentences for what went wrong, not where", () => {
@@ -119,7 +163,11 @@ describe("error codes", () => {
         "The scenes changed while that change was being saved, so it wasn't made. Make it again.",
         "E-ACTION-STALE",
       ],
-      ['"Hamlet" could not be opened.', "E-PLAY-OPEN"],
+      ["This play has no script yet.", "E-PLAY-NO-SCRIPT"],
+      [
+        "“Hamlet” was created but could not be opened. Open it from your Plays folder rather than importing it again. Error: permission denied",
+        "E-IMPORT-OPEN",
+      ],
       ["“Hamlet” isn't in your Plays folder any more.", "E-PLAY-MISSING"],
       ["iCloud Drive isn't available. Choose a folder instead.", "E-ICLOUD"],
       ["Permission denied (os error 13)", "E-VAULT-PERMISSION"],

@@ -22,7 +22,7 @@
  *    its brackets.
  *
  * Only what has no cue over it is touched: a cue with no name yet is a cue,
- * so a name being typed again never moves the speech under it.
+ * so a name deleted and typed again never moves the speech under it.
  *
  * Backspace and Delete stop at a cue (docs/app/writing/editor-ux.md#EDIT-210).
  * They joined the lines either side of the key, so Backspace at the start of a
@@ -30,11 +30,18 @@
  * speech was a stage direction; Enter to part the lines again left the name a
  * stage direction too. One Backspace too many in a name being typed again did
  * the same. So neither key ever runs a name into another line, or a line into
- * a name, and a cue with no name yet stays over its speech. An empty line next
- * to a cue still goes, and the same speaker twice in a row is one speech again
- * when Backspace takes the second name.
+ * a name. An empty line next to a cue still goes, and the same speaker twice in
+ * a row is one speech again when Backspace takes the second name.
+ *
+ * A cue with no name is an empty line, and goes as one
+ * (docs/app/writing/editor-ux.md#EDIT-215). It stayed over its speech, so
+ * that one Backspace too many in a name being typed again cost nothing; the
+ * price was a key that did nothing on a line a writer wanted gone. Now
+ * Backspace or Delete takes it, and its speech is what the page makes of a
+ * speech whose cue is gone: the speaker's above it, or a stage direction.
  */
 import { Extension, isiOS, isMacOS } from "@tiptap/core";
+import { closeHistory } from "@tiptap/pm/history";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { type Command, Plugin, TextSelection, type Transaction } from "@tiptap/pm/state";
 import { Mapping } from "@tiptap/pm/transform";
@@ -185,9 +192,11 @@ function cueOver(doc: PMNode, index: number): PMNode | null {
 
 /**
  * Backspace (`dir` -1) at the start of a line, or Delete (`dir` 1) at the end
- * of one, where joining the two lines would take a cue away
- * (docs/app/writing/editor-ux.md#EDIT-210). True when it has dealt with the
- * key, by stopping or by its own change; false for the keys' usual join.
+ * of one, where joining the two lines would run a name into another line or a
+ * line into a name (docs/app/writing/editor-ux.md#EDIT-210). True when it has
+ * dealt with the key, by stopping or by its own change; false for the keys'
+ * usual join, which is also what takes a cue with no name away
+ * (docs/app/writing/editor-ux.md#EDIT-215).
  *
  * Both keys join the same two lines, `above` and `below`, as ProseMirror's
  * `joinBackward` and `joinForward` do: an empty `above` is taken away and
@@ -205,12 +214,6 @@ export function cueStop(dir: -1 | 1): Command {
       const atStart = view ? view.endOfTextblock("backward", state) : $cursor.parentOffset === 0;
       if (!atStart) return false;
       a = $cursor.index(0) - 1;
-      // The first line of the script: the editor's own Backspace makes an empty
-      // one a stage direction, which an empty cue over a speech must not become.
-      if (a < 0) {
-        const first = doc.child(0);
-        return isCue(first) && isEmpty(first) && doc.childCount > 1 && isSpeech(doc.child(1));
-      }
     } else {
       const atEnd = view
         ? view.endOfTextblock("forward", state)
@@ -252,23 +255,40 @@ export function cueStop(dir: -1 | 1): Command {
       }
     }
 
+    // A cue with no name over a speech goes as any empty line does, with the
+    // caret where the join would leave it. It is an undo step of its own, with
+    // what the page then makes of the speech: ⌘Z after a press too many gives
+    // back the cue and its speech, and not the name deleted just before.
+    const take = (cueAt: number, cue: PMNode, caretAt: number): boolean => {
+      if (dispatch) {
+        const tr = state.tr.delete(cueAt, cueAt + cue.nodeSize);
+        tr.setSelection(TextSelection.create(tr.doc, caretAt));
+        dispatch(closeHistory(tr).scrollIntoView());
+      }
+      return true;
+    };
+
     if (isEmpty(above)) {
-      // The join takes `above` away: harmless unless it is the cue of `below`.
+      // The join takes `above` away, as it takes any empty line.
       if (!(isCue(above) && isSpeech(below))) return false;
-      // An empty line under a cue with no name yet: the line goes, the cue stays.
+      // An empty line under a cue with no name yet: the line goes first, and
+      // the cue stays over the rest of the speech.
       if (isEmpty(below)) {
         if (dispatch) {
           const tr = state.tr.delete(belowAt, belowAt + below.nodeSize);
           tr.setSelection(TextSelection.create(tr.doc, aboveAt + 1));
           dispatch(tr.scrollIntoView());
         }
+        return true;
       }
-      return true;
+      return take(aboveAt, above, aboveAt + 1);
     }
-    // The join runs `below` onto `above`.
+    // The join runs `below` onto `above`: a name never into another line, and
+    // no line into a name. An empty `below` just goes, a cue with no name too.
     if (isCue(above) && !isEmpty(below)) return true;
-    if (isCue(below) && (!isEmpty(below) || isSpeech(after))) return true;
-    return false;
+    if (!isCue(below)) return false;
+    if (!isEmpty(below)) return true;
+    return isSpeech(after) ? take(belowAt, below, aboveAt + 1 + above.content.size) : false;
   };
 }
 

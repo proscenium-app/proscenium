@@ -48,7 +48,7 @@ check() {
     values=$(printf '%s' "$line" \
       | sed -E "s/.*(^|[{;[:space:]])${prop}:[[:space:]]*//; s/[;}].*$//")
     # Anything with no px at all (percentages, keywords, 50%) is not a step.
-    printf '%s' "$values" | grep -q 'px' || continue
+    case "$values" in *px*) ;; *) continue ;; esac
     local v ok
     for v in $(printf '%s' "$values" | grep -oE '[0-9]+(\.[0-9]+)?px'); do
       ok=0
@@ -86,8 +86,14 @@ check "gap"           "0 1 2 4 6 8 12 16 24"   "gap"
 DEFINED=$(grep -ohE '^[[:space:]]*--[a-z0-9-]+:' $FILES | tr -d ' :' | sort -u)
 USED=$(grep -ohE 'var\(--[a-z0-9-]+' $FILES | sed 's/var(//' | sort -u)
 MISSING=""
+# Looked up in the shell itself, with no pipe. `printf … | grep -q` is a pipe
+# whose reader leaves at its first match, and under `pipefail` a writer cut
+# off behind it fails the whole lookup, so a defined token reads as undefined.
+# One did, once, on a heavily loaded host (`--rule`, 2026-11-26), and the same
+# tree passed a minute later.
+DEFINED_LINES=$'\n'"$DEFINED"$'\n'
 for t in $USED; do
-  printf '%s\n' "$DEFINED" | grep -qx -- "$t" || MISSING="$MISSING $t"
+  case "$DEFINED_LINES" in *$'\n'"$t"$'\n'*) ;; *) MISSING="$MISSING $t" ;; esac
 done
 # --kb-inset, --prev-*, --fmt-* and --page-scale (a page's zoom, always read
 # with a fallback of 1) are written by JS or the format spec inline, not by

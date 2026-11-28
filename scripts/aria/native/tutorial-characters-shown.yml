@@ -30,6 +30,7 @@
     - treeitem "Notes" [level=1] [expanded]
   - sectionfooter
     - button "New" [haspopup]
+- separator "Resize the binder"
 - main "Play"
   - sectionheader
     - heading "Cast" [level=1]
@@ -68,6 +69,7 @@
       - cell "SIMON · SCENE 2 — silent"
       - cell "SIMON · SCENE 1 — speaks"
       - cell
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Scene" [selected]

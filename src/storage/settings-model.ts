@@ -101,6 +101,12 @@ export interface Settings {
    * a day (docs/engineering/release-engineering.md#REL-D6). Check Now asks either way.
    */
   checkForUpdates: boolean;
+  /**
+   * Whether a downloaded update installs as Proscenium quits, so the next
+   * launch is the new version (docs/engineering/release-engineering.md#REL-133).
+   * On unless switched off; Restart to Update installs either way.
+   */
+  installUpdatesAutomatically: boolean;
   /** Where updates come from (Settings › Updates): stable unless chosen. */
   updateTrack: UpdateTrack;
   /**
@@ -145,6 +151,7 @@ export interface SettingsPatch {
   /** A play's id, or null: the writer went back to the Plays screen. */
   lastPlay?: string | null;
   checkForUpdates?: boolean;
+  installUpdatesAutomatically?: boolean;
   updateTrack?: UpdateTrack;
   /** Alpha's key, as the writer entered it. Write-only. */
   updateTrackKey?: string;
@@ -184,6 +191,7 @@ export const DEFAULT_SETTINGS: Readonly<Settings> = Object.freeze({
   openAtLaunch: "lastPlay",
   lastPlay: null,
   checkForUpdates: true,
+  installUpdatesAutomatically: true,
   updateTrack: "stable",
   hasUpdateTrackKey: false,
   defaultFormat: null,
@@ -312,6 +320,10 @@ export function readSettings(raw: unknown): Settings {
     lastPlay: isPlayRef(o.lastPlay) ? o.lastPlay : null,
     checkForUpdates:
       typeof o.checkForUpdates === "boolean" ? o.checkForUpdates : DEFAULT_SETTINGS.checkForUpdates,
+    installUpdatesAutomatically:
+      typeof o.installUpdatesAutomatically === "boolean"
+        ? o.installUpdatesAutomatically
+        : DEFAULT_SETTINGS.installUpdatesAutomatically,
     updateTrack: isUpdateTrack(o.updateTrack) ? o.updateTrack : DEFAULT_SETTINGS.updateTrack,
     // The file holds the key; a Settings object (the first-frame mirror, an
     // optimistic update) holds only whether there is one.
@@ -342,6 +354,7 @@ export function validatePatch(patch: SettingsPatch): string | null {
     "lastPlay",
     "learnedWords",
     "checkForUpdates",
+    "installUpdatesAutomatically",
     "updateTrack",
     "updateTrackKey",
     "defaultFormat",
@@ -375,6 +388,7 @@ export function validatePatch(patch: SettingsPatch): string | null {
     "spellcheck",
     "autoCaps",
     "checkForUpdates",
+    "installUpdatesAutomatically",
     "shareAnalytics",
     "privacyNoticeSeen",
     "showProgress",

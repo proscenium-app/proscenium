@@ -94,6 +94,11 @@ const PRESS_KEY = {
  * and otherwise ⌘ as Ctrl. A press of several keys is space-separated.
  */
 export function pcPress(combo) {
+  // A press a check has already written as the PC's (`PC:Alt+Shift+ArrowDown`,
+  // chosen with `said`): a chord that is the PC's own and no Mac chord's
+  // translation, such as the keys that move a block of a page
+  // (docs/app/formatting/formats-and-layout.md#FMT-182).
+  if (combo.startsWith("PC:")) return combo.slice(3);
   const parts = combo.split("+");
   const key = parts.pop();
   const mods = new Set(parts);

@@ -9,6 +9,8 @@
  *   node scripts/ipad-sim.mjs                  build, then every step
  *   node scripts/ipad-sim.mjs --no-build       the last build, every step
  *   node scripts/ipad-sim.mjs --steps type,export
+ *   node scripts/ipad-sim.mjs --os 26.5        on that iPadOS, where the host has it, and not the newest:
+ *                                              to tell a fault of a new iPadOS from one of a new build
  *
  * First, the build itself: every command of the folder-picker plugin's Swift
  * is a selector in the app (scripts/ipad/plugin-commands.mjs), since one the
@@ -65,15 +67,23 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { holdHostBench } from "./host-bench.mjs";
+import { iosEnv, sdkProblems } from "./ios-xcode.mjs";
 import { commandsMissingFrom, pluginCommands } from "./ipad/plugin-commands.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// Every command here is the iPad's, the simulator's among them: its Xcode for
+// all of them, so the runtimes listed and the SDK built with are that one's
+// (scripts/ios-xcode.mjs).
+const IOS_ENV = iosEnv();
+if (IOS_ENV.DEVELOPER_DIR) process.env.DEVELOPER_DIR = IOS_ENV.DEVELOPER_DIR;
+if (IOS_ENV.PATH) process.env.PATH = IOS_ENV.PATH;
 const args = process.argv.slice(2);
 const BUNDLE = "org.habiby.proscenium";
 const DEVICE = "Proscenium iPad probe";
 const DEVICE_TYPE = "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-11-inch-M5-12GB";
 const ALL_STEPS = ["cloud", "type", "verify", "export", "settings", "network"];
 const steps = args.includes("--steps") ? args[args.indexOf("--steps") + 1].split(",") : ALL_STEPS;
+const OS = args.includes("--os") ? args[args.indexOf("--os") + 1] : null;
 const OUT = join(ROOT, ".ipad-sim", new Date().toISOString().replace(/[:.]/g, "-"));
 const APP = join(ROOT, "src-tauri/gen/apple/build/arm64-sim/Proscenium.app");
 
@@ -82,23 +92,53 @@ const run = (cmd, argv, opts = {}) =>
   execFileSync(cmd, argv, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts });
 const simctl = (...argv) => run("xcrun", ["simctl", ...argv]).trim();
 
-/** The newest iOS runtime the host's Xcode has. */
+/**
+ * The newest iOS runtime the host's Xcode has that runs this script's iPad. A
+ * host may hold a runtime made for one device beside the general one of the
+ * same version, and that one refuses any other device.
+ */
 function runtime() {
   const { runtimes } = JSON.parse(simctl("list", "runtimes", "-j"));
-  const ios = runtimes.filter((r) => r.platform === "iOS" && r.isAvailable);
-  if (!ios.length) throw new Error("no iOS simulator runtime on this host");
+  const ios = runtimes.filter(
+    (r) =>
+      r.platform === "iOS" &&
+      r.isAvailable &&
+      (!OS || r.version === OS || r.version.startsWith(`${OS}.`)) &&
+      (!r.supportedDeviceTypes || r.supportedDeviceTypes.some((t) => t.identifier === DEVICE_TYPE)),
+  );
+  if (!ios.length)
+    throw new Error(
+      OS
+        ? `no iPadOS ${OS} simulator runtime on this host runs the iPad`
+        : "no iOS simulator runtime on this host runs the iPad",
+    );
   return ios
     .sort((a, b) => a.version.localeCompare(b.version, undefined, { numeric: true }))
     .at(-1);
 }
 
+/**
+ * This script's simulator on the newest runtime, if it has one there. One made
+ * on an older runtime (before the host had a newer Xcode) is removed, so the
+ * pass always runs on the newest iPadOS the iPad's Xcode has.
+ */
+function staleOrCurrent(devices, newest, remove) {
+  let current;
+  for (const [runtimeId, list] of Object.entries(devices))
+    for (const d of list) {
+      if (d.name !== DEVICE) continue;
+      if (runtimeId === newest && d.isAvailable) current = d.udid;
+      else remove(d.udid);
+    }
+  return current;
+}
+
 /** This script's own simulator, made if missing, erased and booted. */
 function device() {
   const { devices } = JSON.parse(simctl("list", "devices", "-j"));
-  let udid = Object.values(devices)
-    .flat()
-    .find((d) => d.name === DEVICE && d.isAvailable)?.udid;
-  if (!udid) udid = simctl("create", DEVICE, DEVICE_TYPE, runtime().identifier);
+  const newest = runtime().identifier;
+  let udid = staleOrCurrent(devices, newest, (stale) => simctl("delete", stale));
+  if (!udid) udid = simctl("create", DEVICE, DEVICE_TYPE, newest);
   spawnSync("xcrun", ["simctl", "shutdown", udid], { stdio: "ignore" });
   simctl("erase", udid);
   simctl("boot", udid);
@@ -199,6 +239,12 @@ async function main() {
   await holdHostBench("the iPad simulator's proof (scripts/ipad-sim.mjs)");
   if (!args.includes("--no-build")) build();
   if (!existsSync(APP)) throw new Error(`no simulator build at ${APP}`);
+  // The SDK the build says made it: the pass proves nothing of a newer SDK's
+  // rules on a build an older one made.
+  const info = JSON.parse(run("plutil", ["-convert", "json", "-o", "-", join(APP, "Info.plist")]));
+  const sdk = sdkProblems(info);
+  held("sdk", sdk.length === 0, sdk[0] ?? `built with the iOS ${info.DTPlatformVersion} SDK`);
+  if (sdk.length) throw new Error(sdk[0]);
   // Every command of the folder-picker plugin's Swift is in the build: one the
   // linker left out answers "No command … found" only when it is used.
   const missing = commandsMissingFrom(APP, ROOT);
@@ -368,8 +414,11 @@ async function main() {
   writeFileSync(join(OUT, "results.json"), JSON.stringify({ udid, words, results }, null, 2));
   spawnSync("xcrun", ["simctl", "shutdown", udid], { stdio: "ignore" });
   console.log(`evidence: ${OUT}`);
-  // The commands' check, and one result for each step.
-  return results.every((r) => r.ok) && results.length === steps.length + 1 ? 0 : 1;
+  // Every result held, and every step asked for has one. Counting the
+  // results instead made the pass fail whole when a check was added before
+  // the steps, as the SDK's was.
+  const ran = new Set(results.map((r) => r.step));
+  return results.every((r) => r.ok) && steps.every((step) => ran.has(step)) ? 0 : 1;
 }
 
 main().then(

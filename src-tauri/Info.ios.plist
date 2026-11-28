@@ -36,6 +36,20 @@
                                  (docs/engineering/cross-platform.md#PLAT-8).
                                  The app target's entitlements name the same
                                  container.
+    UIApplicationSceneManifest   The scene life cycle, declared: built with
+                                 the iOS 27 SDK an app without it does not
+                                 launch, and UIKit reads this file alone to
+                                 decide, never what the app answers as it
+                                 runs. So one configuration is written out for
+                                 the app's one window, naming the scene
+                                 delegate the windowing library registers
+                                 (TaoSceneDelegate); a manifest whose
+                                 configurations are empty stops the app at
+                                 launch as a missing one does. One scene: the
+                                 app shows one play in one window
+                                 (UIApplicationSupportsMultipleScenes false).
+                                 scripts/check-bundle-ios.mjs refuses a build
+                                 without it.
 -->
 <plist version="1.0">
 <dict>
@@ -55,6 +69,23 @@
       <string>Proscenium</string>
       <key>NSUbiquitousContainerSupportedFolderLevels</key>
       <string>Any</string>
+    </dict>
+  </dict>
+  <key>UIApplicationSceneManifest</key>
+  <dict>
+    <key>UIApplicationSupportsMultipleScenes</key>
+    <false/>
+    <key>UISceneConfigurations</key>
+    <dict>
+      <key>UIWindowSceneSessionRoleApplication</key>
+      <array>
+        <dict>
+          <key>UISceneConfigurationName</key>
+          <string>Default Configuration</string>
+          <key>UISceneDelegateClassName</key>
+          <string>TaoSceneDelegate</string>
+        </dict>
+      </array>
     </dict>
   </dict>
 </dict>

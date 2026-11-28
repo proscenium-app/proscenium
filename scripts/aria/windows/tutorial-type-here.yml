@@ -30,6 +30,7 @@
     - group "Notes": Empty
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - 'button "What this line is: Action"': Action
   - button "Bold": Ctrl+B
@@ -42,6 +43,7 @@
   - text: Page 1 of 1
   - textbox "Script"
   - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

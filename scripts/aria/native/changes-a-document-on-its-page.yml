@@ -37,6 +37,7 @@
     - treeitem "Logline" [level=2]
   - sectionfooter
     - button "New" [haspopup]
+- separator "Resize the binder"
 - main "Play"
   - group "Open in this pane"
     - listitem "Changes"
@@ -87,6 +88,7 @@
         - button "Changed somewhere else <time> The Weight of Water · <a burst of saves>"
       - listitem
         - button "You wrote <time> The Weight of Water ACT TWO: SCENE 1 1 word added"
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Scene" [selected]

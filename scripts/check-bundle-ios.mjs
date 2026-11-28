@@ -34,6 +34,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { sdkProblems } from "./ios-xcode.mjs";
 
 const run = (cmd, argv) =>
   execFileSync(cmd, argv, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -173,6 +174,26 @@ export function versionProblems(info, { version, whole }) {
 }
 
 /** Words a shipped build never carries, by what they would mean. */
+/**
+ * What is wrong with the scene life cycle a built app declares: nothing, or one
+ * line. Built with the iOS 27 SDK, an app whose plist declares no scene
+ * configuration for its window is stopped at launch, whatever it answers as it
+ * runs; a manifest with its configurations left empty counts as none.
+ */
+export function sceneProblems(info) {
+  const manifest = info?.UIApplicationSceneManifest;
+  if (!manifest)
+    return [
+      "Info.plist has no UIApplicationSceneManifest, and built with the iOS 27 SDK the app would not launch",
+    ];
+  const forWindow = manifest.UISceneConfigurations?.UIWindowSceneSessionRoleApplication;
+  if (!Array.isArray(forWindow) || !forWindow[0]?.UISceneDelegateClassName)
+    return [
+      "UIApplicationSceneManifest names no scene delegate for the app's window, which stops the app at launch as a missing manifest does",
+    ];
+  return [];
+}
+
 export const TEST_WORDS = [
   ["self-test code", /selftest|PROSCENIUM_UPDATE_PROOF/i],
   ["the iPad probe", /PROSCENIUM_IPAD_PROBE|ipad_probe/],
@@ -241,6 +262,14 @@ export function checkIpad({
     if (info.ITSAppUsesNonExemptEncryption !== false)
       failures.push("Info.plist does not say ITSAppUsesNonExemptEncryption false");
     else passed.push("no export-compliance question");
+
+    // 4a. The SDK that built it, and the scene life cycle that SDK asks for.
+    const sdk = sdkProblems(info);
+    if (sdk.length) failures.push(...sdk);
+    else passed.push(`the iOS ${info.DTPlatformVersion ?? info.DTSDKName} SDK`);
+    const scenes = sceneProblems(info);
+    if (scenes.length) failures.push(...scenes);
+    else passed.push("the scene life cycle declared");
 
     // 5. The privacy manifest, against what the binary imports.
     const manifestPath = join(app, "PrivacyInfo.xcprivacy");

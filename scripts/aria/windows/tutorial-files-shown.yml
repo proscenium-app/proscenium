@@ -34,6 +34,7 @@
       - button "Actions for “Untitled”"
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -60,6 +61,7 @@
     - button "Insert divider":
       - img
   - paragraph: Keep the barometer where Judith can tap it.
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Sheet" [selected]

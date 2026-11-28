@@ -26,6 +26,7 @@ export type Detail =
   | "authors"
   | "contact"
   | "draftDate"
+  | "version"
   | "source";
 export type Details = Pick<FrontMatter, Detail>;
 
@@ -37,12 +38,14 @@ export const DETAILS: readonly Detail[] = [
   "authors",
   "contact",
   "draftDate",
+  "version",
   "source",
 ];
 
 /**
  * The detail each field of a page shows. A field that is not a detail (the
- * contents, which follow the script) is not here, and is not written by hand.
+ * contents and the cast, which follow the script) is not here, and is not
+ * written by hand.
  */
 export const DETAIL_OF: Partial<Record<FieldName, Detail>> = {
   title: "title",
@@ -52,6 +55,7 @@ export const DETAIL_OF: Partial<Record<FieldName, Detail>> = {
   author: "authors",
   contact: "contact",
   draftDate: "draftDate",
+  version: "version",
   source: "source",
 };
 
@@ -115,6 +119,9 @@ export const DETAIL_HELP: Record<Detail, { help: string }> = {
   },
   draftDate: {
     help: "Printed as you write it.",
+  },
+  version: {
+    help: "Also in a header or footer, from Play Version… in the document menu.",
   },
   source: {
     help: "What the play is based on.",

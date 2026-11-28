@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { announce, useToast } from "../ui";
-import { titleOf, type BinderItem } from "../workspace";
+import { isKeptScript, titleOf, type BinderItem } from "../workspace";
 import type { Workspace } from "./useWorkspace";
 import { usePanes } from "./use-panes";
 import {
@@ -446,6 +446,11 @@ export function useWorkspacePanes({
   /** Clicking a binder row opens it in the focused pane. */
   const onSelectBinderItem = useCallback(
     (item: BinderItem) => {
+      // A saved draft opens its own sheet, never a pane's tab (docs/app/keeping-work/storage-and-file-format.md#STOR-206).
+      if (isKeptScript(item)) {
+        selectItem(item);
+        return;
+      }
       if (item.type === "script") {
         selectItem(item);
         panes.open({ kind: "script" });
@@ -461,6 +466,10 @@ export function useWorkspacePanes({
     (itemId: string, leafId: string, zone: DropZone) => {
       const item = findBinderItem(binder, itemId);
       if (!item || item.type === "folder") return;
+      if (isKeptScript(item)) {
+        selectItem(item);
+        return;
+      }
       if (item.type === "script") {
         selectItem(item);
         panes.dropSurface({ kind: "script" }, leafId, zone);

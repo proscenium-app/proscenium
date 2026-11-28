@@ -45,6 +45,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -59,6 +60,7 @@
   - text: Page 2 of 2
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]
@@ -94,6 +96,9 @@
 - menu "Document":
   - menuitem "All Plays ⌘⇧O"
   - menuitem "Reveal in Finder"
+  - menuitem "Save As… ⌘⇧S"
+  - menuitem "Save Draft…"
+  - menuitem "Rename Play…"
   - separator
   - text: Script format
   - menuitemcheckbox "Dramatists Guild — Modern"
@@ -107,6 +112,7 @@
   - menuitemcheckbox "Check Spelling as You Type" [checked]
   - separator
   - menuitem "Add Page…"
+  - menuitem "Play Version…"
   - menuitem "Capitalize Character Names in Directions…"
   - menuitem "Versions…"
   - separator
@@ -115,4 +121,5 @@
   - menuitem "Export .docx…"
   - menuitem "Export .odt…"
   - menuitem "Export Fountain…"
+  - menuitem "Export Play…"
   - menuitem "Print… ⌘P"

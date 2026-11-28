@@ -1,0 +1,15 @@
+- dialog "Save As"
+  - heading "Save As" [level=2]
+  - paragraph
+  - group "MAKE A COPY"
+    - radio "A Draft to Keep"
+    - radio "A New Play" [checked]
+    - radio "Another Script"
+    - radio "Another Kind of File"
+  - none
+  - textbox "Name"
+  - button "Versions…"
+  - button "Cancel"
+  - button "Duplicate Play"
+  - status [live=polite]
+  - alert [live=assertive]

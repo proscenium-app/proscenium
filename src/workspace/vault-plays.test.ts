@@ -111,12 +111,13 @@ it("imports keep the exact source before publishing the play file", async () => 
   );
 });
 
-it("a play begun blank starts with its title page as a page of its own, in a Front Matter folder above the script", async () => {
+it("a play begun blank starts with its title page and its Characters page as pages of their own, in a Front Matter folder above the script", async () => {
   // docs/app/keeping-work/storage-and-file-format.md#STOR-195: the binder lists
   // the play's pages from its first minute.
   const { dir } = await scaffoldPlayInVault("Fresh", NOW);
-  const { TITLE_PAGE_FILE } = await import("../layout/page-files");
+  const { CHARACTERS_PAGE_FILE, TITLE_PAGE_FILE } = await import("../layout/page-files");
   expect(store.get(`${dir}/Front Matter/Title Page.md`)).toBe(TITLE_PAGE_FILE);
+  expect(store.get(`${dir}/Front Matter/Characters.md`)).toBe(CHARACTERS_PAGE_FILE);
   const play = JSON.parse(store.get(`${dir}/${dir}.proscenium`)!);
   expect(play.binder.map((item: { path: string }) => item.path).slice(0, 2)).toEqual([
     "Front Matter",
@@ -125,14 +126,16 @@ it("a play begun blank starts with its title page as a page of its own, in a Fro
   const folder = play.binder[0];
   expect(folder.children.map((c: { path: string }) => c.path)).toEqual([
     "Front Matter/Title Page.md",
+    "Front Matter/Characters.md",
   ]);
   const script = play.binder[1];
   expect(play.scripts[script.id].frontMatter).toEqual({ folder: folder.id });
   // The play file is still written last: a half-made folder never lists as a play.
   const order = [...store.keys()];
-  expect(order.indexOf(`${dir}/Front Matter/Title Page.md`)).toBeLessThan(
-    order.indexOf(`${dir}/${dir}.proscenium`),
-  );
+  for (const page of ["Title Page", "Characters"])
+    expect(order.indexOf(`${dir}/Front Matter/${page}.md`)).toBeLessThan(
+      order.indexOf(`${dir}/${dir}.proscenium`),
+    );
 });
 
 it("a play begun from a script keeps the pages its title page says, and no folder is made for them", async () => {

@@ -979,6 +979,24 @@
 .binder-move {
   padding: var(--s-7);
 }
+/* Play Version… (src/app/VersionSheet.tsx): the version, where else it prints. */
+.versionsheet {
+  padding: var(--s-7);
+}
+.versionsheet__check {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  /* Room for a finger: the checkbox's target clears the next (24px). */
+  min-height: 28px;
+  gap: var(--s-4);
+  color: var(--ink);
+  cursor: pointer;
+}
+.versionsheet__hint {
+  grid-column: 2;
+  margin: 0;
+}
 .formgrid__label--top {
   align-self: start;
   padding-top: var(--s-2);

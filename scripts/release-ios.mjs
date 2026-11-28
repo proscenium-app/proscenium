@@ -101,6 +101,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { apiOf, appOf, makeProfile, profileDue } from "./app-store-connect.mjs";
 import { holdHostBench } from "./host-bench.mjs";
+import { iosEnv } from "./ios-xcode.mjs";
 import { commandsMissingFrom } from "./ipad/plugin-commands.mjs";
 import { readAltool } from "./release-app-store.mjs";
 import { PROFILE_DIR, load, readProfile, storeIds } from "./release-keychain.mjs";
@@ -551,7 +552,8 @@ async function build() {
         "--",
         "--no-default-features",
       ],
-      { cwd: ROOT },
+      // The iPad's Xcode, which has the SDK the App Store asks for (scripts/ios-xcode.mjs).
+      { cwd: ROOT, env: iosEnv() },
     );
   } finally {
     spawnSync("git", ["checkout", "--", ...WRITTEN], { cwd: ROOT, stdio: "ignore" });
@@ -610,7 +612,7 @@ async function build() {
         "-exportOptionsPlist",
         options,
       ],
-      { env: { ...process.env, PATH: systemToolsFirst(process.env.PATH) } },
+      { env: iosEnv({ ...process.env, PATH: systemToolsFirst(process.env.PATH) }) },
     );
     const ipa = readdirSync(exported).find((f) => f.endsWith(".ipa"));
     if (!ipa) fail("the export made no .ipa");

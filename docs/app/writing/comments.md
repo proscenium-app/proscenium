@@ -380,6 +380,32 @@ in panes.ts; pinned in panes.test.ts).
   A change to a comment already saved keeps its new words the same way; one
   emptied and left keeps the comment as it was. Moving between the script's
   own views keeps the field open, as before.
+- <a id="COMM-78"></a> **COMM-78** **A comment's field keeps the keyboard.** A menu item that acts on
+  the script, chosen by its chord while a comment or a reply is being typed,
+  is not the script's: an element, Bold, Italic or Underline, a line or page
+  break, Next Misspelling and Comment leave the script as it is and the
+  keyboard in the field, and the field's Page Break chord, ⌘⏎, saves the
+  comment there as its own key does. The field leaves ⌘B to the menu bar, as a
+  plain field does, and the menu's Bold took the keyboard into the script to
+  bold it. The field stayed open with the comment's words and the keys that
+  end it were gone: Esc and ⌘⏎ went to the script, which had no comment open,
+  and the words typed next went into the script. A writer reported it as a
+  comment frozen, with no way to save it, cancel it or leave it by a key
+  (`src/app/menu-in-field.ts`). Smoke chooses each of those items with a
+  comment being typed in its card, holds the script unchanged and the keyboard
+  in the field, types on, and saves with Page Break.
+- <a id="COMM-79"></a> **COMM-79** **A new comment's field goes with its words.** A new comment being
+  typed in its card when the margin loses its room (a side panel opened, the
+  window narrowed) is typed in the feed from then on, with the words already
+  typed and the name, and goes back to its card, with the words, when the room
+  comes back. The comment has one field wherever it is typed, and a field that
+  opens holding words has the caret at their end. The feed opened an empty
+  field of its own and the card kept its words out of sight, so the comment
+  had two fields, the words in the one that could not be seen, and with the
+  room back both were open; saving or abandoning the empty one took the
+  comment out. Opening the feed while a comment was typed in its card also
+  gave it a second, empty field: the feed read "no room in the margin" from
+  the state it began with, before it had read the editor's.
 
 <a id="COMM-D13"></a>
 

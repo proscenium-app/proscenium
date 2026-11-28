@@ -206,6 +206,10 @@ pub fn text(facts: &Facts) -> String {
                 }
             ),
             format!("automatic update checks {}", on_off(s.check_for_updates)),
+            format!(
+                "updates install at quit {}",
+                on_off(s.install_updates_automatically)
+            ),
             match s.update_track {
                 UpdateTrack::Stable => "stable track",
                 UpdateTrack::Beta => "beta track",

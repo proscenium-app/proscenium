@@ -45,6 +45,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -59,6 +60,7 @@
   - text: Page 2 of 2
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]
@@ -109,7 +111,10 @@
     - heading "Automatic updates" [level=4]
     - text: Check for updates automatically
     - switch "Check for updates automatically" [checked]
-    - paragraph: Checks when Proscenium opens and every hour, then downloads any new version in the background. Proscenium restarts to install it only when you choose.
+    - paragraph: Checks when Proscenium opens and every hour, then downloads any new version in the background.
+    - text: Install updates automatically
+    - switch "Install updates automatically" [checked]
+    - paragraph: A downloaded update installs when you quit Proscenium, after your work is saved, so it opens as the new version next time. Restart to Update installs it straight away.
     - heading "Update track" [level=4]
     - text: Track
     - 'button "Track: Alpha"': Alpha

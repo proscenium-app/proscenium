@@ -87,6 +87,10 @@
   .workspace-body > .binder {
     left: 0;
   }
+  /* A drawer over the page has no edge beside the page to drag. */
+  .workspace-body > .railhandle {
+    display: none;
+  }
   .workspace-body > .inspector {
     right: 0;
   }
@@ -202,6 +206,14 @@ span.statusbar__path:hover {
 }
 .statusbar__spacer {
   flex: 1;
+}
+/* A waiting update (UpdateReady.tsx): the one thing in the bar to press, in
+   the accent, and as quiet as the bar otherwise. */
+.statusbar .updateready {
+  color: var(--accent-text);
+  font-size: var(--t-mini);
+  font-weight: 500;
+  white-space: nowrap;
 }
 .statusbar__divider {
   width: 1px;

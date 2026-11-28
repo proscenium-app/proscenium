@@ -1,0 +1,14 @@
+- dialog "Before the reading"
+  - heading "Before the reading" [level=2]
+  - tablist "Show"
+    - tab "The Draft" [selected]
+    - tab "What “Lamplight” Has Changed Since"
+  - group "“Before the reading”, a saved draft"
+    - generic
+    - generic
+    - generic
+  - button "Make a Working Copy"
+  - button "Restore to “Lamplight”…"
+  - button "Done"
+  - status [live=polite]
+  - alert [live=assertive]

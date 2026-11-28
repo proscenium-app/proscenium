@@ -28,6 +28,7 @@ import { defaultDirFor, normalizeType, renderTemplate } from "../materials";
 import { findItem, flatten, insert, isAncestor, reorder } from "./binder";
 import {
   commitPlay,
+  DRAFTS_SCHEMA,
   readPlayFile,
   scriptDataFor,
   withBinder,
@@ -238,6 +239,117 @@ export function reorderItem(ctx: BinderContext, id: string, toIndex: number): Pr
   return commit(ctx, (play) => {
     if (!findItem(play.binder, id)) throw new Error(BINDER_CHANGED);
     return withBinder(play, reorder(play.binder, id, toIndex));
+  });
+}
+
+/** Where a play's saved drafts go: a folder at the top of the binder, made with the first. */
+export const DRAFTS_DIR = "Drafts";
+
+/**
+ * Save Draft (docs/app/keeping-work/storage-and-file-format.md#STOR-203): the
+ * script's words as they stand on disk, `content`, in a new file of the
+ * Drafts folder named `name` (a number after it when that is taken), filed as
+ * a reference so that no editor writes it, and recorded in the play file as a
+ * draft of `scriptId` with when it was saved and the hash of its bytes. The
+ * play file moves on to the schema that knows drafts
+ * (docs/app/keeping-work/storage-and-file-format.md#STOR-204). The file is
+ * created before the record: a draft that stops part of the way is a file in
+ * the Drafts folder, filed as any file found there is.
+ */
+export async function saveDraftItem(
+  ctx: BinderContext,
+  scriptId: string,
+  name: string,
+  content: string,
+  sha256: string,
+  nowIso: string,
+): Promise<ApplyResult> {
+  const home = ctx.play.binder.find(
+    (item) => item.type === "folder" && sameFileOnDisk(item.path, DRAFTS_DIR),
+  );
+  const stem = fileName(name) || "Draft";
+  const path = await freshPath(joinp(home?.path ?? DRAFTS_DIR, `${stem}.fountain`));
+  try {
+    await vault.create(path, content);
+  } catch (e) {
+    return { ok: false, reason: "error", message: String(e) };
+  }
+  const id = ulid();
+  const draft: BinderItem = { id, type: "reference", path };
+  const folderId = ulid();
+  const res = await commit(ctx, (play) => {
+    const folder = play.binder.find(
+      (item) => item.type === "folder" && sameFileOnDisk(item.path, DRAFTS_DIR),
+    );
+    const binder = folder
+      ? insert(play.binder, folder.id, draft, Infinity)
+      : [
+          ...play.binder,
+          { id: folderId, type: "folder" as const, path: DRAFTS_DIR, children: [draft] },
+        ];
+    return {
+      ...play,
+      schemaVersion: Math.max(play.schemaVersion, DRAFTS_SCHEMA),
+      binder,
+      drafts: { ...(play.drafts ?? {}), [id]: { of: scriptId, savedAt: nowIso, sha256 } },
+    };
+  });
+  return res.ok ? { ...res, createdId: id } : res;
+}
+
+/**
+ * A working copy of a saved draft (docs/app/keeping-work/storage-and-file-format.md#STOR-205):
+ * its words in a new script named `name`, beside the script it was saved from
+ * (at the end of the binder when that is gone), for the writer to work in.
+ */
+export async function workingCopyItem(
+  ctx: BinderContext,
+  draftId: string,
+  name: string,
+): Promise<ApplyResult> {
+  const loc = findItem(ctx.play.binder, draftId);
+  if (!loc) return { ok: false, reason: "error", message: "The draft is no longer in the binder." };
+  const sourceId = ctx.play.drafts?.[draftId]?.of;
+  const source = sourceId ? findItem(ctx.play.binder, sourceId) : null;
+  const stem = fileName(name) || titleFromFileName(loc.item.path);
+  const path = await freshPath(joinp(source ? dirname(source.item.path) : "", `${stem}.fountain`));
+  try {
+    const { content } = await vault.read(loc.item.path);
+    await vault.create(path, content);
+  } catch (e) {
+    return { ok: false, reason: "error", message: String(e) };
+  }
+  const id = ulid();
+  const res = await addAt(
+    ctx,
+    source?.parentId ?? null,
+    { id, type: "script", path },
+    source ? source.index + 1 : Infinity,
+  );
+  return res.ok ? { ...res, createdId: id } : res;
+}
+
+/**
+ * The rest of a play's rename (docs/app/keeping-work/storage-and-file-format.md#STOR-208):
+ * the script still named as the play was takes the play's name, by the same
+ * rename as the binder's, so its cards and comments go with it, and then the
+ * play file stops saying the old name. With no script to rename, only that.
+ */
+export async function followPlayRename(
+  ctx: BinderContext,
+  scriptId: string | null,
+  name: string,
+): Promise<ApplyResult> {
+  let at = ctx;
+  if (scriptId) {
+    const renamed = await renameItem(ctx, scriptId, name);
+    if (!renamed.ok) return renamed;
+    at = { ...ctx, play: renamed.play, hash: renamed.hash };
+  }
+  return commit(at, (play) => {
+    const { renamedFrom: _old, ...rest } = play;
+    void _old;
+    return rest;
   });
 }
 
@@ -542,7 +654,12 @@ export async function importIntoPlay(
  * byte-level API has no recursive copy behind it. Better to not offer it than
  * to offer half of it.
  */
-export async function duplicateItem(ctx: BinderContext, id: string): Promise<ApplyResult> {
+export async function duplicateItem(
+  ctx: BinderContext,
+  id: string,
+  /** The copy's name, from Save As (docs/app/organizing/workspace-model.md#WORK-95); `<name> copy` without one. */
+  name?: string,
+): Promise<ApplyResult> {
   const loc = findItem(ctx.play.binder, id);
   if (!loc) return { ok: false, reason: "error", message: "item not found" };
   const item = loc.item;
@@ -551,8 +668,8 @@ export async function duplicateItem(ctx: BinderContext, id: string): Promise<App
   }
 
   const ext = extname(item.path) || ".md";
-  const stem = titleFromFileName(item.path);
-  const path = await freshPath(joinp(dirname(item.path), `${stem} copy${ext}`));
+  const stem = (name && fileName(name)) || `${titleFromFileName(item.path)} copy`;
+  const path = await freshPath(joinp(dirname(item.path), `${stem}${ext}`));
   const newId = ulid();
 
   try {
@@ -564,7 +681,10 @@ export async function duplicateItem(ctx: BinderContext, id: string): Promise<App
 
   // The copy's cards start empty: scene ids are unique to a script, so sharing
   // them between two scripts would give one scene two boards.
-  const copy: BinderItem = { id: newId, type: item.type, path };
+  // A copy of a saved draft is a script to work in (docs/app/keeping-work/storage-and-file-format.md#STOR-205):
+  // a .fountain filed as a reference is one no editor writes, and its copy is the writer's.
+  const type = item.type === "reference" && /\.fountain$/i.test(path) ? "script" : item.type;
+  const copy: BinderItem = { id: newId, type, path };
   const res = await addAt(ctx, loc.parentId, copy, loc.index + 1);
   return res.ok ? { ...res, createdId: newId } : res;
 }

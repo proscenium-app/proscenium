@@ -56,6 +56,10 @@
   --paper: #fcf8ef; /* sheets, cards, popover base, fields */
   --chrome: #f0e7d2; /* toolbar, status bar */
   --rail: #ebe1c9; /* binder, inspector */
+  /* The rails' widths where they start; the workspace sets each to the width
+     the writer dragged it to (rail-width.ts). */
+  --binder-w: 246px;
+  --inspector-w: 292px;
   --desk: #dcd2c0; /* the well the sheets sit on — flat, never textured */
   --desk-deep: #d0c5b0; /* a rule drawn on the desk */
   --cream: #f4ecd8; /* default card hue, field tint, table header band */

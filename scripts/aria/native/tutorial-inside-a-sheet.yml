@@ -16,10 +16,6 @@
       - none
         - checkbox "Include Characters" [checked]
     - listitem
-      - button "Setting"
-      - none
-        - checkbox "Include Setting" [checked]
-    - listitem
       - button "Page 1"
       - none
         - checkbox "Include page 1" [checked]
@@ -29,15 +25,13 @@
         - checkbox "Include page 2" [checked]
   - region "Preview of what will export"
   - button "Previous page" [disabled]
-  - group [live=polite]: Title Page · sheet 1 of 5
+  - group [live=polite]: Title Page · sheet 1 of 4
   - button "Next page"
   - group "Include"
     - none
       - checkbox "Title Page" [checked]
     - none
       - checkbox "Characters" [checked]
-    - none
-      - checkbox "Setting" [checked]
   - none
     - checkbox "Anonymous copy"
   - none

@@ -37,6 +37,7 @@
     - treeitem "Logline" [level=2]
   - sectionfooter
     - button "New" [haspopup]
+- separator "Resize the binder"
 - main "Play"
   - group "Open in this pane"
     - listitem "The Weight of Water"
@@ -51,10 +52,13 @@
     - button "Bulleted list"
     - button "Numbered list"
     - button "Insert Field" [haspopup]
+  - button "Move" [haspopup]
+  - button "Move to Trash: Title Page"
   - button "Change Template…"
   - button "Done"
   - textbox "Script"
   - image "Scene navigation: 2 pages. On screen: <scene>"
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Scene" [selected]

@@ -53,10 +53,13 @@ import {
   fieldShows,
   fieldToken,
   isFieldName,
+  readFieldOptions,
+  writeFieldOptions,
   type FieldFace,
   type FieldName,
   type FieldValues,
 } from "./page-fields";
+import { PageHead, PagePlace } from "./page-place";
 
 /** The node names, as doc.ts reads and writes them. */
 export const FIELD_NODE = "field";
@@ -128,7 +131,7 @@ function facesOf(doc: PMNode, values: FieldValues): DecorationSet {
   const decorations: Decoration[] = [];
   doc.descendants((node, pos) => {
     if (node.type.name !== FIELD_NODE || !isFieldName(node.attrs.name)) return;
-    const face = fieldFace(node.attrs.name, values);
+    const face = fieldFace(node.attrs.name, values, node.attrs.options);
     const spec: FaceSpec = {
       fieldLines: face.lines.join("\n"),
       fieldEmpty: face.empty,
@@ -147,21 +150,22 @@ function facesOf(doc: PMNode, values: FieldValues): DecorationSet {
 function tokensToFields(state: EditorState): Transaction | null {
   const type = state.schema.nodes[FIELD_NODE];
   if (!type) return null;
-  const found: { from: number; to: number; name: FieldName; node: PMNode }[] = [];
+  const found: { from: number; to: number; name: FieldName; options: string; node: PMNode }[] = [];
   state.doc.descendants((node, pos, parent) => {
     if (!node.isText || parent?.type.spec.code || node.marks.some((m) => m.type.spec.code)) return;
     for (const match of (node.text ?? "").matchAll(FIELD_TOKEN)) {
       const name = match[1];
       if (!isFieldName(name)) continue;
       const from = pos + (match.index ?? 0);
-      found.push({ from, to: from + match[0].length, name, node });
+      const options = writeFieldOptions(readFieldOptions(match[2]));
+      found.push({ from, to: from + match[0].length, name, options, node });
     }
   });
   if (!found.length) return null;
   const tr = state.tr;
   // From the last, so each one's place is still where it was found.
-  for (const { from, to, name, node } of found.reverse())
-    tr.replaceWith(from, to, type.create({ name }, null, node.marks));
+  for (const { from, to, name, options, node } of found.reverse())
+    tr.replaceWith(from, to, type.create({ name, options }, null, node.marks));
   return tr;
 }
 
@@ -941,6 +945,13 @@ export const PageField = Node.create<{
         parseHTML: (el: HTMLElement) => el.getAttribute("data-page-field"),
         renderHTML: (attrs: Record<string, unknown>) => ({ "data-page-field": attrs.name }),
       },
+      // A component's settings, as its token writes them (`acts=plain`).
+      options: {
+        default: "",
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-page-field-options") ?? "",
+        renderHTML: (attrs: Record<string, unknown>) =>
+          attrs.options ? { "data-page-field-options": attrs.options } : {},
+      },
     };
   },
 
@@ -957,11 +968,11 @@ export const PageField = Node.create<{
   // Copied, a field is its token, the way the file holds it: pasted into a
   // page it is the field again, and into anything else it says what it is.
   renderHTML({ node, HTMLAttributes }) {
-    return ["span", HTMLAttributes, fieldToken(node.attrs.name)];
+    return ["span", HTMLAttributes, fieldToken(node.attrs.name, node.attrs.options)];
   },
 
   renderText({ node }) {
-    return fieldToken(node.attrs.name);
+    return fieldToken(node.attrs.name, node.attrs.options);
   },
 
   addNodeView() {
@@ -1047,5 +1058,5 @@ export const PageFoot = Node.create({
  * first showing `values`; with `write`, a field is where its detail is written.
  */
 export function pageFileExtensions(values: FieldValues, write?: FieldWriter) {
-  return [PageField.configure({ values, write }), PageFoot];
+  return [PageField.configure({ values, write }), PageFoot, PageHead, PagePlace];
 }

@@ -14,7 +14,8 @@
  * useWorkspace.ts, so `workspaceErrorCode` reads the sentence instead — by the
  * phrases the workspace writes, which the test checks against every literal
  * `setError` there, so a new sentence without a code fails rather than hiding
- * under E-WORKSPACE.
+ * under E-WORKSPACE. An error passed on in the system's own words is coded by
+ * `raisedError`: by its cause when the words name one, else by where it arose.
  */
 
 export const ERROR_CODES = [
@@ -24,6 +25,12 @@ export const ERROR_CODES = [
   "E-FOLDER-ACCESS",
   "E-ICLOUD",
   "E-PLAY-OPEN",
+  "E-PLAY-NO-SCRIPT",
+  "E-PLAY-DETAILS",
+  "E-PLAY-SETTINGS",
+  "E-PLAY-TRASH",
+  "E-IMPORT-OPEN",
+  "E-SCRIPT-OPEN",
   "E-PLAY-MISSING",
   "E-PLAY-CREATE",
   "E-SAVE",
@@ -53,6 +60,7 @@ export const ERROR_CODES = [
   "E-FINDER-OPEN",
   "E-UPDATE-RESTART",
   "E-WATCH",
+  "E-PRACTICE",
   "E-WORKSPACE",
   "E-OTHER",
 ] as const;
@@ -74,11 +82,25 @@ const WORKSPACE_PHRASES: readonly [RegExp, ErrorCode][] = [
   // A code of its own would add one to the published list, which is the maintainer's
   // call (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-64); until then it is honestly "other".
   [/^(?:\.(?:docx|odt|rtf)|Fountain) export failed/i, "E-OTHER"],
+  // The whole play as one .zip (docs/app/keeping-work/storage-and-file-format.md#STOR-199), the same.
+  [
+    /^No play is open to export|^A play is exported from|so it was not exported|^The play could not be exported/i,
+    "E-OTHER",
+  ],
   [
     /Choose the folder that holds your plays|Choose a folder that isn't inside a play|Choose a folder only one of them keeps|Choose the Plays folder itself/,
     "E-FOLDER-REFUSED",
   ],
   [/iCloud Drive isn't available/, "E-ICLOUD"],
+  // What used to be one E-PLAY-OPEN, told apart so a report says which the
+  // writer saw. Ahead of the rest: an import's sentence ends with the raw error.
+  [/has no script yet/, "E-PLAY-NO-SCRIPT"],
+  [/was created\b.* but could not be opened/, "E-IMPORT-OPEN"],
+  [/play's details changed and could not be read/, "E-PLAY-DETAILS"],
+  [
+    /practice folder could not be opened|This practice could not be opened|The copy could not be opened|Practice is still opening/,
+    "E-PRACTICE",
+  ],
   [
     /changed on disk|changed again|changed since this entry|two versions of this sheet/i,
     "E-CHANGED-ON-DISK",
@@ -92,10 +114,6 @@ const WORKSPACE_PHRASES: readonly [RegExp, ErrorCode][] = [
     "E-ACTION-STALE",
   ],
   [
-    /could not be opened|has no script yet|play's details changed and could not be read/,
-    "E-PLAY-OPEN",
-  ],
-  [
     /isn't in your Plays folder any more|isn't your Plays folder now|isn't showing on the Plays screen/,
     "E-PLAY-MISSING",
   ],
@@ -106,10 +124,33 @@ const WORKSPACE_PHRASES: readonly [RegExp, ErrorCode][] = [
   [/no such file|not found|ENOENT|os error 2\b|not where it was/i, "E-VAULT-READ"],
 ];
 
+/** Every code whose phrases a sentence carries; one, for a sentence the app writes. */
+export function phraseCodes(message: string): ErrorCode[] {
+  return [...new Set(WORKSPACE_PHRASES.filter(([p]) => p.test(message)).map(([, c]) => c))];
+}
+
 /** The code for a sentence the workspace showed. */
 export function workspaceErrorCode(message: string): ErrorCode {
   for (const [phrase, code] of WORKSPACE_PHRASES) {
     if (phrase.test(message)) return code;
   }
   return "E-WORKSPACE";
+}
+
+/** An error shown with its code, and a detail to read when there is one. */
+export interface ShownError {
+  title: string;
+  code: ErrorCode;
+  detail?: string;
+}
+
+/**
+ * An error raised somewhere the app passes the system's own words on, coded by
+ * what went wrong when its words say (a permission, a missing file) and
+ * otherwise by `where` it happened, so it never falls to E-WORKSPACE.
+ */
+export function raisedError(e: unknown, where: ErrorCode): ShownError {
+  const title = String(e);
+  const said = workspaceErrorCode(title);
+  return { title, code: said === "E-WORKSPACE" ? where : said };
 }

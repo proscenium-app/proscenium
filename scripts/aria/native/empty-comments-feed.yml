@@ -29,6 +29,7 @@
   - button "Comments ⌘⇧C" [pressed]
   - textbox "Script"
   - image "Scene navigation: 2 pages. On screen: <scene>"
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Scene"

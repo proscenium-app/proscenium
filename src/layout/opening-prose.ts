@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Habiby LLC
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { toDoc, type Node } from "../markdown/doc";
+import { placeOf, toDoc, type Node } from "../markdown/doc";
+import type { Place } from "../markdown/page-fields";
 import type { ElementAlign } from "../format/spec";
 import type { StyleRun } from "./engine";
 
@@ -19,6 +20,8 @@ export interface OpeningParagraph {
    * printed page (docs/app/formatting/formats-and-layout.md#FMT-161).
    */
   block: number;
+  /** Where the writer put it on its page (docs/app/formatting/formats-and-layout.md#FMT-182). */
+  place?: Place;
 }
 
 /** The prose editor's marks enter the same measured line layout as every script. */
@@ -45,6 +48,7 @@ export function openingParagraphs(markdown: string): OpeningParagraph[] {
       };
       node.content?.forEach(inline);
       const align = node.attrs?.textAlign;
+      const place = placeOf(node);
       paragraphs.push({
         text,
         heading: node.type === "heading",
@@ -52,6 +56,7 @@ export function openingParagraphs(markdown: string): OpeningParagraph[] {
         runs,
         align: align === "center" || align === "right" ? align : "left",
         block: top,
+        ...(place ? { place } : {}),
       });
     } else if (node.type === "bulletList" || node.type === "orderedList") {
       node.content?.forEach((item, i) =>

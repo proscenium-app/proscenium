@@ -214,6 +214,15 @@ export function dropPlan(
   return { parentId: dst.parentId, atIndex: at };
 }
 
+/**
+ * A script kept as a file no editor writes: a `.fountain` filed as a
+ * reference, which a saved draft is. It is read in a sheet of its own and is
+ * never what a pane shows (docs/app/keeping-work/storage-and-file-format.md#STOR-206).
+ */
+export function isKeptScript(item: Pick<BinderItem, "type" | "path">): boolean {
+  return item.type === "reference" && /\.fountain$/i.test(item.path);
+}
+
 /** An item's title: the last path segment, without its extension (docs/app/keeping-work/storage-and-file-format.md#STOR-D4). */
 export function titleOf(item: BinderItem): string {
   return titleFromFileName(item.path);

@@ -22,7 +22,7 @@
  *
  * Facts stay in the script's Fountain title page, where every Fountain app
  * reads them, and a page shows them as fields: `{title}`, `{TITLE}` (in
- * capitals), `{credit}`, `{author}`, `{contact}`, `{draftDate}` and `{source}`
+ * capitals), `{credit}`, `{author}`, `{contact}`, `{draftDate}`, `{version}` and `{source}`
  * (a header or footer uses the same words: docs/app/formatting/formats-and-layout.md#FMT-101,
  * docs/app/formatting/formats-and-layout.md#FMT-140). A paragraph
  * that is `{contact}` alone prints each contact line, a blank one as a blank
@@ -46,13 +46,47 @@ import {
   type FrontBlock,
   type FrontPage,
 } from "./front-pages";
+import { FIELD_OPTIONS, readFieldOptions } from "../markdown/page-fields";
 import { openingParagraphs } from "./opening-prose";
+import { isTemplateHeading } from "./template-headings";
 
 /** How a page written as Markdown sits on its sheet. */
 export type PageLayout = "title" | "top" | "third";
 
 /** The line in a title page's file after which its foot begins. */
 export const FOOT_MARK = "<!-- proscenium:foot -->";
+
+/**
+ * The line in a page's file under its head
+ * (docs/app/formatting/formats-and-layout.md#FMT-182): what stands above it
+ * is set from the top of the sheet, whatever the page's layout.
+ */
+export const HEAD_MARK = "<!-- proscenium:head -->";
+
+/** A page's words by where they stand on its sheet: from the top, where its layout starts it, at the bottom. */
+export interface PageBands {
+  /** The words above the head mark; null when the file has none. */
+  head: string | null;
+  main: string;
+  /** The words under the foot mark; null when the file has none. */
+  foot: string | null;
+}
+
+/**
+ * A page's words split at its marks: the first foot mark, and the first head
+ * mark above it. Each is a line of its own, wherever it stands.
+ */
+export function pageBands(body: string): PageBands {
+  const lines = body.split("\n");
+  const at = lines.findIndex((line) => line.trim() === FOOT_MARK);
+  const above = at < 0 ? lines : lines.slice(0, at);
+  const head = above.findIndex((line) => line.trim() === HEAD_MARK);
+  return {
+    head: head < 0 ? null : above.slice(0, head).join("\n"),
+    main: (head < 0 ? above : above.slice(head + 1)).join("\n"),
+    foot: at < 0 ? null : lines.slice(at + 1).join("\n"),
+  };
+}
 
 /** A page file's header, read: its layout, whether an export starts with it, and its words. */
 export interface PageFile {
@@ -80,6 +114,37 @@ export function readPageFile(text: string): PageFile {
   };
 }
 
+/** The play's title page among its page files: the first laid out as one, or undefined. */
+export function titlePageOf(
+  pages: readonly FrontPageSource[] | undefined,
+): FrontPageSource | undefined {
+  return pages?.find((page) => readPageFile(page.text).layout === "title");
+}
+
+/** Whether a page's words show the play's version (docs/app/formatting/formats-and-layout.md#FMT-185). */
+export function showsVersion(text: string): boolean {
+  return /\{version(?: [^}]*)?\}/.test(readPageFile(text).body);
+}
+
+/**
+ * A title page's file with a line for the play's version
+ * (docs/app/formatting/formats-and-layout.md#FMT-185): a paragraph of its
+ * own under the draft date where the page shows one, and otherwise at the end
+ * of the page, which on a title page is its foot. Null when the page shows
+ * the version already.
+ */
+export function withVersionLine(text: string): string | null {
+  if (showsVersion(text)) return null;
+  const source = text.replace(/\r\n?/g, "\n").replace(/\s+$/, "");
+  const lines = source.split("\n");
+  const date = lines.findIndex((line) => /^\{draftDate(?: [^}]*)?\}$/.test(line.trim()));
+  if (date < 0) return `${source}\n\n{version}\n`;
+  // The end of the draft date's paragraph: the next blank line, or the end.
+  let end = date + 1;
+  while (end < lines.length && lines[end].trim()) end++;
+  return [...lines.slice(0, end), "", "{version}", ...lines.slice(end)].join("\n") + "\n";
+}
+
 /** A page file's text: a header only when it says something, then the words. */
 export function writePageFile(
   page: { layout: PageLayout; exports?: boolean },
@@ -102,15 +167,22 @@ export const FIELDS = [
   "author",
   "contact",
   "draftDate",
+  "version",
   "source",
   "contents",
+  "cast",
 ] as const;
 export type Field = (typeof FIELDS)[number];
-const TOKEN = new RegExp(`\\{(${FIELDS.join("|")})\\}`, "g");
-const ALONE = new RegExp(`^\\{(${FIELDS.join("|")})\\}$`);
+const TOKEN = new RegExp(`\\{(${FIELDS.join("|")})${FIELD_OPTIONS}\\}`, "g");
+const ALONE = new RegExp(`^\\{(${FIELDS.join("|")})${FIELD_OPTIONS}\\}$`);
 
-/** What a field shows: the play's detail, as the title page's fields have always printed it. */
-export function fieldValue(field: Field, fm: FrontMatter): string {
+/**
+ * What a field shows: the play's detail, as the title page's fields have
+ * always printed it. `options` are the field's settings as its token writes
+ * them (docs/app/formatting/formats-and-layout.md#FMT-184): the contents
+ * with `acts=plain` are the contents with no page beside an act.
+ */
+export function fieldValue(field: Field, fm: FrontMatter, options?: string | null): string {
   switch (field) {
     case "TITLE":
       return (fm.title ?? "").toUpperCase();
@@ -126,10 +198,18 @@ export function fieldValue(field: Field, fm: FrontMatter): string {
       return (fm.contact ?? []).join("\n");
     case "draftDate":
       return fm.draftDate ?? "";
+    case "version":
+      return fm.version ?? "";
     case "source":
       return fm.source ?? "";
     case "contents":
-      return (fm.contents ?? []).join("\n");
+      return (
+        (readFieldOptions(options).acts === "plain" ? fm.contentsPlainActs : undefined) ??
+        fm.contents ??
+        []
+      ).join("\n");
+    case "cast":
+      return (fm.cast ?? []).join("\n");
   }
 }
 
@@ -150,7 +230,7 @@ export function fillFields(
       parts.push({ from: last, to: start, at: out.length, length: start - last, field: false });
       out += text.slice(last, start);
     }
-    const value = fieldValue(match[1] as Field, fm);
+    const value = fieldValue(match[1] as Field, fm, match[2]);
     parts.push({
       from: start,
       to: start + match[0].length,
@@ -203,12 +283,9 @@ export function pageFromFile(
   policy: FrontMatterSpec,
 ): FrontPage {
   const { layout, body } = readPageFile(text);
-  const lines = body.split("\n");
-  const at = lines.findIndex((line) => line.trim() === FOOT_MARK);
-  const main = at < 0 ? body : lines.slice(0, at).join("\n");
-  const foot = at < 0 ? "" : lines.slice(at + 1).join("\n");
+  const bands = pageBands(body);
   let index = 0;
-  const read = (markdown: string, area: "main" | "foot"): FrontBlock[] => {
+  const read = (markdown: string, area: "head" | "main" | "foot"): FrontBlock[] => {
     const out: FrontBlock[] = [];
     // In the foot the first block with words takes no gap and every later one
     // the format's gap, as the contact block and the date under it always
@@ -216,6 +293,12 @@ export function pageFromFile(
     let printed = false;
     let carried = 0;
     const between = layout === "title" ? policy.titleGapRows : policy.fieldGapRows;
+    // A band with no words is no blank row: only the one paragraph any empty
+    // text reads as, which still takes its place among the page's paragraphs.
+    if (!markdown.trim()) {
+      index++;
+      return out;
+    }
     openingParagraphs(markdown).forEach((p, i) => {
       const n = index++;
       const title = layout === "title" && p.heading && p.level === 1;
@@ -230,23 +313,69 @@ export function pageFromFile(
         keepWithNext: p.heading && !title,
         ...(title ? { titleStyle: true as const } : {}),
       };
+      // Where the writer put it (docs/app/formatting/formats-and-layout.md#FMT-182):
+      // its rows in place of the gap, its cell in place of its alignment.
+      const cell = p.place?.cell !== undefined ? { cell: p.place.cell } : {};
+      const placed = (first: boolean) => ({
+        ...cell,
+        ...(first && p.place?.rows !== undefined ? { rows: p.place.rows } : {}),
+        ...(first && p.place?.beside ? { beside: true as const } : {}),
+        top: p.block,
+      });
       const gap = () =>
         area === "foot" ? (printed ? policy.fieldGapRows + carried : 0) : i ? between : 0;
-      // A paragraph that is the contact block alone, or the contents alone,
-      // prints a line for each of its lines, a blank one as a blank row.
-      const alone = ALONE.exec(p.text.trim())?.[1];
-      if (alone === "contact" || alone === "contents") {
+      // A line with no words is a blank row of the page, which the writer left.
+      if (!p.text && !p.heading) {
+        out.push({
+          ...style,
+          ...placed(true),
+          text: "",
+          runs: [],
+          id: `${id}-${n}`,
+          gap: gap(),
+          keepWithNext: false,
+          blank: true,
+        });
+        if (area === "foot") {
+          printed = true;
+          carried = 0;
+        }
+        return;
+      }
+      // A paragraph that is the contact block alone, the contents alone or
+      // the cast alone prints a line for each of its lines, a blank one as a
+      // blank row. The cast's names take the paragraph's own emphasis, as a
+      // list of characters written by hand is set in bold.
+      const whole = ALONE.exec(p.text.trim());
+      const alone = whole?.[1];
+      if (alone === "contact" || alone === "contents" || alone === "cast") {
         let blanks = 0;
         let first = true;
-        for (const line of (alone === "contact" ? fm.contact : fm.contents) ?? []) {
+        const lines =
+          alone === "contact"
+            ? (fm.contact ?? [])
+            : alone === "cast"
+              ? (fm.cast ?? [])
+              : ((readFieldOptions(whole?.[2]).acts === "plain"
+                  ? fm.contentsPlainActs
+                  : undefined) ??
+                fm.contents ??
+                []);
+        const marked = alone === "cast" ? p.runs.find((run) => run.bold || run.italic) : undefined;
+        for (const line of lines) {
           if (!line.trim()) {
             blanks++;
             continue;
           }
+          const own = placed(first);
           out.push({
             ...style,
+            ...own,
+            // The writer's rows stand above the block; a blank line of the
+            // contact above its first words still adds its row.
+            ...(own.rows !== undefined ? { rows: own.rows + blanks } : {}),
             text: line,
-            runs: [],
+            runs: marked ? [{ ...marked, start: 0, end: line.length }] : [],
             id: `${id}-${n}`,
             gap: (first ? gap() : 0) + blanks,
           });
@@ -263,7 +392,14 @@ export function pageFromFile(
       // fields printed no draft date when it had none; one of spaces still
       // takes its gap at the foot, as that page's did.
       if (!filled.text) return;
-      out.push({ ...style, text: filled.text, runs: filled.runs, id: `${id}-${n}`, gap: gap() });
+      out.push({
+        ...style,
+        ...placed(true),
+        text: filled.text,
+        runs: filled.runs,
+        id: `${id}-${n}`,
+        gap: gap(),
+      });
       if (filled.text.trim()) {
         printed = true;
         carried = 0;
@@ -271,12 +407,23 @@ export function pageFromFile(
     });
     return out;
   };
-  return {
-    kind,
-    top: layout === "top" ? "section" : "title",
-    blocks: read(main, "main"),
-    foot: read(foot, "foot"),
-  };
+  const head = bands.head === null ? [] : read(bands.head, "head");
+  const blocks = read(bands.main, "main");
+  const foot = bands.foot === null ? [] : read(bands.foot, "foot");
+  const top = layout === "top" ? ("section" as const) : ("title" as const);
+  // A page that holds its template's headings and nothing else is a page not
+  // yet written: it prints nothing, and is no sheet of an export
+  // (docs/app/formatting/formats-and-layout.md#FMT-183). A title page's own
+  // title is no such heading, and neither is one the writer gave a page.
+  const words = [...head, ...blocks, ...foot].filter((block) => block.text.trim());
+  if (
+    words.length &&
+    words.every(
+      (block) => block.role === "heading" && !block.titleStyle && isTemplateHeading(block.text),
+    )
+  )
+    return { kind, top, blocks: [], foot: [] };
+  return { kind, top, ...(head.length ? { head } : {}), blocks, foot };
 }
 
 /**
@@ -309,7 +456,7 @@ export function frontPagesFor(
       kind: "title",
       top: "section",
       blocks: pages.flatMap((page, i) =>
-        [...page.blocks, ...page.foot].map((block, j) =>
+        [...(page.head ?? []), ...page.blocks, ...page.foot].map((block, j) =>
           i && !j ? { ...block, gap: policy.fieldGapRows } : block,
         ),
       ),
@@ -369,13 +516,14 @@ export function legacyBlockAt(kind: string, paragraphId: string | null, fm: Fron
   }
   if (kind === "title" && fm.titlePage === undefined) {
     // TITLE_PAGE_FILE: the title, the subtitle, the credit, the author, the
-    // foot line, then the contact and the draft date.
+    // foot line, then the contact, the draft date and the version.
     if (id === "title") return 0;
     if (id === "subtitle") return 1;
     if (id === "credit") return 2;
     if (id === "authors") return 3;
     if (/^contact-\d+$/.test(id)) return 5;
     if (id === "draft-date") return 6;
+    if (id === "version") return 7;
     return 0;
   }
   if (kind === "characters") {
@@ -406,6 +554,17 @@ export interface LegacyPageFile {
   name: string;
   text: string;
 }
+
+/**
+ * The Characters page a play begun blank starts with
+ * (docs/app/formatting/formats-and-layout.md#FMT-183): the Characters
+ * template's page, its heading and nothing under it yet. scaffolds.test.ts
+ * holds it to what that template writes.
+ */
+export const CHARACTERS_PAGE_FILE = writePageFile(
+  { layout: "top" },
+  "<!-- proscenium:align=center -->\n\n## CHARACTERS\n\n**{cast}**",
+);
 
 /** A title page from its fields, as a page file: the fields, where they always stood. */
 export const TITLE_PAGE_FILE = writePageFile(
@@ -463,7 +622,12 @@ export function legacyPageFiles(fm: FrontMatter | null | undefined): LegacyPageF
         text: writePageFile({ layout: "third" }, fm.titlePage),
       });
   } else if (fm.title?.trim())
-    files.push({ kind: "title", name: "Title Page", text: TITLE_PAGE_FILE });
+    // A play with a version keeps it on the page (docs/app/formatting/formats-and-layout.md#FMT-185).
+    files.push({
+      kind: "title",
+      name: "Title Page",
+      text: fm.version ? (withVersionLine(TITLE_PAGE_FILE) ?? TITLE_PAGE_FILE) : TITLE_PAGE_FILE,
+    });
   const notes = fm.openingNotes;
   const notesFile = (text: string): LegacyPageFile => ({
     kind: "setting",
@@ -569,16 +733,21 @@ export function legacyPageFiles(fm: FrontMatter | null | undefined): LegacyPageF
 export function pageBlockAt(text: string, paragraphId: string | null): number {
   const n = Number(/-(\d+)$/.exec(paragraphId ?? "")?.[1] ?? Number.NaN);
   if (!Number.isInteger(n)) return 0;
-  const { body } = readPageFile(text);
-  const lines = body.split("\n");
-  const at = lines.findIndex((line) => line.trim() === FOOT_MARK);
-  const main = at < 0 ? body : lines.slice(0, at).join("\n");
-  const mainParagraphs = openingParagraphs(main);
-  if (n < mainParagraphs.length) return mainParagraphs[n]!.block;
-  if (at < 0) return 0;
-  const foot = openingParagraphs(lines.slice(at + 1).join("\n"));
-  const mainBlocks = main.trim() ? parseBlocks(main).length : 0;
-  return mainBlocks + 1 + (foot[n - mainParagraphs.length]?.block ?? 0);
+  // The editor holds the file's blocks in order, each mark as one of its own.
+  const bands = pageBands(readPageFile(text).body);
+  const blocksOf = (markdown: string) => (markdown.trim() ? parseBlocks(markdown).length : 0);
+  let before = 0;
+  let from = 0;
+  for (const [i, band] of [bands.head, bands.main, bands.foot].entries()) {
+    if (band === null) continue;
+    const paragraphs = openingParagraphs(band);
+    if (n - before < paragraphs.length) return from + paragraphs[n - before]!.block;
+    // A paragraph past the page's last is the start of its foot, when it has one.
+    if (i === 2) return from;
+    before += paragraphs.length;
+    from += blocksOf(band) + 1;
+  }
+  return 0;
 }
 
 /**
@@ -595,10 +764,16 @@ export function frontPageList(fm: FrontMatter | null | undefined): FrontPageSour
   }));
 }
 
-/** Whether a name stands on a page as a whole word, in any case: how Cast says who a page lists. */
-export function namedOnPage(name: string, text: string): boolean {
+/**
+ * Whether a name stands on a page as a whole word, in any case: how Cast says
+ * who a page lists. A page that holds the cast as a field
+ * (docs/app/formatting/formats-and-layout.md#FMT-183) lists everyone who
+ * speaks, so it names whoever `speaks`.
+ */
+export function namedOnPage(name: string, text: string, speaks = false): boolean {
   const wanted = name.trim();
   if (!wanted) return false;
+  if (speaks && /\{cast[ }]/.test(text)) return true;
   const escaped = wanted.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^\\p{L}\\p{N}])${escaped}(?=$|[^\\p{L}\\p{N}])`, "iu").test(
     // Bold and italic marks around a name are not part of it.

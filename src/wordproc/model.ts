@@ -22,6 +22,7 @@
  * carries its own.
  */
 import type { BlockType, Doc, FrontMatter } from "../fountain/model";
+import { charAdvanceIn } from "../format/metrics";
 import {
   dualColumnsIn,
   elementColumnIn,
@@ -301,6 +302,16 @@ export interface WpParagraph {
   /** Its alignment, where that differs from its style's (front matter). */
   align?: ElementAlign;
   /**
+   * How far in from the text block's left it starts, where a writer put a
+   * block of a page at a cell (docs/app/formatting/formats-and-layout.md#FMT-182).
+   */
+  indentIn?: number;
+  /**
+   * Tab stops, from the text block's left: a row of a page where two blocks
+   * stand side by side is one paragraph, a tab before each block's words.
+   */
+  tabs?: { atIn: number; kind: ElementAlign }[];
+  /**
    * In a dual-dialogue cell, where the half's whole width is its column
    * (docs/app/formatting/formats-and-layout.md#FMT-100), and where nothing
    * keeps with the next paragraph: the row already keeps the pair together,
@@ -403,6 +414,7 @@ function furnitureAt(hf: HeaderFooterSpec, at: PagePosition, meta: LayoutMeta): 
       title: meta.title,
       author: meta.author,
       draftDate: meta.frontMatter?.draftDate,
+      version: meta.frontMatter?.version,
     }),
     page: PAGE_MARK,
   };
@@ -510,33 +522,134 @@ function frontStyle(kind: FrontSheet, line: FrontMatterLine): StyleKey {
  * new kind of sheet starts a page, as far down it as the engine put it. A
  * sheet the engine continued onto is the word processor's to break, so the
  * paragraph that opens it keeps the gap the format gives it after another.
+ *
+ * A block a writer put at a cell is indented by it. Where two blocks of a
+ * page stand side by side (docs/app/formatting/formats-and-layout.md#FMT-182),
+ * each row they share, and every other row of those blocks, is a paragraph
+ * of its own: each block's words at a tab stop where the engine put them.
  */
 function frontParagraphs(
   pages: readonly { kind: FrontSheet; lines: readonly FrontMatterLine[] }[],
+  spec: FormatSpec,
 ): WpParagraph[] {
+  const advance = charAdvanceIn(spec);
   const out: WpParagraph[] = [];
   let kind: FrontSheet | null = null;
   for (const page of pages) {
     const newKind = page.kind !== kind;
     kind = page.kind;
     let lastRow: number | null = null;
-    for (const line of page.lines) {
-      if (line.source) {
-        const gap =
-          lastRow !== null ? line.row - lastRow - 1 : newKind ? line.row : line.source.gapRows;
-        out.push({
-          kind: "p",
-          style: frontStyle(page.kind, line),
-          inlines: inlinesOf(line.source.text, line.source.runs),
-          align: line.align,
-          ...(gap > 0 ? { spaceBeforeRows: gap } : {}),
-          ...(lastRow === null && newKind && out.length ? { pageBreakBefore: true } : {}),
-        });
+    const push = (row: number, gapRows: number, paragraph: WpParagraph) => {
+      const gap: number = lastRow !== null ? row - lastRow - 1 : newKind ? row : gapRows;
+      out.push({
+        ...paragraph,
+        ...(gap > 0 ? { spaceBeforeRows: gap } : {}),
+        ...(lastRow === null && newKind && out.length ? { pageBreakBefore: true } : {}),
+      });
+    };
+    const shared = sharedRows(page.lines);
+    if (!shared.size) {
+      for (const line of page.lines) {
+        if (line.source)
+          push(line.row, line.source.gapRows, {
+            kind: "p",
+            style: frontStyle(page.kind, line),
+            inlines: inlinesOf(line.source.text, line.source.runs),
+            align: line.align,
+            ...(line.cell ? { indentIn: line.xIn } : {}),
+          });
+        lastRow = line.row;
       }
-      lastRow = line.row;
+      continue;
+    }
+    // Rows that blocks share, and the other rows of those blocks, go a row at
+    // a time; every other paragraph flows as it always has.
+    const tabbed = new Set(
+      page.lines.filter((line) => shared.has(line.row)).map((line) => line.paragraphId),
+    );
+    const units: {
+      id: string | null;
+      row: number;
+      last: number;
+      gapRows: number;
+      paragraph: WpParagraph | null;
+    }[] = [];
+    const rows = new Map<number, FrontMatterLine[]>();
+    for (const line of page.lines) {
+      if (tabbed.has(line.paragraphId)) {
+        const at = [...rows.keys()].find((row) => Math.abs(row - line.row) < 1) ?? line.row;
+        rows.set(at, [...(rows.get(at) ?? []), line]);
+        continue;
+      }
+      const open = units[units.length - 1];
+      if (!line.source && open?.id === line.paragraphId) open.last = line.row;
+      else
+        units.push({
+          id: line.paragraphId,
+          row: line.row,
+          last: line.row,
+          gapRows: line.source?.gapRows ?? 0,
+          paragraph: line.source
+            ? {
+                kind: "p",
+                style: frontStyle(page.kind, line),
+                inlines: inlinesOf(line.source.text, line.source.runs),
+                align: line.align,
+                ...(line.cell ? { indentIn: line.xIn } : {}),
+              }
+            : null,
+        });
+    }
+    for (const [row, lines] of rows) {
+      const across = [...lines].sort((a, b) => a.xIn - b.xIn);
+      const inlines: WpInline[] = [];
+      const tabs: NonNullable<WpParagraph["tabs"]> = [];
+      for (const [i, line] of across.entries()) {
+        const width = line.text.length * advance;
+        if (i || line.xIn > 0) {
+          inlines.push({ kind: "tab" });
+          tabs.push(
+            line.align === "center"
+              ? { atIn: line.xIn + width / 2, kind: "center" }
+              : line.align === "right"
+                ? { atIn: line.xIn + width, kind: "right" }
+                : { atIn: line.xIn, kind: "left" },
+          );
+        }
+        inlines.push(...inlinesOf(line.text, line.runs ?? []));
+      }
+      units.push({
+        id: null,
+        row,
+        last: row,
+        gapRows: 0,
+        paragraph: {
+          kind: "p",
+          style: frontStyle(page.kind, across[0]!),
+          inlines,
+          align: "left",
+          ...(tabs.length ? { tabs } : {}),
+        },
+      });
+    }
+    for (const unit of units.sort((a, b) => a.row - b.row)) {
+      if (unit.paragraph) push(unit.row, unit.gapRows, unit.paragraph);
+      lastRow = Math.max(lastRow ?? unit.last, unit.last);
     }
   }
   return out;
+}
+
+/** The rows of a sheet that hold more than one line: where blocks stand side by side. */
+function sharedRows(lines: readonly FrontMatterLine[]): Set<number> {
+  const shared = new Set<number>();
+  for (const [i, line] of lines.entries())
+    for (const other of lines.slice(0, i))
+      if (Math.abs(other.row - line.row) < 1) {
+        shared.add(line.row);
+        shared.add(other.row);
+      }
+  return shared;
 }
 
 /** The chosen pages in runs of consecutive printed numbers: an excerpt of 3–5 and 9 is two runs. */
@@ -602,6 +715,7 @@ export function buildDocument(input: WpInput): WpDocument {
 
   const front = frontParagraphs(
     selectFrontMatter(paginateFrontMatter(frontMatter, spec), input.frontSheets),
+    spec,
   );
   if (front.length) {
     sections.push(
@@ -659,7 +773,7 @@ export function buildDocument(input: WpInput): WpDocument {
     const intro = run
       .filter((page) => page.intro?.length)
       .map((page) => ({ kind: "title" as const, lines: page.intro! }));
-    section.items.push(...frontParagraphs(intro));
+    section.items.push(...frontParagraphs(intro, spec));
 
     const opening = section.items.length > 0;
     let prev: { type: BlockType | null; after: number } | null = opening
@@ -822,6 +936,7 @@ export function buildDocument(input: WpInput): WpDocument {
   // are written: the engine's rows, and no header, footer or page number.
   const back = frontParagraphs(
     selectFrontMatter(paginateBackMatter(frontMatter, spec), input.frontSheets),
+    spec,
   );
   if (back.length) {
     sections.push(

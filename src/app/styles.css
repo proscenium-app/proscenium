@@ -35,6 +35,7 @@
 @import "./styles/help.css";
 @import "./styles/title-page.css";
 @import "./styles/add-page.css";
+@import "./styles/play-sheets.css";
 @import "./styles/binder-scenes.css";
 @import "./styles/accessibility.css";
 /* The coarse-pointer pass lifts every control to 44 points on a finger, last so it wins. */

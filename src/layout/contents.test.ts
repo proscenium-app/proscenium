@@ -171,9 +171,9 @@ describe("a page that lists the contents", () => {
     expect(fieldValue("contents", fm(lines))).toBe(lines.join("\n"));
   });
 
-  it("prints its heading alone for a script with no act or scene", () => {
-    const [sheet] = layoutFrontPages(frontPagesFor(fm([]), dg.frontMatter), dg);
-    expect(sheet!.lines.map((l) => l.text)).toEqual(["CONTENTS"]);
+  it("prints nothing for a script with no act or scene: its heading alone is a page not yet written", () => {
+    // docs/app/formatting/formats-and-layout.md#FMT-183
+    expect(layoutFrontPages(frontPagesFor(fm([]), dg.frontMatter), dg)).toEqual([]);
   });
 
   it("is worth working out only for a play with such a page", () => {

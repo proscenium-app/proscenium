@@ -308,6 +308,8 @@ struct Quits {
     waiting: Vec<(u64, Sender<(bool, bool)>)>,
     /// The page said go, or the writer chose Quit Anyway: the app would be gone.
     gone: bool,
+    /// The update the last check's quit would have installed on its way out.
+    installs: Option<String>,
 }
 
 fn quits() -> MutexGuard<'static, Quits> {
@@ -321,6 +323,11 @@ fn quits() -> MutexGuard<'static, Quits> {
 /// The quit gate's next question is a check's (quit.rs `request_for_check`).
 pub fn quit_asked(id: u64) {
     quits().asked.push(id);
+}
+
+/// What a check's quit would install as it went (updates.rs `installs_at_quit`).
+pub fn quit_would_install(version: Option<String>) {
+    quits().installs = version;
 }
 
 /// The page heard question `id`.
@@ -481,7 +488,9 @@ pub enum Call {
     /// bytes keeps one, and the page told so.
     SavedCopy { rel: String, content: String },
     /// Quit, as ⌘Q does: the page is asked, and this answers what it said,
-    /// `{ heard, go }`, once it answers. The app is never ended by it.
+    /// `{ heard, go, installs }`, once it answers, `installs` naming the
+    /// update the quit would have installed on its way out. The app is never
+    /// ended by it.
     Quit,
     /// Whether the app would be gone: a check's quit the page said go to, or
     /// Quit Anyway after one.
@@ -703,7 +712,8 @@ pub async fn selftest_fixture(
                 match q.answers.iter().position(|(asked, _, _)| *asked == id) {
                     Some(at) => {
                         let (_, heard, go) = q.answers.remove(at);
-                        return Ok(json!({ "heard": heard, "go": go }));
+                        let installs = q.installs.take();
+                        return Ok(json!({ "heard": heard, "go": go, "installs": installs }));
                     }
                     None => {
                         let (tx, rx) = channel();
@@ -716,7 +726,8 @@ pub async fn selftest_fixture(
                 .await
                 .map_err(|e| e.to_string())?
                 .map_err(|e| e.to_string())?;
-            Ok(json!({ "heard": heard, "go": go }))
+            let installs = quits().installs.take();
+            Ok(json!({ "heard": heard, "go": go, "installs": installs }))
         }
         Call::QuitGone => Ok(json!(quits().gone)),
         Call::KeptAtQuit => Ok(json!(play_stores(&app)

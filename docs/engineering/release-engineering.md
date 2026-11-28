@@ -153,7 +153,7 @@ both on 2026-09-22, and they are withdrawn (docs/engineering/withdrawn-requireme
   nothing, still says where it stopped: `scripts/windows/smoke.ps1` says it as
   a failure, with what the exit code means and what the machine recorded, and
   for a run ended from outside runs every act once more from the start, the
-  second run's verdict the step's. Every check runs there, the faults it stages included
+  second run's verdict the step's. A browser that stalls under an act is its lane's ([REL-131](#REL-131)). Every check runs there, the faults it stages included
   (docs/engineering/release-engineering.md#REL-129). An act that stages what a
   PC does to a writer's files, another program holding a file open or Windows'
   Read-only, runs in this engine alone: its checks reach the act's Plays
@@ -194,6 +194,25 @@ both on 2026-09-22, and they are withdrawn (docs/engineering/withdrawn-requireme
   app for staging its fault through the in-memory vault
   (`scripts/selftest/fixture.test.ts`). An act made for one engine (`engines`)
   runs there alone, and the others say so.
+- <a id="REL-131"></a> **REL-131** **A browser is fresh every twenty acts, and
+  one that stalls is replaced.** Each act is a context of its own in a browser
+  its engine launched. A WebKit that has opened about sixty of them can stop
+  opening the next: three proofs, sixty acts an engine each, ended at their
+  sixtieth WebKit act with a page that never loaded and contexts that never
+  closed, one waiting sixteen hours with the host's bench held, each while a
+  Screen Sharing session was connected to the host and its display asleep. So
+  each engine's acts run in a lane (scripts/smoke-lane.mjs), in a pass and in
+  a proof. A browser opens twenty acts and the next is launched; one no act
+  is in any more is closed, and not waited on. An act whose page never loads,
+  or will not close within two minutes, has found its browser stalled: it is
+  run again in a fresh one, with any act that failed a check in that browser
+  while it stalled, since what a stalled browser says of a check counts for
+  nothing; an act that passed there, passed. The run says each stall, and
+  whether a Screen Sharing session is connected. A third stall in one run ends
+  it as a failure, and the real Windows app's first does, whose app each act
+  launches itself. `node scripts/smoke.mjs --acts <act> --stall-at <n>` stages
+  one, the lane's negative control: the run must say the stall and end as it
+  would have.
 
 **Acceptance** on the build host: three clean passes on `main` in a row, the negative control
 (`--break flex`) caught on the collapsed frame, snapshots of the real surfaces kept as the run's
@@ -434,6 +453,23 @@ draft release, which opens cleanly from a quarantined download.
     restart is the writer's choice. Editing is held before the whole workspace
     settles; the native save beacon must acknowledge a clean state before any
     install. An unreadable beacon is unsafe. A failed install releases editing.
+  - <a id="REL-133"></a> **REL-133** **A downloaded update installs as the app quits**, while
+    "Install updates automatically" is on (`installUpdatesAutomatically`, on by
+    default), so the next launch is the new version and nothing restarts that the
+    writer did not ask for. It installs only once the quit has gone ahead: the page
+    has settled and said go, and the save beacon reads clean again. Nothing opens
+    after it. On a Mac the bundle is exchanged off the main thread while AppKit
+    holds the quit, which ends when the install does, whether it worked or not; a
+    failed install leaves the app as it was and the next launch finds the update
+    again. On Windows the installer is started passively with no restart after it,
+    and never for a sign-out or shutdown Windows asked about, which would cut it
+    short. Restart to Update installs at once either way. A test build answers a
+    check's quit with the update it would have installed, and installs nothing.
+  - <a id="REL-132"></a> **REL-132** **A waiting update is said for as long as it waits.** The
+    notice comes once each launch, and the status bar holds a Restart to Update
+    button naming the version on every launch until it is installed, its title
+    saying whether it will install at quit. It reads Installing while an install
+    runs.
   - <a id="REL-64"></a> **REL-64** The app menu gets "Check for Updates…". The Updates section in Settings
     (T3a's slot) has the switch, Check Now, the current version and the release
     notes link. Once an update is downloaded the link names it, "What’s new in

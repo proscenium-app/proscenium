@@ -197,8 +197,9 @@ describe("Windows' menu bar (src-tauri/src/menu.rs)", () => {
     setKeyStyle("pc");
     expect(macItems.length).toBeGreaterThan(30);
     for (const [id, mac] of macItems) {
-      // Import a Draft has no chord on a PC: Ctrl+Shift+I is the Inspector's.
-      const want = id === "import-draft" ? undefined : keys(inTable(mac));
+      // Import a Draft has no chord on a PC: Ctrl+Shift+I is the Inspector's;
+      // nor Save As: Ctrl+Shift+S is Scene Heading's.
+      const want = id === "import-draft" || id === "save-as" ? undefined : keys(inTable(mac));
       expect([id, pcKeys.get(id)]).toEqual([id, want]);
     }
     const shown = [...pcKeys.values()];

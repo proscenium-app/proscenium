@@ -1,0 +1,11 @@
+- dialog "Rename Play"
+  - heading "Rename Play" [level=2]
+  - paragraph
+  - none
+  - textbox "Name"
+  - checkbox "Put the new name on the title page" [checked]
+  - paragraph
+  - button "Cancel"
+  - button "Rename" [disabled]
+  - status [live=polite]
+  - alert [live=assertive]

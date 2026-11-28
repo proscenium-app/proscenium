@@ -12,6 +12,7 @@
 import { systemWords } from "../ui/system-words";
 import { Chip, WarnIcon } from "../ui";
 import type { SaveStatus } from "./useWorkspace";
+import { UpdateReady } from "./UpdateReady";
 import { WatcherStatus } from "./WatcherStatus";
 
 const STATUS_LABEL: Record<SaveStatus, string> = {
@@ -43,6 +44,8 @@ export function StatusBar({
   formatWarnings,
   conflictCopies,
   preserved,
+  saveNote = false,
+  updateAtQuit,
   children,
 }: {
   root: string | null;
@@ -57,10 +60,22 @@ export function StatusBar({
   formatWarnings: string[];
   conflictCopies: unknown[];
   preserved: unknown[];
+  /**
+   * The writer asked for a Save: the status says Proscenium saves as they
+   * write (docs/app/keeping-work/storage-and-file-format.md#STOR-201).
+   */
+  saveNote?: boolean;
+  /** Whether a waiting update installs as the app quits (Settings › Updates). */
+  updateAtQuit: boolean;
   /** The zoom stepper, which only exists while a script is open. */
   children?: React.ReactNode;
 }) {
-  const label = STATUS_LABEL[status];
+  const asked = saveNote && (status === "saved" || status === "idle");
+  const label = asked
+    ? `Saved${status === "saved" && savedTime ? ` · ${savedTime}` : ""} · Proscenium saves as you write`
+    : status === "saved" && savedTime
+      ? `Saved · ${savedTime}`
+      : STATUS_LABEL[status];
   return (
     <footer className="statusbar">
       {root &&
@@ -96,13 +111,14 @@ export function StatusBar({
         </Chip>
       )}
       <span className="statusbar__spacer" />
+      <UpdateReady atQuit={updateAtQuit} />
       <WatcherStatus root={root} />
       {label && (
         <span
           className={`savestatus${status === "conflict" || status === "unsaved" ? " savestatus--conflict" : ""}`}
           data-tutorial="save-status"
         >
-          {status === "saved" && savedTime ? `Saved · ${savedTime}` : label}
+          {label}
         </span>
       )}
       {children && (

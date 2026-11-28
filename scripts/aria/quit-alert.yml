@@ -37,6 +37,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: in Characters
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -72,6 +73,7 @@
     - text: that quiet is just absence, not peace.
     - strong: "Voice:"
     - text: short sentences. Precise nouns. Doesn't finish the sentimental ones. WORDS KEPT NOWHERE
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Sheet" [selected]

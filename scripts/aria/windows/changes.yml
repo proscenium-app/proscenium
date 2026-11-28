@@ -45,11 +45,13 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
   - paragraph: No changes yet
   - paragraph: Your writing sessions show up here as you write, and so does anything changed on another device or in another editor, each with a way back.
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

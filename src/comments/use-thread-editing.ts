@@ -16,7 +16,7 @@ import { addReply, commentDraft, deleteComment, resolveThread, saveCommentText }
 import type { CommentFocus } from "./focus";
 import { cleanCommentName, signComment } from "./model";
 import { commentsState, type CommentThread, type PmCommentEntry } from "./plugin";
-import { holdOpenComment } from "./settle";
+import { holdOpenComment, takeNewComment } from "./settle";
 import { settingsStore, updateSettings } from "../ui/settings-store";
 
 export interface ThreadEditing {
@@ -110,11 +110,15 @@ export function useThreadEditing({
       return;
     }
     if (editingId === thread.root.id) return;
+    // Typed on the other surface until it lost its room, or until this one
+    // came back to it: the words come with the comment, and the field there
+    // closes (docs/app/writing/comments.md#COMM-79).
+    const typed = takeNewComment(editor, thread.root.id);
     setEditingId(thread.root.id);
     setNewId(thread.root.id);
     setReplyingId(null);
-    setDraft("");
-    setName(settingsStore.getSnapshot().commentName);
+    setDraft(typed?.draft ?? "");
+    setName(typed?.name ?? settingsStore.getSnapshot().commentName);
     // `live` and `beginReply` read the editor; the request is what changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, takesNew, request.focusPos, request.composing, request.replying]);
@@ -266,7 +270,16 @@ export function useThreadEditing({
         close();
       }
     };
-    const release = holdOpenComment(editor, settle);
+    // The new comment `id`, taken over by the other surface: its words go
+    // there, and the field here closes.
+    const handOver = (id: string) => {
+      const field = fieldRef.current;
+      if (field.editingId !== id || field.newId !== id) return null;
+      fieldRef.current = { ...field, editingId: null, newId: null, replyingId: null, draft: "" };
+      close();
+      return { draft: field.draft, name: field.name };
+    };
+    const release = holdOpenComment(editor, { settle, handOver });
     return release;
     // `close` only sets this hook's state, which is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -54,6 +54,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -68,10 +69,13 @@
     - button "Numbered list":
       - img
     - button "Insert Field"
+  - button "Move"
+  - 'button "Move to the Recycle Bin: Title Page"'
   - button "Change Template…"
   - button "Done"
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

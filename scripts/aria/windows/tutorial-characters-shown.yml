@@ -35,6 +35,7 @@
     - group "Notes": Empty
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - heading "Cast" [level=1]
   - paragraph: Who speaks, where, and which page of the play names them. Those pages are written in the script’s page view, where they print.
@@ -78,6 +79,7 @@
         - cell "0"
         - cell "2"
         - cell
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

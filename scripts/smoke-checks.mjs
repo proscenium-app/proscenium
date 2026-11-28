@@ -136,6 +136,28 @@ export const ACTS = [
     ],
   },
   {
+    name: "a whole play",
+    start: "plays",
+    features: ["app", "workspace"],
+    what: "A play as a whole: Save's answer, a saved draft and Save As inside it, and a play renamed, duplicated, begun again from its setup, and exported as one .zip that adds back as a play.",
+    checks: [
+      "docs/app/keeping-work/storage-and-file-format.md#STOR-201 · ⌘S says the play is saved, and that Proscenium saves as you write",
+      "docs/app/keeping-work/storage-and-file-format.md#STOR-203 · a draft kept from Save As, read in its sheet, and restored to its script",
+      "docs/app/organizing/workspace-model.md#WORK-95 · Save As says the play is saved, and makes the copy asked for",
+      "docs/app/keeping-work/storage-and-file-format.md#STOR-208 · a play renamed from inside and from its row, its title page and script following",
+      "docs/app/keeping-work/storage-and-file-format.md#STOR-197 · a play duplicated from its row opens as a play of its own",
+      "docs/app/keeping-work/storage-and-file-format.md#STOR-198 · New Play Like This keeps the setup and none of the writing",
+      "docs/app/keeping-work/storage-and-file-format.md#STOR-199 · Export Play gives the whole play as one .zip, which adds back as a play of its own",
+    ],
+  },
+  {
+    name: "the menu bar's keys",
+    start: "play",
+    features: ["app"],
+    what: "Each key the menu bar takes, pressed while the writer types in the script: the keyboard is still somewhere afterwards, the script for a key that changes nothing about where the writer is.",
+    checks: ["the menu bar's keys leave the keyboard where the writer was typing"],
+  },
+  {
     name: "plays folder",
     start: "plays",
     features: ["storage"],
@@ -224,10 +246,11 @@ export const ACTS = [
     name: "panes",
     start: "play",
     features: ["app"],
-    what: "A play in several panes: one closed by its box, its key and its divider, and a window with no room for one.",
+    what: "A play in several panes: one closed by its box, its key and its divider, and a window with no room for one; and the binder and inspector resized by their edge, within their range.",
     checks: [
       "panes · a pane of several closes by its box, its key and a divider dragged across it",
       "panes · a window with no room hides a pane, says so, and makes no new one",
+      "rails · the binder and the inspector resize by their edge, within their range",
     ],
   },
   {
@@ -254,6 +277,7 @@ export const ACTS = [
       "names in directions · a name typed goes to capitals, and ⌘Z or Backspace takes it back",
       "names in directions · the document menu capitalizes a script's names, all but the one unticked",
       "cues · Backspace and Delete leave a cue over its speech",
+      "cues · a character line with no name goes with Backspace or Delete, and Undo brings it back",
     ],
   },
   {
@@ -276,6 +300,7 @@ export const ACTS = [
       "pages before the script · the folder of pages is asked about before it goes, and Undo puts it back",
       "pages after the script · a page added after the script is written, printed and exported there",
       "pages before the script · ending a page leaves the script's caret where it was",
+      "pages before the script · Play Version… prints the version on the title page and in the header or footer",
       "a new play starts with its title page in the binder, and asks for its author where the name prints",
     ],
   },
@@ -298,6 +323,37 @@ export const ACTS = [
     checks: [
       "contents · Add Page lists Contents after the Epigraph, and the page prints each act and scene with its page",
       "contents · a scene moved to a later page, or renamed, changes its row once the script is saved",
+    ],
+  },
+  {
+    name: "placed blocks",
+    start: "inspector",
+    features: ["editor", "layout"],
+    what: "A block of a page stands where its writer puts it: a line of the title page moved a row or a cell by the keys and the Move menu with the caret still in it, dragged by its handle to the top of the page and beside another, each written to the page's file as the rows above it, its cell and what it stands beside, with every other line where it was; and a blank line left on a page kept and printed as a blank row.",
+    checks: [
+      "placed blocks · a line of the title page moves by the keys and the Move menu, and prints where it is put",
+      "placed blocks · a block dragged by its handle goes to the top of the page and beside another, and nothing else moves",
+      "placed blocks · a blank line left on a page is kept in its file and prints as a blank row",
+    ],
+  },
+  {
+    name: "pages removed",
+    start: "inspector",
+    features: ["workspace", "layout", "editor"],
+    what: "Any page of a play goes to the Trash from where it is written, the title page too: a play begun blank has a title page and a Characters page, the Characters page with nothing on it prints nothing and stands as a sheet to click, and the Trash in a page's bar takes the page's file, its row and its sheet, which the toast's Undo puts back.",
+    checks: [
+      "pages removed · a new play's Characters page and its title page go to the Trash from the page, and Undo puts each back",
+    ],
+  },
+  {
+    name: "components",
+    start: "inspector",
+    features: ["layout", "workspace", "editor"],
+    what: "A page's components, which follow the script and have settings of their own: the Contents with a button beside them that takes the page numbers off their acts, written in the component's own braces and printed so; the Cast listing everyone who speaks and turning into words of the page; and a new play's Characters page printing nothing until someone speaks, then its heading and their names, with Cast saying the page names them.",
+    checks: [
+      "components · the Contents' own settings take the page numbers off its acts, and put them back",
+      "components · the Cast lists who speaks, and turns into words of the page",
+      "components · a new play's Characters page fills itself as its characters speak",
     ],
   },
   {
@@ -341,7 +397,7 @@ export const ACTS = [
     name: "comments",
     start: "inspector",
     features: ["comments"],
-    what: "Comment actions, a comment typed where there is no room for a card, replies and the name they are signed with, selecting a comment's words, a comment made on a selection, a comment at the end of a parenthetical, a long comment that leaves the page still, and a comment left open when the play is left.",
+    what: "Comment actions, a comment typed where there is no room for a card, replies and the name they are signed with, selecting a comment's words, a comment made on a selection, a comment at the end of a parenthetical, a long comment that leaves the page still, a comment's field that keeps the keyboard from the menu's items for the script and goes with its words between card and feed, and a comment left open when the play is left.",
     checks: [
       "comment actions retain focus and announce the remaining count",
       "a comment with no room for a card is typed in the feed, signed and answered",
@@ -349,6 +405,8 @@ export const ACTS = [
       "a comment made on a selection is about the words selected",
       "a comment at the end of a parenthetical keeps its closing paren on the line",
       "a comment typed past its field's lines is shown whole, and the page holds still",
+      "a comment being typed keeps the keyboard from the menu's items for the script",
+      "a new comment's field goes with its words between its card and the feed",
       "a comment still being typed when the play is left is kept, and an empty one is not",
       "comments · a finger held on a comment's words lets the script go, and a tap leaves it",
       "comments · a caret where a stretch begins stands in the words before it",
@@ -437,6 +495,7 @@ export const ACTS = [
       "settings · a store copy offers no update controls",
       "settings · a refused status or word says why",
       "an installing update holds edits and a failure releases them",
+      "updates · a waiting update stays in the status bar, and installs at quit",
       "the page names its chrome as its theme colour, light and dark",
     ],
   },
@@ -553,6 +612,7 @@ export const ACTS = [
       "copies kept during a save are readable in Changes",
       "alternate event spelling gates unsaved words and Keep this preserves theirs",
       "versions · a restore lands in the script it was chosen from, or nowhere",
+      "saving · a script that cannot be read is logged as one",
       "sheets · leaving the play keeps a sheet's last words",
       "binder · an op waiting on a slow write never runs in the Plays folder",
       "board · a scene moved while the writer types keeps both",
@@ -1526,6 +1586,579 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      name: "docs/app/keeping-work/storage-and-file-format.md#STOR-201 · ⌘S says the play is saved, and that Proscenium saves as you write",
+      feature: "app",
+      async run(page) {
+        // A Save the writer asks for says what is true: saved, and that Save is
+        // never needed. The next word typed takes the sentence back.
+        await newPlayNamed(page, "Lamplight");
+        // Where the keyboard went, and when, for a failure to say: from before
+        // the script is given it, so a keyboard that never reached the script,
+        // or an editor replaced under it (which fires no focus event), is not
+        // taken for Save's.
+        await page.evaluate(() => {
+          const t0 = performance.now();
+          const trail = [];
+          window.__saveTrail = trail;
+          const name = (el) =>
+            !el ? "nothing" : el === document.body ? "body" : `${el.tagName.toLowerCase()}.${[...el.classList].join(".")}`.slice(0, 40);
+          for (const type of ["focusin", "focusout"])
+            document.addEventListener(
+              type,
+              (e) => trail.push(`${Math.round(performance.now() - t0)} ms ${type} ${name(e.target)} → ${name(e.relatedTarget)}`),
+              true,
+            );
+          for (const type of ["blur", "focus"])
+            window.addEventListener(type, (e) => e.target === window && trail.push(`${Math.round(performance.now() - t0)} ms window ${type}`));
+        });
+        // The new play open, then the script given the keyboard by the editor
+        // itself, and holding it when Save is pressed. The page is drawn
+        // before the open is done: until the script is read the editor holds
+        // one blank line and takes no typing, and a focus sent then lands
+        // nowhere. In the real app, on a slower first start, that is where
+        // the keyboard was, on the page and not in the script.
+        await page.waitForSelector(
+          '.paneroot[data-settled] .ProseMirror[aria-label="Script"][contenteditable="true"]',
+          { timeout: 20000 },
+        );
+        await page.evaluate(pageSettles, SETTLE_TIMEOUT_MS);
+        await focusScriptAtCaret(page);
+        const held = await page.evaluate(() => {
+          window.__saveHeld = document.activeElement;
+          const script = document.querySelector('.ProseMirror[aria-label="Script"]');
+          return !!script?.contains(document.activeElement);
+        });
+        if (!held)
+          throw new Error(
+            `before Save the keyboard is on ${await page.evaluate(() => window.__saveTrail.join("; ") || "nothing that moved")}, not the script`,
+          );
+        await page.keyboard.press("Meta+KeyS");
+        const said = await until(page, "Save's answer in the status bar", () => {
+          const text = document.querySelector(".savestatus")?.textContent ?? "";
+          return text.includes("saves as you write") ? text : null;
+        });
+        if (!/^Saved( · [^·]+)? · Proscenium saves as you write$/.test(said))
+          throw new Error(`the status bar says "${said}"`);
+        // The writer goes on typing: Save left the keyboard in the script.
+        const where = await until(
+          page,
+          "the keyboard after Save",
+          () => {
+            const script = document.querySelector('.ProseMirror[aria-label="Script"]');
+            return script?.contains(document.activeElement) ? "the script" : null;
+          },
+          undefined,
+          3000,
+        ).catch(() =>
+          page.evaluate(async () => {
+            const a = document.activeElement;
+            const responder = window.__TAURI_INTERNALS__
+              ? (await window.__TAURI_INTERNALS__.invoke("selftest_input_facts").catch(() => null))?.firstResponder
+              : undefined;
+            const before = window.__saveHeld;
+            const editor = !before ? "nothing held before Save" : before.isConnected ? "the script it had before Save still in the page" : "the script it had before Save replaced";
+            return `${a ? `${a.tagName.toLowerCase()}.${[...a.classList].join(".")}` : "nothing"} (first responder ${responder ?? "not asked"}; ${editor}; ${window.__saveTrail.join("; ") || "no focus moved"})`;
+          }),
+        );
+        if (where !== "the script") throw new Error(`after Save the keyboard is on ${where}, not the script`);
+        await toScriptEnd(page);
+        await page.keyboard.type(" Rain.");
+        await until(
+          page,
+          "the answer gone once a word is typed",
+          () => !(document.querySelector(".savestatus")?.textContent ?? "").includes("saves as you write"),
+        );
+        await saveOfEdit(page);
+      },
+    },
+    {
+      name: "docs/app/keeping-work/storage-and-file-format.md#STOR-203 · a draft kept from Save As, read in its sheet, and restored to its script",
+      feature: "app",
+      async run(page) {
+        // Still in Lamplight, saved, its last word " Rain.". File › Save As….
+        await page.evaluate(() => window.__prosceniumMenu("save-as"));
+        await page.waitForSelector(".sheet .saveas", { timeout: 5000 });
+        const chosen = await page.locator(".saveas__radio:checked").getAttribute("value");
+        if (chosen !== "draft") throw new Error(`Save As opens on "${chosen}", not A Draft to Keep`);
+        const field = page.locator(".saveas__field");
+        if (!(await field.inputValue()).startsWith("Lamplight, "))
+          throw new Error(`the draft is named "${await field.inputValue()}"`);
+        await field.fill("Before the reading");
+        await page.getByRole("button", { name: "Save Draft", exact: true }).click();
+        await page.waitForSelector(".sheet .saveas", { state: "detached", timeout: 10000 });
+        const toast = await until(
+          page,
+          "the draft's toast",
+          () => document.querySelector(".toast .toast__title")?.textContent || null,
+        );
+        if (toast !== "Saved the draft “Before the reading”") throw new Error(`the toast says "${toast}"`);
+        const kept = await page.evaluate(async () => {
+          const play = JSON.parse((await window.__prosceniumPeek("Lamplight.proscenium")) ?? "{}");
+          return {
+            play,
+            draft: await window.__prosceniumPeek("Drafts/Before the reading.fountain"),
+            script: await window.__prosceniumPeek("Lamplight.fountain"),
+          };
+        });
+        const records = Object.values(kept.play.drafts ?? {});
+        if (records.length !== 1 || kept.play.schemaVersion !== 2)
+          throw new Error(`the play file holds ${records.length} drafts at schema ${kept.play.schemaVersion}`);
+        if (!kept.draft || kept.draft !== kept.script)
+          throw new Error("the draft does not hold the script's words as they stood");
+
+        // Opened from the toast: the draft as it was kept, read-only.
+        await page.locator(".toast .toast__action", { hasText: "Open" }).click();
+        await page.waitForSelector(".sheet .draftsheet .ProseMirror", { timeout: 10000 });
+        await visible(page, ".sheet .draftsheet", { minWidth: 400, minHeight: 200 });
+        const sub = await page.locator(".sheet__sub").innerText();
+        if (!sub.startsWith("A saved draft of “Lamplight” · "))
+          throw new Error(`the draft's sheet says "${sub}"`);
+        if ((await page.locator(".draftsheet .ProseMirror").getAttribute("contenteditable")) !== "false")
+          throw new Error("the draft can be written in");
+        await audit(page, "a saved draft");
+        await page.getByRole("button", { name: "Done", exact: true }).click();
+        await page.waitForSelector(".sheet .draftsheet", { state: "detached", timeout: 5000 });
+        await dismissToasts(page);
+
+        // The script goes on; the draft, from the binder, shows what changed since.
+        await page.locator(".ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.type(" Wind.");
+        await saveOfEdit(page);
+        await page.locator(".binder__row", { hasText: /^Drafts$/ }).first().click();
+        await page.locator(".binder__row", { hasText: "Before the reading" }).first().click();
+        await page.waitForSelector(".sheet .draftsheet .ProseMirror", { timeout: 10000 });
+        await page.getByRole("tab", { name: "What “Lamplight” Has Changed Since" }).click();
+        await until(
+          page,
+          "the word written since, marked",
+          () =>
+            [...document.querySelectorAll(".draftsheet .redline-add")].some((n) =>
+              n.textContent?.includes("Wind"),
+            ) || null,
+        );
+
+        // Restore: asked first, Cancel as ⏎'s answer; then the script has the draft's words.
+        await page.getByRole("button", { name: "Restore to “Lamplight”…", exact: true }).click();
+        await page.waitForSelector('[role="alertdialog"]', { timeout: 5000 });
+        await page.keyboard.press("Enter");
+        await page.waitForSelector('[role="alertdialog"]', { state: "detached", timeout: 5000 });
+        if (!(await page.locator(".sheet .draftsheet").count()))
+          throw new Error("⏎ on the question went on with the restore");
+        await page.getByRole("button", { name: "Restore to “Lamplight”…", exact: true }).click();
+        await page.locator(".alert__actions").getByRole("button", { name: "Restore", exact: true }).click();
+        await page.waitForSelector(".sheet .draftsheet", { state: "detached", timeout: 10000 });
+        await until(
+          page,
+          "the script back to the draft's words",
+          async () => {
+            const text = await window.__prosceniumPeek("Lamplight.fountain");
+            return text && text.includes("Rain.") && !text.includes("Wind.") ? true : null;
+          },
+          undefined,
+          15000,
+        );
+        await until(page, "no save waiting or under way", saveSettled, undefined, 15000);
+        await dismissToasts(page);
+      },
+    },
+    {
+      name: "docs/app/organizing/workspace-model.md#WORK-95 · Save As says the play is saved, and makes the copy asked for",
+      feature: "app",
+      async run(page) {
+        // Still in Lamplight. File › Save As… first, as the menu bar sends it
+        // (⌘⇧S on a Mac is the menu bar's), then the document menu's.
+        const open = async () => {
+          await openFromDocumentMenu(page, /^Save As…/);
+          await page.waitForSelector(".sheet .saveas", { timeout: 5000 });
+        };
+        await page.evaluate(() => window.__prosceniumMenu("save-as"));
+        await page.waitForSelector(".sheet .saveas", { timeout: 5000 });
+        await visible(page, ".sheet .saveas", { minWidth: 300, minHeight: 150 });
+        const saved = await page.locator(".saveas__saved").innerText();
+        if (!saved.startsWith("“Lamplight” is saved. Proscenium saves as you write"))
+          throw new Error(`the sheet opens with "${saved}"`);
+        const chosen = () => page.locator(".saveas__radio:checked").getAttribute("value");
+        if ((await chosen()) !== "draft") throw new Error(`the sheet opens on "${await chosen()}"`);
+        await page.locator(".saveas__choice", { hasText: "A New Play" }).click();
+        if ((await chosen()) !== "play") throw new Error("A New Play was not chosen");
+        const field = page.locator(".saveas__field");
+        if ((await field.inputValue()) !== "Lamplight copy")
+          throw new Error(`the copy is named "${await field.inputValue()}"`);
+        await audit(page, "Save As");
+
+        // Another Script: a copy of the script beside it, under the name typed, opened.
+        await page.locator(".saveas__choice", { hasText: "Another Script" }).click();
+        if ((await chosen()) !== "script") throw new Error("Another Script was not chosen");
+        await field.fill("Lamplight, by rain");
+        await page.getByRole("button", { name: "Duplicate Script", exact: true }).click();
+        await page.waitForSelector(".sheet .saveas", { state: "detached", timeout: 10000 });
+        const copy = await until(page, "the script's copy on disk", async () =>
+          (await window.__prosceniumPeek("Lamplight, by rain.fountain")) ?? null,
+        );
+        if (!copy.includes("Rain.")) throw new Error("the copy does not hold the script's words");
+        await until(
+          page,
+          "the copy in front",
+          () => document.querySelector(".doctitle__label")?.textContent === "Lamplight, by rain",
+        );
+
+        // Another Kind of File: Fountain goes straight to its export.
+        const before = (await page.evaluate(() => window.__prosceniumExported())).length;
+        await open();
+        await page.locator(".saveas__choice", { hasText: "Another Kind of File" }).click();
+        await page.locator(".saveas__detail .popupbtn").click();
+        await page.locator(".menu .menu__item", { hasText: /^Fountain$/ }).click();
+        await page.getByRole("button", { name: "Continue…", exact: true }).click();
+        const file = await until(
+          page,
+          "the Fountain export",
+          async (n) => (await window.__prosceniumExported())[n] ?? null,
+          before,
+          30000,
+        );
+        if (file.name !== "Lamplight, by rain.fountain")
+          throw new Error(`Save As exported "${file.name}"`);
+        await dismissToasts(page);
+
+        // Versions… in its foot: Changes, on the writer's own versions.
+        await open();
+        await page.locator(".sheet__foot").getByRole("button", { name: "Versions…", exact: true }).click();
+        await page.waitForSelector(".sheet .saveas", { state: "detached", timeout: 5000 });
+        const tab = await until(
+          page,
+          "Changes on the writer's own versions",
+          () =>
+            document.querySelector('.changes__bar [role="tab"][aria-selected="true"]')?.textContent ??
+            null,
+        );
+        if (tab.trim() !== "Mine") throw new Error(`Versions… opened Changes on "${tab}"`);
+      },
+    },
+    {
+      name: "docs/app/keeping-work/storage-and-file-format.md#STOR-208 · a play renamed from inside and from its row, its title page and script following",
+      feature: "app",
+      async run(page) {
+        const sheet = ".sheet .playname";
+        const name = page.locator(".playname__field");
+        await newPlayNamed(page, "Night Ferry");
+
+        // From inside: its title page says its name, so the sheet asks, ticked.
+        await openFromDocumentMenu(page, /^Rename Play…/);
+        await page.waitForSelector(sheet, { timeout: 5000 });
+        await visible(page, sheet, { minWidth: 280, minHeight: 80 });
+        if ((await name.inputValue()) !== "Night Ferry")
+          throw new Error(`the field opens holding "${await name.inputValue()}"`);
+        const box = page.getByRole("checkbox", { name: "Put the new name on the title page" });
+        if ((await box.getAttribute("aria-checked")) !== "true")
+          throw new Error("the title page's box is not ticked");
+        await audit(page, "rename a play");
+        // A name another play has is said, and the field keeps what was typed.
+        await name.fill("The Weight of Water");
+        await page.getByRole("button", { name: "Rename", exact: true }).click();
+        const refused = await until(page, "the name refused", () => {
+          const said = document.querySelector(".playname__said.is-error")?.textContent;
+          return said || null;
+        });
+        if (!refused.includes("already in your Plays folder"))
+          throw new Error(`a taken name is answered "${refused}"`);
+        if ((await name.getAttribute("aria-invalid")) !== "true")
+          throw new Error("the field does not say its name is refused");
+        await name.fill("Morning Ferry");
+        await page.keyboard.press("Enter");
+        await page.waitForSelector(sheet, { state: "detached", timeout: 15000 });
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        // Opened again at once, so the script has taken the name already.
+        const play = await until(page, "the play file with its script renamed", async () => {
+          const raw = await window.__prosceniumPeek("Morning Ferry.proscenium");
+          const data = raw ? JSON.parse(raw) : null;
+          return data && !("renamedFrom" in data) &&
+            data.binder.some((i) => i.type === "script" && i.path === "Morning Ferry.fountain")
+            ? data
+            : null;
+        }, undefined, 20000);
+        if (!play) throw new Error("the play file was not read");
+        const script = await page.evaluate(() => window.__prosceniumPeek("Morning Ferry.fountain"));
+        if (!script?.startsWith("Title: Morning Ferry\n"))
+          throw new Error(`the title page begins "${script?.split("\n")[0]}"`);
+        await until(page, "no save waiting or under way", saveSettled, undefined, 15000);
+
+        // From its row, with the title page left as it is: the Plays screen stays.
+        await allPlays(page);
+        await page
+          .getByRole("button", { name: "More actions for “Morning Ferry”", exact: true })
+          .click();
+        await page.locator(".menu .menu__item", { hasText: /^Rename…$/ }).click();
+        await page.waitForSelector(sheet, { timeout: 5000 });
+        await box.click();
+        if ((await box.getAttribute("aria-checked")) !== "false")
+          throw new Error("the title page's box did not untick");
+        await name.fill("Evening Ferry");
+        await page.getByRole("button", { name: "Rename", exact: true }).click();
+        await page.waitForSelector(sheet, { state: "detached", timeout: 15000 });
+        const toast = await until(
+          page,
+          "the rename's toast",
+          () => document.querySelector(".toast .toast__title")?.textContent || null,
+        );
+        if (toast !== "“Morning Ferry” is now “Evening Ferry”")
+          throw new Error(`the toast says "${toast}"`);
+        await page.locator(".playrow--play", { hasText: "Evening Ferry" }).waitFor({ timeout: 10000 });
+        const moved = await page.evaluate(async () => {
+          const raw = await window.__prosceniumPeek("Evening Ferry/Evening Ferry.proscenium");
+          return {
+            play: raw ? JSON.parse(raw) : null,
+            script: await window.__prosceniumPeek("Evening Ferry/Morning Ferry.fountain"),
+            old: await window.__prosceniumPeek("Morning Ferry/Morning Ferry.proscenium"),
+          };
+        });
+        if (moved.old) throw new Error("the old folder still holds the play");
+        if (moved.play?.renamedFrom !== "Morning Ferry")
+          throw new Error(`the play file says renamedFrom "${moved.play?.renamedFrom}"`);
+        if (!moved.script?.startsWith("Title: Morning Ferry\n"))
+          throw new Error("the title page changed with its box unticked");
+        await dismissToasts(page);
+      },
+    },
+    {
+      name: "docs/app/keeping-work/storage-and-file-format.md#STOR-197 · a play duplicated from its row opens as a play of its own",
+      feature: "app",
+      async run(page) {
+        // On the Plays screen, where the rename left it.
+        const original = await page.evaluate(async () =>
+          JSON.parse((await window.__prosceniumPeek("Evening Ferry/Evening Ferry.proscenium")) ?? "{}"),
+        );
+        await page
+          .getByRole("button", { name: "More actions for “Evening Ferry”", exact: true })
+          .click();
+        await page.locator(".menu .menu__item", { hasText: /^Duplicate…$/ }).click();
+        await page.waitForSelector(".sheet .playname", { timeout: 5000 });
+        const name = page.locator(".playname__field");
+        if ((await name.inputValue()) !== "Evening Ferry copy")
+          throw new Error(`the copy is named "${await name.inputValue()}"`);
+        await audit(page, "duplicate a play");
+        await page.getByRole("button", { name: "Duplicate", exact: true }).click();
+        await page.waitForSelector(".sheet .playname", { state: "detached", timeout: 15000 });
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        const copy = await until(page, "the copy's play file", async () => {
+          const raw = await window.__prosceniumPeek("Evening Ferry copy.proscenium");
+          return raw ? JSON.parse(raw) : null;
+        }, undefined, 20000);
+        if (!original.id || copy.id === original.id)
+          throw new Error("the copy has the original's id");
+        if ("renamedFrom" in copy) throw new Error("the copy says a rename it never had");
+        // Its script is named for the copy, and holds the original's words.
+        if (!copy.binder.some((i) => i.type === "script" && i.path === "Evening Ferry copy.fountain"))
+          throw new Error("the copy's script is not named for the copy");
+        const words = await page.evaluate(() => window.__prosceniumPeek("Evening Ferry copy.fountain"));
+        if (!words?.startsWith("Title: Morning Ferry\n"))
+          throw new Error("the copy's title page is not the original's");
+        await until(page, "no save waiting or under way", saveSettled, undefined, 15000);
+      },
+    },
+    {
+      name: "docs/app/keeping-work/storage-and-file-format.md#STOR-198 · New Play Like This keeps the setup and none of the writing",
+      feature: "app",
+      async run(page) {
+        await allPlays(page);
+        await page
+          .getByRole("button", { name: "More actions for “Evening Ferry”", exact: true })
+          .click();
+        await page.locator(".menu .menu__item", { hasText: /^New Play Like This…$/ }).click();
+        await page.waitForSelector(".sheet .playname", { timeout: 5000 });
+        const create = page.getByRole("button", { name: "Create Play", exact: true });
+        if (!(await create.isDisabled())) throw new Error("Create Play is ready with no name");
+        await audit(page, "new play like this");
+        await page.locator(".playname__field").fill("Harbour Lights");
+        await create.click();
+        await page.waitForSelector(".sheet .playname", { state: "detached", timeout: 15000 });
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        const made = await until(page, "the new play's file", async () => {
+          const raw = await window.__prosceniumPeek("Harbour Lights.proscenium");
+          return raw ? JSON.parse(raw) : null;
+        }, undefined, 20000);
+        const script = made.binder.find((i) => i.type === "script");
+        if (script?.path !== "Harbour Lights.fountain")
+          throw new Error(`the new play's script is "${script?.path}"`);
+        const text = await page.evaluate(() => window.__prosceniumPeek("Harbour Lights.fountain"));
+        if (!text?.startsWith("Title: Harbour Lights\n") || text.includes("Rain."))
+          throw new Error(`the new script reads "${text?.slice(0, 80)}"`);
+        // The pages before the script came with it, claimed under new ids.
+        const front = made.binder.find((i) => i.type === "folder" && i.children?.length);
+        if (!front || made.scripts[script.id]?.frontMatter?.folder !== front.id)
+          throw new Error("the new script does not claim its pages");
+        await until(page, "no save waiting or under way", saveSettled, undefined, 15000);
+      },
+    },
+    {
+      name: "docs/app/keeping-work/storage-and-file-format.md#STOR-199 · Export Play gives the whole play as one .zip, which adds back as a play of its own",
+      feature: "app",
+      async run(page) {
+        // From inside Harbour Lights: the document menu's Export Play….
+        const before = (await page.evaluate(() => window.__prosceniumExported())).length;
+        await openFromDocumentMenu(page, /^Export Play…/);
+        const file = await until(
+          page,
+          "the play's .zip",
+          async (n) => (await window.__prosceniumExported())[n] ?? null,
+          before,
+          30000,
+        );
+        if (file.name !== "Harbour Lights.zip") throw new Error(`Export Play wrote "${file.name}"`);
+        const { unzipSync, strFromU8 } = await import("fflate");
+        const zip = unzipSync(Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0)));
+        const paths = Object.keys(zip).sort();
+        for (const want of [
+          "Harbour Lights/Harbour Lights.proscenium",
+          "Harbour Lights/Harbour Lights.fountain",
+        ])
+          if (!paths.includes(want)) throw new Error(`the .zip holds ${paths.join(", ")}`);
+        if (paths.some((p) => !p.startsWith("Harbour Lights/")))
+          throw new Error(`the .zip holds a file outside the play's folder: ${paths.join(", ")}`);
+        if (!strFromU8(zip["Harbour Lights/Harbour Lights.fountain"]).startsWith("Title: Harbour Lights"))
+          throw new Error("the .zip's script is not the play's");
+        await dismissToasts(page);
+
+        // Added back from New Play's menu: a play of its own, beside the first.
+        await allPlays(page);
+        await page.evaluate(
+          ({ name, base64 }) => {
+            const input = document.querySelector("input[data-play-zip]");
+            const transfer = new DataTransfer();
+            transfer.items.add(
+              new File([Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))], name, {
+                type: "application/zip",
+              }),
+            );
+            input.files = transfer.files;
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          },
+          { name: file.name, base64: file.base64 },
+        );
+        await page.waitForSelector(".play-page", { timeout: 20000 });
+        const added = await until(page, "the added play's file", async () => {
+          const raw = await window.__prosceniumPeek("Harbour Lights 2.proscenium");
+          return raw ? JSON.parse(raw) : null;
+        }, undefined, 20000);
+        const original = JSON.parse(strFromU8(zip["Harbour Lights/Harbour Lights.proscenium"]));
+        if (added.id === original.id) throw new Error("the added play kept an id a play has");
+        await until(page, "no save waiting or under way", saveSettled, undefined, 15000);
+      },
+    },
+    {
+      name: "the menu bar's keys leave the keyboard where the writer was typing",
+      feature: "app",
+      async run(page) {
+        // In the real Mac app the menu bar takes these keys before the page
+        // does, and a key it took could leave the page's keyboard on nothing,
+        // then or seconds later: the next word typed went nowhere
+        // (docs/app/preferences-and-help/accessibility.md#A11Y-21). Each is
+        // pressed from the script, where the keyboard is a second later is
+        // read, and a watch in the page notes a keyboard on nothing for longer
+        // than a moment at any time. A key pressed twice is a switch, put back
+        // as it was. Save goes last as well, watched for four seconds.
+        const keys = [
+          ["File › Save", "Meta+KeyS"],
+          ["Script › Bold", "Meta+KeyB", true],
+          ["Script › Italic", "Meta+KeyI", true],
+          ["Script › Underline", "Meta+KeyU", true],
+          ["Script › Action", "Meta+Alt+KeyA"],
+          ["Script › Next Misspelling", "Meta+Semicolon"],
+          ["View › Script", "Meta+Digit1"],
+          ["View › Binder", "Meta+Alt+KeyB", true],
+          ["View › Inspector", "Meta+Alt+KeyI", true],
+          ["View › Comments", "Meta+Shift+KeyC", true],
+          ["View › Zoom Out", "Meta+Minus"],
+          ["View › Actual Size", "Meta+Digit0"],
+          ["View › Focus", "Control+Meta+KeyF", true],
+          ["Play › Next Scene", "Meta+Alt+ArrowDown"],
+          ["Play › Previous Scene", "Meta+Alt+ArrowUp"],
+          ["Play › Find…", "Meta+KeyF"],
+        ];
+        const where = () =>
+          page.evaluate(() => {
+            const a = document.activeElement;
+            if (!a || a === document.body) return "nothing";
+            if (a.closest('.ProseMirror[aria-label="Script"]')) return "the script";
+            const name = a.getAttribute("aria-label") ?? a.getAttribute("placeholder") ?? "";
+            return `${a.tagName.toLowerCase()}${name ? ` "${name}"` : ""}`;
+          });
+        const layerUp = () =>
+          page.evaluate(() => !!document.querySelector(".menu, .sheet, [role='alertdialog']"));
+        const settle = () => page.waitForTimeout(1200);
+        // The watch: a keyboard on nothing for 300 ms is noted against the key
+        // last pressed, and how long after it.
+        await page.evaluate(() => {
+          const watch = { key: "", at: 0, since: 0, lost: [] };
+          window.__keyboardWatch = watch;
+          watch.timer = window.setInterval(() => {
+            const a = document.activeElement;
+            if (!watch.key || (a && a !== document.body)) {
+              watch.since = 0;
+              return;
+            }
+            const now = performance.now();
+            if (!watch.since) watch.since = now;
+            else if (now - watch.since >= 300 && watch.since > 0) {
+              watch.lost.push(`${watch.key}, ${Math.round(watch.since - watch.at)} ms after`);
+              watch.since = -1;
+            }
+          }, 50);
+        });
+        const pressed = (key) =>
+          page.evaluate((k) => {
+            const watch = window.__keyboardWatch;
+            watch.key = k;
+            watch.at = performance.now();
+            watch.since = 0;
+          }, key);
+        const seen = [];
+        let lostAnyTime = [];
+        try {
+          for (const [label, combo, twice] of keys) {
+            await focusScriptAtCaret(page);
+            await pressed(label);
+            await page.keyboard.press(combo);
+            await settle();
+            seen.push([label, await where()]);
+            if (twice) {
+              await pressed(`${label}, again`);
+              await page.keyboard.press(combo);
+              await settle();
+              seen.push([`${label}, again`, await where()]);
+            }
+            // A find bar or a menu a key opened goes before the next key, unwatched.
+            await pressed("");
+            for (let i = 0; i < 2 && ((await layerUp()) || (await page.locator(".findbar").count())); i++) {
+              await page.keyboard.press("Escape");
+              await settle();
+            }
+          }
+          await focusScriptAtCaret(page);
+          await pressed("File › Save, watched");
+          // A browser has no menu bar, and its ⌘S is the page's: the item is
+          // sent as the menu bar sends it, so the keep is watched there too.
+          if (await page.evaluate(() => !!window.__TAURI_INTERNALS__)) await page.keyboard.press("Meta+KeyS");
+          else await page.evaluate(() => window.__prosceniumMenu("save"));
+          await page.waitForTimeout(4500);
+          seen.push(["File › Save, watched", await where()]);
+        } finally {
+          lostAnyTime = await page.evaluate(() => {
+            const watch = window.__keyboardWatch;
+            window.clearInterval(watch.timer);
+            return watch.lost;
+          });
+        }
+        const lost = seen.filter(([, at]) => at === "nothing");
+        if (lost.length || lostAnyTime.length)
+          throw new Error(
+            `the keyboard was left on nothing after ${[...lost.map(([k]) => k), ...lostAnyTime].join(", ")}. Every key: ${seen
+              .map(([k, at]) => `${k} → ${at}`)
+              .join("; ")}`,
+          );
+      },
+    },
+    {
       name: "document import · window chrome, source guides and enlarged text",
       feature: "import",
       async run(page) {
@@ -2014,6 +2647,109 @@ export function smokeChecks({ audit, hold }) {
         }
         await page.locator(".pane:not(.is-focused) .pane__tabclose").first().click();
         await count(1, `the ${name} pane to close`);
+      },
+    },
+    {
+      // The rails resize by the edge beside the page, a little
+      // (docs/app/organizing/workspace-model.md#WORK-97): a drag stops at the
+      // limits, the keys step and jump, a double-click puts it back, and the
+      // width is kept. Each rail is left as the act had it.
+      name: "rails · the binder and the inspector resize by their edge, within their range",
+      feature: "app",
+      async run(page) {
+        const width = (sel) =>
+          page.evaluate((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().width), sel);
+        const widthIs = (sel, px, what) =>
+          until(
+            page,
+            what,
+            ({ sel, px }) => {
+              const el = document.querySelector(sel);
+              return !!el && Math.abs(el.getBoundingClientRect().width - px) < 1.5;
+            },
+            { sel, px },
+          );
+        const valueIs = (rail, px, what) =>
+          until(
+            page,
+            what,
+            ({ rail, px }) =>
+              document.querySelector(`.railhandle--${rail}`)?.getAttribute("aria-valuenow") ===
+                String(px) && localStorage.getItem(`proscenium:${rail}Width`) === String(px),
+            { rail, px },
+          );
+        const drag = (rail, type, dx) =>
+          page.evaluate(
+            ({ rail, type, dx }) => {
+              const handle = document.querySelector(`.railhandle--${rail}`);
+              const at = handle.getBoundingClientRect();
+              handle.dispatchEvent(
+                new PointerEvent(type, {
+                  bubbles: true,
+                  cancelable: true,
+                  pointerId: 1,
+                  button: 0,
+                  clientX: at.left + at.width / 2 + dx,
+                  clientY: at.top + at.height / 2,
+                }),
+              );
+            },
+            { rail, type, dx },
+          );
+
+        // The binder: where it starts, a drag that stops at 400, and kept.
+        await visible(page, ".railhandle--binder", { minWidth: 7 });
+        if ((await width(".binder")) !== 246)
+          throw new Error(`the binder starts ${await width(".binder")}px wide, not 246`);
+        await drag("binder", "pointerdown", 0);
+        await drag("binder", "pointermove", 60);
+        await widthIs(".binder", 306, "the binder to follow the drag to 306px");
+        await drag("binder", "pointermove", 600);
+        await widthIs(".binder", 400, "the binder to stop at 400px");
+        await drag("binder", "pointerup", 600);
+        await valueIs("binder", 400, "the binder's 400px to be kept and told");
+
+        // Its keys: Home, an arrow, Shift and an arrow; then a double-click.
+        const binderEdge = page.locator(".railhandle--binder");
+        await binderEdge.focus();
+        await page.keyboard.press("Home");
+        await widthIs(".binder", 200, "Home to take the binder to 200px");
+        await page.keyboard.press("ArrowRight");
+        await widthIs(".binder", 208, "→ to widen the binder 8px");
+        await page.keyboard.press("Shift+ArrowRight");
+        await widthIs(".binder", 240, "⇧→ to widen the binder 32px");
+        await valueIs("binder", 240, "the binder's 240px to be kept and told");
+        await binderEdge.dblclick();
+        await widthIs(".binder", 246, "a double-click to put the binder back at 246px");
+
+        // The inspector, whose edge is on its left: → narrows it.
+        const show = page.locator('.iconbtn[aria-label="Show the inspector"]');
+        const opened = (await show.count()) > 0;
+        if (opened) await show.click();
+        await page.waitForSelector(".railhandle--inspector");
+        try {
+          if ((await width(".inspector")) !== 292)
+            throw new Error(`the inspector starts ${await width(".inspector")}px wide, not 292`);
+          await audit(page, "rail handles");
+          const edge = page.locator(".railhandle--inspector");
+          await edge.focus();
+          await page.keyboard.press("End");
+          await widthIs(".inspector", 440, "End to take the inspector to 440px");
+          await page.keyboard.press("ArrowRight");
+          await widthIs(".inspector", 432, "→ to narrow the inspector 8px");
+          await drag("inspector", "pointerdown", 0);
+          await drag("inspector", "pointermove", 600);
+          await widthIs(".inspector", 260, "the inspector to stop at 260px");
+          await drag("inspector", "pointerup", 600);
+          await valueIs("inspector", 260, "the inspector's 260px to be kept and told");
+          await edge.dblclick();
+          await widthIs(".inspector", 292, "a double-click to put the inspector back at 292px");
+        } finally {
+          if (opened) {
+            await page.locator('.iconbtn[aria-label="Hide the inspector"]').click();
+            await page.waitForSelector(".inspector", { state: "detached" });
+          }
+        }
       },
     },
     {
@@ -5697,6 +6433,261 @@ export function smokeChecks({ audit, hold }) {
         }
         if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
         if (hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+      },
+    },
+    {
+      // A comment's field leaves ⌘B to the menu bar, as a plain field does, and
+      // the menu's Bold took the keyboard into the script to bold it: the field
+      // stayed open with the words, Esc and ⌘⏎ went to the script, and the
+      // words typed next went in there too. A comment reported as frozen, with
+      // no way to save, cancel or leave it by a key. Each of the menu's items
+      // for the script, chosen with a comment being typed, leaves the script
+      // as it is and the keyboard in the field; Page Break, ⌘⏎'s item, saves
+      // the comment (docs/app/writing/comments.md#COMM-78).
+      name: "a comment being typed keeps the keyboard from the menu's items for the script",
+      feature: "comments",
+      async run(page) {
+        const hadInspector = (await page.locator(".inspector").count()) > 0;
+        const hadBinder = (await page.locator(".binder").count()) > 0;
+        if (hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
+        const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+        if (size.width < 1280)
+          await page.setViewportSize({ width: 1280, height: Math.max(size.height, 800) });
+        const script = () =>
+          page.evaluate(() => document.querySelector(".ProseMirror")?.textContent ?? "");
+        const field = '.comment-card textarea[aria-label="New comment"]';
+        const before = await script();
+        try {
+          await page.locator(".ProseMirror").first().focus();
+          await until(
+            page,
+            "the margin to have measured that it has room for a card",
+            () =>
+              document.querySelector(".ProseMirror")?.editor?.storage.comments.marginRoom === true,
+          );
+          await toScriptEnd(page);
+          await page.keyboard.press("Meta+Alt+KeyM");
+          await until(
+            page,
+            "the new comment's field in its card",
+            (field) => !!document.activeElement?.matches(field),
+            field,
+          );
+          await page.keyboard.type("Hold the drip");
+          /** The script, its comment's placeholder and all, and what the field holds. */
+          const read = () =>
+            page.evaluate((field) => {
+              const editor = document.querySelector(".ProseMirror").editor;
+              return {
+                doc: JSON.stringify(editor.state.doc.toJSON()),
+                marks: (editor.state.storedMarks ?? []).map((m) => m.type.name).join(","),
+                words: document.querySelector(field)?.value ?? null,
+                keyboard: !!document.activeElement?.matches(field),
+                menu: document.querySelectorAll(".menu").length,
+              };
+            }, field);
+          const held = await read();
+          for (const id of [
+            "mark-strong",
+            "mark-em",
+            "mark-underline",
+            "el-dialogue",
+            "line-break",
+            "spelling-next",
+            "comment",
+          ]) {
+            await page.evaluate((id) => window.__prosceniumMenu(id), id);
+            // The menu's item comes back from the app on a turn of its own.
+            await page.waitForTimeout(400);
+            const now = await read();
+            if (JSON.stringify(now) !== JSON.stringify(held))
+              throw new Error(
+                `the menu's ${id} with a comment being typed: ${JSON.stringify({
+                  keyboard: now.keyboard,
+                  words: now.words,
+                  marks: now.marks,
+                  menu: now.menu,
+                  script: now.doc === held.doc ? "as it was" : "changed",
+                })}`,
+              );
+          }
+          // The words typed next go on into the comment.
+          await page.keyboard.type(" under it all");
+          await until(
+            page,
+            "the words typed after the menu's items in the comment's field",
+            (field) => document.querySelector(field)?.value === "Hold the drip under it all",
+            field,
+          );
+          // Page Break is ⌘⏎'s item: it saves the comment, and breaks no page.
+          const breaks = () =>
+            page.evaluate(() => {
+              let n = 0;
+              document.querySelector(".ProseMirror").editor.state.doc.descendants((node) => {
+                if (node.type.name === "pageBreak") n++;
+              });
+              return n;
+            });
+          const pages = await breaks();
+          await page.evaluate(() => window.__prosceniumMenu("page-break"));
+          await until(
+            page,
+            "the comment saved by the menu's Page Break",
+            () => {
+              const notes = [];
+              document.querySelector(".ProseMirror").editor.state.doc.descendants((node) => {
+                if (node.type.name === "note") notes.push(node.textContent);
+              });
+              return (
+                !document.querySelector(".comment-card textarea") &&
+                notes.length === 1 &&
+                notes[0].endsWith("Hold the drip under it all")
+              );
+            },
+          );
+          if ((await breaks()) !== pages)
+            throw new Error("the menu's Page Break broke a page in the script as well");
+          await page
+            .locator(".comment-card")
+            .locator('button[aria-label="Resolve comment"]')
+            .click();
+          await until(
+            page,
+            "the comment resolved",
+            () => !document.querySelector(".ProseMirror .pl-note"),
+          );
+          if ((await script()) !== before) throw new Error("the script is not as it was");
+        } finally {
+          // A failure above leaves the field open: Esc takes the comment out.
+          if (await page.locator(".comment-card textarea").count()) {
+            await page.locator(".comment-card textarea").first().focus();
+            await page.keyboard.press("Escape");
+          }
+          if (size.width < 1280) await page.setViewportSize(size);
+        }
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
+        if (hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+      },
+    },
+    {
+      // A new comment typed in its card when the margin loses its room is typed
+      // in the feed from then on, and back in its card when the room comes
+      // back, its words with it each way (docs/app/writing/comments.md#COMM-79).
+      // The feed opened an empty field of its own and the card kept the words
+      // out of sight: two fields for one comment, and with the room back, both
+      // open.
+      name: "a new comment's field goes with its words between its card and the feed",
+      feature: "comments",
+      async run(page) {
+        const hadInspector = (await page.locator(".inspector").count()) > 0;
+        const hadBinder = (await page.locator(".binder").count()) > 0;
+        const sceneTab = () => page.locator(".inspector").getByRole("tab", { name: "Scene" });
+        const onScene = hadInspector && (await sceneTab().getAttribute("aria-selected")) === "true";
+        if (hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
+        const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+        const height = Math.max(size.height, 800);
+        await page.setViewportSize({ width: 1280, height });
+        const script = () =>
+          page.evaluate(() => document.querySelector(".ProseMirror")?.textContent ?? "");
+        const card = '.comment-card textarea[aria-label="New comment"]';
+        const feed = '.commentsfeed textarea[aria-label="New comment"]';
+        /** Every comment field open, where it is, what it holds, and the keyboard's. */
+        const fields = () =>
+          page.evaluate(() =>
+            [...document.querySelectorAll("textarea.cthread__field")].map((f) => ({
+              in: f.closest(".comment-card") ? "card" : f.closest(".commentsfeed") ? "feed" : "?",
+              words: f.value,
+              keyboard: document.activeElement === f,
+            })),
+          );
+        const one = (what, where, words) =>
+          until(
+            page,
+            what,
+            ({ where, words }) => {
+              const open = [...document.querySelectorAll("textarea.cthread__field")];
+              const f = open[0];
+              const at = f?.closest(".comment-card")
+                ? "card"
+                : f?.closest(".commentsfeed")
+                  ? "feed"
+                  : "?";
+              return open.length === 1 && at === where && f.value === words;
+            },
+            { where, words },
+          ).catch(async (e) => {
+            throw new Error(`${e.message.split("\n")[0]}: ${JSON.stringify(await fields())}`);
+          });
+        const before = await script();
+        try {
+          await page.locator(".ProseMirror").first().focus();
+          await until(
+            page,
+            "the margin to have measured that it has room for a card",
+            () =>
+              document.querySelector(".ProseMirror")?.editor?.storage.comments.marginRoom === true,
+          );
+          await toScriptEnd(page);
+          await page.keyboard.press("Meta+Alt+KeyM");
+          await until(
+            page,
+            "the new comment's field in its card",
+            (card) => !!document.activeElement?.matches(card),
+            card,
+          );
+          await page.keyboard.type("Keep the drip");
+          // The window narrowed: no room for the card, and the feed has the comment.
+          await page.setViewportSize({ width: 900, height });
+          await one("the comment's one field, in the feed, with its words", "feed", "Keep the drip");
+          await until(
+            page,
+            "the keyboard in the feed's field",
+            (feed) => !!document.activeElement?.matches(feed),
+            feed,
+          );
+          // Typed on where the words end, not in front of them.
+          await page.keyboard.type(" going");
+          await one("the words typed in the feed after the card's", "feed", "Keep the drip going");
+          // The room back: the card has it again, with every word.
+          await page.setViewportSize({ width: 1280, height });
+          await one(
+            "the comment's one field, back in its card, with its words",
+            "card",
+            "Keep the drip going",
+          );
+          await until(
+            page,
+            "the keyboard in the card's field",
+            (card) => !!document.activeElement?.matches(card),
+            card,
+          );
+          await page.keyboard.type(" on");
+          await one("the words typed in the card after the feed's", "card", "Keep the drip going on");
+          // Esc: the comment was never made.
+          await page.keyboard.press("Escape");
+          await until(
+            page,
+            "the comment gone with Esc, and no field left open",
+            () =>
+              !document.querySelector("textarea.cthread__field") &&
+              !document.querySelector(".ProseMirror .pl-note"),
+          );
+          if ((await script()) !== before) throw new Error("Esc left something in the script");
+        } finally {
+          if (await page.locator("textarea.cthread__field").count()) {
+            await page.locator("textarea.cthread__field").first().focus();
+            await page.keyboard.press("Escape");
+          }
+          await page.setViewportSize(size);
+        }
+        // The feed opened in the inspector when the card lost its room: the
+        // inspector, its tab and the binder as they were.
+        const open = (await page.locator(".inspector").count()) > 0;
+        if (open !== hadInspector) await page.locator('.iconbtn[aria-label*="inspector" i]').click();
+        if (onScene) await sceneTab().click();
+        if (hadBinder) await page.locator('.iconbtn[aria-label*="binder" i]').click();
       },
     },
     {
@@ -10621,6 +11612,180 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      // A play's version (docs/app/formatting/formats-and-layout.md#FMT-185),
+      // set in Play Version… from the document menu, a sheet and never a
+      // control on the page. The play has none to begin with, and nothing
+      // prints it. Written in the sheet, which opens on the header, on the
+      // side the format leaves empty (stage-us-modern prints the page number
+      // on the right, so the left), and offers a line for it on a title page
+      // that is a file with none, ticked: Save keeps it in the script's
+      // Fountain title page as `Version:`, writes the field under the draft
+      // date in the title page's file, and the title page prints it last, in
+      // its foot. The page view's headers print it on the left, and no footer
+      // does. Moved to the footer's right, the footers print it and the
+      // headers do not, and the play file keeps the choice; the sheet no
+      // longer offers the title page's line. Title Page Only prints it in
+      // neither, and still on the title page. Esc on the sheet changes
+      // nothing. It ends with the version emptied, printed nowhere.
+      name: "pages before the script · Play Version… prints the version on the title page and in the header or footer",
+      feature: "layout",
+      async run(page) {
+        const VERSION = "Draft 3";
+        const PLAY = "The Weight of Water.proscenium";
+        const folder = await until(page, "the play's folder of pages", frontFolderOnDisk, {
+          named: true,
+        });
+        const titlePath = `${folder.path}/Title Page.md`;
+        const titleFile = await readOnDisk(page, titlePath);
+        if (titleFile.includes("{version}"))
+          throw new Error(`the title page's file shows a version to begin with: ${titleFile}`);
+        const scriptId = JSON.parse(await readOnDisk(page, PLAY)).binder.find(
+          (row) => row.type === "script",
+        ).id;
+        await page
+          .locator(".seg__btn", { hasText: /^Script$/ })
+          .first()
+          .click();
+        /** Runs IN THE PAGE: where the page view's headers and footers print `version`, "band-side" joined, or "nowhere". */
+        const versionAt = ({ version, at }) => {
+          const found = new Set();
+          for (const row of document.querySelectorAll(".pgchrome__header, .pgchrome__footer")) {
+            const band = row.classList.contains("pgchrome__header") ? "header" : "footer";
+            for (const slot of row.querySelectorAll(".pgchrome__slot"))
+              if (slot.textContent.includes(version))
+                found.add(`${band}-${/pgchrome__slot--(\w+)/.exec(slot.className)?.[1]}`);
+          }
+          const now = [...found].sort().join(",") || "nowhere";
+          return at === undefined || now === at ? now : null;
+        };
+        const printsAt = async (what, at) => {
+          if (await eventually(page, versionAt, { version: VERSION, at }, 5000)) return;
+          throw new Error(
+            `${what}: the version prints ${await page.evaluate(versionAt, { version: VERSION })}, not ${at}`,
+          );
+        };
+        /** Runs IN THE PAGE: the play file's choice for the script, as JSON, once it is `want`. */
+        const printOnDisk = async ([id, want]) => {
+          const text = await window.__prosceniumPeek("The Weight of Water.proscenium");
+          if (!text) return null;
+          const now = JSON.stringify(JSON.parse(text).scripts?.[id]?.versionPrint ?? null);
+          return now === want ? now : null;
+        };
+        const open = async () => {
+          await openFromDocumentMenu(page, "Play Version…");
+          await page.waitForSelector(".sheet", { timeout: 5000 });
+        };
+        const choose = async (control, option) => {
+          await page.getByRole("button", { name: new RegExp(`^${control}:`) }).click();
+          await page.locator(".menu__item", { hasText: new RegExp(`^${option}$`) }).click();
+        };
+        const save = async () => {
+          await page.locator(".sheet__foot .btn", { hasText: /^Save$/ }).click();
+          await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+        };
+        const lineOffer = () =>
+          page.getByRole("checkbox", { name: "Add a Version line to the title page" });
+
+        await printsAt("a play with no version", "nowhere");
+        try {
+          await open();
+          await audit(page, "Play Version");
+          const shown = {
+            version: await page.getByRole("textbox", { name: "Version" }).inputValue(),
+            where: await page.getByRole("button", { name: /^Also in:/ }).getAttribute("aria-label"),
+            side: await page.getByRole("button", { name: /^Side:/ }).getAttribute("aria-label"),
+            line: await lineOffer().getAttribute("aria-checked"),
+          };
+          if (
+            shown.version !== "" ||
+            !/Header/.test(shown.where ?? "") ||
+            !/Left/.test(shown.side ?? "") ||
+            shown.line !== "true"
+          )
+            throw new Error(`Play Version… opened as ${JSON.stringify(shown)}`);
+          await page.getByRole("textbox", { name: "Version" }).fill(VERSION);
+          await save();
+          await until(page, "the script's title page to keep the version", titleKeysOnDisk, `Version: ${VERSION}`);
+          await until(
+            page,
+            "the title page's file to show the version under the draft date",
+            async ([path]) =>
+              /\{draftDate\}\n\n\{version\}\n/.test((await window.__prosceniumPeek(path)) ?? ""),
+            [titlePath],
+          );
+          const lines = await until(page, "the title page to print the version last", (version) => {
+            const lines = [
+              ...document.querySelectorAll(
+                '.play-page .titlesheet[data-front-kind="title"] .frontsheet__line',
+              ),
+            ].map((line) => line.textContent);
+            return lines.at(-1) === version ? lines : null;
+          }, VERSION);
+          if (lines.filter((line) => line === VERSION).length !== 1)
+            throw new Error(`the title page prints ${JSON.stringify(lines)}`);
+          await printsAt("the version written, where the sheet opened", "header-left");
+          // The play file says nothing until the writer chooses.
+          await until(page, "the play file to say nothing of where", printOnDisk, [scriptId, "null"]);
+
+          // The footer's right: the footers print it, the headers do not.
+          await open();
+          if (await lineOffer().count())
+            throw new Error("the sheet offers a Version line to a title page that has one");
+          await choose("Also in", "Footer");
+          await choose("Side", "Right");
+          await save();
+          await printsAt("moved to the footer's right", "footer-right");
+          await until(page, "the play file to keep the footer's right", printOnDisk, [
+            scriptId,
+            JSON.stringify({ in: "footer", side: "right" }),
+          ]);
+
+          // Esc changes nothing.
+          await open();
+          await page.getByRole("textbox", { name: "Version" }).fill("Draft 4");
+          await page.keyboard.press("Escape");
+          await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+          await printsAt("Esc on the sheet", "footer-right");
+          await until(page, "the version left as it was", titleKeysOnDisk, `Version: ${VERSION}`);
+
+          // Title Page Only: neither band, and still the title page.
+          await open();
+          await choose("Also in", "Title Page Only");
+          if (await page.getByRole("button", { name: /^Side:/ }).count())
+            throw new Error("the sheet asks for a side with Title Page Only");
+          await save();
+          await printsAt("Title Page Only", "nowhere");
+          await until(
+            page,
+            "the title page to print the version still",
+            (version) =>
+              [
+                ...document.querySelectorAll(
+                  '.play-page .titlesheet[data-front-kind="title"] .frontsheet__line',
+                ),
+              ].some((line) => line.textContent === version),
+            VERSION,
+          );
+        } finally {
+          // No version, as it began. The title page keeps its Version line,
+          // which prints nothing without one, and the play file its choice:
+          // put back from outside, they would stand in Changes as pending for
+          // the checks after this one.
+          if (await page.locator(".sheet").count()) {
+            await page.keyboard.press("Escape");
+            await page.waitForSelector(".sheet", { state: "detached", timeout: 5000 });
+          }
+          await open();
+          await page.getByRole("textbox", { name: "Version" }).fill("");
+          await save();
+          await until(page, "the script's title page to keep no version", titleKeysOnDisk, {
+            lacks: "Version:",
+          });
+          await printsAt("the version emptied", "nowhere");
+        }
+      },
+    },
+    {
       // A detail of the play is written in place, in its field on the page
       // (docs/app/formatting/formats-and-layout.md#FMT-180): there is no
       // form of the play's details, in the document menu or in the page's
@@ -11186,11 +12351,15 @@ export function smokeChecks({ audit, hold }) {
           await page.locator(".frontedit-bar .popupbtn", { hasText: "Insert Field" }).click();
           await page.waitForSelector(".menu", { timeout: 5000 });
           // Every detail, the subtitle after the title in capitals
-          // (docs/app/formatting/formats-and-layout.md#FMT-181), and the contents last.
+          // (docs/app/formatting/formats-and-layout.md#FMT-181) and the version
+          // after the draft date (docs/app/formatting/formats-and-layout.md#FMT-185),
+          // then what follows
+          // the script: the contents and the cast
+          // (docs/app/formatting/formats-and-layout.md#FMT-183).
           const offered = (await page.locator(".menu .menu__item").allInnerTexts()).map((o) => o.trim());
           if (
             offered.join("|") !==
-            "Title|Title in Capitals|Subtitle|Credit|Author|Contact|Draft Date|Source|Contents"
+            "Title|Title in Capitals|Subtitle|Credit|Author|Contact|Draft Date|Version|Source|Contents|Cast"
           )
             throw new Error(`Insert Field offers ${JSON.stringify(offered)}`);
           await page.locator(".menu .menu__item", { hasText: /^Source$/ }).click();
@@ -12075,10 +13244,11 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
-      // A play begun blank starts with its title page as a page of its own
+      // A play begun blank starts with its title page and its Characters page
+      // as pages of their own
       // (docs/app/keeping-work/storage-and-file-format.md#STOR-195): the
-      // binder lists Front Matter from its first minute, the title page is a
-      // file before a word is written on it, and its sheet asks for the
+      // binder lists Front Matter from its first minute, each page is a
+      // file before a word is written on it, and the title page's sheet asks for the
       // author where the name will print. A press there puts the caret in the
       // author's field; a name, Done: the play has an author, on its sheet
       // and in its script. Last in its act:
@@ -12096,8 +13266,13 @@ export function smokeChecks({ audit, hold }) {
           return rows.length ? rows : null;
         });
         const top = rows.map((row) => `${row.level}:${row.label}`);
-        if (top[0] !== "1:Front Matter" || top[1] !== "2:Title Page" || top[2] !== `1:${title}`)
-          throw new Error(`a new play's binder begins ${JSON.stringify(top.slice(0, 4))}`);
+        if (
+          top[0] !== "1:Front Matter" ||
+          top[1] !== "2:Title Page" ||
+          top[2] !== "2:Characters" ||
+          top[3] !== `1:${title}`
+        )
+          throw new Error(`a new play's binder begins ${JSON.stringify(top.slice(0, 5))}`);
         const file = await readOnDisk(page, "Front Matter/Title Page.md");
         if (!file.includes("{TITLE}") || !file.includes("{author}") || !file.startsWith("---\nlayout: title\n---"))
           throw new Error(`a new play's title page file reads ${JSON.stringify(file)}`);
@@ -12577,9 +13752,7 @@ export function smokeChecks({ audit, hold }) {
         if ((await readOnDisk(page, characters.path)) !== words)
           throw new Error("the Characters page did not keep its words on the way back");
         await dismissToasts(page);
-        if (await page.locator(".pgchrome--editing").count())
-          await page.locator(".frontedit-bar .btn", { hasText: /^Done$/ }).click();
-        await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        await pageDone(page);
 
         // A template and the other side at once, from the Setting's row.
         await fromRow(setting.id);
@@ -12652,9 +13825,7 @@ export function smokeChecks({ audit, hold }) {
           back: ["Back Matter/Production History.md"],
           under: true,
         });
-        if (await page.locator(".pgchrome--editing").count())
-          await page.locator(".frontedit-bar .btn", { hasText: /^Done$/ }).click();
-        await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        await pageDone(page);
       },
     },
     {
@@ -12880,6 +14051,824 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      // A block of a page moves about its sheet
+      // (docs/app/formatting/formats-and-layout.md#FMT-182). The author's
+      // line of the title page, a field, goes a row down by the keys with the
+      // caret still in its words, and the page's file says the rows above it;
+      // back up, the file says nothing of a place again. Move in the page's
+      // bar lists the four ways with their keys, and Right a Cell starts the
+      // line at a cell; Center in the bar takes it back to the sheet's own
+      // columns. Left a row down, it prints a row down and every other line
+      // prints where it did. It ends as it began.
+      name: "placed blocks · a line of the title page moves by the keys and the Move menu, and prints where it is put",
+      feature: "editor",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: /^Script$/ }).first().click();
+        const sheet = '.play-page .titlesheet[data-front-kind="title"]';
+        await page.locator(sheet).evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await drawn(page);
+        const before = await until(page, "the title page printed", titleSheetRows);
+        const key = (arrow) => said(`Control+Meta+${arrow}`, `PC:Alt+Shift+${arrow}`);
+        const fileSays = (what, rel, pattern) =>
+          until(
+            page,
+            what,
+            async ([rel, pattern]) =>
+              new RegExp(pattern).test((await window.__prosceniumPeek(rel)) ?? ""),
+            [rel, pattern],
+          );
+        const AUTHOR = "<!-- proscenium:align=center -->\\n\\n\\{author\\}";
+        await page
+          .locator(`${sheet} .frontsheet__line`, { hasText: "A. Playwright" })
+          .first()
+          .click();
+        await until(page, "the caret in the author's field", fieldEdited, { field: "author" });
+        let TITLE_PAGE = null;
+        try {
+          await recordAnnouncements(page);
+          await page.keyboard.press(key("ArrowDown"));
+          const folder = await until(page, "the play's folder of pages", frontFolderOnDisk, {
+            named: true,
+          });
+          TITLE_PAGE = `${folder.path}/Title Page.md`;
+          await fileSays(
+            "the author's rows in the title page's file",
+            TITLE_PAGE,
+            `\\{credit\\}\\n\\n<!-- proscenium:place rows=2 -->\\n\\n${AUTHOR}`,
+          );
+          await announced(page, "Moved to row 21, cell 25.");
+          await until(page, "the caret still in the author's field", fieldEdited, {
+            field: "author",
+          });
+          await until(
+            page,
+            "the author a row down on its sheet, its handle beside it",
+            pageBlocksPlaced,
+            { apart: ["a play by", "A. Playwright", 3], grip: "A. Playwright" },
+          );
+
+          await page.keyboard.press(key("ArrowUp"));
+          await fileSays("the file with no place in it", TITLE_PAGE, `\\{credit\\}\\n\\n${AUTHOR}`);
+          await until(page, "the caret in the author's field after the way back", fieldEdited, {
+            field: "author",
+          });
+
+          await page.locator(".frontedit-bar .popupbtn", { hasText: "Move" }).click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          const offered = (await page.locator(".menu .menu__item").allInnerTexts()).map((item) =>
+            item.replace(/\s+/g, " ").trim(),
+          );
+          const want = [
+            `Up a Row ${said("⌃⌘↑", "Alt+Shift+↑")}`,
+            `Down a Row ${said("⌃⌘↓", "Alt+Shift+↓")}`,
+            `Left a Cell ${said("⌃⌘←", "Alt+Shift+←")}`,
+            `Right a Cell ${said("⌃⌘→", "Alt+Shift+→")}`,
+          ];
+          if (JSON.stringify(offered) !== JSON.stringify(want))
+            throw new Error(`Move offers ${JSON.stringify(offered)}, not ${JSON.stringify(want)}`);
+          await audit(page, "a block of a page, the Move menu open");
+          await page.locator(".menu .menu__item", { hasText: "Right a Cell" }).click();
+          await fileSays(
+            "the author at a cell in the title page's file",
+            TITLE_PAGE,
+            "\\{credit\\}\\n\\n<!-- proscenium:place cell=24 -->\\n\\n\\{author\\}",
+          );
+          await until(page, "the caret in the author's field after the menu", fieldEdited, {
+            field: "author",
+          });
+          await page.locator('.frontedit-bar .popupbtn[aria-label^="Text alignment"]').click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          await page.locator(".menu .menu__item", { hasText: /^Center$/ }).click();
+          await fileSays("the author centered again", TITLE_PAGE, `\\{credit\\}\\n\\n${AUTHOR}`);
+
+          // Left a row down, it prints there, and nothing else has moved.
+          await page.keyboard.press(key("ArrowDown"));
+          await fileSays(
+            "the author's rows in the file once more",
+            TITLE_PAGE,
+            `<!-- proscenium:place rows=2 -->\\n\\n${AUTHOR}`,
+          );
+          await page.locator(".frontedit-bar .btn", { hasText: /^Done$/ }).click();
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+          // Every line where it printed before, but the author, a row down.
+          const rows = Object.fromEntries(
+            before.lines.map((line) => [
+              line.text,
+              line.text === "A. Playwright" ? line.row + 1 : line.row,
+            ]),
+          );
+          await until(page, "the title page printed with only its author a row down", titleSheetRows, {
+            rows,
+          });
+        } finally {
+          // As it began: the author back on its row, and the page ended.
+          if (TITLE_PAGE) {
+            const placed = await page.evaluate(
+              async (rel) => /proscenium:place/.test((await window.__prosceniumPeek(rel)) ?? ""),
+              TITLE_PAGE,
+            );
+            if (placed) {
+              if (!(await page.locator(".pgchrome--editing").count()))
+                await page
+                  .locator(`${sheet} .frontsheet__line`, { hasText: "A. Playwright" })
+                  .first()
+                  .click();
+              await until(page, "the caret in the author's field, to put it back", fieldEdited, {
+                field: "author",
+              });
+              await page.keyboard.press(key("ArrowUp"));
+              await fileSays(
+                "the title page's file as it began",
+                TITLE_PAGE,
+                `^(?![\\s\\S]*proscenium:place)[\\s\\S]*\\{credit\\}\\n\\n${AUTHOR}`,
+              );
+            }
+          }
+          for (let i = 0; i < 3 && (await page.locator(".pgchrome--editing").count()); i++)
+            await page.keyboard.press("Escape");
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        }
+        await until(page, "the page to finish saving", saveSettled);
+      },
+    },
+    {
+      // The handle (docs/app/formatting/formats-and-layout.md#FMT-182). It
+      // stands beside the block the caret is in and goes to the block under
+      // the pointer. Dragged, it carries an outline of the block; Esc lets go
+      // of it with nothing moved and the page still open. The draft date
+      // dragged to the top right corner stands in the page's head, above a
+      // rule that says so, with the title still a third of the way down; and
+      // dragged on to the contact's row at the right it stands beside the
+      // contact, at the foot again, the head and its rule gone. So it prints.
+      // Dragged back under the contact, the file is as it was: it ends as it
+      // began.
+      name: "placed blocks · a block dragged by its handle goes to the top of the page and beside another, and nothing else moves",
+      feature: "editor",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: /^Script$/ }).first().click();
+        const folder = await until(page, "the play's folder of pages", frontFolderOnDisk, {
+          named: true,
+        });
+        const TITLE_PAGE = `${folder.path}/Title Page.md`;
+        const sheet = '.play-page .titlesheet[data-front-kind="title"]';
+        await page.locator(sheet).evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await drawn(page);
+        const file = await readOnDisk(page, TITLE_PAGE);
+        const before = await until(page, "the title page printed", titleSheetRows);
+        const fileSays = (what, pattern) =>
+          until(
+            page,
+            what,
+            async ([rel, pattern]) =>
+              new RegExp(pattern).test((await window.__prosceniumPeek(rel)) ?? ""),
+            [TITLE_PAGE, pattern],
+          );
+        const placed = async (what, at, more = {}) => {
+          const now = await eventually(page, pageBlocksPlaced, { at, ...more });
+          if (now) return now;
+          throw new Error(
+            `${what}: wanted ${JSON.stringify({ at, ...more })}, and the page stands as ${JSON.stringify(await page.evaluate(pageBlocksPlaced))}, and its file is ${JSON.stringify(await page.evaluate((rel) => window.__prosceniumPeek(rel), TITLE_PAGE))}`,
+          );
+        };
+        // The handle is the block's under the pointer, so the pointer goes over
+        // the block first, and the press waits until the handle is that block's.
+        const drag = async (text, to) => {
+          for (let i = 0; i < 5; i++) {
+            await page.evaluate(pointerOverBlock, text);
+            if (!(await eventually(page, pageBlocksPlaced, { grip: text }, 3000))) continue;
+            if (await page.evaluate(dragHandle, { text, ...to })) return;
+          }
+          throw new Error(
+            `the handle never stood beside "${text}": ${JSON.stringify(await page.evaluate(pageBlocksPlaced))}`,
+          );
+        };
+        await page.locator(`${sheet} .frontsheet__line`, { hasText: "2026-06-18" }).first().click();
+        await until(page, "the caret in the draft date's field", fieldEdited, {
+          field: "draftDate",
+        });
+        try {
+          // The caret's block has the handle; the pointer over another takes it there.
+          const open = await until(page, "the handle beside the draft date", pageBlocksPlaced, {
+            grip: "2026-06-18",
+          });
+          const title = open.blocks.find((block) => block.text === "The Weight of Water");
+          const contact = open.blocks.find((block) => block.text === "playwright@example.com");
+          if (!title || !contact)
+            throw new Error(`the title page's blocks are ${JSON.stringify(open.blocks)}`);
+          await page.evaluate(pointerOverBlock, "The Weight of Water");
+          await until(page, "the handle beside the title, under the pointer", pageBlocksPlaced, {
+            grip: "The Weight of Water",
+          });
+          await page.evaluate(pointerOverBlock, "2026-06-18");
+          await until(page, "the handle beside the draft date again", pageBlocksPlaced, {
+            grip: "2026-06-18",
+          });
+
+          // Esc lets go of a block, where it was, and the page stays open.
+          await drag("2026-06-18", { row: 20, cell: 30, drop: false });
+          await until(page, "the outline of the dragged block", pageBlocksPlaced, { ghost: true });
+          await page.keyboard.press("Escape");
+          await until(page, "the outline gone", pageBlocksPlaced, { ghost: false });
+          if ((await readOnDisk(page, TITLE_PAGE)) !== file)
+            throw new Error("a drag let go of with Esc changed the page's file");
+          if (!(await page.locator(".pgchrome--editing").count()))
+            throw new Error("Esc on a dragged block ended the page");
+
+          // To the top right corner: the page's head.
+          await recordAnnouncements(page);
+          await drag("2026-06-18", { row: 0, cell: 59, drop: true });
+          await fileSays(
+            "the draft date at the head of the title page's file",
+            "^---\\nlayout: title\\n---\\n\\n<!-- proscenium:align=right -->\\n\\n\\{draftDate\\}\\n\\n<!-- proscenium:head -->\\n\\n",
+          );
+          await announced(page, "Moved to row 1, cell 51.");
+          await placed(
+            "the date at the top right above the head's rule, the title where it was",
+            {
+              "2026-06-18": { row: 0, right: 60 },
+              "The Weight of Water": { row: title.row },
+              "playwright@example.com": { row: contact.row },
+            },
+            { rule: "Top of the page" },
+          );
+
+          // On to the contact's row, at the right: beside it, at the foot.
+          await drag("2026-06-18", { row: contact.row, cell: 59, drop: true });
+          await fileSays(
+            "the draft date beside the contact in the title page's file",
+            "<!-- proscenium:foot -->\\n\\n\\{contact\\}\\n\\n<!-- proscenium:place beside -->\\n\\n<!-- proscenium:align=right -->\\n\\n\\{draftDate\\}",
+          );
+          await placed(
+            "the date beside the contact on its row, and no head left",
+            {
+              "2026-06-18": { row: contact.row, right: 60 },
+              "playwright@example.com": { row: contact.row, cell: 0 },
+              "The Weight of Water": { row: title.row },
+            },
+            { noRule: "Top of the page" },
+          );
+
+          await page.locator(".frontedit-bar .btn", { hasText: /^Done$/ }).click();
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+          // The date prints on the contact's row, right of it; the contact stands
+          // where it did while the date was under it, and the rest where they were.
+          const contactRow = before.lines.find((l) => l.text === "playwright@example.com").row;
+          const rows = Object.fromEntries(
+            before.lines.map((line) => [
+              line.text,
+              line.text === "2026-06-18" ? contactRow : line.row,
+            ]),
+          );
+          await until(
+            page,
+            "the title page printed with its date beside the contact and nothing else moved",
+            titleSheetRows,
+            { rows, rightOf: ["2026-06-18", "playwright@example.com"] },
+          );
+        } finally {
+          if (!(await page.locator(".pgchrome--editing").count()))
+            await page.locator(`${sheet} .frontsheet__line`).first().click();
+          await until(page, "the page open, to put it back", pageEdited, { keyboard: true });
+          // The way back is the way there: the date under the contact, at the left.
+          for (let i = 0; i < 6; i++) {
+            const now = await readOnDisk(page, TITLE_PAGE);
+            if (now === file) break;
+            await drag("2026-06-18", { row: 44, cell: 0, drop: true });
+            if (
+              await eventually(
+                page,
+                async ([rel, file]) => (await window.__prosceniumPeek(rel)) === file,
+                [TITLE_PAGE, file],
+                3000,
+              )
+            )
+              break;
+          }
+          for (let i = 0; i < 3 && (await page.locator(".pgchrome--editing").count()); i++)
+            await page.keyboard.press("Escape");
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        }
+        const now = await readOnDisk(page, TITLE_PAGE);
+        if (now !== file) throw new Error(`the title page's file is left as ${JSON.stringify(now)}`);
+        await until(page, "the page to finish saving", saveSettled);
+      },
+    },
+    {
+      // A blank line a writer leaves on a page is a row of the page
+      // (docs/app/formatting/formats-and-layout.md#FMT-182): Return twice
+      // after a line of the Characters page and a word leaves a blank row
+      // between them, kept in the page's file and printed, where it used to
+      // show while it was written and be gone when the page printed. Undo
+      // takes it back. It ends as it began.
+      name: "placed blocks · a blank line left on a page is kept in its file and prints as a blank row",
+      feature: "layout",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: /^Script$/ }).first().click();
+        const folder = await until(page, "the play's folder of pages", frontFolderOnDisk, {
+          named: true,
+        });
+        const CHARACTERS = `${folder.path}/Characters.md`;
+        const file = await readOnDisk(page, CHARACTERS);
+        const sheet = '.play-page [data-front-source]:not([data-front-kind="title"])';
+        const line = page.locator(`${sheet} .frontsheet__line`, { hasText: "JONAH" }).first();
+        await line.evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await drawn(page);
+        await line.click();
+        await until(page, "the Characters page open where it prints", pageEdited, {
+          name: "Characters",
+          keyboard: true,
+          line: "JONAH",
+        });
+        try {
+          // To the end of JONAH's line, the last of the page: a key pressed as
+          // the page takes the keyboard can be lost, so it is pressed until it lands.
+          for (let i = 0; i < 4; i++) {
+            await page.keyboard.press("Meta+ArrowRight");
+            if (await eventually(page, pageEdited, { line: "JONAH", end: true }, 1500)) break;
+          }
+          await until(page, "the caret at the end of JONAH's line", pageEdited, {
+            keyboard: true,
+            line: "JONAH",
+            end: true,
+          });
+          await page.keyboard.press("Enter");
+          await page.keyboard.press("Enter");
+          await page.keyboard.type("NELL");
+          const kept = await eventually(
+            page,
+            async (rel) =>
+              /JONAH[^\n]*\n\n<!-- proscenium:line -->\n\nNELL\n$/.test(
+                (await window.__prosceniumPeek(rel)) ?? "",
+              ),
+            CHARACTERS,
+          );
+          if (!kept)
+            throw new Error(
+              `no blank row in the Characters page's file: ${JSON.stringify(await readOnDisk(page, CHARACTERS))}`,
+            );
+          await page.locator(".frontedit-bar .btn", { hasText: /^Done$/ }).click();
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+          // JONAH, the gap, the blank row, the gap, NELL: four rows on.
+          const apart = await until(page, "NELL printed under a blank row", (sel) => {
+            const lines = [...document.querySelectorAll(`${sel} .frontsheet__line`)];
+            const top = (text) =>
+              lines.find((l) => l.textContent.startsWith(text))?.getBoundingClientRect().top;
+            const pitch = lines.length > 1 ? lines[0].getBoundingClientRect().height : 0;
+            const jonah = top("JONAH");
+            const nell = top("NELL");
+            if (jonah === undefined || nell === undefined || !pitch) return null;
+            return { rows: (nell - jonah) / pitch };
+          }, sheet);
+          if (Math.abs(apart.rows - 4) > 0.2)
+            throw new Error(`NELL prints ${apart.rows} rows under JONAH, not 4`);
+          await page.locator(`${sheet} .frontsheet__line`, { hasText: "NELL" }).first().click();
+          await until(page, "the Characters page open again", pageEdited, {
+            name: "Characters",
+            keyboard: true,
+          });
+        } finally {
+          if (!(await page.locator(".pgchrome--editing").count()))
+            await page.locator(`${sheet} .frontsheet__line`, { hasText: "JONAH" }).first().click();
+          await until(page, "the Characters page open, to put it back", pageEdited, {
+            name: "Characters",
+            keyboard: true,
+          });
+          // The words and the rows under JONAH go, a key at a time.
+          await page.keyboard.press("Meta+ArrowDown");
+          for (let i = 0; i < 12; i++) {
+            if (
+              await eventually(
+                page,
+                async ([rel, file]) => (await window.__prosceniumPeek(rel)) === file,
+                [CHARACTERS, file],
+                400,
+              )
+            )
+              break;
+            await page.keyboard.press("Backspace");
+          }
+          for (let i = 0; i < 3 && (await page.locator(".pgchrome--editing").count()); i++)
+            await page.keyboard.press("Escape");
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        }
+        const now = await readOnDisk(page, CHARACTERS);
+        if (now !== file) throw new Error(`the Characters page's file is left as ${JSON.stringify(now)}`);
+        await until(page, "the page to finish saving", saveSettled);
+      },
+    },
+    {
+      // Any page of a play can be taken out of it, where it is written
+      // (docs/app/formatting/formats-and-layout.md#FMT-183). A play begun
+      // blank has a title page and a Characters page. The Characters page has
+      // nothing written on it yet, so it prints nothing and stands as a sheet
+      // with its name to click. Open, its bar has Move to Trash: the page's
+      // file goes, its row and its sheet with it, and the toast's Undo puts
+      // them back. The title page goes the same way, and comes back. Last in
+      // its act: it leaves the sample play for one of its own.
+      name: "pages removed · a new play's Characters page and its title page go to the Trash from the page, and Undo puts each back",
+      feature: "workspace",
+      async run(page) {
+        const title = "A Winter Crossing";
+        await newPlayNamed(page, title);
+        const TITLE_PAGE = "Front Matter/Title Page.md";
+        const CHARACTERS = "Front Matter/Characters.md";
+        const pagesListed = (what, want) =>
+          until(
+            page,
+            what,
+            (want) => {
+              const rows = [...document.querySelectorAll('.binder [role="treeitem"]')]
+                .filter((row) => row.getAttribute("aria-level") === "2")
+                .map((row) => row.querySelector(".binder__label")?.textContent ?? "");
+              const pages = rows.filter((label) => ["Title Page", "Characters"].includes(label));
+              return JSON.stringify(pages) === JSON.stringify(want) ? pages : null;
+            },
+            want,
+          );
+        const onDisk = (what, rel, there) =>
+          until(
+            page,
+            what,
+            async ([rel, there]) => !!(await window.__prosceniumPeek(rel)) === there,
+            [rel, there],
+          );
+        const trash = page.locator(
+          `.frontedit-bar .iconbtn[aria-label^="${said("Move to Trash", "Move to the Recycle Bin")}"]`,
+        );
+        const undo = async () => {
+          await page.locator(".toast [data-toast-action]").click();
+          await dismissToasts(page);
+        };
+        await pagesListed("the new play's two pages in the binder", ["Title Page", "Characters"]);
+        const characters = await readOnDisk(page, CHARACTERS);
+        const titlePage = await readOnDisk(page, TITLE_PAGE);
+
+        // Nothing is written on the Characters page: no sheet prints, and a
+        // sheet with its name stands where it will.
+        const blank = '.play-page .frontsheet--placeholder[data-front-placeholder]';
+        await page.waitForSelector(blank, { timeout: 10000 });
+        const said1 = await page.locator(blank).first().innerText();
+        if (!/^Characters\s+Click to write on this page\.$/.test(said1.trim()))
+          throw new Error(`the Characters page not yet written reads ${JSON.stringify(said1)}`);
+        if (await page.locator('.play-page .frontsheet__line', { hasText: "CHARACTERS" }).count())
+          throw new Error("a Characters page with nothing written on it prints its heading");
+
+        // Open, and to the Trash from its own bar.
+        await page.locator(blank).first().click();
+        await until(page, "the Characters page open where it prints", pageEdited, {
+          name: "Characters",
+          keyboard: true,
+        });
+        await audit(page, "a page open, its bar offering the Trash");
+        await trash.click();
+        await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        await onDisk("the Characters page's file gone", CHARACTERS, false);
+        await pagesListed("the binder without the Characters page", ["Title Page"]);
+        const gone = await until(page, "the toast for the page moved", () => {
+          const toast = document.querySelector(".toast");
+          return toast?.querySelector("[data-toast-action]") ? toast.textContent : null;
+        });
+        if (!gone.includes("“Characters” moved to"))
+          throw new Error(`the toast for a page moved to the Trash says ${JSON.stringify(gone)}`);
+        if (await page.locator(blank).count())
+          throw new Error("the sheet of a page moved to the Trash still stands");
+        await undo();
+        await onDisk("the Characters page's file back", CHARACTERS, true);
+        await pagesListed("the binder with the Characters page back", ["Title Page", "Characters"]);
+        if ((await readOnDisk(page, CHARACTERS)) !== characters)
+          throw new Error("Undo put back a Characters page that is not the one that went");
+
+        // The title page goes the same way, and the play prints without one.
+        const sheet = '.play-page .titlesheet[data-front-kind="title"]';
+        await page.waitForSelector(sheet, { timeout: 10000 });
+        await page.locator(`${sheet} .frontsheet__line`).first().click();
+        await until(page, "the title page open where it prints", pageEdited, {
+          name: "Title Page",
+          keyboard: true,
+        });
+        await trash.click();
+        await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        await onDisk("the title page's file gone", TITLE_PAGE, false);
+        await pagesListed("the binder without the title page", ["Characters"]);
+        await page.waitForSelector(sheet, { state: "detached", timeout: 5000 });
+        // The script is the writer's still, its title among its details.
+        const script = await readOnDisk(page, `${title}.fountain`);
+        if (!script.startsWith(`Title: ${title}`))
+          throw new Error("taking the title page out changed the script's own title");
+        await undo();
+        await onDisk("the title page's file back", TITLE_PAGE, true);
+        await pagesListed("both pages in the binder again, in their order", [
+          "Title Page",
+          "Characters",
+        ]);
+        await page.waitForSelector(sheet, { timeout: 10000 });
+        if ((await readOnDisk(page, TITLE_PAGE)) !== titlePage)
+          throw new Error("Undo put back a title page that is not the one that went");
+      },
+    },
+    {
+      // A component of a page has settings of its own
+      // (docs/app/formatting/formats-and-layout.md#FMT-184). The Contents,
+      // put on the Characters page from Insert Field, list each act and
+      // scene with its page. Selected, a button stands beside them; it opens
+      // what can be set: Page Numbers on Acts, ticked. Unticked, an act is
+      // its name alone over its scenes, the page's file says so in the
+      // component's own braces, and so it prints. Return on the component
+      // opens the same menu, and the tick goes back. It ends as it began.
+      name: "components · the Contents' own settings take the page numbers off its acts, and put them back",
+      feature: "layout",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: /^Script$/ }).first().click();
+        // The sample play's pages are its title page's still: the first change
+        // to one writes them all as files, and the editing carries on.
+        const CHARACTERS = "Front Matter/Characters.md";
+        const sheet = '.play-page [data-front-source]:not([data-front-kind="title"])';
+        const line = page.locator(`${sheet} .frontsheet__line`, { hasText: "JONAH" }).first();
+        await line.evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await drawn(page);
+        await line.click();
+        await until(page, "the Characters page open where it prints", pageEdited, {
+          name: "Characters",
+          keyboard: true,
+        });
+        const fileSays = (what, pattern) =>
+          until(
+            page,
+            what,
+            async ([rel, pattern]) =>
+              new RegExp(pattern).test((await window.__prosceniumPeek(rel)) ?? ""),
+            [CHARACTERS, pattern],
+          );
+        let file = null;
+        const field = '.pgchrome--editing .pagefield[data-page-field="contents"]';
+        /** The component's rows, once an act's row is as `acts` says: with its page, or its name alone. */
+        const rows = (what, acts) =>
+          until(
+            page,
+            what,
+            ([sel, acts]) => {
+              const rows = (document.querySelector(sel)?.innerText ?? "")
+                .split("\n")
+                .map((row) => row.trimEnd())
+                .filter(Boolean);
+              const act = rows.find((row) => /^ACT ONE\b/.test(row));
+              const scene = rows.find((row) => /^\s+SCENE 1\b.* \d+$/.test(row));
+              if (!act || !scene) return null;
+              return (acts === "pages" ? /^ACT ONE .*\. \d+$/ : /^ACT ONE$/).test(act) ? rows : null;
+            },
+            [field, acts],
+          );
+        try {
+          await page.keyboard.press("Meta+ArrowDown");
+          await page.keyboard.press("Enter");
+          await page.locator(".frontedit-bar .popupbtn", { hasText: "Insert Field" }).click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          await page.locator(".menu .menu__item", { hasText: /^Contents$/ }).click();
+          await fileSays("the contents on the Characters page", "\\n\\n\\{contents\\}\\n$");
+          // As it was before the component: what the check leaves behind.
+          file = (await readOnDisk(page, CHARACTERS)).replace(/\n\n\{contents\}\n$/, "\n");
+          await rows("the contents with a page beside each act", "pages");
+
+          // Selected, its button stands beside it and opens what can be set.
+          await page.locator(field).click();
+          await page.waitForSelector(".pagecomponent-btn", { timeout: 5000 });
+          await page.locator(".pagecomponent-btn").click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          const offered = await until(page, "the component's settings", () => {
+            const items = [...document.querySelectorAll(".menu .menu__item")];
+            return items.length
+              ? items.map((item) => [
+                  item.textContent.trim(),
+                  item.getAttribute("aria-checked"),
+                ])
+              : null;
+          });
+          if (JSON.stringify(offered) !== JSON.stringify([["Page Numbers on Acts", "true"]]))
+            throw new Error(`the Contents' settings are ${JSON.stringify(offered)}`);
+          await audit(page, "a component of a page, its settings open");
+          await page.locator(".menu .menu__item", { hasText: "Page Numbers on Acts" }).click();
+          await fileSays(
+            "the setting in the component's own braces",
+            "\\n\\n\\{contents acts=plain\\}\\n$",
+          );
+          await rows("the contents with each act its name alone", "plain");
+
+          // So it prints: the act's row is its name, a scene's still has its page.
+          await page.locator(".frontedit-bar .btn", { hasText: /^Done$/ }).click();
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+          await until(
+            page,
+            "the Characters page printed with its contents, the acts without pages",
+            (sel) => {
+              const lines = [...document.querySelectorAll(`${sel} .frontsheet__line`)].map(
+                (line) => line.textContent,
+              );
+              return (
+                lines.includes("ACT ONE") && lines.some((line) => /^\s+SCENE 1\b.* \d+$/.test(line))
+              );
+            },
+            sheet,
+          );
+
+          // By the keys: Return on the component opens the same menu.
+          await page.locator(`${sheet} .frontsheet__line`, { hasText: "JONAH" }).first().click();
+          await until(page, "the Characters page open again", pageEdited, {
+            name: "Characters",
+            keyboard: true,
+          });
+          await page.locator(field).click();
+          await page.waitForSelector(".pagecomponent-btn", { timeout: 5000 });
+          await page.keyboard.press("Enter");
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          await page.keyboard.press("Enter");
+          await fileSays("the component as it comes again", "\\n\\n\\{contents\\}\\n$");
+          await rows("the contents with a page beside each act again", "pages");
+        } finally {
+          if (!(await page.locator(".pgchrome--editing").count()))
+            await page.locator(`${sheet} .frontsheet__line`, { hasText: "JONAH" }).first().click();
+          await until(page, "the Characters page open, to put it back", pageEdited, {
+            name: "Characters",
+            keyboard: true,
+          });
+          // The component and its line go, a key at a time.
+          await page.keyboard.press("Meta+ArrowDown");
+          for (let i = 0; file !== null && i < 8; i++) {
+            if (
+              await eventually(
+                page,
+                async ([rel, file]) => (await window.__prosceniumPeek(rel)) === file,
+                [CHARACTERS, file],
+                600,
+              )
+            )
+              break;
+            await page.keyboard.press("Backspace");
+          }
+          for (let i = 0; i < 3 && (await page.locator(".pgchrome--editing").count()); i++)
+            await page.keyboard.press("Escape");
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        }
+        const now = file === null ? null : await readOnDisk(page, CHARACTERS);
+        if (now !== file) throw new Error(`the Characters page's file is left as ${JSON.stringify(now)}`);
+        await until(page, "the page to finish saving", saveSettled);
+      },
+    },
+    {
+      // The Cast is a component that follows the script
+      // (docs/app/formatting/formats-and-layout.md#FMT-183): put on a page
+      // from Insert Field, it lists everyone who speaks, in the order they
+      // first speak. Its settings offer Turn into Text: the names become
+      // lines of the page, each in bold, to be written on, the file holds
+      // them as words, and it is said. It ends as it began.
+      name: "components · the Cast lists who speaks, and turns into words of the page",
+      feature: "layout",
+      async run(page) {
+        await page.locator(".seg__btn", { hasText: /^Script$/ }).first().click();
+        const folder = await until(page, "the play's folder of pages", frontFolderOnDisk, {
+          named: true,
+        });
+        const SETTING = `${folder.path}/Setting.md`;
+        const file = await readOnDisk(page, SETTING);
+        const sheet = '.play-page [data-front-source]:not([data-front-kind="title"])';
+        const line = page.locator(`${sheet} .frontsheet__line`, { hasText: "SETTING" }).first();
+        await line.evaluate((el) => el.scrollIntoView({ block: "center" }));
+        await drawn(page);
+        await line.click();
+        await until(page, "the Setting page open where it prints", pageEdited, {
+          name: "Setting",
+          keyboard: true,
+        });
+        const fileSays = (what, pattern) =>
+          until(
+            page,
+            what,
+            async ([rel, pattern]) =>
+              new RegExp(pattern).test((await window.__prosceniumPeek(rel)) ?? ""),
+            [SETTING, pattern],
+          );
+        const field = '.pgchrome--editing .pagefield[data-page-field="cast"]';
+        try {
+          await page.keyboard.press("Meta+ArrowDown");
+          await page.keyboard.press("Enter");
+          await page.locator(".frontedit-bar .popupbtn", { hasText: "Insert Field" }).click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          await page.locator(".menu .menu__item", { hasText: /^Cast$/ }).click();
+          await fileSays("the cast on the Setting page", "\\n\\n\\{cast\\}\\n$");
+          const listed = await until(
+            page,
+            "the cast, everyone who speaks",
+            (sel) => {
+              const names = (document.querySelector(sel)?.innerText ?? "")
+                .split("\n")
+                .map((name) => name.trim())
+                .filter(Boolean);
+              return names[0] === "MARA" && names.includes("JONAH") ? names : null;
+            },
+            field,
+          );
+          await page.locator(field).click();
+          await page.waitForSelector(".pagecomponent-btn", { timeout: 5000 });
+          await recordAnnouncements(page);
+          await page.locator(".pagecomponent-btn").click();
+          await page.waitForSelector(".menu", { timeout: 5000 });
+          await page.locator(".menu .menu__item", { hasText: /^Turn into Text$/ }).click();
+          await fileSays(
+            "the names as words of the page, in bold",
+            `\\n\\n${listed.map((name) => `\\*\\*${name}\\*\\*`).join("\\n\\n")}\\n$`,
+          );
+          await announced(page, `The cast is words of the page now: ${listed.length} names.`);
+          if (await page.locator(field).count())
+            throw new Error("the cast is still a component after Turn into Text");
+          await until(page, "the caret in the first name, to be written on", pageEdited, {
+            keyboard: true,
+            line: listed[0],
+          });
+        } finally {
+          // Undo on the page takes it back: the names, the component, its line.
+          for (let i = 0; i < 8; i++) {
+            if (
+              await eventually(
+                page,
+                async ([rel, file]) => (await window.__prosceniumPeek(rel)) === file,
+                [SETTING, file],
+                600,
+              )
+            )
+              break;
+            await page.keyboard.press("Meta+KeyZ");
+          }
+          for (let i = 0; i < 3 && (await page.locator(".pgchrome--editing").count()); i++)
+            await page.keyboard.press("Escape");
+          await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+        }
+        const now = await readOnDisk(page, SETTING);
+        if (now !== file) throw new Error(`the Setting page's file is left as ${JSON.stringify(now)}`);
+        await until(page, "the page to finish saving", saveSettled);
+      },
+    },
+    {
+      // A play begun blank has a Characters page that fills itself
+      // (docs/app/formatting/formats-and-layout.md#FMT-183). It holds its
+      // heading and the cast; no one speaks yet, so it prints nothing. With
+      // the first speech in the script it prints CHARACTERS and the
+      // speaker's name, and Cast says the page names them and offers nothing
+      // to add. Last in its act: it leaves the sample play for one of its own.
+      name: "components · a new play's Characters page fills itself as its characters speak",
+      feature: "workspace",
+      async run(page) {
+        const title = "The Glass Harbour";
+        await newPlayNamed(page, title);
+        const file = await readOnDisk(page, "Front Matter/Characters.md");
+        if (file !== "<!-- proscenium:align=center -->\n\n## CHARACTERS\n\n**{cast}**\n")
+          throw new Error(`a new play's Characters page reads ${JSON.stringify(file)}`);
+        const blank = ".play-page .frontsheet--placeholder[data-front-placeholder]";
+        await page.waitForSelector(blank, { timeout: 10000 });
+        // The first speech.
+        await page.locator(".editor-surface .ProseMirror").first().focus();
+        await toScriptEnd(page);
+        await page.keyboard.press("Enter");
+        await page.keyboard.press("Meta+Alt+KeyC");
+        await page.keyboard.type("MARA");
+        await page.keyboard.press("Enter");
+        await page.keyboard.type("Is the tide in?");
+        await until(page, "the script to finish saving", saveSettled);
+        const printed = await until(page, "the Characters page printed with who speaks", () => {
+          const sheet = [...document.querySelectorAll(".play-page [data-front-source]")].find(
+            (each) =>
+              [...each.querySelectorAll(".frontsheet__line")].some(
+                (line) => line.textContent === "CHARACTERS",
+              ),
+          );
+          const lines = [...(sheet?.querySelectorAll(".frontsheet__line") ?? [])].map((line) => ({
+            text: line.textContent,
+            bold: getComputedStyle(line.querySelector("span") ?? line).fontWeight === "700",
+          }));
+          return lines.length >= 2 ? lines : null;
+        });
+        if (JSON.stringify(printed.map((line) => line.text)) !== JSON.stringify(["CHARACTERS", "MARA"]))
+          throw new Error(`a new play's Characters page prints ${JSON.stringify(printed)}`);
+        if (!printed[1].bold) throw new Error("the cast's names are not set in bold");
+        if (await page.locator(blank).count())
+          throw new Error("the sheet to click still stands beside the printed Characters page");
+        // The file is as it was: the page follows the script.
+        if ((await readOnDisk(page, "Front Matter/Characters.md")) !== file)
+          throw new Error("a speech in the script rewrote the Characters page's file");
+        // Cast: the page names her, and there is nothing to add.
+        await page.locator(".seg__btn", { hasText: /^Cast$/ }).first().click();
+        const row = await until(page, "MARA's row in Cast", () => {
+          const row = [...document.querySelectorAll(".castview__list > *")].find((each) =>
+            each.textContent.includes("MARA"),
+          );
+          return row ? row.textContent : null;
+        });
+        if (!row.includes("On the Characters page"))
+          throw new Error(`Cast says of MARA ${JSON.stringify(row)}`);
+        if (await page.getByRole("button", { name: "Add to Characters Page" }).count())
+          throw new Error("Cast offers to add a name the Characters page already lists");
+        await page.locator(".seg__btn", { hasText: /^Script$/ }).first().click();
+      },
+    },
+    {
       // A character's name typed in a stage direction goes to capitals at the
       // boundary after it, as its own undo step: ⌘Z straight after and
       // Backspace as the next key each put back the writer's case and keep the
@@ -12992,75 +14981,16 @@ export function smokeChecks({ audit, hold }) {
       // Backspace at the start of a name ran it into the stage direction above,
       // and every line of its speech became a stage direction. Here Backspace
       // at the start of the name, Delete at the end of the line above it,
-      // Backspace at the start of the speech, and one Backspace too many in a
-      // name typed again each leave the cue over its speech, on the page and
-      // in the file; and the same speaker twice in a row is one speech when
-      // Backspace takes the second name.
+      // Backspace at the start of the speech, and a name taken back letter by
+      // letter each leave the cue over its speech, on the page and in the
+      // file; and the same speaker twice in a row is one speech when Backspace
+      // takes the second name.
       name: "cues · Backspace and Delete leave a cue over its speech",
       feature: "editor",
       async run(page) {
         const path = "The Weight of Water.fountain";
-        const doc = () =>
-          page.evaluate(() =>
-            JSON.stringify(document.querySelector(".ProseMirror").editor.state.doc.toJSON()),
-          );
+        const { doc, expectTail, caret } = scriptEnd(page);
         const before = await doc();
-        // The last `n` lines: each one's element, its words, and whether the
-        // page draws it as that element. Runs in the page.
-        const tailOf = (n) => {
-          const { editor } = document.querySelector(".ProseMirror");
-          const { doc } = editor.state;
-          const lines = [];
-          doc.forEach((block, offset, i) => {
-            if (i < doc.childCount - n) return;
-            const dom = editor.view.nodeDOM(offset);
-            const drawn =
-              dom instanceof HTMLElement &&
-              dom.classList.contains(`pl-${block.type.name}`) &&
-              dom.getBoundingClientRect().height > 0;
-            lines.push(`${drawn ? "" : "(not drawn) "}${block.type.name}: ${block.textContent}`);
-          });
-          return lines.join("\n");
-        };
-        // What the last key did is on the page, then the script ends as `lines`.
-        const expectTail = async (what, lines) => {
-          const want = lines.join("\n");
-          await drawn(page);
-          const deadline = Date.now() + 5000 * TIME_SCALE;
-          let got = await page.evaluate(tailOf, lines.length);
-          while (got !== want && Date.now() < deadline) {
-            await page.waitForTimeout(POLL_MS);
-            got = await page.evaluate(tailOf, lines.length);
-          }
-          if (got !== want)
-            throw new Error(`${what}: the script ends\n${got}\nwhere it should end\n${want}`);
-        };
-        /** The caret at the start or the end of the line `fromEnd` lines from the script's end. */
-        const caret = async (fromEnd, where) => {
-          const at = await page.evaluate(
-            ({ fromEnd, where }) => {
-              const { editor } = document.querySelector(".ProseMirror");
-              const { doc } = editor.state;
-              const i = doc.childCount - fromEnd;
-              let pos = 0;
-              for (let k = 0; k < i; k++) pos += doc.child(k).nodeSize;
-              const at = pos + 1 + (where === "end" ? doc.child(i).content.size : 0);
-              editor.commands.setTextSelection(at);
-              editor.view.focus();
-              return at;
-            },
-            { fromEnd, where },
-          );
-          await until(
-            page,
-            "the caret where the writer put it",
-            (at) => {
-              const view = document.querySelector(".ProseMirror")?.editor?.view;
-              return !!view && view.hasFocus() && view.state.selection.head === at;
-            },
-            at,
-          );
-        };
         const speech = [
           "action: Pause.",
           "character: CHARLIE",
@@ -13104,8 +15034,8 @@ export function smokeChecks({ audit, hold }) {
           await expectTail("Backspace at the start of the same name again", one);
 
           await caret(5, "end");
-          for (let k = 0; k < "CHARLIE".length + 2; k++) await page.keyboard.press("Backspace");
-          await expectTail("a name taken back, and two Backspaces more", [
+          for (let k = 0; k < "CHARLIE".length; k++) await page.keyboard.press("Backspace");
+          await expectTail("a name taken back letter by letter", [
             "action: Pause.",
             "character: ",
             ...one.slice(2),
@@ -13114,6 +15044,112 @@ export function smokeChecks({ audit, hold }) {
           const renamed = ["action: Pause.", "character: MAX", ...one.slice(2)];
           await expectTail("the name typed again", renamed);
           // The file reads the speech under its cue: what a reopen shows.
+          await until(
+            page,
+            "the speech under MAX in the saved script",
+            async (rel) =>
+              /^Pause\.\n\nMAX\nYou're not going to say anything\.\n\(beat\)\nNo, I know\.\nThere was a list\.\n*$/m.test(
+                (await window.__prosceniumPeek(rel)) ?? "",
+              ),
+            path,
+          );
+        } finally {
+          for (let i = 0; i < 40 && (await doc()) !== before; i++) await undo(page);
+        }
+        if ((await doc()) !== before) throw new Error("undo did not take the lines back out");
+        await until(page, "the script to finish saving", saveSettled);
+      },
+    },
+    {
+      // A character line with no name is an empty line, and goes as one
+      // (docs/app/writing/editor-ux.md#EDIT-215). It stayed whatever was
+      // pressed, so a writer who wanted the line gone had a key that did
+      // nothing. Here a name is taken back letter by letter and one Backspace
+      // more takes the line: under a stage direction its speech is a stage
+      // direction, a bracketed line with its brackets, and one Undo gives back
+      // the line and its speech, not the name, so the name typed next goes
+      // where the old one was. Under another speech the speech is that
+      // speaker's: Delete in the line, Delete at the end of the line above it
+      // and Backspace at the start of the speech under it each take it.
+      name: "cues · a character line with no name goes with Backspace or Delete, and Undo brings it back",
+      feature: "editor",
+      async run(page) {
+        const path = "The Weight of Water.fountain";
+        const { doc, expectTail, caret } = scriptEnd(page);
+        const before = await doc();
+        const speech = [
+          "dialogue: You're not going to say anything.",
+          "parenthetical: beat",
+          "dialogue: No, I know.",
+        ];
+        const nameless = ["action: Pause.", "character: ", ...speech];
+        /** Where the caret stands: the words of its line, and how far into them. */
+        const caretIn = () =>
+          page.evaluate(() => {
+            const { $head } = document.querySelector(".ProseMirror").editor.state.selection;
+            return `${$head.parent.textContent}@${$head.parentOffset}`;
+          });
+        try {
+          await focusScriptAtCaret(page);
+          await toScriptEnd(page);
+          await page.evaluate(() => {
+            const { editor } = document.querySelector(".ProseMirror");
+            const line = (type, text) => ({ type, content: [{ type: "text", text }] });
+            editor.commands.insertContentAt(editor.state.doc.content.size, [
+              line("action", "Pause."),
+              line("character", "CHARLIE"),
+              line("dialogue", "You're not going to say anything."),
+              line("parenthetical", "beat"),
+              line("dialogue", "No, I know."),
+            ]);
+          });
+          await expectTail("the lines put in", ["action: Pause.", "character: CHARLIE", ...speech]);
+
+          // Under a stage direction: the line goes, and its speech is a direction.
+          await caret(4, "end");
+          for (let k = 0; k < "CHARLIE".length; k++) await page.keyboard.press("Backspace");
+          await expectTail("the name taken back letter by letter", nameless);
+          await page.keyboard.press("Backspace");
+          await expectTail("Backspace on the line with no name", [
+            "action: Pause.",
+            "action: You're not going to say anything.",
+            "action: (beat)",
+            "action: No, I know.",
+          ]);
+          if ((await caretIn()) !== "Pause.@6")
+            throw new Error(
+              `the caret is at "${await caretIn()}", not at the end of the line above`,
+            );
+          await undo(page);
+          await expectTail("one Undo", nameless);
+          await page.keyboard.type("MAX");
+          const named = ["action: Pause.", "character: MAX", ...speech];
+          await expectTail("the name typed where the old one was", named);
+
+          // Under another speech: the line goes, and its speech is that speaker's.
+          await page.evaluate(() => {
+            const { editor } = document.querySelector(".ProseMirror");
+            editor.commands.insertContentAt(editor.state.doc.content.size, [
+              { type: "character" },
+              { type: "dialogue", content: [{ type: "text", text: "There was a list." }] },
+            ]);
+          });
+          const parted = [...named, "character: ", "dialogue: There was a list."];
+          const one = [...named, "dialogue: There was a list."];
+          await expectTail("a line with no name under MAX's speech", parted);
+          for (const [what, fromEnd, where, key] of [
+            ["Delete in the line with no name", 2, "start", "Delete"],
+            ["Delete at the end of the line above it", 3, "end", "Delete"],
+            ["Backspace at the start of the speech under it", 1, "start", "Backspace"],
+          ]) {
+            await caret(fromEnd, where);
+            await page.keyboard.press(key);
+            await expectTail(what, one);
+            if (key === "Backspace") break;
+            await undo(page);
+            await expectTail(`Undo after ${what}`, parted);
+          }
+          // The file reads one speech under MAX: what a reopen shows.
           await until(
             page,
             "the speech under MAX in the saved script",
@@ -16733,7 +18769,8 @@ export function smokeChecks({ audit, hold }) {
         await page.keyboard.type(" Update test words.");
         const before = await page.locator(".ProseMirror").allInnerTexts();
         await page.evaluate(() => window.__prosceniumUpdate());
-        await page.getByRole("button", { name: "Restart to Update" }).click();
+        // The notice's button: the status bar's says the version as well.
+        await page.getByRole("button", { name: "Restart to Update", exact: true }).click();
         await page.waitForSelector('[aria-labelledby="update-install-title"]', { timeout: 5000 });
         await until(page, "the installer to hold its swap", () => window.__prosceniumUpdateHeld());
         const held = await page.evaluate(() => {
@@ -16772,6 +18809,61 @@ export function smokeChecks({ audit, hold }) {
             `the update changed the open writing: ${JSON.stringify(was.slice(Math.max(0, at - 40), at + 40))} became ${JSON.stringify(now.slice(Math.max(0, at - 40), at + 40))}`,
           );
         }
+      },
+    },
+    {
+      // A waiting update is said for as long as it waits, and goes in as the
+      // app quits (docs/engineering/release-engineering.md#REL-133,
+      // docs/engineering/release-engineering.md#REL-132,
+      // docs/app/preferences-and-help/settings.md#SET-46). The notice came once
+      // and went after twelve seconds, and an update missed there was said
+      // nowhere else until Settings was opened.
+      name: "updates · a waiting update stays in the status bar, and installs at quit",
+      feature: "app",
+      async run(page) {
+        await page.evaluate(() => window.__prosceniumUpdate());
+        const button = page.locator(".statusbar .updateready");
+        await visible(page, ".statusbar .updateready", { minWidth: 40, minHeight: 18 });
+        const words = await button.innerText();
+        if (words.trim() !== "Restart to Update to 9.9.9")
+          throw new Error(`the status bar's update says "${words}"`);
+        // The notice goes; the button stays.
+        await dismissToasts(page);
+        await elapse(page, 300, "a button that went with the notice would go with its dismissal");
+        await visible(page, ".statusbar .updateready", { minWidth: 40, minHeight: 18 });
+        const title = () => button.getAttribute("title");
+        if (!/installs when you quit/.test(await title()))
+          throw new Error(`with installing at quit on, the button's title reads "${await title()}"`);
+        await audit(page, "an update waiting in the status bar");
+
+        // Settings › Updates: the switch starts on, and off is said at quit.
+        const setAtQuit = async (on) => {
+          await page.keyboard.press("Meta+Comma");
+          await page.waitForSelector(".prefs", { timeout: 5000 });
+          await page.locator('.prefs__nav [role="tab"]', { hasText: "Updates" }).click();
+          const atQuit = page.getByRole("switch", { name: "Install updates automatically" });
+          if (on === false && (await atQuit.getAttribute("aria-checked")) !== "true")
+            throw new Error("installing updates at quit did not start on");
+          await atQuit.focus();
+          await page.keyboard.press("Space");
+          if ((await atQuit.getAttribute("aria-checked")) !== String(on))
+            throw new Error(`Space did not switch installing at quit ${on ? "on" : "off"}`);
+          await page.keyboard.press("Escape");
+          await page.waitForSelector(".prefs", { state: "detached", timeout: 5000 });
+        };
+        await setAtQuit(false);
+        await until(page, "the button's title to say a restart installs it", () =>
+          /Restart to install it/.test(
+            document.querySelector(".statusbar .updateready")?.getAttribute("title") ?? "",
+          ),
+        );
+        const off = await page.evaluate(() => window.__prosceniumQuit());
+        if (!off.go || off.installs !== null)
+          throw new Error(`a quit with installing off answered ${JSON.stringify(off)}`);
+        await setAtQuit(true);
+        const on = await page.evaluate(() => window.__prosceniumQuit());
+        if (!on.go || on.installs !== "9.9.9")
+          throw new Error(`a quit with an update waiting answered ${JSON.stringify(on)}`);
       },
     },
     {
@@ -19797,6 +21889,37 @@ export function smokeChecks({ audit, hold }) {
       },
     },
     {
+      // An error passed on in the system's own words is logged by where it
+      // arose when its words name no cause (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-34).
+      // A script that could not be read once reached the reports as E-WORKSPACE,
+      // which said nothing of what the writer saw.
+      name: "saving · a script that cannot be read is logged as one",
+      feature: "storage",
+      async run(page) {
+        const second = "Second Draft.fountain";
+        const errorCodes = async () =>
+          (await page.evaluate(() => window.__prosceniumTelemetry())).errors;
+        await dismissToasts(page);
+        const logged = (await errorCodes()).length;
+        await page.evaluate(
+          (rel) => window.__prosceniumGate("read", rel, { fail: "the bytes went somewhere" }),
+          second,
+        );
+        await page.locator(".binder .binder__label", { hasText: "Second Draft" }).first().click();
+        await until(page, "the refusal", () =>
+          /the bytes went somewhere/.test(document.querySelector(".toast")?.textContent ?? ""),
+        );
+        await page.evaluate(() => window.__prosceniumOpenGates());
+        const codes = (await errorCodes()).slice(logged);
+        if (codes.join() !== "E-SCRIPT-OPEN")
+          throw new Error(
+            `a script that could not be read was logged as ${codes.join() || "nothing"}`,
+          );
+        // The open failed, so the script that was open still is.
+        await dismissToasts(page);
+      },
+    },
+    {
       name: "leaving waits for sheet saves already accepted by this play",
       feature: "storage",
       async run(page) {
@@ -21870,6 +23993,93 @@ async function focusScriptAtCaret(page) {
 }
 
 /**
+ * Done, on the bar of a page left open where it prints, and the page closed.
+ * The bar comes with the page and its formatting controls a moment after it,
+ * once the page's editor is ready; in a window too narrow for one row they
+ * wrap the bar and move Done by more than its own height. A click sent in
+ * between falls where Done was, on the bar and on nothing, and the page stays
+ * open: a move taken back with Undo re-mounts the page and its bar, and the
+ * check that pressed Done straight after it failed so in the real app, twice
+ * in one run. So the bar is whole before Done is pressed. With no page open
+ * there is nothing to end.
+ */
+async function pageDone(page) {
+  if (!(await page.locator(".pgchrome--editing").count())) return;
+  await page.waitForSelector(".frontedit-bar .fmt", { timeout: 5000 });
+  await page.locator(".frontedit-bar .btn", { hasText: /^Done$/ }).click();
+  await page.waitForSelector(".pgchrome--editing", { state: "detached", timeout: 5000 });
+}
+
+/**
+ * The end of the script, for the checks that press Backspace and Delete at a
+ * cue: its document, the last lines as the page draws them, and the caret put
+ * on one of them.
+ */
+function scriptEnd(page) {
+  const doc = () =>
+    page.evaluate(() =>
+      JSON.stringify(document.querySelector(".ProseMirror").editor.state.doc.toJSON()),
+    );
+  // The last `n` lines: each one's element, its words, and whether the
+  // page draws it as that element. Runs in the page.
+  const tailOf = (n) => {
+    const { editor } = document.querySelector(".ProseMirror");
+    const { doc } = editor.state;
+    const lines = [];
+    doc.forEach((block, offset, i) => {
+      if (i < doc.childCount - n) return;
+      const dom = editor.view.nodeDOM(offset);
+      const drawn =
+        dom instanceof HTMLElement &&
+        dom.classList.contains(`pl-${block.type.name}`) &&
+        dom.getBoundingClientRect().height > 0;
+      lines.push(`${drawn ? "" : "(not drawn) "}${block.type.name}: ${block.textContent}`);
+    });
+    return lines.join("\n");
+  };
+  // What the last key did is on the page, then the script ends as `lines`.
+  const expectTail = async (what, lines) => {
+    const want = lines.join("\n");
+    await drawn(page);
+    const deadline = Date.now() + 5000 * TIME_SCALE;
+    let got = await page.evaluate(tailOf, lines.length);
+    while (got !== want && Date.now() < deadline) {
+      await page.waitForTimeout(POLL_MS);
+      got = await page.evaluate(tailOf, lines.length);
+    }
+    if (got !== want)
+      throw new Error(`${what}: the script ends\n${got}\nwhere it should end\n${want}`);
+  };
+  /** The caret at the start or the end of the line `fromEnd` lines from the script's end. */
+  const caret = async (fromEnd, where) => {
+    const at = await page.evaluate(
+      ({ fromEnd, where }) => {
+        const { editor } = document.querySelector(".ProseMirror");
+        const { doc } = editor.state;
+        const i = doc.childCount - fromEnd;
+        let pos = 0;
+        for (let k = 0; k < i; k++) pos += doc.child(k).nodeSize;
+        const at = pos + 1 + (where === "end" ? doc.child(i).content.size : 0);
+        editor.commands.setTextSelection(at);
+        editor.view.focus();
+        return at;
+      },
+      { fromEnd, where },
+    );
+    await until(
+      page,
+      "the caret where the writer put it",
+      (at) => {
+        const view = document.querySelector(".ProseMirror")?.editor?.view;
+        return !!view && view.hasFocus() && view.state.selection.head === at;
+      },
+      at,
+    );
+  };
+  return { doc, expectTail, caret };
+}
+
+/**
  * ⌘Z in the script, and the script showing it: its document has moved on, or
  * there was nothing left to take back. A loop that read the page before the
  * step landed would press again, and take back one step too many. A key the
@@ -22271,6 +24481,196 @@ async function frontFolderOnDisk(want) {
   if (want?.last && now.pages[now.pages.length - 1]?.path.split("/").pop() !== want.last)
     return null;
   return now;
+}
+
+/**
+ * Runs IN THE PAGE: the page being edited where it prints, block by block
+ * (docs/app/formatting/formats-and-layout.md#FMT-182): each block's words,
+ * the row its top is on and the cells its words run from and to, in rows and
+ * cells of the sheet; the rule a block is, by its name; the row the handle
+ * stands on; and whether a dragged block's outline is drawn. Null while no
+ * page is edited, or while the page is not yet what `want` asks for: `at`,
+ * blocks by their words with a `row`, `cell` or `right`; `apart`, two blocks
+ * and the rows from the first to the second; `grip`, the block the handle is
+ * beside, on its row and just left of its words; `ghost`; `rule` and
+ * `noRule`, a rule there or not.
+ */
+function pageBlocksPlaced(want) {
+  const root = document.querySelector(".pgchrome--editing .frontpage-editor .ProseMirror");
+  const host = root?.closest(".frontpage-editor");
+  if (!root || !host) return null;
+  const sheet = root.getBoundingClientRect();
+  const line = Number.parseFloat(getComputedStyle(root).lineHeight);
+  const probe = document.createElement("span");
+  probe.textContent = "0000000000";
+  probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre";
+  host.appendChild(probe);
+  const cell = probe.getBoundingClientRect().width / 10;
+  probe.remove();
+  if (!line || !cell) return null;
+  const blocks = [...root.children].map((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const words = range.getBoundingClientRect();
+    const rule = el.matches(".pagefoot, .pagehead");
+    return {
+      text: rule ? "" : el.textContent,
+      rule: rule ? el.getAttribute("aria-label") : null,
+      row: (el.getBoundingClientRect().top - sheet.top) / line,
+      cell: (words.left - sheet.left) / cell,
+      right: (words.right - sheet.left) / cell,
+    };
+  });
+  const grip = host.querySelector(".pageblock-grip");
+  const now = {
+    blocks,
+    grip: grip
+      ? {
+          row: (grip.getBoundingClientRect().top - sheet.top) / line,
+          right: (grip.getBoundingClientRect().right - sheet.left) / cell,
+        }
+      : null,
+    ghost: !!host.querySelector(".pageblock-ghost"),
+  };
+  const find = (text) => blocks.find((block) => block.text === text);
+  for (const [text, at] of Object.entries(want?.at ?? {})) {
+    const block = find(text);
+    if (!block) return null;
+    if (at.row !== undefined && Math.abs(block.row - at.row) > 0.1) return null;
+    if (at.cell !== undefined && Math.abs(block.cell - at.cell) > 0.6) return null;
+    if (at.right !== undefined && Math.abs(block.right - at.right) > 0.6) return null;
+  }
+  if (want?.apart) {
+    const [first, second, rows] = want.apart;
+    const a = find(first);
+    const b = find(second);
+    if (!a || !b || Math.abs(b.row - a.row - rows) > 0.1) return null;
+  }
+  if (want?.grip !== undefined) {
+    const block = find(want.grip);
+    // Beside the block: on its row, and just left of its words.
+    if (!block || !now.grip || Math.abs(now.grip.row - block.row) > 0.1) return null;
+    if (Math.abs(block.cell - now.grip.right) > 1.5) return null;
+  }
+  if (want?.ghost !== undefined && now.ghost !== want.ghost) return null;
+  if (want?.rule && !blocks.some((block) => block.rule === want.rule)) return null;
+  if (want?.noRule && blocks.some((block) => block.rule === want.noRule)) return null;
+  return now;
+}
+
+/**
+ * Runs IN THE PAGE: the title page as it prints, line by line: each line's
+ * words, the row of the sheet it is on and the cells it runs from and to.
+ * Null while there is no such sheet, or while it is not yet what `want` asks
+ * for: `rows`, the row of each line by its words, and no line besides;
+ * `rightOf`, two lines, the first printed to the right of the second.
+ */
+function titleSheetRows(want) {
+  const sheet = document.querySelector('.play-page .titlesheet[data-front-kind="title"]');
+  const els = [...(sheet?.querySelectorAll(".frontsheet__line") ?? [])];
+  if (!els.length) return null;
+  const lines = els.map((el) => {
+    const cell = el.textContent.length ? el.offsetWidth / el.textContent.length : 1;
+    return {
+      text: el.textContent,
+      row: el.offsetHeight ? el.offsetTop / el.offsetHeight : 0,
+      left: el.offsetLeft / cell,
+      right: (el.offsetLeft + el.offsetWidth) / cell,
+    };
+  });
+  const find = (text) => lines.find((line) => line.text === text);
+  if (want?.rows) {
+    if (lines.length !== Object.keys(want.rows).length) return null;
+    for (const [text, row] of Object.entries(want.rows)) {
+      const line = find(text);
+      if (!line || Math.abs(line.row - row) > 0.1) return null;
+    }
+  }
+  if (want?.rightOf) {
+    const [a, b] = want.rightOf.map(find);
+    if (!a || !b || a.left <= b.right) return null;
+  }
+  return { lines };
+}
+
+/**
+ * Runs IN THE PAGE: the pointer moved over the block of the page being edited
+ * whose words are `text`, as a mouse's would be, which is what brings the
+ * block's handle beside it.
+ */
+function pointerOverBlock(text) {
+  const root = document.querySelector(".pgchrome--editing .frontpage-editor .ProseMirror");
+  const el = [...(root?.children ?? [])].find((each) => each.textContent === text);
+  if (!el) return false;
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const words = range.getBoundingClientRect();
+  root.dispatchEvent(
+    new PointerEvent("pointermove", {
+      bubbles: true,
+      pointerType: "mouse",
+      clientX: words.left + words.width / 2,
+      clientY: words.top + words.height / 2,
+    }),
+  );
+  return true;
+}
+
+/**
+ * Runs IN THE PAGE: the handle of the block whose words are `text` pressed and
+ * dragged, as a pointer's events, until the block's first line would stand on
+ * `row` of the sheet with its words from `cell`; let go there with `drop`,
+ * held otherwise. False, with nothing pressed, while the handle is beside
+ * another block: it goes to the block under the pointer, and an engine can
+ * say a still pointer moved when the page scrolls under it. The page's own
+ * handlers do the rest: this only moves a pointer.
+ */
+function dragHandle({ text, row, cell, drop }) {
+  const root = document.querySelector(".pgchrome--editing .frontpage-editor .ProseMirror");
+  const host = root?.closest(".frontpage-editor");
+  const grip = host?.querySelector(".pageblock-grip");
+  const block = [...(root?.children ?? [])].find((each) => each.textContent === text);
+  if (!root || !grip || !block) return false;
+  const sheet = root.getBoundingClientRect();
+  const line = Number.parseFloat(getComputedStyle(root).lineHeight);
+  const probe = document.createElement("span");
+  probe.textContent = "0000000000";
+  probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre";
+  host.appendChild(probe);
+  const width = probe.getBoundingClientRect().width / 10;
+  probe.remove();
+  const held = grip.getBoundingClientRect();
+  const range = document.createRange();
+  range.selectNodeContents(block);
+  const el = range.getBoundingClientRect();
+  if (!line || !width) return false;
+  // The handle is this block's: on its row, and just left of its words.
+  if (Math.abs(block.getBoundingClientRect().top - held.top) > 2) return false;
+  if (Math.abs(el.left - held.right) > 1.5 * width) return false;
+  const from = { x: held.left + held.width / 2, y: held.top + held.height / 2 };
+  const to = {
+    x: from.x + (sheet.left + cell * width - el.left),
+    y: from.y + (sheet.top + row * line - el.top),
+  };
+  const fire = (type, at, buttons) =>
+    grip.dispatchEvent(
+      new PointerEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+        button: 0,
+        buttons,
+        clientX: at.x,
+        clientY: at.y,
+      }),
+    );
+  fire("pointerdown", from, 1);
+  fire("pointermove", { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 }, 1);
+  fire("pointermove", to, 1);
+  if (drop) fire("pointerup", to, 0);
+  return true;
 }
 
 /** Close the tab named `label`, and wait until no pane holds it. Other sheets may stay open. */

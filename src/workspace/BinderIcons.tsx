@@ -29,7 +29,8 @@ export type IconKind =
   | "reference"
   | "document"
   | "pages"
-  | "page";
+  | "page"
+  | "draft";
 
 const S = {
   fill: "none",
@@ -44,6 +45,18 @@ const PAGE = "M4 2.4h5.2L12.4 5.6v8H4z";
 const FOLD = "M9.2 2.4v3.2h3.2";
 
 const PATHS: Record<IconKind, React.ReactNode> = {
+  // A saved draft: the script's page, with a padlock at its foot — it is kept,
+  // not written in (docs/app/keeping-work/storage-and-file-format.md#STOR-205).
+  draft: (
+    <>
+      <path d={PAGE} />
+      <path d={FOLD} />
+      <path d="M6.9 6.6h2.6" />
+      <path d="M5.8 8.6h3" />
+      <rect x="9.3" y="11.2" width="4.2" height="3.1" rx="0.6" />
+      <path d="M10.2 11.2v-0.9a1.2 1.2 0 0 1 2.4 0v0.9" />
+    </>
+  ),
   // The script: a page whose lines are CENTERED — the shape of a cue over a
   // speech, which is what tells it apart from a note at 16px.
   script: (

@@ -1,0 +1,80 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "All Plays"
+  - button "Lamplight"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Show the inspector"
+- navigation "Binder":
+  - text: Lamplight
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "Front Matter" [expanded] [level=1]
+    - group "Front Matter":
+      - treeitem "Title Page" [level=2]
+      - treeitem "Characters" [level=2]
+    - treeitem "Lamplight Rename “Lamplight” Actions for “Lamplight”" [level=1] [selected]:
+      - text: Lamplight
+      - button "Rename “Lamplight”"
+      - button "Actions for “Lamplight”"
+    - group "Scenes in Lamplight":
+      - treeitem "ACT ONE 1" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters": Empty
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes": Empty
+    - treeitem "Drafts" [expanded] [level=1]
+    - group "Drafts":
+      - treeitem "Before the reading , saved draft" [level=2]
+  - button "New"
+  - text: in Drafts
+- separator "Resize the binder"
+- main "Play":
+  - 'button "What this line is: Action"': Action
+  - text: Tab cycles · ; menu
+  - button "Bold": ⌘B
+  - button "Italic": ⌘I
+  - button "Underline": ⌘U
+  - button "Line Break ⇧⏎"
+  - button "Page Break ⌘⏎"
+  - button "+ Comment ⌘⌥M"
+  - button "Comments ⌘⇧C"
+  - text: Page 1 of 1
+  - textbox "Script"
+  - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- contentinfo:
+  - button "/dev/sample-vault/Lamplight"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- dialog "Save As":
+  - heading "Save As" [level=2]
+  - paragraph: “Lamplight” is saved. Proscenium saves as you write, and keeps earlier versions of the script in Versions.
+  - group "Make a Copy":
+    - text: Make a Copy
+    - radio "A Draft to Keep"
+    - radio "A New Play" [checked]
+    - radio "Another Script"
+    - radio "Another Kind of File"
+  - text: Name
+  - textbox "Name"
+  - paragraph
+  - button "Versions…"
+  - button "Cancel"
+  - button "Duplicate Play"
+  - status
+  - alert

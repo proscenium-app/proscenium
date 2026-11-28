@@ -147,9 +147,9 @@ The Weight of Water/                     ← the play; folder name = play name
   and what they see in the binder are the same tree.
 - <a id="STOR-28"></a> **STOR-28** **Order and nesting intent come from the play file**; existence and content
   come from disk (docs/app/keeping-work/storage-and-file-format.md#STOR-D8).
-- <a id="STOR-29"></a> **STOR-29** **Folders exist when something is in them.** A new play is three files: its
-  script, its title page in a Front Matter folder ([STOR-195](#STOR-195)), and
-  the play file. The
+- <a id="STOR-29"></a> **STOR-29** **Folders exist when something is in them.** A new play is four files: its
+  script, its title page and its Characters page in a Front Matter folder
+  ([STOR-195](#STOR-195)), and the play file. The
   binder still shows Characters and Notes as folders so the writer sees where
   things go, and the directory is created when the first file lands. An empty
   directory on disk is still a binder folder; the app just never makes one.
@@ -297,6 +297,8 @@ Finder".
 | `id` | The play's ULID. | <a id="STOR-43"></a>STOR-43 |
 | `status` | Optional free-form workflow label shown on the Plays screen (`drafting`, `revising`…). Absent shows as nothing. | <a id="STOR-44"></a>STOR-44 |
 | `logline` | Optional one line, shown on the Plays screen, editable there. | <a id="STOR-45"></a>STOR-45 |
+| `drafts` | Optional. The play's saved drafts, keyed by each draft's binder id: `of` (the binder id of the script it was saved from), `savedAt` (ISO-8601 UTC) and `sha256` (of its bytes as saved) ([STOR-203](#STOR-203)). Present, the play file's `schemaVersion` is 2 ([STOR-204](#STOR-204)). | <a id="STOR-207"></a>STOR-207 |
+| `renamedFrom` | Optional. The name the play's script still carries after the play was renamed: the top-level script named so takes the play's name when the play next opens, and this goes ([STOR-208](#STOR-208)). An app that does not know it keeps it. | <a id="STOR-202"></a>STOR-202 |
 | `created`, `modified` | ISO-8601 UTC. `modified` moves only when this file's canonical content changes, so a synced play file is quiet while the writer types. | <a id="STOR-46"></a>STOR-46 |
 | `generator` | App and version that last wrote the file. Provenance only. | <a id="STOR-47"></a>STOR-47 |
 | `settings.format` | A script-format **id** from `formats/` (`dg-modern` is the default written into new plays). Never format values. Unknown id resolves to the default with a notice. | <a id="STOR-48"></a>STOR-48 |
@@ -304,7 +306,7 @@ Finder".
 | `settings.sceneAnchors` | `manifest` (default) or `embedded`: how a card is bound to its scene (docs/app/keeping-work/storage-and-file-format.md#STOR-D6). | <a id="STOR-50"></a>STOR-50 |
 | `settings.autosave` | Debounce and max-wait in ms (docs/app/keeping-work/storage-and-file-format.md#STOR-D13). | <a id="STOR-51"></a>STOR-51 |
 | `binder[]` | The ordered tree. Folders carry `children[]`; leaves carry `path`. `type` ∈ `script · folder · character · document · outline · reference`. **No `title` field**: the title is the filename. **No `index` field**: card data is in `scripts`. | <a id="STOR-52"></a>STOR-52 |
-| `scripts{}` | Keyed by the script's binder id. Each holds `scenes[]` (in script order), `orphans[]`, and optional `castHidden[]`, `castKept[]` ([STOR-194](#STOR-194)) and `frontMatter` ([STOR-195](#STOR-195)). Only what Fountain cannot express. | <a id="STOR-53"></a>STOR-53 |
+| `scripts{}` | Keyed by the script's binder id. Each holds `scenes[]` (in script order), `orphans[]`, and optional `castHidden[]`, `castKept[]` ([STOR-194](#STOR-194)), `frontMatter` ([STOR-195](#STOR-195)) and `versionPrint` ([STOR-196](#STOR-196)). Only what Fountain cannot express. | <a id="STOR-53"></a>STOR-53 |
 
 <a id="STOR-54"></a>
 
@@ -377,7 +379,11 @@ would come back on the next save.
 
 <a id="STOR-195"></a>
 
-**STOR-195** **A script's pages before the script are files in a folder the play file names.** `scripts[id].frontMatter = { "folder": "<binder id>" }` names the binder folder whose Markdown children, in binder order, are that script's pages before the script ([docs/app/formatting/formats-and-layout.md#FMT-169](../formatting/formats-and-layout.md#FMT-169)). `scripts[id].backMatter = { "folder": "<binder id>" }` names, the same way, the folder of its pages after the script ([docs/app/formatting/formats-and-layout.md#FMT-174](../formatting/formats-and-layout.md#FMT-174)): absent, nothing follows the script; it is made, named Back Matter and placed just below the script, with the first such page, each file created and never written over, the folder and its claim in one write of the play file. A reader refuses a claim that is not an object naming a folder's id, and an app that does not know `backMatter` keeps it and shows the folder as any folder. A play begun blank is made with its Front Matter folder already claimed and holding one file, `Title Page.md`, the title page from its fields, written before the play file as the script is; a play begun from a script the writer already had is made with no folder, its pages as that script's title page says them. The folder's name is the writer's (STOR-27 reserves none): it may be renamed or moved, and a page is any `.md` file directly in it. A page file is the prose editor's Markdown, with a YAML header only when it says something (`layout: title` or `layout: third`, `export: false`), field tokens for the play's details, and on a title page a `<!-- proscenium:foot -->` line before what sits at the foot. A paragraph of a page with no words that is centered or at the right is written as a comment of its own, `<!-- proscenium:line=center -->` or `<!-- proscenium:line=right -->`, and read back as that empty line ([docs/app/formatting/formats-and-layout.md#FMT-177](../formatting/formats-and-layout.md#FMT-177)); a reader takes the comment so in any document, and only a page's writer writes it. Absent, the pages are the title page's keys, as before; the first edit of one writes them all as files in a new folder just above the script, creates each file and never writes over one, names the folder and its claim in one write of the play file, and only then writes the script without the keys `Title Page Text`, `Characters Page Text`, `Opening Notes`, `Opening Notes First`, `Production Notes Text`, `Characters`, `Setting`, `Time` and `Place`, the script kept in Versions first. A folder named and gone means no pages. Keys a script with a folder still holds (written by an older copy of the app) are kept in Versions and taken out at the next save of a page.
+**STOR-195** **A script's pages before the script are files in a folder the play file names.** `scripts[id].frontMatter = { "folder": "<binder id>" }` names the binder folder whose Markdown children, in binder order, are that script's pages before the script ([docs/app/formatting/formats-and-layout.md#FMT-169](../formatting/formats-and-layout.md#FMT-169)). `scripts[id].backMatter = { "folder": "<binder id>" }` names, the same way, the folder of its pages after the script ([docs/app/formatting/formats-and-layout.md#FMT-174](../formatting/formats-and-layout.md#FMT-174)): absent, nothing follows the script; it is made, named Back Matter and placed just below the script, with the first such page, each file created and never written over, the folder and its claim in one write of the play file. A reader refuses a claim that is not an object naming a folder's id, and an app that does not know `backMatter` keeps it and shows the folder as any folder. A play begun blank is made with its Front Matter folder already claimed and holding two files, `Title Page.md`, the title page from its fields, and `Characters.md`, a heading and the cast as a field ([docs/app/formatting/formats-and-layout.md#FMT-183](../formatting/formats-and-layout.md#FMT-183)), each written before the play file as the script is; a play begun from a script the writer already had is made with no folder, its pages as that script's title page says them. The folder's name is the writer's (STOR-27 reserves none): it may be renamed or moved, and a page is any `.md` file directly in it. A page file is the prose editor's Markdown, with a YAML header only when it says something (`layout: title` or `layout: third`, `export: false`), field tokens for the play's details, and on a title page a `<!-- proscenium:foot -->` line before what sits at the foot. A paragraph of a page with no words that is centered or at the right is written as a comment of its own, `<!-- proscenium:line=center -->` or `<!-- proscenium:line=right -->`, and read back as that empty line ([docs/app/formatting/formats-and-layout.md#FMT-177](../formatting/formats-and-layout.md#FMT-177)); a reader takes the comment so in any document, and only a page's writer writes it. Where a writer put a block of a page is kept the same way ([docs/app/formatting/formats-and-layout.md#FMT-182](../formatting/formats-and-layout.md#FMT-182)): `<!-- proscenium:place rows=3 cell=24 beside -->` on the line above a paragraph or a heading, any of the three (the blank rows above it, the cell its lines start at, that it stands beside the block before it); `<!-- proscenium:line -->` for a blank row with words under it; and `<!-- proscenium:head -->`, a line of its own above the foot's, under what is set from the top of the sheet. Any page may have a foot. A field token may carry settings after its name, each a word, an equals sign and a word (`{contents acts=plain}`, [docs/app/formatting/formats-and-layout.md#FMT-184](../formatting/formats-and-layout.md#FMT-184)); a reader keeps one it does not know as it is written. `{cast}` is everyone who speaks in the script, worked out for whoever lays the pages out and never written to the script's title page. Absent, the pages are the title page's keys, as before; the first edit of one writes them all as files in a new folder just above the script, creates each file and never writes over one, names the folder and its claim in one write of the play file, and only then writes the script without the keys `Title Page Text`, `Characters Page Text`, `Opening Notes`, `Opening Notes First`, `Production Notes Text`, `Characters`, `Setting`, `Time` and `Place`, the script kept in Versions first. A folder named and gone means no pages. Keys a script with a folder still holds (written by an older copy of the app) are kept in Versions and taken out at the next save of a page.
+
+<a id="STOR-196"></a>
+
+**STOR-196** **Where a play's version prints is the writer's decision, kept in the play file.** The version itself is a detail of the script's Fountain title page, `Version:` ([docs/app/formatting/formats-and-layout.md#FMT-185](../formatting/formats-and-layout.md#FMT-185)). Where else it prints is `scripts[id].versionPrint`: `{ "in": "none" }` for the title page only, or `{ "in": "header" }` / `{ "in": "footer" }` with `"side"` one of `"left"`, `"center"` and `"right"`, and nothing else in it. Never the `.fountain`: a print setting written into the title page would be read by every other Fountain reader as one of the play's details. Absent, the version prints in the header on the first side the play's format leaves empty, so a play written before the key existed, or by an app that does not know it, prints as it always did until it has a version. A reader refuses any other shape, as it refuses a malformed `castKept[]`; an app that does not know the key keeps it.
 
 <a id="STOR-194"></a>
 
@@ -1333,6 +1339,19 @@ note rewrites the note. Between flushes a recovery snapshot lands in app data
 every five seconds while there are words the disk does not have (docs/app/keeping-work/storage-and-file-format.md#STOR-D10), so a
 crash costs seconds at most — including while a banner is holding autosave.
 
+<a id="STOR-201"></a>
+
+**STOR-201** **A Save the writer asks for is answered.** File › Save and ⌘S land
+what autosave would have landed a moment later ([STOR-150](#STOR-150)), and the
+status bar says what is now true: "Saved · 3:42 PM · Proscenium saves as you
+write", said once through the announcer, until the next word typed or a save
+that does not land. The keyboard stays where the writer was typing, so the next
+word lands in the script, as it does after every menu-bar item
+(docs/app/preferences-and-help/accessibility.md#A11Y-21). Nothing else is
+different: Save is never needed, and the app never asks for one. A writer who
+skipped the lesson that says so (docs/app/preferences-and-help/tutorials.md#TUT-1)
+is told where they look.
+
 <a id="STOR-151"></a>
 
 **STOR-151** **Quit waits for the words** (`src-tauri/src/quit.rs`, `src/app/quit.ts`).
@@ -1393,6 +1412,142 @@ rescan runs ([docs/engineering/cross-platform.md#PLAT-33](../../engineering/cros
 opens read-only with a notice and is never rewritten. A directory without a
 `.proscenium` file is not a play, whatever else it contains; there is no
 detection of, or migration from, any earlier layout in the app.
+
+<a id="STOR-D18"></a>
+
+### A whole play: rename, copy, hand on
+
+Each of these runs with the Plays folder open, never a play: a play's own vault
+is rooted inside the folder they change. The open play is left first with
+every word of it on disk, as Keep as a Play leaves practice
+([STOR-171](#STOR-171)), and nothing changes while a word is not; the change is
+made; then what came of it opens, or the play as it was when the change did not
+happen. A new play is written as every new play is: its folder reserved so no
+two copies can share it, each file created and never written over, and the play
+file last, because the play file is what makes a folder a play
+([STOR-159](#STOR-159)). One that stops part of the way leaves a folder that is
+not a play, and the original as it was. `src/workspace/play-ops.ts` holds each
+one, and `playChange` in `src/app/useWorkspace.ts` leaves, changes and comes
+back.
+
+<a id="STOR-208"></a>
+
+**STOR-208** **Rename Play** (File › Rename Play…, the document menu, and a
+Plays screen row's More Actions) renames the play's folder and its play file
+together ([STOR-35](#STOR-35)), through the vault's rename, which takes a change
+of case alone through a name of its own. A name the Plays folder already has, as
+the disk compares names ([STOR-D4](#STOR-D4)), is refused, and nothing moves.
+When the play's title page shows the play's name (emphasis, spacing and case
+aside), the sheet asks, ticked, whether it shows the new one, and only the
+`Title:` line of the script's title page changes. The top-level script named
+for the play takes the new name the next time the play opens, by the binder's
+own rename (docs/app/organizing/workspace-model.md#WORK-13), which keeps its
+cards and comments with it; until then the play file's `renamedFrom` says the
+name it still has ([STOR-202](#STOR-202)), the oldest through any number of
+renames, and a rename back to that name drops it. Renamed from inside, the play
+opens again at once, so that is straight away. What the window remembers of the
+play, its panes and its open binder folders, goes with it.
+
+<a id="STOR-197"></a>
+
+**STOR-197** **Duplicate Play** (a row's More Actions, and Save As's A New
+Play, docs/app/organizing/workspace-model.md#WORK-95) copies every file of the
+play, byte for byte and each read back, into a new folder with the name the
+writer gives, which must be free. Hidden files, a sync service's own files and
+the app's momentary temp files stay behind, and so does a second play file
+beside the play's ([STOR-58](#STOR-58)). The play file is the original's with a
+new id, so the copy shares no Versions, Changes or recovery with it, and today
+as `created` and `modified`. The script named for the play takes the copy's
+name. The copy opens; the original is not changed.
+
+<a id="STOR-198"></a>
+
+**STOR-198** **New Play Like This** (a row's More Actions) makes a new play with
+a play's setup and none of its writing: its settings (format, language, scene
+anchors, autosave); its binder's folders, empty, with new ids; and the pages
+before and after its script, copied as they are, which the new script claims
+under their new ids ([STOR-195](#STOR-195)). Its one script is named for the new
+play and stands where the old one stood. It opens with the old script's title
+page, every key as written but the title, which is the new name, and the draft
+date, which goes, and then a new play's first scene. Its status is the first in
+Settings › General's list, as a blank play's is. A page whose file is gone is
+left out, not a reason to stop.
+
+<a id="STOR-199"></a>
+
+**STOR-199** **Export Play…** (File, the document menu, a row's More Actions,
+and Save As's Another Kind of File) writes the whole play as one `.zip` through
+the save panel, as every export goes ([STOR-187](#STOR-187)): every file of the
+play, byte for byte, under one folder named for the play, so that unzipped it is
+the play folder as it was, ready for any Plays folder. Exported from inside the
+play, every word goes to disk first, and the export is refused while one has
+not. A play larger than 256 MB, the most an export carries, is refused, and a
+file that cannot be read stops it by name before the panel asks anything. On an
+iPad the share sheet takes it, as every export there.
+
+<a id="STOR-200"></a>
+
+**STOR-200** **Add a Play from a .zip…** (the Plays screen's New Play menu) adds
+the play a `.zip` holds: a play's folder at its top, or a play's files at its
+top. A Mac's `__MACOSX` folder and hidden files are left out. A path that
+climbs out of the .zip, or starts at a root, refuses all of it, and so does one
+that unpacks to more than 256 MB. Its files go in as they are, into a new folder
+named for the play, with a number after the name when it is taken; nothing in
+the Plays folder is written over, and the play file goes last, named for its
+folder. The play keeps its id unless a play in the Plays folder has it, when it
+takes a new one, so two plays never share Versions. It opens. A .zip with no
+play in it says so, and adds nothing.
+
+<a id="STOR-D19"></a>
+
+### Saved drafts
+
+<a id="STOR-203"></a>
+
+**STOR-203** **Save Draft…** (File, the document menu, and Save As's A Draft to
+Keep, docs/app/organizing/workspace-model.md#WORK-95) keeps the open script as
+it stands on disk, every word landed first, under a name the writer gives (the
+script's name and the day, to start from). The draft is a new `.fountain` in
+the play's `Drafts` folder, made at the top of the binder with the first, a
+number after the name when it is taken; the file is created and never written
+over, before the record. It is filed as a reference, so no editor of this app
+or an earlier one writes it, and the play file's `drafts` says what it is
+([STOR-207](#STOR-207)): a draft of which script, when, and the hash of its
+bytes. A draft is not refused for holding the same words as another: two named
+milestones are two. A toast says it is kept, with Open. Nothing is saved while
+the script has words not yet on disk; it says so.
+
+<a id="STOR-204"></a>
+
+**STOR-204** **A play with drafts is schema 2.** A play file is written as
+`schemaVersion` 1, as every copy of the app reads it, until its first draft,
+which moves it to 2 and never back ([STOR-155](#STOR-155)). A copy of the app
+that knows only 1 opens a play with drafts read-only, with its notice, and
+writes nothing in it: it would otherwise show a draft as a page it can write.
+This app reads and writes both.
+
+<a id="STOR-205"></a>
+
+**STOR-205** **A draft is read, never written.** Chosen in the binder, a draft
+opens in a sheet of its own (docs/app/organizing/workspace-model.md#WORK-96):
+the script as it was kept, on its own page in the play's format, and what has
+changed in the script it came from since, drawn as Changes draws a change
+([STOR-177](#STOR-177)). From there the script it came from can take the
+draft's words back, asked first: what the script holds is kept in Versions
+first (`pre-restore`), and the words go through the same guarded write as a
+version's restore, so the restore is undone from Versions. Or a new script
+holds the draft's words to work in, beside the one it came from, and opens. A
+draft whose bytes are no longer what was saved says it changed outside
+Proscenium; nothing repairs or forgets it. Renaming, moving or trashing a draft
+is the binder's, as for any file; its record stays, so Put Back makes it a draft
+again.
+
+<a id="STOR-206"></a>
+
+**STOR-206** **A `.fountain` filed as a reference is never written.** Whatever
+put it there, the binder opens it as a draft is opened, read-only, and its copy
+(the binder's Duplicate) is a script, so the Markdown editor never takes a
+script's file for a page of its own.
 
 <a id="STOR-D15"></a>
 

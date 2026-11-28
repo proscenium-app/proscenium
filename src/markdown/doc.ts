@@ -24,7 +24,18 @@
  * each is written back as exactly the token or the line it was read from.
  */
 import { parseBlocks, type Align, type Block, type ListBlock, type Span } from "./parse";
-import { FIELD_TOKEN, FOOT_MARK, fieldToken, isFieldName } from "./page-fields";
+import {
+  FIELD_TOKEN,
+  FOOT_MARK,
+  HEAD_MARK,
+  emptyLineMark,
+  fieldToken,
+  isFieldName,
+  placeMark,
+  readFieldOptions,
+  writeFieldOptions,
+  type Place,
+} from "./page-fields";
 
 /** The subset of ProseMirror JSON this bridge speaks. */
 export interface Node {
@@ -58,6 +69,36 @@ export function toDoc(markdown: string, options: ToDocOptions = {}): Node {
   return { type: "doc", content: content.length ? content : [{ type: "paragraph" }] };
 }
 
+/**
+ * Where a block of a page was put, as its node's attributes
+ * (docs/app/formatting/formats-and-layout.md#FMT-182): only those that say
+ * something, so a block left where the layout puts it has none.
+ */
+function placeAttrs(place: Place | undefined): Record<string, unknown> {
+  return {
+    ...(place?.rows !== undefined ? { placeRows: place.rows } : {}),
+    ...(place?.cell !== undefined ? { placeCell: place.cell } : {}),
+    ...(place?.beside ? { placeBeside: true } : {}),
+  };
+}
+
+/** A node's place, read back from its attributes; undefined for one left where the layout puts it. */
+export function placeOf(node: Node): Place | undefined {
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value)
+      ? Math.max(0, Math.min(999, Math.round(value)))
+      : undefined;
+  const rows = count(node.attrs?.placeRows);
+  const cell = count(node.attrs?.placeCell);
+  const beside = node.attrs?.placeBeside === true;
+  if (rows === undefined && cell === undefined && !beside) return undefined;
+  return {
+    ...(rows !== undefined ? { rows } : {}),
+    ...(cell !== undefined ? { cell } : {}),
+    ...(beside ? { beside: true as const } : {}),
+  };
+}
+
 /** `fields`: the text's field tokens are fields (a page file). */
 function blockToNode(block: Block, fields: boolean): Node {
   switch (block.kind) {
@@ -65,18 +106,26 @@ function blockToNode(block: Block, fields: boolean): Node {
       return { type: "managedMarker", attrs: { source: block.text } };
     case "foot":
       return { type: "foot" };
-    case "paragraph":
+    case "head":
+      return { type: "head" };
+    case "paragraph": {
+      const attrs = {
+        ...(block.align ? { textAlign: block.align } : {}),
+        ...placeAttrs(block.place),
+      };
       return {
         type: "paragraph",
-        ...(block.align ? { attrs: { textAlign: block.align } } : {}),
+        ...(Object.keys(attrs).length ? { attrs } : {}),
         content: spansToNodes(block.spans, fields),
       };
+    }
     case "heading":
       return {
         type: "heading",
         attrs: {
           level: Math.min(block.level, 6),
           ...(block.align ? { textAlign: block.align } : {}),
+          ...placeAttrs(block.place),
         },
         content: spansToNodes(block.spans, fields),
       };
@@ -226,7 +275,12 @@ function withFields(text: string, marks: MarkList): Node[] {
   for (const match of text.matchAll(FIELD_TOKEN)) {
     const at = match.index ?? 0;
     if (at > last) out.push({ type: "text", text: text.slice(last, at), ...markProp(marks) });
-    out.push({ type: "field", attrs: { name: match[1] }, ...markProp(marks) });
+    const options = writeFieldOptions(readFieldOptions(match[2]));
+    out.push({
+      type: "field",
+      attrs: { name: match[1], ...(options ? { options } : {}) },
+      ...markProp(marks),
+    });
     last = at + match[0].length;
   }
   if (last < text.length) out.push({ type: "text", text: text.slice(last), ...markProp(marks) });
@@ -250,24 +304,35 @@ export interface ToMarkdownOptions {
    * line, as it always has.
    */
   emptyLines?: boolean;
+  /**
+   * Keep every paragraph with no words that has words after it, or a place
+   * of its own, as `<!-- proscenium:line -->`: a blank row a writer leaves on
+   * a page prints (docs/app/formatting/formats-and-layout.md#FMT-182). The
+   * page's own editor writes so; a scaffold does not, since its lines
+   * waiting for words at the left were never rows of the page.
+   */
+  blankRows?: boolean;
 }
 
-/** The comment an empty line set centered or at the right is written as. */
-export function emptyLineMark(align: "center" | "right"): string {
-  return `<!-- proscenium:line=${align} -->`;
-}
+export { emptyLineMark };
 
 export function toMarkdown(doc: Node, options: ToMarkdownOptions = {}): string {
-  const out = (doc.content ?? [])
-    .map((n) => {
+  const nodes = doc.content ?? [];
+  const blank = (n: Node) => n.type === "paragraph" && !inlineToText(n.content ?? [], true).trim();
+  // The blank rows at the page's end are nothing: no words stand under them.
+  let last = nodes.length - 1;
+  while (last >= 0 && blank(nodes[last]!) && !placeOf(nodes[last]!)) last -= 1;
+  const out = nodes
+    .map((n, i) => {
       const align = n.attrs?.textAlign;
-      if (
-        options.emptyLines &&
-        n.type === "paragraph" &&
-        (align === "center" || align === "right") &&
-        !inlineToText(n.content ?? [], true).trim()
-      )
-        return emptyLineMark(align);
+      const set = align === "center" || align === "right";
+      if (blank(n)) {
+        const place = options.blankRows ? placeMark(placeOf(n)) : "";
+        if (options.emptyLines && set)
+          return `${place ? `${place}\n\n` : ""}${emptyLineMark(align)}`;
+        if (options.blankRows && i <= last)
+          return `${place ? `${place}\n\n` : ""}${emptyLineMark("left")}`;
+      }
       return blockToText(n, "", true);
     })
     .filter((s) => s !== null);
@@ -285,13 +350,17 @@ export function toMarkdown(doc: Node, options: ToMarkdownOptions = {}): string {
  */
 function blockToText(node: Node, indent: string, lineStarts: boolean): string | null {
   const align = node.attrs?.textAlign;
+  const place = placeMark(placeOf(node));
   const prefix =
-    align === "center" || align === "right" ? `<!-- proscenium:align=${align} -->\n\n` : "";
+    (place ? `${place}\n\n` : "") +
+    (align === "center" || align === "right" ? `<!-- proscenium:align=${align} -->\n\n` : "");
   switch (node.type) {
     case "managedMarker":
       return String(node.attrs?.source ?? "");
     case "foot":
       return FOOT_MARK;
+    case "head":
+      return HEAD_MARK;
     case "paragraph": {
       const text = inlineToText(node.content ?? [], lineStarts);
       return text.trim() ? prefix + text : text;
@@ -463,7 +532,9 @@ function inlineToText(nodes: Node[], lineStarts: boolean | "broken" = false): st
     // (`**{title}**`), and never escaped: the braces are what make it one.
     // A code mark on one means nothing on the page, so it is not written.
     const name = node.type === "field" ? node.attrs?.name : undefined;
-    const token = isFieldName(name) ? fieldToken(name) : null;
+    const token = isFieldName(name)
+      ? fieldToken(name, typeof node.attrs?.options === "string" ? node.attrs.options : null)
+      : null;
     if (node.type !== "text" && token === null) continue;
 
     const marks = (node.marks ?? []) as Mark[];

@@ -32,6 +32,8 @@
  *                                      # every feature that uses spell (ci-plan.mjs explain names its acts)
  *   bun run smoke -- --order reverse  # another order: reverse, or shuffle:<seed>
  *   bun run smoke -- --no-retry     # a failed act is not run again from its start
+ *   bun run smoke -- --stall-at 2   # the lane's negative control: the second act finds its browser
+ *                                   # stalled, runs again in a fresh one, and the run ends as it would have
  *   bun run smoke -- --quarantine <file>  # the build host's quarantine: reported, not failing
  *   bun run smoke -- --update-aria  # rewrite scripts/aria/*.yml from this run
  *   node scripts/smoke.mjs --engine webview2 --app <exe> --aria-out <dir>
@@ -90,7 +92,7 @@
  * source's hash and the hash of every snapshot it held.
  */
 import { chromium, webkit } from "playwright";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -125,7 +127,8 @@ import {
 } from "./aria-snapshots.mjs";
 import { variantNames, variantOfFile, variantsFrom } from "./smoke-variants.mjs";
 import { holdHostBench } from "./host-bench.mjs";
-import { JOURNAL, note, openJournal } from "./smoke-journal.mjs";
+import { endedWithin, JOURNAL, note, openJournal } from "./smoke-journal.mjs";
+import { ACTS_A_BROWSER, browserLane, STALLS_A_RUN, Stalled } from "./smoke-lane.mjs";
 import { pcHost } from "./smoke-pc-host.mjs";
 import {
   PROOF_CLOCKS,
@@ -816,6 +819,24 @@ const port = server.address().port;
 let failures = 0;
 
 /**
+ * How long an act's page may take to close. A browser that will not let a
+ * page go is not waited on: the run holds the host's bench while it waits, and
+ * on 2026-11-26 one whose WebKit stalled on a page waited at its close for
+ * sixteen hours, through a pipeline run that could then take no step of its
+ * own. Closing takes a second, or five for the real app; past two minutes the
+ * run says so and ends, and the bench is free.
+ */
+const CLOSE_MS = 120_000;
+/**
+ * `--stall-at <n>`: the run's nth act finds its browser stalled, as a WebKit's
+ * sixtieth has. The lane's negative control: the run must say the stall, run
+ * the act again in a fresh browser, and end as it would have.
+ */
+const STALL_AT = Number(argValue("--stall-at") ?? 0);
+/** And how long, once its act has already found the browser stalled. */
+const STALLED_CLOSE_MS = 15_000;
+
+/**
  * One act, once: a fresh browser context, the act's start (the opening's
  * checks, quietly), then its checks. Returns what each check said.
  */
@@ -962,8 +983,17 @@ async function runAct(browser, engine, name, attempt, { clockMs = 0, variant = n
   const started = Date.now();
   const actTiming = { engine, act: name, attempt, startMs: 0, ms: 0, checks: [] };
   const results = [];
-  try {
-    if (engine !== "webview2") await page.goto(`http://127.0.0.1:${port}/`);
+  const ran = async () => {
+    // The lane's negative control: this act finds its browser stalled, once.
+    if (id === STALL_AT) throw new Stalled("staged by --stall-at");
+    // The run's own server, on this machine: a page of it that never loads is
+    // a browser that has stalled, and no check's failure (scripts/smoke-lane.mjs).
+    if (engine !== "webview2")
+      await page.goto(`http://127.0.0.1:${port}/`).catch((e) => {
+        if (e?.name === "TimeoutError" || /Timeout \d+ms exceeded/.test(String(e)))
+          throw new Stalled(`the page never loaded (${String(e).split("\n")[0]})`);
+        throw e;
+      });
     // The act's start: the opening's checks, quietly.
     for (const check of start) {
       note({ event: "check", id, check: check.name, start: true });
@@ -1055,18 +1085,80 @@ async function runAct(browser, engine, name, attempt, { clockMs = 0, variant = n
           }
         : { check: "the page reached outside the app", quiet: true, ok: true },
     );
-  } finally {
-    actTiming.ms = Date.now() - started;
-    timing.acts.push(actTiming);
-    // A file a check still holds is let go before its app is closed.
-    note({ event: "closing", id });
+    // Run to its end: every check had its turn, so its trees are the act's
+    // whole set (an attempt that stopped at its launch or its start is not).
+    return { name, attempt, results, timing: actTiming, kept: P.kept, complete: true };
+  };
+  let outcome = null;
+  // Kept for the close below: a page that will not close says what stopped its act first.
+  let stopped = null;
+  try {
+    outcome = await ran();
+  } catch (e) {
+    stopped = e;
+  }
+  actTiming.ms = Date.now() - started;
+  timing.acts.push(actTiming);
+  // A file a check still holds is let go before its app is closed.
+  note({ event: "closing", id });
+  // A browser already known to have stalled gets a moment to close; any other, its two minutes.
+  const closeMs = stopped instanceof Stalled ? STALLED_CLOSE_MS : CLOSE_MS;
+  const closed = await endedWithin(closeMs, async () => {
     await page.host?.dispose().catch(() => {});
     await context.close().catch(() => {});
-    note({ event: "act-end", id });
-  }
-  // Run to its end: every check had its turn, so its trees are the act's
-  // whole set (an attempt that stopped at its launch or its start is not).
-  return { name, attempt, results, timing: actTiming, kept: P.kept, complete: true };
+  });
+  note(closed ? { event: "act-end", id } : { event: "act-end", id, closed: false });
+  // What a stalled browser said of the act's checks counts for nothing: the
+  // engine's lane runs the act again in a fresh one.
+  if (!closed && !(stopped instanceof Stalled))
+    throw new Stalled(
+      `${engine} did not close the page of "${name}" in ${closeMs / 1000} s${
+        stopped ? `, after: ${String(stopped).split("\n")[0]}` : ""
+      }`,
+    );
+  if (stopped) throw stopped;
+  return outcome;
+}
+
+/**
+ * Whether a Screen Sharing session is connected to this Mac, by the
+ * assertion it holds while one is. Every stall of 2026-11-26 and 27 came with
+ * one connected and the display asleep, and ended when its viewer next moved.
+ */
+function screenShared() {
+  if (process.platform !== "darwin") return false;
+  const said = spawnSync("/usr/bin/pmset", ["-g", "assertions"], { encoding: "utf8" });
+  return /Remote user is connected/.test(said.stdout ?? "");
+}
+
+/**
+ * An engine's lane (scripts/smoke-lane.mjs): the browser its acts run in, a
+ * fresh one every ACTS_A_BROWSER acts and whenever one stalls. The real
+ * Windows app is launched by each act, so its driver is one for the run, and
+ * a stall there stops the run and says so.
+ */
+function laneFor(engine, options) {
+  const app = engine === "webview2";
+  return browserLane({
+    launch: () => ENGINES[engine].launch(options),
+    limit: app ? Number.POSITIVE_INFINITY : ACTS_A_BROWSER,
+    maxStalls: app ? 0 : STALLS_A_RUN,
+    failed: (outcome) => outcome.results.some((r) => !r.ok),
+    // The real app is closed by its act; its driver may take as long as an act does.
+    closeMs: app ? CLOSE_MS : STALLED_CLOSE_MS,
+    said: ({ count, message }) => {
+      const shared = screenShared();
+      note({ event: "stalled", engine, count, what: message, screenShared: shared });
+      if (!app)
+        console.log(
+          `  note  ${engine} stalled: ${message}. Its act runs again in a fresh browser.${
+            shared
+              ? " A Screen Sharing session is connected to this host, which is when a WebKit has been seen to stall."
+              : ""
+          }`,
+        );
+    },
+  });
 }
 
 /** Say what an act's attempt found, one line a check. */
@@ -1080,7 +1172,8 @@ function report(engine, outcome) {
 }
 
 async function runEngine(engine) {
-  const browser = await ENGINES[engine].launch(
+  const lane = laneFor(
+    engine,
     WEBVIEW2 ? { app: argValue("--app"), brk: argValue("--break") } : undefined,
   );
   // The acts, then each variant's (the real Windows app alone), in order.
@@ -1104,14 +1197,14 @@ async function runEngine(engine) {
       // What a line, a flake or a failure calls this act: with its variant's name.
       const shown = variant ? `${name} (${variant.name})` : name;
       const said = (outcome) => ({ ...outcome, name: shown });
-      let outcome = await runAct(browser, engine, name, 1, { variant });
+      let outcome = await lane.run((browser) => runAct(browser, engine, name, 1, { variant }));
       report(engine, said(outcome));
       const failedFirst = outcome.results.filter((r) => !r.ok);
       if (failedFirst.length && RETRY) {
         // Once more from its start, and only the second try counts: a check
         // that failed in the first and passed in the second is a flake, named
         // and failing nothing, whatever else the second found (as in the app).
-        const second = await runAct(browser, engine, name, 2, { variant });
+        const second = await lane.run((browser) => runAct(browser, engine, name, 2, { variant }));
         report(engine, said(second));
         for (const r of failedFirst)
           if (second.results.some((x) => x.check === r.check && x.ok))
@@ -1146,7 +1239,7 @@ async function runEngine(engine) {
     }
   };
   await Promise.all(Array.from({ length: Math.min(WORKERS, queue.length) }, worker));
-  await browser.close();
+  await lane.end();
   console.log(
     `  ok    ${engine} · the acts ran: ${RUN_ACTS.length}${VARIANT_LIST.length && engine === "webview2" ? `, and ${VARIANT_LIST.map((v) => `${v.name}'s ${v.acts.filter((a) => RUN_ACTS.includes(a)).length}`).join(", ")}` : ""}`,
   );
@@ -1179,13 +1272,8 @@ async function prove() {
     PROVE.map((c) => [c, Object.fromEntries(ENGINE_ORDER.map((e) => [e, 0]))]),
   );
   const failed = [];
-  const browsers = Object.fromEntries(
-    await Promise.all(
-      ENGINE_ORDER.map(async (e) => [
-        e,
-        await ENGINES[e].launch(WEBVIEW2 ? { app: argValue("--app") } : undefined),
-      ]),
-    ),
+  const lanes = Object.fromEntries(
+    ENGINE_ORDER.map((e) => [e, laneFor(e, WEBVIEW2 ? { app: argValue("--app") } : undefined)]),
   );
   for (const phase of phases) {
     const stop = phase.load ? loadHost() : () => {};
@@ -1195,7 +1283,9 @@ async function prove() {
           const queue = RUN_ACTS.flatMap((act) => Array.from({ length: phase.runs }, () => act));
           const worker = async () => {
             for (let act = queue.shift(); act; act = queue.shift()) {
-              const outcome = await runAct(browsers[engine], engine, act, 1, phase);
+              const outcome = await lanes[engine].run((browser) =>
+                runAct(browser, engine, act, 1, phase),
+              );
               for (const check of PROVE) {
                 const r = outcome.results.find((x) => x.check === check);
                 // A check its act never reached, a start that failed, failed.
@@ -1227,7 +1317,12 @@ async function prove() {
       `  proof · ${phase.label}: ${PROVE.map((c) => `${c} ${ENGINE_ORDER.map((e) => `${e} ${passed.get(c)[e]}`).join(", ")}`).join(" · ")}`,
     );
   }
-  for (const b of Object.values(browsers)) await b.close();
+  for (const lane of Object.values(lanes)) await lane.end();
+  const stalls = ENGINE_ORDER.filter((e) => lanes[e].stalls).map((e) => `${e} ${lanes[e].stalls}`);
+  if (stalls.length)
+    console.log(
+      `  note  a browser stalled and its act ran again in a fresh one: ${stalls.join(", ")}`,
+    );
   server.close();
 
   const proofs = readProofs(ROOT);

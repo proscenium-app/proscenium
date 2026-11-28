@@ -1,0 +1,9 @@
+- dialog "New Play Like This"
+  - heading "New Play Like This" [level=2]
+  - paragraph
+  - none
+  - textbox "Name"
+  - button "Cancel"
+  - button "Create Play" [disabled]
+  - status [live=polite]
+  - alert [live=assertive]

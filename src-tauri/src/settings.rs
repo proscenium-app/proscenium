@@ -196,6 +196,10 @@ pub struct Settings {
     /// once a day (docs/engineering/release-engineering.md#REL-D6, updates.rs). On unless switched off;
     /// Check Now and the menu's Check for Updates… ask either way.
     pub check_for_updates: bool,
+    /// Whether a downloaded update installs as Proscenium quits, so the next
+    /// launch is the new version (docs/engineering/release-engineering.md#REL-133).
+    /// On unless switched off; Restart to Update installs either way.
+    pub install_updates_automatically: bool,
     /// Where updates come from (Settings › Updates): stable unless chosen.
     pub update_track: UpdateTrack,
     /// Whether this copy holds alpha's key, which is all the page learns of it
@@ -253,6 +257,8 @@ pub struct SettingsPatch {
     pub last_play: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub check_for_updates: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install_updates_automatically: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub update_track: Option<UpdateTrack>,
     /// Alpha's key, as the writer entered it. Write-only: the model answers
@@ -488,6 +494,7 @@ pub(crate) fn from_object(obj: &Map<String, Value>) -> Settings {
             .filter(|id| valid_play_ref(id))
             .map(str::to_string),
         check_for_updates: flag("checkForUpdates").unwrap_or(true),
+        install_updates_automatically: flag("installUpdatesAutomatically").unwrap_or(true),
         update_track: effective_track(
             obj.get("updateTrack")
                 .cloned()

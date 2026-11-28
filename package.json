@@ -1,6 +1,6 @@
 {
   "name": "proscenium",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A local-first, cross-platform playwriting app.",
   "license": "AGPL-3.0-or-later",
   "type": "module",

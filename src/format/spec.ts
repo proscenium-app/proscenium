@@ -148,7 +148,8 @@ export const PAGE_SIZES: Record<PageSizeName, { widthIn: number; heightIn: numbe
 /**
  * What a header or footer slot can print (docs/app/formatting/formats-and-layout.md#FMT-101):
  * the page number, the act and scene numbers, the title-page fields, and the
- * act and scene headings as written.
+ * act and scene headings as written, and the play's version
+ * (docs/app/formatting/formats-and-layout.md#FMT-185).
  */
 export const HEADER_TOKENS = [
   "page",
@@ -158,6 +159,7 @@ export const HEADER_TOKENS = [
   "title",
   "author",
   "draftDate",
+  "version",
   "act",
   "scene",
 ] as const;

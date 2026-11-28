@@ -1,0 +1,13 @@
+- dialog "Play Version"
+  - heading "Play Version" [level=2]
+  - none
+  - textbox "Version"
+  - button "Also in: Header" [haspopup]
+  - button "Side: Left" [haspopup]
+  - none
+    - checkbox "Add a Version line to the title page" [checked]
+  - paragraph
+  - button "Cancel"
+  - button "Save"
+  - status [live=polite]
+  - alert [live=assertive]

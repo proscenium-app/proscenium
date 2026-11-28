@@ -2,18 +2,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/core";
-import { Selection, TextSelection } from "@tiptap/pm/state";
-import { Button } from "../ui";
-import { keyStyle } from "../ui/keys";
+import { NodeSelection, Selection, TextSelection } from "@tiptap/pm/state";
+import { Button, ChevronDownIcon, IconButton, Menu, TrashIcon, announce, useMenu } from "../ui";
+import { moveToTrash } from "../ui/system-words";
+import { keyStyle, keys } from "../ui/keys";
 import { portalHost } from "../ui/portal-host";
 import { takeFocusFromPress, type PressFocusView } from "../ui/caret-on-focus";
 import { ProseEditor } from "../markdown/ProseEditor";
@@ -25,8 +28,14 @@ import {
   settleIntoField,
   type FieldWriter,
 } from "../markdown/page-file-nodes";
-import type { FieldName } from "../markdown/page-fields";
-import type { Field } from "../layout";
+import {
+  FIELD_LABEL,
+  readFieldOptions,
+  writeFieldOptions,
+  type FieldName,
+} from "../markdown/page-fields";
+import { toDoc, toMarkdown, type Node as DocNode } from "../markdown/doc";
+import type { Field, MoveStep, MoveTo, Moved, PageSpot, PageSpots } from "../layout";
 import { DETAIL_HELP, DETAIL_OF, type Detail } from "./play-details";
 
 /** The element that scrolls `el`: the nearest that can, or the document. */
@@ -169,6 +178,65 @@ const weightOf = (style: string) => (style === "bold" || style === "bold-italic"
 const slantOf = (style: string) =>
   style === "italic" || style === "bold-italic" ? "italic" : "normal";
 
+/**
+ * Moving a block of the page (docs/app/formatting/formats-and-layout.md#FMT-182):
+ * where each stands and where one can go, worked out by the one paginator from
+ * the page's words as the editor holds them. A move's `text` is those words
+ * with the block moved.
+ */
+export interface PagePlacing {
+  spots: (body: string) => PageSpots;
+  move: (body: string, index: number, to: MoveTo) => Moved | null;
+  step: (body: string, index: number, step: MoveStep) => Moved | null;
+}
+
+/** Each way a block moves, as the Move menu and the keys say it. */
+const STEPS: readonly { step: MoveStep; label: string; arrow: string; key: string }[] = [
+  { step: "up", label: "Up a Row", arrow: "↑", key: "ArrowUp" },
+  { step: "down", label: "Down a Row", arrow: "↓", key: "ArrowDown" },
+  { step: "left", label: "Left a Cell", arrow: "←", key: "ArrowLeft" },
+  { step: "right", label: "Right a Cell", arrow: "→", key: "ArrowRight" },
+];
+
+/**
+ * The chord that moves a block, as this system writes it. A Mac's is ⌃⌘ and
+ * an arrow, as a binder row's is. A PC's is Alt+Shift and an arrow, the keys
+ * its word processors move a paragraph with: Ctrl+Shift and an arrow selects
+ * by the word there, which a page's writer needs.
+ */
+const moveChord = (arrow: string) => (keyStyle() === "pc" ? keys(`⌥⇧${arrow}`) : `⌃⌘${arrow}`);
+
+/** Where a moved block now stands, as it is said. */
+const placeSaid = (moved: Moved) =>
+  `Moved to row ${Math.floor(moved.row + 0.01) + 1}, cell ${Math.round(moved.cell) + 1}.`;
+
+/** The outline of a block being dragged, in rows and cells of the sheet. */
+interface Ghost {
+  row: number;
+  cell: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * The components of a page that have settings of their own
+ * (docs/app/formatting/formats-and-layout.md#FMT-184): fields the script
+ * fills, which no one writes in. Selected, each shows a button beside it that
+ * opens what can be set.
+ */
+type ComponentName = "contents" | "cast";
+const isComponent = (name: unknown): name is ComponentName =>
+  name === "contents" || name === "cast";
+
+/** The component the caret has selected, and where its button stands. */
+interface ComponentAt {
+  name: ComponentName;
+  pos: number;
+  options: string;
+  top: number;
+  left: number;
+}
+
 /** The play's details, as a field of the page writes them. */
 export interface DetailsAccess {
   set: (detail: Detail, text: string) => void;
@@ -195,9 +263,11 @@ export function FrontPageEditor({
   name,
   onDone,
   onChangeTemplate,
+  onRemove,
   details,
   openField,
   sheet,
+  place,
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -216,12 +286,16 @@ export function FrontPageEditor({
   onDone?: () => void;
   /** Opens the templates, to give this page another. */
   onChangeTemplate?: () => void;
+  /** Moves the page to the Trash: any page goes, the title page too. */
+  onRemove?: () => void;
   /** The play's details: given, a field is where its detail is written, in place. */
   details?: DetailsAccess;
   /** A field to put the caret in as the editor opens: the one the writer pressed on the sheet. */
   openField?: FieldName | null;
   /** Set the page as it prints. */
   sheet?: SheetSetting;
+  /** Given, with `sheet`: a block of the page can be moved about its sheet. */
+  place?: PagePlacing;
 }) {
   const [editor, setEditor] = useState<Editor | null>(null);
   /** The field the caret is in: the bar says what that detail is. */
@@ -251,6 +325,307 @@ export function FrontPageEditor({
     [fields, editable, write],
   );
   const box = useRef<HTMLDivElement | null>(null);
+  const placing = sheet ? place : undefined;
+  const placer = useRef(placing);
+  placer.current = placing;
+  /** The handle a block is dragged by: beside the block under the pointer, or the caret's. */
+  const [grip, setGrip] = useState<{ index: number; top: number; left: number } | null>(null);
+  /** The outline of the block being dragged, where it would stand. */
+  const [ghost, setGhost] = useState<Ghost | null>(null);
+  const drag = useRef<{
+    index: number;
+    body: string;
+    self: PageSpot;
+    cells: number;
+    x: number;
+    y: number;
+    line: number;
+    cell: number;
+    asked: string;
+    moved: Moved | null;
+  } | null>(null);
+
+  /** The component selected: its settings are a press away, beside it. */
+  const [component, setComponent] = useState<ComponentAt | null>(null);
+  const componentBtn = useRef<HTMLButtonElement | null>(null);
+  const componentMenu = useMenu();
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || !editable) return;
+    const read = () => {
+      const { selection } = editor.state;
+      const host = box.current;
+      const node = selection instanceof NodeSelection ? selection.node : null;
+      const dom = node ? editor.view.nodeDOM(selection.from) : null;
+      if (!host || !node || node.type.name !== FIELD_NODE || !isComponent(node.attrs.name)) {
+        setComponent(null);
+        return;
+      }
+      if (!(dom instanceof HTMLElement)) return;
+      const at = dom.getBoundingClientRect();
+      const from = host.getBoundingClientRect();
+      setComponent({
+        name: node.attrs.name,
+        pos: selection.from,
+        options: typeof node.attrs.options === "string" ? node.attrs.options : "",
+        top: at.top - from.top,
+        left: at.right - from.left,
+      });
+    };
+    editor.on("selectionUpdate", read);
+    editor.on("update", read);
+    return () => {
+      editor.off("selectionUpdate", read);
+      editor.off("update", read);
+    };
+  }, [editor, editable]);
+  /** One setting of the selected component changed; the component stays selected. */
+  const setOption = (key: string, value: string | null) => {
+    if (!editor || editor.isDestroyed || !component) return;
+    const { state, view } = editor;
+    const options = { ...readFieldOptions(component.options) };
+    if (value === null) delete options[key];
+    else options[key] = value;
+    const tr = state.tr.setNodeAttribute(component.pos, "options", writeFieldOptions(options));
+    tr.setSelection(NodeSelection.create(tr.doc, component.pos));
+    view.dispatch(tr);
+    view.focus();
+  };
+  /**
+   * The cast as words of the page: each name a line of its own, in bold as a
+   * list of characters is set, to be written on from here. It no longer
+   * follows the script.
+   */
+  const castIntoText = () => {
+    if (!editor || editor.isDestroyed || !component) return;
+    const { state, view } = editor;
+    const names = (fields?.cast ?? "").split("\n").filter((name) => name.trim());
+    const $at = state.doc.resolve(component.pos);
+    const para = state.schema.nodes.paragraph;
+    const bold = state.schema.marks.bold;
+    if (!para) return;
+    const tr = state.tr;
+    if ($at.parent.childCount === 1 && $at.depth === 1) {
+      const { placeRows: _rows, placeBeside: _beside, ...kept } = $at.parent.attrs;
+      const lines = names.map((name, i) =>
+        para.create(
+          i ? kept : $at.parent.attrs,
+          state.schema.text(name, bold ? [bold.create()] : []),
+        ),
+      );
+      tr.replaceWith($at.before(), $at.after(), lines.length ? lines : para.create(kept));
+      tr.setSelection(Selection.near(tr.doc.resolve($at.before() + 1)));
+    } else if (names.length) {
+      tr.replaceWith(component.pos, component.pos + 1, state.schema.text(names.join(", ")));
+    } else tr.delete(component.pos, component.pos + 1);
+    view.dispatch(tr);
+    view.focus();
+    announce(
+      names.length
+        ? `The cast is words of the page now: ${names.length} ${names.length === 1 ? "name" : "names"}.`
+        : "The cast is taken off the page: no one speaks yet.",
+    );
+  };
+
+  /** The page's words as the editor holds them, as its file would have them. */
+  const bodyNow = useCallback(
+    () =>
+      editor && !editor.isDestroyed
+        ? toMarkdown(editor.getJSON() as DocNode, { emptyLines: true, blankRows: true })
+        : "",
+    [editor],
+  );
+  /** Which of the page's blocks holds `target`, or the caret when it holds none. */
+  const blockOf = useCallback(
+    (target: EventTarget | null): number | null => {
+      if (!editor || editor.isDestroyed) return null;
+      const { view, state } = editor;
+      let el = target instanceof globalThis.Node ? target : null;
+      while (el && el.parentNode !== view.dom) el = el.parentNode;
+      if (!el) return state.selection.$from.index(0);
+      try {
+        return state.doc.resolve(view.posAtDOM(el, 0)).index(0);
+      } catch {
+        return null;
+      }
+    },
+    [editor],
+  );
+  /** The moved page in the editor, the caret in the block that moved. One step to undo. */
+  const applyMove = useCallback(
+    (moved: Moved) => {
+      if (!editor || editor.isDestroyed) return;
+      const { state, view } = editor;
+      const next = state.schema.nodeFromJSON(toDoc(moved.text, { pageFile: true }));
+      const tr = state.tr.replaceWith(0, state.doc.content.size, next.content);
+      let pos = 0;
+      const index = Math.min(moved.index, tr.doc.childCount - 1);
+      for (let i = 0; i < index; i++) pos += tr.doc.child(i).nodeSize;
+      tr.setSelection(Selection.near(tr.doc.resolve(Math.min(pos + 1, tr.doc.content.size))));
+      view.dispatch(tr);
+      const now = Date.now();
+      takeFocusFromPress(view as unknown as PressFocusView, now, now);
+      view.focus();
+      // A line that is one field takes the caret into the field, as it had it.
+      if (editable) settleIntoField(view);
+      announce(placeSaid(moved));
+    },
+    [editor, editable],
+  );
+  /** Whether the block at `index` is one that moves: a paragraph or a heading. */
+  const moves = useCallback(
+    (index: number | null): index is number => {
+      if (index === null || !editor || editor.isDestroyed) return false;
+      const node = index < editor.state.doc.childCount ? editor.state.doc.child(index) : null;
+      return node?.type.name === "paragraph" || node?.type.name === "heading";
+    },
+    [editor],
+  );
+  const moveBy = useCallback(
+    (step: MoveStep, target: EventTarget | null) => {
+      const index = blockOf(target);
+      if (!placer.current || !moves(index)) return;
+      const moved = placer.current.step(bodyNow(), index, step);
+      if (moved) applyMove(moved);
+      else announce("It cannot move further that way.");
+    },
+    [blockOf, moves, bodyNow, applyMove],
+  );
+
+  /** Where the handle of the block at `index` stands: just left of its words. */
+  const gripFor = useCallback(
+    (index: number | null) => {
+      const host = box.current;
+      if (!host || !placer.current || !moves(index) || !editor) return null;
+      let pos = 0;
+      for (let i = 0; i < index; i++) pos += editor.state.doc.child(i).nodeSize;
+      const el = editor.view.nodeDOM(pos);
+      if (!(el instanceof HTMLElement)) return null;
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const words = range.getBoundingClientRect();
+      const block = el.getBoundingClientRect();
+      const from = host.getBoundingClientRect();
+      const left = (words.width ? words.left : block.left) - from.left;
+      return { index, top: block.top - from.top, left };
+    },
+    [editor, moves],
+  );
+  // With no pointer over the page, the handle is the caret's block's: a
+  // finger has no hover, and the keys move that block.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed || !placing) return;
+    const follow = () => {
+      if (drag.current) return;
+      setGrip(gripFor(editor.state.selection.$from.index(0)));
+    };
+    editor.on("selectionUpdate", follow);
+    editor.on("update", follow);
+    return () => {
+      editor.off("selectionUpdate", follow);
+      editor.off("update", follow);
+    };
+  }, [editor, placing, gripFor]);
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!placing || drag.current || !editor || editor.isDestroyed) return;
+    if (!(event.target instanceof Element) || event.target.closest(".pageblock-grip")) return;
+    // The block whose rows the pointer is on; of two side by side, the nearer.
+    const { view } = editor;
+    let best: { index: number; apart: number } | null = null;
+    let index = 0;
+    view.state.doc.forEach((_node, pos) => {
+      const el = view.nodeDOM(pos);
+      if (el instanceof HTMLElement && moves(index)) {
+        const rows = el.getBoundingClientRect();
+        if (event.clientY >= rows.top && event.clientY < rows.bottom) {
+          // By its words, not its box: a line at the left is as wide as the sheet.
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const words = range.getBoundingClientRect();
+          const r = words.width ? words : rows;
+          const apart =
+            event.clientX < r.left
+              ? r.left - event.clientX
+              : event.clientX > r.right
+                ? event.clientX - r.right
+                : 0;
+          if (!best || apart < best.apart) best = { index, apart };
+        }
+      }
+      index += 1;
+    });
+    const found = best as { index: number; apart: number } | null;
+    if (found && found.index !== grip?.index) setGrip(gripFor(found.index));
+  };
+  const endDrag = (apply: boolean) => {
+    const held = drag.current;
+    drag.current = null;
+    setGhost(null);
+    if (apply && held?.moved) applyMove(held.moved);
+  };
+  const onGripDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!placing || !grip || !editor || editor.isDestroyed || event.button > 0) return;
+    const body = bodyNow();
+    const all = placing.spots(body);
+    const self = all.spots.find((spot) => spot.index === grip.index && spot.movable);
+    const root = editor.view.dom as HTMLElement;
+    const line = Number.parseFloat(getComputedStyle(root).lineHeight);
+    if (!self || !line) return;
+    event.preventDefault();
+    // Held by the handle wherever the pointer goes; a pointer that is not a
+    // device's own cannot be held, and its events come to the handle anyway.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Not a pointer the system knows.
+    }
+    // A cell is the advance of the page's own type, measured beside the
+    // page's words and never among them.
+    const probe = document.createElement("span");
+    probe.textContent = "0000000000";
+    probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre";
+    (box.current ?? root).appendChild(probe);
+    const cell = probe.getBoundingClientRect().width / 10;
+    probe.remove();
+    drag.current = {
+      index: grip.index,
+      body,
+      self,
+      cells: all.grid.cells,
+      x: event.clientX,
+      y: event.clientY,
+      line,
+      cell: cell || line / 2,
+      asked: "",
+      moved: null,
+    };
+    setGhost({ row: self.row, cell: self.cell, width: self.width, height: self.height });
+  };
+  const onGripMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const held = drag.current;
+    if (!held || !placing) return;
+    const row = held.self.row + (event.clientY - held.y) / held.line;
+    const across = (event.clientX - held.x) / held.cell;
+    const to: MoveTo = { row };
+    // A drag that stays in its column moves the block down the page only;
+    // near the middle of the sheet it is centered, and at an edge set there.
+    if (Math.abs(across) >= 0.75) {
+      const at = held.self.cell + across;
+      if (Math.abs(at + held.self.width / 2 - held.cells / 2) <= 1.25) to.align = "center";
+      else to.cell = at;
+    }
+    const asked = `${Math.round(row)}:${to.align ?? (to.cell === undefined ? "" : Math.round(to.cell))}`;
+    if (asked === held.asked) return;
+    held.asked = asked;
+    const moved = placing.move(held.body, held.index, to);
+    if (!moved) return;
+    held.moved = moved;
+    setGhost({
+      row: moved.row,
+      cell: moved.cell,
+      width: held.self.width,
+      height: held.self.height,
+    });
+  };
   // The caret at the paragraph asked for, set and focused in two plain steps:
   // the editor's chained focus sent its selection a frame late, and a page
   // whose words arrived in that frame met it as a transaction for a document
@@ -297,10 +672,36 @@ export function FrontPageEditor({
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!editor || editor.isDestroyed) return;
     if (!(event.target instanceof Node) || !box.current?.contains(event.target)) return;
+    const pc = keyStyle() === "pc";
+    // Esc lets go of a block being dragged, where it was.
+    if (drag.current && event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      endDrag(false);
+      return;
+    }
+    // Return on a component opens what can be set on it: left to the page,
+    // Return would write a new line over the component.
+    if (component && event.key === "Enter" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      componentMenu.openFrom(componentBtn.current);
+      return;
+    }
+    // The keys that move the block the caret is in, a field's own included.
+    const step = STEPS.find((each) => each.key === event.key)?.step;
+    const moving = pc
+      ? event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey
+      : event.ctrlKey && event.metaKey && !event.altKey && !event.shiftKey;
+    if (placing && step && moving) {
+      event.preventDefault();
+      event.stopPropagation();
+      moveBy(step, event.target);
+      return;
+    }
     // A key in a field's own words is the field's.
     if (fieldTextOf(event.target)) return;
     const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
-    const pc = keyStyle() === "pc";
     const toEnd = pc
       ? event.ctrlKey && !event.metaKey && event.key === "End"
       : (event.metaKey && !event.ctrlKey && event.key === "ArrowDown") ||
@@ -339,7 +740,24 @@ export function FrontPageEditor({
         </span>
       )}
       <FormatBar editor={editor} openingPage />
-      {(onChangeTemplate || onDone) && <span className="frontedit-bar__spacer" />}
+      {(onChangeTemplate || onRemove || onDone) && <span className="frontedit-bar__spacer" />}
+      {placing && editor && (
+        <MoveMenu
+          disabled={!moves(editor.state.selection.$from.index(0))}
+          onStep={(step) => {
+            editor.view.focus();
+            moveBy(step, null);
+          }}
+        />
+      )}
+      {/* Any page can be taken out of the play, where it is written
+          (docs/app/formatting/formats-and-layout.md#FMT-183): the toast that
+          follows puts it back. */}
+      {onRemove && (
+        <IconButton label={`${moveToTrash()}: ${name ?? "this page"}`} onClick={onRemove}>
+          <TrashIcon size={14} />
+        </IconButton>
+      )}
       {onChangeTemplate && <Button onClick={onChangeTemplate}>Change Template…</Button>}
       {onDone && (
         <Button treatment="primary" onClick={onDone}>
@@ -357,6 +775,7 @@ export function FrontPageEditor({
       aria-label={label}
       style={setting}
       onKeyDownCapture={onKeyDown}
+      onPointerMove={placing ? onPointerMove : undefined}
     >
       {barHost ? createPortal(bar, barHost) : bar}
       {/* What the detail under the caret is, and what else shows it: said
@@ -366,6 +785,76 @@ export function FrontPageEditor({
           {helpFor(activeField.name)}
         </FieldNote>
       )}
+      {component && (
+        <>
+          <button
+            ref={componentBtn}
+            type="button"
+            className="pagecomponent-btn"
+            style={{ top: component.top, left: component.left }}
+            aria-label={`${FIELD_LABEL[component.name]} settings`}
+            title={`${FIELD_LABEL[component.name]} settings`}
+            aria-haspopup="menu"
+            aria-expanded={componentMenu.open}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => componentMenu.openFrom(componentBtn.current)}
+          >
+            <ChevronDownIcon size={10} />
+          </button>
+          {componentMenu.anchor && (
+            <Menu
+              anchor={componentMenu.anchor}
+              label={`${FIELD_LABEL[component.name]} settings`}
+              width={230}
+              onClose={componentMenu.close}
+              entries={
+                component.name === "contents"
+                  ? [
+                      {
+                        id: "acts",
+                        label: "Page Numbers on Acts",
+                        checked: readFieldOptions(component.options).acts !== "plain",
+                        onSelect: () =>
+                          setOption(
+                            "acts",
+                            readFieldOptions(component.options).acts === "plain" ? null : "plain",
+                          ),
+                      },
+                    ]
+                  : [{ id: "text", label: "Turn into Text", onSelect: castIntoText }]
+              }
+            />
+          )}
+        </>
+      )}
+      {placing && grip && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: the pointer's way to move a block; the keys and the Move menu are the keyboard's
+        <div
+          className={`pageblock-grip${ghost ? " pageblock-grip--held" : ""}`}
+          style={{ top: grip.top, left: grip.left }}
+          aria-hidden="true"
+          title={`Drag to move. ${moveChord("↑")} and the other arrows move it too.`}
+          onPointerDown={onGripDown}
+          onPointerMove={onGripMove}
+          onPointerUp={() => endDrag(true)}
+          onPointerCancel={() => endDrag(false)}
+        >
+          <svg viewBox="0 0 8 14" width="8" height="14" aria-hidden="true">
+            <title>Move</title>
+            {[2, 7, 12].flatMap((y) =>
+              [2, 6].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.1" />),
+            )}
+          </svg>
+        </div>
+      )}
+      {ghost && editor && !editor.isDestroyed && (
+        <GhostBox
+          ghost={ghost}
+          drag={drag.current}
+          root={editor.view.dom as HTMLElement}
+          host={box.current}
+        />
+      )}
       <ProseEditor
         markdown={value}
         onChange={onChange}
@@ -374,5 +863,83 @@ export function FrontPageEditor({
         onBlur={onBlur}
       />
     </div>
+  );
+}
+
+/** The outline of a block being dragged, drawn where it would stand on the sheet. */
+function GhostBox({
+  ghost,
+  drag,
+  root,
+  host,
+}: {
+  ghost: Ghost;
+  drag: { line: number; cell: number } | null;
+  root: HTMLElement;
+  host: HTMLElement | null;
+}) {
+  if (!drag || !host) return null;
+  const sheet = root.getBoundingClientRect();
+  const from = host.getBoundingClientRect();
+  return (
+    <div
+      className="pageblock-ghost"
+      aria-hidden="true"
+      style={{
+        top: sheet.top - from.top + ghost.row * drag.line,
+        left: sheet.left - from.left + ghost.cell * drag.cell,
+        width: Math.max(1, ghost.width) * drag.cell,
+        height: ghost.height * drag.line,
+      }}
+    />
+  );
+}
+
+/**
+ * Move: the block the caret is in, a row up or down or a cell left or right,
+ * each with the keys that do the same. A press leaves the caret where it was.
+ */
+function MoveMenu({ disabled, onStep }: { disabled: boolean; onStep: (step: MoveStep) => void }) {
+  const ref = useRef<HTMLButtonElement | null>(null);
+  const menu = useMenu();
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className="popupbtn"
+        aria-haspopup="menu"
+        aria-expanded={menu.open}
+        disabled={disabled}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => menu.openFrom(ref.current)}
+        onKeyDown={(e) => {
+          // ↓ and ↑ open a pull-down, as they do a native one.
+          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+            e.preventDefault();
+            menu.openFrom(ref.current);
+          }
+        }}
+      >
+        <span className="popupbtn__label">Move</span>
+        <span className="popupbtn__badge" aria-hidden="true">
+          <ChevronDownIcon size={9} />
+        </span>
+      </button>
+      {menu.anchor && (
+        <Menu
+          anchor={menu.anchor}
+          label="Move"
+          width={210}
+          onClose={menu.close}
+          entries={STEPS.map((each) => ({
+            id: each.step,
+            label: each.label,
+            hint: moveChord(each.arrow),
+            onSelect: () => onStep(each.step),
+          }))}
+        />
+      )}
+    </>
   );
 }

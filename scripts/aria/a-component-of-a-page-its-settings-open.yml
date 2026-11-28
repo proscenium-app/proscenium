@@ -1,0 +1,111 @@
+- banner:
+  - button "Hide the binder" [pressed]
+  - button "All Plays"
+  - button "The Weight of Water"
+  - tablist "What this pane shows":
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder":
+  - text: The Weight of Water
+  - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items":
+    - treeitem "Front Matter" [expanded] [level=1]
+    - group "Front Matter":
+      - treeitem "Title Page" [level=2]
+      - treeitem "Characters Rename “Characters” Actions for “Characters”" [level=2] [selected]:
+        - text: Characters
+        - button "Rename “Characters”"
+        - button "Actions for “Characters”"
+      - treeitem "Setting" [level=2]
+    - treeitem "The Weight of Water Rename “The Weight of Water” Actions for “The Weight of Water”" [level=1] [selected]:
+      - text: The Weight of Water
+      - button "Rename “The Weight of Water”"
+      - button "Actions for “The Weight of Water”"
+    - group "Scenes in The Weight of Water":
+      - treeitem "ACT ONE 1–2" [expanded] [level=2]
+      - group "Scenes in ACT ONE":
+        - treeitem "SCENE 1 1" [level=3]
+        - treeitem "SCENE 2 1–2" [level=3]
+      - treeitem "ACT TWO 2" [expanded] [level=2]
+      - group "Scenes in ACT TWO":
+        - treeitem "SCENE 1 2" [level=3] [selected]
+    - treeitem "Characters" [expanded] [level=1]
+    - group "Characters":
+      - treeitem "Mara" [level=2]
+      - treeitem "Jonah" [level=2]
+    - treeitem "Research" [expanded] [level=1]
+    - group "Research":
+      - treeitem "1953 North Sea Flood" [level=2]
+    - treeitem "Notes" [expanded] [level=1]
+    - group "Notes":
+      - treeitem "Structure" [level=2]
+    - treeitem "Loglines" [expanded] [level=1]
+    - group "Loglines":
+      - treeitem "Logline" [level=2]
+  - button "New"
+  - text: at the top level
+- separator "Resize the binder"
+- main "Play":
+  - list "Open in this pane":
+  - button "Add a surface to this pane"
+  - text: Characters
+  - toolbar "Formatting":
+    - 'button "Paragraph style: Body Text"': Body Text
+    - button "Bold"
+    - button "Italic"
+    - 'button "Text alignment: Align Left"': Align Left
+    - button "Bulleted list":
+      - img
+    - button "Numbered list":
+      - img
+    - button "Insert Field"
+  - button "Move"
+  - 'button "Move to Trash: Characters"'
+  - button "Change Template…"
+  - button "Done"
+  - textbox "Script"
+  - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- separator "Resize the inspector"
+- complementary "Inspector":
+  - tablist "Inspector":
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - text: ACT TWO · Scene 1
+  - heading "SCENE 1" [level=2]
+  - text: Page 2 · 1 page · 1 speech Summary · not printed
+  - textbox "Summary"
+  - text: Color
+  - radiogroup "Scene color":
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+    - text: no color
+  - text: Notes · never prints
+  - textbox "Notes"
+  - text: On stage MARA 1 Comments here 0 in this scene
+  - button "Show"
+  - paragraph: The summary is saved in the script file, though it never prints. Color and notes stay in Proscenium.
+- contentinfo:
+  - button "/dev/sample-vault/The Weight of Water"
+  - text: <save status>
+  - button "Zoom out"
+  - 'button "Zoom: 100%"': 100%
+  - button "Zoom in"
+- status
+- alert
+- menu "Contents settings":
+  - menuitemcheckbox "Page Numbers on Acts" [checked]

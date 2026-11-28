@@ -18,7 +18,7 @@ import { matchingPath } from "../storage/path-key";
 import { fileName, uniqueFileName } from "./filename";
 import {
   PLAY_KIND,
-  SCHEMA_VERSION,
+  BASE_SCHEMA,
   choosePlayFile,
   isPlayFileName,
   playFileName,
@@ -29,7 +29,7 @@ import {
 } from "./play-file";
 import { startingBinder } from "./play-shape";
 import { SIDE_NAME } from "./front-folder";
-import { TITLE_PAGE_FILE } from "../layout/page-files";
+import { CHARACTERS_PAGE_FILE, TITLE_PAGE_FILE } from "../layout/page-files";
 import type { FolderOfPlays } from "./plays-folder";
 import { ulid } from "../storage/ulid";
 import type { KeptFile } from "../storage/import-bytes";
@@ -271,17 +271,18 @@ function starterFountain(title: string): string {
 /**
  * Write a whole play into `dir` (a child of the open Plays folder).
  *
- * **A new play is three files** (docs/app/keeping-work/storage-and-file-format.md#STOR-D3): the script, its title page and the
- * play file. No other directory is scaffolded — the binder shows Characters
+ * **A new play is four files** (docs/app/keeping-work/storage-and-file-format.md#STOR-D3): the script, its title page, its
+ * Characters page and the play file. No other directory is scaffolded — the binder shows Characters
  * and Notes so the writer can see where things go, and each directory is
  * created when its first file lands. Nothing hidden, no `.gitkeep`, nothing
  * the writer did not ask for (docs/app/keeping-work/storage-and-file-format.md#STOR-111).
  *
- * A play begun blank starts with its title page as a page of its own, in a
- * Front Matter folder above the script
+ * A play begun blank starts with its title page and its Characters page as
+ * pages of their own, in a Front Matter folder above the script
  * (docs/app/keeping-work/storage-and-file-format.md#STOR-195), so the binder
- * lists the play's pages from its first minute and the page is a file before
- * any word is written on it. A play begun from a script the writer has (an
+ * lists the play's pages from its first minute and each is a file before any
+ * word is written on it. Either can be moved to the Trash, as any page can
+ * (docs/app/formatting/formats-and-layout.md#FMT-183). A play begun from a script the writer has (an
  * import, the sample, a practice play) keeps the pages that script's title
  * page says, as they are, until one is edited.
  *
@@ -309,16 +310,19 @@ export async function scaffoldPlayAt(
   // Created, never written over: a name that turned out to be taken leaves
   // whatever is there untouched and fails the scaffold instead.
   await vault.create(at(scriptRel), script ?? starterFountain(title));
-  const titlePage =
+  // A play begun blank starts with its title page and its Characters page.
+  const pages =
     script === undefined
       ? {
           folder: ulid(),
-          page: ulid(),
           dir: SIDE_NAME.front,
-          path: `${SIDE_NAME.front}/Title Page.md`,
+          files: [
+            { id: ulid(), path: `${SIDE_NAME.front}/Title Page.md`, text: TITLE_PAGE_FILE },
+            { id: ulid(), path: `${SIDE_NAME.front}/Characters.md`, text: CHARACTERS_PAGE_FILE },
+          ],
         }
       : null;
-  if (titlePage) await vault.create(at(titlePage.path), TITLE_PAGE_FILE);
+  for (const file of pages?.files ?? []) await vault.create(at(file.path), file.text);
 
   // Save the source before publishing the manifest. A failed copy leaves an
   // incomplete folder, never a discoverable play that claims to keep its source.
@@ -333,7 +337,7 @@ export async function scaffoldPlayAt(
 
   const play: PlayFile = {
     kind: PLAY_KIND,
-    schemaVersion: SCHEMA_VERSION,
+    schemaVersion: BASE_SCHEMA,
     id: ulid(),
     ...(status ? { status } : {}),
     created: nowIso,
@@ -345,13 +349,17 @@ export async function scaffoldPlayAt(
       autosave: { debounceMs: 600, maxWaitMs: 2000 },
     },
     binder: [
-      ...(titlePage
+      ...(pages
         ? [
             {
-              id: titlePage.folder,
+              id: pages.folder,
               type: "folder" as const,
-              path: titlePage.dir,
-              children: [{ id: titlePage.page, type: "document" as const, path: titlePage.path }],
+              path: pages.dir,
+              children: pages.files.map((file) => ({
+                id: file.id,
+                type: "document" as const,
+                path: file.path,
+              })),
             },
           ]
         : []),
@@ -361,7 +369,7 @@ export async function scaffoldPlayAt(
       [scriptId]: {
         scenes: [],
         orphans: [],
-        ...(titlePage ? { frontMatter: { folder: titlePage.folder } } : {}),
+        ...(pages ? { frontMatter: { folder: pages.folder } } : {}),
       },
     },
   };

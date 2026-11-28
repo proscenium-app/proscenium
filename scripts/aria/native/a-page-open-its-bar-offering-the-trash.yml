@@ -1,0 +1,87 @@
+- banner
+  - button "Hide the binder" [pressed]
+  - button "All Plays"
+  - button "A Winter Crossing" [haspopup]
+  - tablist "What this pane shows"
+    - tab "Script" [selected]
+    - tab "Board"
+    - tab "Outline"
+    - tab "Cast"
+    - tab "Changes"
+  - button "Open another surface in this pane"
+  - button "Help & Tutorials"
+  - button "Feedback"
+  - button "Split side by side"
+  - button "Hide the inspector" [pressed]
+- navigation "Binder"
+  - sectionheader
+    - button "Collapse all folders"
+  - searchbox "Filter the binder"
+  - tree "Binder items"
+    - treeitem "Front Matter" [level=1] [expanded]
+    - treeitem "Title Page" [level=2]
+    - treeitem "Characters Rename “Characters” Actions for “Characters”" [level=2] [selected]
+      - button "Rename “Characters”"
+      - button "Actions for “Characters”"
+    - treeitem "A Winter Crossing Rename “A Winter Crossing” Actions for “A Winter Crossing”" [level=1] [selected]
+      - button "Rename “A Winter Crossing”"
+      - button "Actions for “A Winter Crossing”"
+    - treeitem "ACT ONE 1" [level=2] [expanded]
+    - treeitem "SCENE 1 1" [level=3] [selected]
+    - treeitem "Characters" [level=1] [expanded]
+    - treeitem "Notes" [level=1] [expanded]
+  - sectionfooter
+    - button "New" [haspopup]
+- separator "Resize the binder"
+- main "Play"
+  - toolbar "Formatting"
+    - button "Paragraph style: Heading 2" [haspopup]
+    - button "Bold"
+    - button "Italic"
+    - button "Text alignment: Center" [haspopup]
+    - button "Bulleted list"
+    - button "Numbered list"
+    - button "Insert Field" [haspopup]
+  - button "Move" [haspopup]
+  - button "Move to Trash: Characters"
+  - button "Change Template…"
+  - button "Done"
+  - complementary "How the editor works"
+    - none
+    - none
+    - none
+    - paragraph
+  - textbox "Script"
+  - image "Scene navigation: 1 page. On screen: <scene>"
+- separator "Resize the inspector"
+- complementary "Inspector"
+  - tablist "Inspector"
+    - tab "Scene" [selected]
+    - tab "Comments"
+  - button "Open as a pane"
+  - generic
+  - heading "SCENE 1" [level=2]
+  - generic
+  - generic
+  - textbox "Summary"
+  - generic
+  - radiogroup "Scene color"
+    - radio "No Color" [checked]
+    - radio "Setup"
+    - radio "Turns"
+    - radio "Interior"
+    - radio "Subplot"
+    - radio "Revise"
+    - radio "Parked"
+  - generic
+  - textbox "Notes"
+  - generic
+  - button "Show"
+  - paragraph
+- contentinfo
+  - button "<plays folder>/A Winter Crossing"
+  - button "Zoom out"
+  - button "Zoom: 100%" [haspopup]
+  - button "Zoom in"
+- status [live=polite]
+- alert [live=assertive]

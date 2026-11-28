@@ -41,6 +41,7 @@
       - treeitem "Scene 1" [level=2] [selected]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -72,6 +73,7 @@
             - text: Boxes everywhere. The tap is gone, capped with a brass plug. MARA It's quiet now. I keep listening for it.
             - insertion: Ebb and flow.
         - button "Open The Weight of Water to Restore"
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

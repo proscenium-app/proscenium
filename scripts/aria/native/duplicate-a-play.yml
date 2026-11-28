@@ -1,0 +1,9 @@
+- dialog "Duplicate Play"
+  - heading "Duplicate Play" [level=2]
+  - paragraph
+  - none
+  - textbox "Name"
+  - button "Cancel"
+  - button "Duplicate"
+  - status [live=polite]
+  - alert [live=assertive]

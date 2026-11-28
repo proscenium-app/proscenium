@@ -34,6 +34,7 @@
     - group "Notes": Empty
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -48,6 +49,7 @@
   - text: Page 2 of 2
   - textbox "Script"
   - 'img "Scene navigation: 2 pages. On screen: <scene>"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]
@@ -99,10 +101,6 @@
       - checkbox "Include Characters" [checked]
       - text: Characters
     - listitem:
-      - button "Setting": SETTING
-      - checkbox "Include Setting" [checked]
-      - text: Setting
-    - listitem:
       - button "Page 1": SCENE 2 SCENE 1 SOREL I wish she hadn't sent me the beastly book.
       - checkbox "Include page 1" [checked]
       - text: "1"
@@ -110,9 +108,9 @@
       - button "Page 2": 2. SIMON Only by a minute.
       - checkbox "Include page 2" [checked]
       - text: "2"
-  - region "Preview of what will export": PRACTICE PLAY CHARACTERS SOREL JUDITH SETTING SCENE 2 SCENE 1 SOREL I wish she hadn't sent me the beastly book.
+  - region "Preview of what will export": PRACTICE PLAY CHARACTERS SOREL JUDITH SCENE 2 SCENE 1 SOREL I wish she hadn't sent me the beastly book. 2. SIMON Only by a minute.
   - button "Previous page" [disabled]: ◀
-  - text: Title Page · sheet 1 of 5
+  - text: Title Page · sheet 1 of 4
   - button "Next page": ▶
   - group "Include":
     - text: Include
@@ -120,8 +118,6 @@
     - text: Title Page
     - checkbox "Characters" [checked]
     - text: Characters
-    - checkbox "Setting" [checked]
-    - text: Setting
   - checkbox "Anonymous copy"
   - text: "Anonymous copy For a blind reading: no name or contact details. Language"
   - textbox "Play language"

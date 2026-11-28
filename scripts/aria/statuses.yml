@@ -38,6 +38,7 @@
       - button "Actions for “Wren Thackeray”"
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -70,6 +71,7 @@
   - paragraph: "Useful for the play's central image: water as the thing that arrives without being invited and stays without being asked — same shape as grief, same shape as a brother in the doorway. Mara measures it now for a living; she's been trying to put a number on what once just came in under the door."
   - blockquote:
     - paragraph: A reference file like a PDF or image would sit beside this note untouched; the app opens it read-only.
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Sheet" [selected]

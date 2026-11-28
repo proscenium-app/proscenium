@@ -44,6 +44,24 @@ export interface FrontBlock {
   keepWithNext: boolean;
   /** Set in the format's title style: a title page's own title, written as a page file. */
   titleStyle?: true;
+  /**
+   * A line with no words that the writer left on a page file: a blank row of
+   * the page, with the gap any line has above it
+   * (docs/app/formatting/formats-and-layout.md#FMT-182).
+   */
+  blank?: true;
+  /** The blank rows above it, in place of `gap`: where the writer put it. */
+  rows?: number;
+  /** The cell of the text block its lines start at, in place of its alignment. */
+  cell?: number;
+  /**
+   * It starts on the first row of the paragraph before it, `rows` under that
+   * row, when no line of the two would meet; under it, as any block, when one
+   * would.
+   */
+  beside?: true;
+  /** Which of its band's top-level blocks it came from, for a page file's own editor. */
+  top?: number;
 }
 
 /** A page before the script: its blocks, where its first sheet starts, and its foot. */
@@ -60,6 +78,12 @@ export interface FrontPage {
   source?: string;
   /** The first sheet's first row: a third of the paper down, or the format's section top. */
   top: "title" | "section";
+  /**
+   * Blocks set from the top of the sheet, above where the page's own first
+   * line stands: a page file's head
+   * (docs/app/formatting/formats-and-layout.md#FMT-182).
+   */
+  head?: FrontBlock[];
   blocks: FrontBlock[];
   /**
    * Blocks set at the foot of the sheet, under the rest after at least the
@@ -164,6 +188,7 @@ export function frontPagesOf(
           policy.titleGapRows,
         ),
         block(fm.draftDate ?? "", "draft-date"),
+        block(fm.version ?? "", "version"),
         ...(fm.contact ?? []).map((text, i) => block(text, `contact-${i}`)),
       );
     }
@@ -232,6 +257,19 @@ export function frontPagesOf(
           policy.contactAlign,
           policy.bodyFontStyle,
           foot.length ? blanks + policy.fieldGapRows : 0,
+        ),
+      );
+    // The version, the format's gap under the draft date, as the title
+    // page's file sets its `{version}` (docs/app/formatting/formats-and-layout.md#FMT-185).
+    if (fm.version)
+      foot.push(
+        block(
+          fm.version,
+          "version",
+          "paragraph",
+          policy.contactAlign,
+          policy.bodyFontStyle,
+          foot.length ? (fm.draftDate ? 0 : blanks) + policy.fieldGapRows : 0,
         ),
       );
     pages.push(

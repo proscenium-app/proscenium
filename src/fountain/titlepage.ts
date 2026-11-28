@@ -32,6 +32,8 @@ const RECOGNIZED = new Set([
   "notes",
   "draft date",
   "date",
+  // The play's version (docs/app/formatting/formats-and-layout.md#FMT-185).
+  "version",
   "contact",
   "copyright",
   "revision",
@@ -159,6 +161,9 @@ function mapEntries(entries: Entry[]): FrontMatter {
       case "date":
         fm.draftDate = linesUnder(fm.draftDate, e);
         break;
+      case "version":
+        fm.version = linesUnder(fm.version, e);
+        break;
       case "contact":
         fm.contact = [...(fm.contact ?? []), ...e.values];
         break;
@@ -270,6 +275,7 @@ function titlePageLines(fm: FrontMatter): string {
   if (fm.draftDate != null) {
     out.push(field("Draft date", splitLines(fm.draftDate), false));
   }
+  if (fm.version != null) out.push(field("Version", splitLines(fm.version), false));
   if (fm.contact) out.push(field("Contact", fm.contact, true));
   if (fm.setting != null) {
     out.push(field("Setting", splitLines(fm.setting), false));

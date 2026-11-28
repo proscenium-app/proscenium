@@ -39,10 +39,12 @@ import {
   type Surface,
 } from "./panes";
 import type { DropZone, TabDrag } from "./PaneTree";
+import { legacyPanesKey, panesKey } from "../workspace/play-memory";
 
-const KEY = (root: string) => `proscenium:panes:v2:${root}`;
+// The keys are spelled once, with the play's other memory (play-memory.ts).
+const KEY = panesKey;
 /** The v1 `{split, surface, ratio}` key, read once and migrated. */
-const LEGACY_KEY = (root: string) => `proscenium:panes:${root}`;
+const LEGACY_KEY = legacyPanesKey;
 
 function load(root: string | null): PaneNode {
   if (!root) return defaultTree();

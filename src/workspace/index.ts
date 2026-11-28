@@ -8,6 +8,8 @@ export {
   PLAY_EXT,
   PLAY_KIND,
   SCHEMA_VERSION,
+  BASE_SCHEMA,
+  DRAFTS_SCHEMA,
   choosePlayFile,
   commitPlay,
   defaultCard,
@@ -33,6 +35,7 @@ export type {
   Loaded,
   PlayCommit,
   PlayFile,
+  DraftRecord,
   PlaySettings,
   SceneAnchor,
   SceneRecord,
@@ -40,10 +43,14 @@ export type {
 } from "./play-file";
 
 export * as binder from "./binder";
-export { titleOf, findItem as locateBinderItem } from "./binder";
+export { titleOf, isKeptScript, findItem as locateBinderItem } from "./binder";
 export {
   reorderItem,
   renameItem,
+  followPlayRename,
+  saveDraftItem,
+  workingCopyItem,
+  DRAFTS_DIR,
   moveItem,
   newFolder,
   newMaterial,
@@ -81,6 +88,19 @@ export {
   updatePlayMeta,
 } from "./vault-plays";
 export type { VaultPlay } from "./vault-plays";
+export {
+  addZippedPlay,
+  duplicatePlay,
+  newPlayLike,
+  playFolderName,
+  PlayNameTaken,
+  playZip,
+  readZippedPlay,
+  renamePlay,
+  scriptToFollow,
+  titleFacts,
+} from "./play-ops";
+export { carryPlayMemory } from "./play-memory";
 export { playPages, type PlayPages } from "./play-pages";
 
 export {

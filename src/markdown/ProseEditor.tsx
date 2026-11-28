@@ -209,7 +209,7 @@ export function ProseEditor({
   );
   const readAs = useMemo(() => ({ pageFile: !!page }), [page]);
   // A page keeps a line that is set and waiting for words; a document does not.
-  const writeAs = useMemo(() => ({ emptyLines: !!page }), [page]);
+  const writeAs = useMemo(() => ({ emptyLines: !!page, blankRows: !!page }), [page]);
   const values = pageFile?.values;
   /**
    * Which props are this editor's own words coming back (prose-sync.ts): the

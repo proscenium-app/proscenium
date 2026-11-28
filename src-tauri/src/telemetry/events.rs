@@ -340,6 +340,15 @@ macro_rules! error_codes {
                 }
             }
 
+            /// What a writer met, in a line: published beside the code in
+            /// services/edge/events.json, for whoever reads the counts.
+            #[cfg(test)]
+            pub fn meaning(self) -> &'static str {
+                match self {
+                    $(ErrorCode::$variant => $what,)*
+                }
+            }
+
             pub fn parse(code: &str) -> Option<Self> {
                 match code {
                     $($code => Some(ErrorCode::$variant),)*
@@ -357,6 +366,12 @@ error_codes! {
     FolderAccess => "E-FOLDER-ACCESS": "A folder grant could not be renewed or saved for the next launch.",
     Icloud => "E-ICLOUD": "iCloud Drive is not available.",
     PlayOpen => "E-PLAY-OPEN": "A play could not be opened.",
+    PlayNoScript => "E-PLAY-NO-SCRIPT": "A play opened with no script in it to show.",
+    PlayDetails => "E-PLAY-DETAILS": "A play's details changed on disk and could not be read, so it opened read-only.",
+    PlaySettings => "E-PLAY-SETTINGS": "A play's status, logline or format could not be changed.",
+    PlayTrash => "E-PLAY-TRASH": "A play could not be moved to the Trash.",
+    ImportOpen => "E-IMPORT-OPEN": "An import made its new play, but the play could not be opened.",
+    ScriptOpen => "E-SCRIPT-OPEN": "A script in an open play could not be read.",
     PlayMissing => "E-PLAY-MISSING": "A play is not in the Plays folder any more.",
     PlayCreate => "E-PLAY-CREATE": "A new play could not be made.",
     Save => "E-SAVE": "Words could not be saved.",
@@ -386,6 +401,7 @@ error_codes! {
     FinderOpen => "E-FINDER-OPEN": "Something opened from Finder could not be opened.",
     UpdateRestart => "E-UPDATE-RESTART": "An update could not restart the app.",
     Watch => "E-WATCH": "The play folder could not be watched for changes made outside.",
+    Practice => "E-PRACTICE": "A practice, or its kept copy, could not be opened, kept or stopped.",
     Workspace => "E-WORKSPACE": "Any other error while working in a play.",
     Other => "E-OTHER": "An error the app showed without a code of its own.",
 }
@@ -714,6 +730,12 @@ mod tests {
                 }
             }
         }
+        // Each code's one line, as the usage page prints it instead of the code.
+        let meanings: serde_json::Map<String, Value> = ErrorCode::ALL
+            .iter()
+            .map(|c| (c.as_str().to_string(), Value::from(c.meaning())))
+            .collect();
+        assert_eq!(worker["error_shown"]["meanings"], Value::Object(meanings));
         let kinds: Vec<String> = serde_json::from_str(
             &std::fs::read_to_string(root.join("services/edge/crash-kinds.json")).unwrap(),
         )

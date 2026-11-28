@@ -16,6 +16,7 @@ import {
   selectNodeBackward,
   selectNodeForward,
 } from "@tiptap/pm/commands";
+import { history, undo } from "@tiptap/pm/history";
 import { type Command, EditorState, TextSelection } from "@tiptap/pm/state";
 import { fromEditorDoc, toEditorDoc } from "./bridge";
 import { playExtensions } from "./schema";
@@ -378,27 +379,14 @@ describe("Backspace and Delete stop at a cue", () => {
     expect(blocks(state)).toEqual(speech);
   });
 
-  it("a name taken back letter by letter, and one Backspace more, leaves an empty cue over its speech", () => {
+  it("a name taken back letter by letter leaves an empty cue over its speech, for the name typed next", () => {
     let state = caret(page(...speech), 1, "end");
-    for (let k = 0; k < "CHARLIE".length + 3; k++) state = press(state, "Backspace");
+    for (let k = 0; k < "CHARLIE".length; k++) state = press(state, "Backspace");
     expect(blocks(state)).toEqual([speech[0], ["character", ""], ...speech.slice(2)]);
     expect(caretAt(state)).toEqual([1, 0]);
     state = state.applyTransaction(state.tr.insertText("MAX")).state;
     expect(blocks(state)).toEqual([speech[0], ["character", "MAX"], ...speech.slice(2)]);
     expectKept(state);
-  });
-
-  it("leaves a cue with no name yet at the top of the script over its speech", () => {
-    const start = page(["character", ""], ["dialogue", "Hello."]);
-    expect(cueStop(-1)(caret(start, 0, "start"))).toBe(true);
-    expect(cueStop(-1)(caret(page(["character", ""]), 0, "start"))).toBe(false);
-    expect(cueStop(-1)(caret(page(["action", ""], ["action", "Hi."]), 0, "start"))).toBe(false);
-  });
-
-  it("Delete in a cue with no name yet leaves it over its speech", () => {
-    const start = page(["action", "Pause."], ["character", ""], ["dialogue", "Hello."]);
-    expect(blocks(press(caret(start, 1, "start"), "Delete"))).toEqual(blocks(start));
-    expect(blocks(press(caret(start, 2, "start"), "Backspace"))).toEqual(blocks(start));
   });
 
   it("never runs the first line of a speech into its name", () => {
@@ -538,7 +526,10 @@ describe("Backspace and Delete stop at a cue", () => {
       new Set(
         blocks(state).flatMap(([type, text]) => (type === "character" && text ? [text] : [])),
       );
+    const nameless = (state: EditorState): number =>
+      blocks(state).filter(([type, text]) => type === "character" && !text).length;
     let tried = 0;
+    let parted = 0;
     for (let n = 2; n <= 4; n++) {
       const total = VARIANTS.length ** n;
       for (let code = 0; code < total; code++) {
@@ -555,7 +546,12 @@ describe("Backspace and Delete stop at a cue", () => {
             press(caret(before, i + 1, "start"), "Backspace"),
             press(caret(before, i, "end"), "Delete"),
           ]) {
-            expect(cuelessRuns(state.doc)).toEqual([]);
+            // The one cue the keys take from over a speech had no name
+            // (docs/app/writing/editor-ux.md#EDIT-215).
+            if (cuelessRuns(state.doc).length > 0) {
+              expect(nameless(state)).toBe(nameless(before) - 1);
+              parted++;
+            }
             // No name ran into another line, and no line into a name.
             expect(names(state)).toEqual(names(before));
             tried++;
@@ -564,5 +560,138 @@ describe("Backspace and Delete stop at a cue", () => {
       }
     }
     expect(tried).toBeGreaterThan(20000);
+    expect(parted).toBeGreaterThan(100);
+  });
+
+  it("with the page put right after each key, every speech is under a cue and reads back", () => {
+    const TYPES = ["character", "dialogue", "parenthetical", "action", "lyric"];
+    const TEXT: Record<string, string> = {
+      character: "MARA",
+      dialogue: "Words.",
+      parenthetical: "beat",
+      action: "A door.",
+      lyric: "La.",
+    };
+    const VARIANTS = TYPES.flatMap((type): Block[] => [
+      [type, TEXT[type]],
+      [type, ""],
+    ]);
+    let tried = 0;
+    for (let n = 2; n <= 3; n++) {
+      const total = VARIANTS.length ** n;
+      for (let code = 0; code < total; code++) {
+        const start: Block[] = [];
+        let rest = code;
+        for (let k = 0; k < n; k++) {
+          start.push(VARIANTS[rest % VARIANTS.length]);
+          rest = Math.floor(rest / VARIANTS.length);
+        }
+        const before = page(...start);
+        if (cuelessRuns(before.doc).length > 0) continue;
+        for (let i = 0; i < n - 1; i++) {
+          for (const state of [
+            press(caret(before, i + 1, "start"), "Backspace"),
+            press(caret(before, i, "end"), "Delete"),
+          ]) {
+            expect(cuelessRuns(state.doc)).toEqual([]);
+            tried++;
+          }
+        }
+      }
+    }
+    expect(tried).toBeGreaterThan(1000);
+  });
+});
+
+// docs/app/writing/editor-ux.md#EDIT-215
+describe("a cue with no name goes as any empty line does", () => {
+  const under: Block[] = [
+    ["dialogue", "You're not going to say anything."],
+    ["parenthetical", "beat"],
+    ["dialogue", "No, I know."],
+  ];
+  const directions: Block[] = [
+    ["action", "You're not going to say anything."],
+    ["action", "(beat)"],
+    ["action", "No, I know."],
+  ];
+  /** Each key at each edge of the cue at block `i`, and where it leaves the caret. */
+  const taken = (start: EditorState, i: number): [EditorState, [number, number]][] => {
+    const end = start.doc.child(i - 1).content.size;
+    return [
+      [press(caret(start, i, "start"), "Backspace"), [i - 1, end]],
+      [press(caret(start, i - 1, "end"), "Delete"), [i - 1, end]],
+      [press(caret(start, i, "start"), "Delete"), [i, 0]],
+      [press(caret(start, i + 1, "start"), "Backspace"), [i, 0]],
+    ];
+  };
+
+  it("under a direction, each key at either edge takes it, and its speech is a direction", () => {
+    const start = page(["action", "Pause."], ["character", ""], ...under);
+    for (const [state, at] of taken(start, 1)) {
+      expect(blocks(state)).toEqual([["action", "Pause."], ...directions]);
+      expect(caretAt(state)).toEqual(at);
+      expectKept(state);
+    }
+  });
+
+  it("under a speech, its speech is the speaker's above it", () => {
+    const above: Block[] = [
+      ["character", "ANDREW"],
+      ["dialogue", "Unless."],
+    ];
+    const start = page(...above, ["character", ""], ...under);
+    for (const [state, at] of taken(start, 2)) {
+      expect(blocks(state)).toEqual([...above, ...under]);
+      expect(caretAt(state)).toEqual(at);
+      expectKept(state);
+    }
+  });
+
+  it("under a name, its speech is that speaker's", () => {
+    const start = page(["character", "ANDREW"], ["character", ""], ...under);
+    for (const [state, at] of taken(start, 1)) {
+      expect(blocks(state)).toEqual([["character", "ANDREW"], ...under]);
+      expect(caretAt(state)).toEqual(at);
+      expectKept(state);
+    }
+  });
+
+  it("a name taken back letter by letter goes with one Backspace more", () => {
+    const speech: Block[] = [["action", "Pause."], ["character", "CHARLIE"], ...under];
+    let state = caret(page(...speech), 1, "end");
+    for (let k = 0; k < "CHARLIE".length; k++) state = press(state, "Backspace");
+    expect(blocks(state)).toEqual([["action", "Pause."], ["character", ""], ...under]);
+    state = press(state, "Backspace");
+    expect(blocks(state)).toEqual([["action", "Pause."], ...directions]);
+    expect(caretAt(state)).toEqual([0, 6]);
+  });
+
+  it("is an undo step of its own: ⌘Z gives back the cue and its speech, not the name deleted before", () => {
+    const start = EditorState.create({
+      doc: page(["action", "Pause."], ["character", "CHARLIE"], ...under).doc,
+      plugins: [history(), speechCuesPlugin()],
+    });
+    let state = caret(start, 1, "end");
+    for (let k = 0; k < "CHARLIE".length + 1; k++) state = press(state, "Backspace");
+    expect(blocks(state)).toEqual([["action", "Pause."], ...directions]);
+    let next = state;
+    expect(undo(state, (tr) => (next = state.applyTransaction(tr).state))).toBe(true);
+    expect(blocks(next)).toEqual([["action", "Pause."], ["character", ""], ...under]);
+  });
+
+  it("at the top of the script is the editor's own first line, an empty one made a direction", () => {
+    const start = page(["character", ""], ["dialogue", "Hello."]);
+    expect(cueStop(-1)(caret(start, 0, "start"))).toBe(false);
+    expect(cueStop(-1)(caret(page(["character", ""]), 0, "start"))).toBe(false);
+    expect(cueStop(-1)(caret(page(["action", ""], ["action", "Hi."]), 0, "start"))).toBe(false);
+  });
+
+  it("with a letter in its name is no empty line: both keys stop at it", () => {
+    const start: Block[] = [["action", "Pause."], ["character", "C"], ...under];
+    expect(blocks(press(caret(page(...start), 1, "start"), "Backspace"))).toEqual(start);
+    expect(blocks(press(caret(page(...start), 0, "end"), "Delete"))).toEqual(start);
+    expect(blocks(press(caret(page(...start), 2, "start"), "Backspace"))).toEqual(start);
+    expect(blocks(press(caret(page(...start), 1, "end"), "Delete"))).toEqual(start);
   });
 });

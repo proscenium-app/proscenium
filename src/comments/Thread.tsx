@@ -57,6 +57,14 @@ function Composer({
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
   }, [editing.draft]);
+  // A field that opens holding words, a comment to change or one carried over
+  // from the other surface (docs/app/writing/comments.md#COMM-79), has the
+  // caret at their end, where the writer goes on. It opened at their start,
+  // and the words typed next went in front of the ones carried.
+  useLayoutEffect(() => {
+    const el = field.current;
+    if (el?.value) el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
   const label = {
     new: "New comment",
     reply: "Reply",
@@ -64,7 +72,9 @@ function Composer({
     "reply-edit": "Edit reply",
   }[kind];
   return (
-    <div className="cthread__edit">
+    // The field keeps the keyboard: a menu command meant for the script leaves
+    // it where it is (docs/app/writing/comments.md#COMM-78, src/app/menu-actions.ts).
+    <div className="cthread__edit" data-keeps-keyboard="">
       {signs && (
         <input
           className="cthread__name"

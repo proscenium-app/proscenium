@@ -65,6 +65,12 @@ export interface FrontMatterLine {
   /** A title page's own title from a page file, which a word processor sets in its Title style. */
   titleStyle?: true;
   /**
+   * The cell its block's lines start at, when the writer put it there
+   * (docs/app/formatting/formats-and-layout.md#FMT-182): a word processor
+   * indents the paragraph by it.
+   */
+  cell?: number;
+  /**
    * On a paragraph's first line only: its whole text and emphasis, unwrapped,
    * and the blank rows the format puts above it when it follows another, for
    * a writer that flows text rather than drawing lines — the .docx and .odt
@@ -133,116 +139,413 @@ export function frontSheetMetrics(
   };
 }
 
+/** A printed line's cells on its row of a sheet: from `from` up to `to`, in cells of the text block. */
+export interface PlacedSpan {
+  row: number;
+  from: number;
+  to: number;
+}
+
 /**
- * Every sheet the pages before the script print, whichever the placement: one
- * loop for every page (src/layout/front-pages.ts says what each page holds).
- * Each page starts a sheet of its own, a third of the paper down for a title
- * page and at the format's section top for the rest; its blocks wrap on the
- * script's own character grid and continue onto more sheets; and its foot,
- * the title page's contact block, stands at the bottom of the sheet with at
- * least the format's gap above it. An inline opening is one page whose sheets
- * are the first numbered pages' openings (`paginate`, below).
+ * Whether two lines would meet: on the same row, with less than a cell
+ * between them. Rows of a page's head are whole and its other rows can stand
+ * a part of a row down (a third of the paper is seldom a whole row), so "the
+ * same row" is any two less than a row apart.
  */
-export function layoutFrontPages(frontPages: FrontPage[], spec: FormatSpec): FrontMatterPage[] {
+export function spansMeet(a: PlacedSpan, b: PlacedSpan): boolean {
+  return Math.abs(a.row - b.row) < 1 && a.from < b.to + 1 && b.from < a.to + 1;
+}
+
+/** Where one paragraph of a page stands on its sheets: what the page's own editor moves it from. */
+export interface PlacedBlock {
+  /** The id its printed lines carry. */
+  id: string;
+  band: "head" | "main" | "foot";
+  /** Which of its band's top-level blocks it came from (`FrontBlock.top`). */
+  top?: number;
+  /** Which of the page's sheets its first row is on. */
+  sheet: number;
+  /** Its first row. */
+  row: number;
+  /** Each of its printed lines; none for a blank row. */
+  lines: PlacedSpan[];
+  blank: boolean;
+  /** It stands beside the paragraph before it, as its file asks. */
+  beside: boolean;
+}
+
+/** One page laid out: its sheets, and where each of its paragraphs stands. */
+export interface PlacedPage {
+  sheets: FrontMatterPage[];
+  placed: PlacedBlock[];
+  /** The first sheet's row the page's own first line stands on, with nothing above it. */
+  mainTop: number;
+}
+
+/** A page's blocks in runs that share an id: the lines one paragraph prints. */
+function paragraphsOf(blocks: readonly FrontBlock[]): FrontBlock[][] {
+  const out: FrontBlock[][] = [];
+  for (const block of blocks) {
+    const last = out[out.length - 1];
+    if (last && last[0]!.id === block.id) last.push(block);
+    else out.push([block]);
+  }
+  return out;
+}
+
+/**
+ * One page on its sheets (docs/app/formatting/formats-and-layout.md#FMT-182).
+ * Its head stands from the top of the sheet; its own blocks from a third of
+ * the paper down for a title page and the format's section top for the rest,
+ * or under a head that reaches further; its foot at the bottom of the sheet
+ * with at least the format's gap above it. A block's `rows` stand above it in
+ * place of the format's gap, its `cell` is where its lines start, and one
+ * `beside` the paragraph before it starts on that paragraph's first row when
+ * no line of the two would meet. Blocks wrap on the script's own character
+ * grid and continue onto more sheets.
+ */
+function layoutPage(page: FrontPage, spec: FormatSpec): PlacedPage {
   const policy = spec.frontMatter;
   const width = textBlockWidthIn(spec);
   const cpl = charsPerLine(spec, width);
+  const advance = charAdvanceIn(spec);
   const capacity = Math.max(1, maxLinesPerPage(spec));
   const titleTop =
     (pageSizeIn(spec).heightIn * policy.titleTopFraction - spec.page.margins.top) /
     linePitchIn(spec);
-  const pages: FrontMatterPage[] = [];
-  let current: FrontMatterPage = { kind: "title", lines: [] };
-  let row = 0;
-  const start = (
-    kind: string,
-    at: number,
-    label: string | undefined,
-    source: string | undefined,
-  ) => {
-    current = { kind, ...(label ? { label } : {}), ...(source ? { source } : {}), lines: [] };
-    pages.push(current);
-    row = Math.min(capacity - 1, Math.max(0, at));
+  const sectionTop = Math.min(capacity - 1, policy.sectionTopRows);
+  const mainTop = Math.min(
+    capacity - 1,
+    Math.max(0, page.top === "title" ? titleTop : policy.sectionTopRows),
+  );
+
+  /** A block's lines, and the cell they start at: pulled in when it would run off the text block. */
+  const wrapped = (block: FrontBlock) => {
+    let cell = block.cell;
+    if (cell !== undefined) {
+      const longest = Math.max(0, ...block.text.split("\n").map((line) => line.length));
+      cell = Math.max(
+        0,
+        longest <= cpl ? Math.min(cell, cpl - longest) : Math.min(cell, Math.floor(cpl / 2)),
+      );
+    }
+    const lines = wrapText(block.text, cpl - (cell ?? 0)).map((line) => ({
+      start: line.start,
+      text: block.text.slice(line.start, line.end).replace(/ +$/, ""),
+    }));
+    return { cell, lines };
   };
-  const linesFor = (text: string) =>
-    wrapText(text, cpl).map((line) => text.slice(line.start, line.end).replace(/ +$/, ""));
-  const place = ({
-    text,
-    id,
-    role,
-    align,
-    fontStyle,
-    gap,
-    keepWithNext,
-    runs,
-    titleStyle,
-  }: FrontBlock) => {
-    if (!text.trim()) return;
-    const lines = linesFor(text);
-    const top = Math.min(capacity - 1, policy.sectionTopRows);
-    const want = lines.length + (keepWithNext ? policy.headingGapRows + 1 : 0);
-    // A short entry travels whole; an entry larger than a page splits. Never
-    // create an empty sheet just to honor an impossible oversized gap.
-    if (current.lines.length && row + gap + want > capacity && want <= capacity - top)
-      start(current.kind, policy.sectionTopRows, current.label, current.source);
-    else if (current.lines.length) row += gap;
-    let first = true;
-    for (const wrapped of wrapText(text, cpl)) {
-      const lineText = text.slice(wrapped.start, wrapped.end).replace(/ +$/, "");
-      if (row + 1 > capacity && current.lines.length)
-        start(current.kind, policy.sectionTopRows, current.label, current.source);
-      row = Math.min(row, capacity - 1);
-      const textWidth = lineText.length * charAdvanceIn(spec);
-      const xIn =
-        align === "center"
-          ? Math.max(0, (width - textWidth) / 2)
-          : align === "right"
-            ? Math.max(0, width - textWidth)
-            : 0;
-      const clipped = runs
-        .filter((r) => r.end > wrapped.start && r.start < wrapped.start + lineText.length)
+  /**
+   * Where a line of a block starts across the text block, in inches: at the
+   * writer's cell, or where the block's alignment sets it.
+   */
+  const startOf = (block: FrontBlock, cell: number | undefined, length: number) => {
+    const textWidth = length * advance;
+    return cell !== undefined
+      ? cell * advance
+      : block.align === "center"
+        ? Math.max(0, (width - textWidth) / 2)
+        : block.align === "right"
+          ? Math.max(0, width - textWidth)
+          : 0;
+  };
+
+  /**
+   * A run of sheets being written. `limit` is the rows a sheet holds; a
+   * measure, which only asks how tall a foot is, has no limit and writes
+   * nothing anyone reads.
+   */
+  const writer = (limit: number, measure: boolean) => {
+    const sheets: FrontMatterPage[] = [];
+    const placed: PlacedBlock[] = [];
+    let current: FrontMatterPage = { kind: page.kind, lines: [] };
+    let row = 0;
+    /** The row under everything on this sheet: where a block that is beside nothing starts from. */
+    let floor = 0;
+    /** Whether a gap means anything yet: something stands on this sheet. */
+    let begun = measure;
+    /** A sheet the page ran on to: what opens it takes no gap. */
+    let continued = false;
+    let taken: PlacedSpan[] = [];
+    /** The first row of the paragraph before, for one that stands beside it. */
+    let anchor: number | null = null;
+    const open = (at: number, runOn: boolean) => {
+      current = {
+        kind: page.kind,
+        ...(page.label ? { label: page.label } : {}),
+        ...(page.source ? { source: page.source } : {}),
+        lines: [],
+      };
+      sheets.push(current);
+      row = Math.min(limit - 1, Math.max(0, at));
+      floor = row;
+      begun = measure;
+      continued = runOn;
+      taken = [];
+      anchor = null;
+    };
+    const emit = (
+      block: FrontBlock,
+      cell: number | undefined,
+      line: { start: number; text: string },
+      first: boolean,
+    ) => {
+      const xIn = startOf(block, cell, line.text.length);
+      const from = xIn / advance;
+      const clipped = block.runs
+        .filter((r) => r.end > line.start && r.start < line.start + line.text.length)
         .map((r) => ({
           ...r,
-          start: Math.max(0, r.start - wrapped.start),
-          end: Math.min(lineText.length, r.end - wrapped.start),
+          start: Math.max(0, r.start - line.start),
+          end: Math.min(line.text.length, r.end - line.start),
         }));
       current.lines.push({
-        text: lineText,
+        text: line.text,
         row,
         xIn,
-        fontStyle,
-        align,
-        paragraphId: id,
-        role,
+        fontStyle: block.fontStyle,
+        align: cell !== undefined ? "left" : block.align,
+        paragraphId: block.id,
+        role: block.role,
+        ...(cell ? { cell } : {}),
         ...(clipped.length ? { runs: clipped } : {}),
-        ...(first ? { source: { text, runs, gapRows: gap } } : {}),
-        ...(titleStyle ? { titleStyle } : {}),
+        ...(first
+          ? { source: { text: block.text, runs: block.runs, gapRows: block.rows ?? block.gap } }
+          : {}),
+        ...(block.titleStyle ? { titleStyle: block.titleStyle } : {}),
       });
-      first = false;
-      row += 1;
-    }
+      const span = { row, from, to: from + line.text.length };
+      taken.push(span);
+      return span;
+    };
+    /** Where a paragraph's lines would stand from `at`, when it is beside the one before. */
+    const beside = (group: FrontBlock[], at: number): PlacedSpan[] | null => {
+      const spans: PlacedSpan[] = [];
+      let r = at;
+      for (const [i, block] of group.entries()) {
+        if (i) r += block.rows ?? block.gap;
+        if (block.blank) {
+          r += 1;
+          continue;
+        }
+        if (!block.text.trim()) continue;
+        const { cell, lines } = wrapped(block);
+        for (const line of lines) {
+          const from = startOf(block, cell, line.text.length) / advance;
+          spans.push({ row: r, from, to: from + line.text.length });
+          r += 1;
+        }
+      }
+      if (r > limit) return null;
+      return spans.some((span) => taken.some((other) => spansMeet(span, other))) ? null : spans;
+    };
+    const paragraph = (group: FrontBlock[], band: PlacedBlock["band"]) => {
+      const head = group[0]!;
+      const at = head.beside && anchor !== null && !continued ? anchor + (head.rows ?? 0) : null;
+      const stands = at !== null && beside(group, at) !== null;
+      if (stands) row = at!;
+      else row = Math.max(row, floor);
+      const record: PlacedBlock = {
+        id: head.id,
+        band,
+        ...(head.top !== undefined ? { top: head.top } : {}),
+        sheet: Math.max(0, sheets.length - 1),
+        row,
+        lines: [],
+        blank: group.every((block) => block.blank),
+        beside: stands,
+      };
+      let opened = false;
+      for (const [i, block] of group.entries()) {
+        // The writer's rows always stand, but for what opens a sheet the page
+        // ran on to; the format's gap only once something stands above.
+        const lead = stands && !i;
+        const gap = lead
+          ? 0
+          : block.rows !== undefined && !(head.beside && !i)
+            ? continued && !begun
+              ? 0
+              : block.rows
+            : begun
+              ? block.gap
+              : 0;
+        if (block.blank) {
+          // A blank row the sheet has no room for is no row of the next.
+          if (row + gap + 1 <= limit) {
+            row += gap + 1;
+            begun = true;
+          }
+          if (!opened) {
+            record.row = row - 1;
+            record.sheet = Math.max(0, sheets.length - 1);
+            opened = true;
+          }
+          continue;
+        }
+        if (!block.text.trim()) {
+          // A measure counts the gap of a line of spaces, as a foot's height always has.
+          if (measure) row += block.gap;
+          continue;
+        }
+        const { cell, lines } = wrapped(block);
+        const want = lines.length + (block.keepWithNext ? policy.headingGapRows + 1 : 0);
+        // A short entry travels whole; an entry larger than a page splits. Never
+        // create an empty sheet just to honor an impossible oversized gap.
+        if (
+          !stands &&
+          current.lines.length &&
+          row + gap + want > limit &&
+          want <= limit - sectionTop
+        )
+          open(policy.sectionTopRows, true);
+        else row += gap;
+        let first = true;
+        for (const line of lines) {
+          if (row + 1 > limit && current.lines.length) open(policy.sectionTopRows, true);
+          row = Math.min(row, limit - 1);
+          if (!opened) {
+            record.row = row;
+            record.sheet = Math.max(0, sheets.length - 1);
+            opened = true;
+          }
+          record.lines.push(emit(block, cell, line, first));
+          begun = true;
+          first = false;
+          row += 1;
+        }
+      }
+      if (!opened) return;
+      placed.push(record);
+      anchor = record.sheet === sheets.length - 1 ? record.row : null;
+      floor = Math.max(floor, row);
+    };
+    return {
+      sheets,
+      placed,
+      open,
+      paragraph,
+      /** The row under everything written so far. */
+      under: () => Math.max(row, floor),
+      /** Carry on from `at`, as a band that starts there does. */
+      from: (at: number) => {
+        row = at;
+        floor = at;
+        anchor = null;
+      },
+    };
   };
-  for (const page of frontPages) {
-    start(
-      page.kind,
-      page.top === "title" ? titleTop : policy.sectionTopRows,
-      page.label,
-      page.source,
-    );
-    for (const block of page.blocks) place(block);
-    const height = page.foot.reduce(
-      (sum, block) => sum + (block.text.trim() ? linesFor(block.text).length : 0) + block.gap,
-      0,
-    );
+
+  const out = writer(capacity, false);
+  const head = paragraphsOf(page.head ?? []);
+  out.open(head.length ? 0 : mainTop, false);
+  for (const group of head) out.paragraph(group, "head");
+  if (head.length) out.from(Math.max(out.under(), mainTop));
+  for (const group of paragraphsOf(page.blocks)) out.paragraph(group, "main");
+  const foot = paragraphsOf(page.foot);
+  if (foot.length) {
+    const measure = writer(Number.POSITIVE_INFINITY, true);
+    measure.open(0, false);
+    for (const group of foot) measure.paragraph(group, "foot");
+    const height = measure.under();
     if (height) {
-      row = Math.max(
-        row + policy.titleContactGapRows,
-        capacity - policy.contactBottomRows - height,
+      out.from(
+        Math.max(
+          out.under() + policy.titleContactGapRows,
+          capacity - policy.contactBottomRows - height,
+        ),
       );
-      for (const block of page.foot) place(block);
+      for (const group of foot) out.paragraph(group, "foot");
     }
   }
-  return pages.filter((page) => page.lines.length);
+  return { sheets: out.sheets, placed: out.placed, mainTop };
+}
+
+/**
+ * A page with `count` of the rows its writer left taken out, the last first:
+ * a blank row whole, and a block's rows down to the gap the format would put
+ * there. Null when it has not that many to give.
+ */
+function tightened(page: FrontPage, count: number): FrontPage | null {
+  let left = count;
+  const band = (blocks: readonly FrontBlock[]): FrontBlock[] => {
+    const out: FrontBlock[] = [];
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const block = blocks[i]!;
+      if (left > 0 && block.blank && !block.beside) {
+        left -= 1;
+        continue;
+      }
+      if (left > 0 && block.rows !== undefined && !block.beside && block.rows > block.gap) {
+        const take = Math.min(left, block.rows - block.gap);
+        left -= take;
+        out.unshift({ ...block, rows: block.rows - take });
+        continue;
+      }
+      out.unshift(block);
+    }
+    return out;
+  };
+  const foot = band(page.foot);
+  const blocks = band(page.blocks);
+  const head = page.head ? band(page.head) : undefined;
+  return left > 0 ? null : { ...page, ...(head ? { head } : {}), blocks, foot };
+}
+
+/**
+ * One page as it prints, and where each of its paragraphs stands. A page that
+ * would run on to a second sheet only because of rows its writer left (a play
+ * moved to a format with a shorter sheet) gives those rows up, the last first,
+ * until it stands on one: the words keep their order and their sheet.
+ */
+export function placeFrontPage(page: FrontPage, spec: FormatSpec): PlacedPage {
+  const one = (laid: PlacedPage) => laid.sheets.filter((sheet) => sheet.lines.length).length <= 1;
+  const whole = layoutPage(page, spec);
+  if (one(whole)) return whole;
+  // Every row the writer left, given up: if the page still runs on, it is a
+  // page too long for one sheet, and keeps them all.
+  const all = [...(page.head ?? []), ...page.blocks, ...page.foot].reduce(
+    (sum, block) =>
+      sum +
+      (block.beside
+        ? 0
+        : block.blank
+          ? 1
+          : block.rows !== undefined && block.rows > block.gap
+            ? block.rows - block.gap
+            : 0),
+    0,
+  );
+  const at = (count: number) => {
+    const tighter = tightened(page, count);
+    return tighter ? layoutPage(tighter, spec) : null;
+  };
+  let fits = all ? at(all) : null;
+  if (!fits || !one(fits)) return whole;
+  // The fewest that will do: giving up more never makes a page longer.
+  let low = 1;
+  let high = all;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    const laid = at(mid);
+    if (laid && one(laid)) {
+      fits = laid;
+      high = mid;
+    } else low = mid + 1;
+  }
+  return fits;
+}
+
+/**
+ * Every sheet the pages before the script print, whichever the placement: one
+ * loop for every page (src/layout/front-pages.ts says what each page holds).
+ * Each page starts a sheet of its own (`placeFrontPage`). An inline opening is
+ * one page whose sheets are the first numbered pages' openings (`paginate`,
+ * below).
+ */
+export function layoutFrontPages(frontPages: FrontPage[], spec: FormatSpec): FrontMatterPage[] {
+  return frontPages
+    .flatMap((page) => placeFrontPage(page, spec).sheets)
+    .filter((page) => page.lines.length);
 }
 
 /** An inline style span over a block's print text. */
@@ -1063,6 +1366,7 @@ export function paginate(
       title: meta.title,
       author: meta.author,
       draftDate: meta.frontMatter?.draftDate,
+      version: meta.frontMatter?.version,
     });
     const out: HeaderText = {};
     for (const slot of ["left", "center", "right"] as const) {
@@ -1122,7 +1426,7 @@ export function paginate(
     ).entries()) {
       if (index) closePage(page);
       page.intro = opening.lines;
-      page.rowsUsed = opening.lines[opening.lines.length - 1].row + 1;
+      page.rowsUsed = Math.max(...opening.lines.map((line) => line.row)) + 1;
     }
     if (page.intro?.length) lastAfter = spec.frontMatter.inlineGapRows;
   }

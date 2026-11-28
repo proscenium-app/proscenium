@@ -16,6 +16,7 @@
 .app-shell.is-focus > .statusbar,
 .app-shell.is-focus .binder,
 .app-shell.is-focus .inspector,
+.app-shell.is-focus .railhandle,
 .app-shell.is-focus .pane__tabs,
 .app-shell.is-focus .elementbar {
   height: 0;

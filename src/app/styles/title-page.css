@@ -138,6 +138,135 @@
 .frontpage-editor--sheet .prose > .pagefoot + * {
   margin-top: 0;
 }
+/* Where the writer put a block (docs/app/formatting/formats-and-layout.md#FMT-182):
+   its rows above it in place of the format's gap, and its lines from its
+   cell, a cell being the advance of the format's own type. A block beside the
+   one before it is put on its row by what measures the page
+   (src/markdown/page-place.ts), which gives it its margins; it is as wide as
+   its words, so a press beside it reaches the block it stands beside. */
+.frontpage-editor--sheet {
+  /* Written on the block itself by its place; these hold where it has none. */
+  --place-rows: 0;
+  --place-cell: 0;
+}
+.frontpage-editor--sheet .prose > [data-place-rows]:not([data-place-beside]) {
+  margin-top: calc(var(--place-rows) * var(--fmt-line));
+}
+.frontpage-editor--sheet .prose > [data-place-cell] {
+  margin-left: calc(var(--place-cell) * 1ch);
+  text-align: left;
+}
+.frontpage-editor--sheet .prose > [data-place-beside] {
+  margin-top: 0;
+  align-self: flex-start;
+  max-width: 100%;
+}
+.frontpage-editor--sheet .prose > [data-place-beside][style*="text-align: center"] {
+  align-self: center;
+}
+.frontpage-editor--sheet .prose > [data-place-beside][style*="text-align: right"] {
+  align-self: flex-end;
+}
+/* A page with a head starts at the top of its sheet. The rule under the head
+   takes no row of the page: it is drawn in the gap above the page's own first
+   line, which what measures the page starts where the layout puts it. */
+.frontpage-editor--sheet .prose.prose--head {
+  padding-top: 0;
+}
+.frontpage-editor--sheet .prose > .pagehead {
+  height: 0;
+  margin-bottom: 0;
+}
+/* Drawn most of a row up, in that gap; the rule's own box stays where the page's
+   first line starts, since that is what is measured. */
+.frontpage-editor--sheet .prose > .pagehead::before,
+.frontpage-editor--sheet .prose > .pagehead::after,
+.frontpage-editor--sheet .prose > .pagehead > .pagefoot__caption {
+  transform: translateY(calc(var(--fmt-line) * -0.75));
+}
+.frontpage-editor--sheet .prose > .pagehead + * {
+  margin-top: 0;
+}
+.frontpage-editor--sheet .prose > .pagehead + [data-place-rows] {
+  margin-top: calc(var(--place-rows) * var(--fmt-line));
+}
+/* Beside a component that is selected (the contents, the cast): the button
+   that opens what can be set on it
+   (docs/app/formatting/formats-and-layout.md#FMT-184). It stands just past
+   the component's first line and never prints. */
+.pagecomponent-btn {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--h-regular);
+  height: var(--h-regular);
+  margin-left: var(--s-2);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-control);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+.pagecomponent-btn:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
+}
+/* The handle a block of a page is dragged by, just left of its words, and
+   the outline of where a dragged block would stand. Neither prints. */
+.frontpage-editor--sheet {
+  position: relative;
+}
+.pageblock-grip {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: var(--fmt-line);
+  margin-left: -1.25rem;
+  border-radius: var(--r-chip);
+  color: var(--ash);
+  cursor: grab;
+  touch-action: none;
+}
+.pageblock-grip--held {
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  cursor: grabbing;
+}
+/* Quieter until the pointer is on it, where there is a pointer that hovers:
+   under a finger it is always as plain as this. */
+@media (hover: hover) {
+  .pageblock-grip:not(.pageblock-grip--held) {
+    opacity: 0.55;
+  }
+  .pageblock-grip:hover {
+    opacity: 1;
+    color: var(--accent-text);
+    background: var(--accent-soft);
+  }
+}
+.pageblock-grip svg {
+  fill: currentColor;
+}
+.pageblock-ghost {
+  position: absolute;
+  z-index: 1;
+  box-sizing: border-box;
+  border: 1.5px dashed var(--accent-text);
+  border-radius: var(--r-chip);
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+@media (forced-colors: active) {
+  .pageblock-ghost {
+    border-color: Highlight;
+  }
+}
 /* A field is where its detail is written, in place
    (docs/app/formatting/formats-and-layout.md#FMT-180): its words are a text
    of their own, set as the page's are, and one with no value is a prompt,

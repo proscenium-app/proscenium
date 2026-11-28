@@ -46,7 +46,14 @@ export function CommentsFeed({
   onJump: (pos: number, fromWords?: boolean) => void;
 }) {
   const [threads, setThreads] = useState<CommentThread[]>([]);
-  const [ui, setUi] = useState<FeedUi>(IDLE);
+  // The editor's state from the first render: opened while a comment was being
+  // typed in the margin's card, the feed read "no room in the margin" from the
+  // empty state it began with, and took the comment from the card it was in.
+  const [ui, setUi] = useState<FeedUi>(() => {
+    if (!editor) return IDLE;
+    const { focusPos, composing, replying, marginRoom } = editor.storage.comments;
+    return { focusPos, composing, replying, marginRoom };
+  });
   const [filter, setFilter] = useState<Filter>("all");
   const root = useRef<HTMLDivElement>(null);
   const complete = useCommentFocus(editor, root);

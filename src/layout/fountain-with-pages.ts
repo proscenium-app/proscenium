@@ -33,7 +33,8 @@ import { serialize } from "../fountain/serialize";
 import { serializeTitlePage } from "../fountain/titlepage";
 import type { StyleRun } from "./engine";
 import { type OpeningParagraph, openingParagraphs } from "./opening-prose";
-import { FIELDS, FOOT_MARK, fillFields, readPageFile } from "./page-files";
+import { FIELDS, fillFields, pageBands, readPageFile } from "./page-files";
+import { isTemplateHeading } from "./template-headings";
 
 /** The note the pages open with: what follows, and where it was written. */
 export const PAGES_OPEN =
@@ -64,17 +65,19 @@ interface Paragraph {
   block: string;
 }
 
-/** A page's paragraphs as the page view prints them: its words, then the words at its foot. */
+/**
+ * A page's paragraphs in the order they are read: the words at its head, its
+ * own, then the words at its foot. Where a writer put a block on the sheet
+ * (docs/app/formatting/formats-and-layout.md#FMT-182) is not Fountain's to
+ * say, so each goes as a line in that order.
+ */
 function paragraphsOf(text: string): Paragraph[] {
-  const lines = readPageFile(text).body.split("\n");
-  const at = lines.findIndex((line) => line.trim() === FOOT_MARK);
-  const part = (markdown: string, area: string): Paragraph[] =>
-    openingParagraphs(markdown).map((p) => ({ p, block: `${area}:${p.block}` }));
-  if (at < 0) return part(lines.join("\n"), "main");
-  return [
-    ...part(lines.slice(0, at).join("\n"), "main"),
-    ...part(lines.slice(at + 1).join("\n"), "foot"),
-  ];
+  const bands = pageBands(readPageFile(text).body);
+  const part = (markdown: string | null, area: string): Paragraph[] =>
+    markdown === null
+      ? []
+      : openingParagraphs(markdown).map((p) => ({ p, block: `${area}:${p.block}` }));
+  return [...part(bands.head, "head"), ...part(bands.main, "main"), ...part(bands.foot, "foot")];
 }
 
 /**
@@ -83,6 +86,19 @@ function paragraphsOf(text: string): Paragraph[] {
  */
 function onlyFields(paragraphs: readonly Paragraph[]): boolean {
   return paragraphs.every(({ p }) => !p.text.replace(FIELD, "").trim());
+}
+
+/**
+ * Whether a page holds its template's headings and nothing else: a page not
+ * yet written, which prints nothing
+ * (docs/app/formatting/formats-and-layout.md#FMT-183) and has nothing of the
+ * writer's to take to another app.
+ */
+function untouched(paragraphs: readonly Paragraph[], fm: FrontMatter): boolean {
+  // What a paragraph prints: a field that follows the script and has nothing
+  // to show yet (the cast of a play in which no one speaks) is no words.
+  const words = paragraphs.filter(({ p }) => fillFields(p.text, p.runs, fm).text.trim());
+  return words.length > 0 && words.every(({ p }) => p.heading && isTemplateHeading(p.text));
 }
 
 /** A run's emphasis as the script's marks. */
@@ -192,7 +208,7 @@ function pageBlocks(paragraphs: readonly Paragraph[], fm: FrontMatter): string[]
 export function pagesAsFountain(pages: readonly FrontPageSource[], fm: FrontMatter): string {
   const blocks = pages.flatMap((page) => {
     const paragraphs = paragraphsOf(page.text);
-    if (onlyFields(paragraphs)) return [];
+    if (onlyFields(paragraphs) || untouched(paragraphs, fm)) return [];
     const words = pageBlocks(paragraphs, fm);
     return words.length ? [...words, "==="] : [];
   });
@@ -209,7 +225,9 @@ export function pagesAsFountain(pages: readonly FrontPageSource[], fm: FrontMatt
  */
 export function backPagesAsFountain(pages: readonly FrontPageSource[], fm: FrontMatter): string {
   const blocks = pages.flatMap((page) => {
-    const words = pageBlocks(paragraphsOf(page.text), fm);
+    const paragraphs = paragraphsOf(page.text);
+    if (untouched(paragraphs, fm)) return [];
+    const words = pageBlocks(paragraphs, fm);
     return words.length ? ["===", ...words] : [];
   });
   return blocks.length ? [BACK_PAGES_OPEN, ...blocks, BACK_PAGES_CLOSE].join("\n\n") : "";

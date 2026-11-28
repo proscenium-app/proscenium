@@ -35,7 +35,7 @@ import { flatten, titleOf } from "../workspace/binder";
 import { practiceNote } from "../workspace/trash";
 import { split, reconstruct, parseTags } from "../workspace/front-matter";
 import { announce, anyLayerOpen } from "../ui";
-import { tutorialUse } from "../diagnostics";
+import { errorShown, raisedError, tutorialUse } from "../diagnostics";
 import {
   COURSE_SEED,
   EXAMPLE,
@@ -139,6 +139,14 @@ export function useTutorial(ws: Workspace, controls: Controls) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progressError, setProgressError] = useState<string | null>(null);
+  // Practice shows its errors in place rather than as toasts; each is logged by
+  // its code as a toast's is (docs/app/keeping-work/privacy-and-telemetry.md#PRIV-34).
+  useEffect(() => {
+    if (error) errorShown(raisedError(error, "E-PRACTICE").code);
+  }, [error]);
+  useEffect(() => {
+    if (progressError) errorShown(raisedError(progressError, "E-PRACTICE").code);
+  }, [progressError]);
   const hash = useRef<string | null>(null);
   const queue = useRef(Promise.resolve());
   const [active, setActive] = useState<{ id: string; lesson: string } | null>(null);

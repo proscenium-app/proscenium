@@ -17,6 +17,9 @@
     - none
       - switch "Check for updates automatically"
     - paragraph
+    - none
+      - switch "Install updates automatically"
+    - paragraph
     - heading "UPDATE TRACK" [level=4]
     - button "Track: Stable" [haspopup]
     - paragraph

@@ -38,6 +38,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: in Research
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -64,6 +65,7 @@
     - button "Insert divider":
       - img
   - paragraph: Quincunx
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Sheet" [selected]

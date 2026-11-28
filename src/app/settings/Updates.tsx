@@ -142,7 +142,8 @@ function AlphaKey({ trackRow }: { trackRow: RefObject<HTMLDivElement | null> }) 
 
 export function UpdatesSlot() {
   const info = useAppInfo();
-  const { checkForUpdates, updateTrack, hasUpdateTrackKey } = useSettings();
+  const { checkForUpdates, installUpdatesAutomatically, updateTrack, hasUpdateTrackKey } =
+    useSettings();
   const trackRow = useRef<HTMLDivElement | null>(null);
   const intel = stableOnly(info?.tracks);
   const alphaBuilt = info?.tracks.includes("alpha") ?? true;
@@ -185,7 +186,15 @@ export function UpdatesSlot() {
             label="Check for updates automatically"
             on={checkForUpdates}
             onChange={(on) => updateSettings({ checkForUpdates: on })}
-            note={`Checks when Proscenium opens and ${updateTrack === "alpha" ? "every hour" : "once a day"}, then downloads any new version in the background. Proscenium restarts to install it only when you choose.`}
+            note={`Checks when Proscenium opens and ${updateTrack === "alpha" ? "every hour" : "once a day"}, then downloads any new version in the background.`}
+          />
+          {/* docs/engineering/release-engineering.md#REL-133: installed on the
+              way out, never by a restart the writer did not choose. */}
+          <SwitchRow
+            label="Install updates automatically"
+            on={installUpdatesAutomatically}
+            onChange={(on) => updateSettings({ installUpdatesAutomatically: on })}
+            note="A downloaded update installs when you quit Proscenium, after your work is saved, so it opens as the new version next time. Restart to Update installs it straight away."
           />
         </Group>
       )}

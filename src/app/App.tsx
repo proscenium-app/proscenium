@@ -3,13 +3,26 @@
 
 import { moveToTrash, theTrash, trashedDetail } from "../ui/system-words";
 import { keyStyle, pressed } from "../ui/keys";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { CommentsFeed } from "../comments";
 import { errorShown, playOpened, surfaceShown, workspaceErrorCode } from "../diagnostics";
 import { FeedbackSheet } from "../feedback/FeedbackSheet";
 import { PlayEditor, RedlineScript } from "../editor";
 import { PageOnSheet } from "./PageOnSheet";
 import { AddPageSheet } from "./AddPageSheet";
+import { showsVersion, titlePageOf } from "../layout/page-files";
+import { PlayNameSheet } from "./PlayNameSheet";
+import { SaveAsSheet, draftName } from "./SaveAsSheet";
+import { DraftSheet } from "./DraftSheet";
+import { announce } from "../ui/announce";
 import {
   FIELDS,
   backPageList,
@@ -83,6 +96,8 @@ import { useUpdateNotices } from "./updates";
 import { useCreatedPages } from "./use-created-pages";
 import { useKeyboardInset } from "./use-keyboard-inset";
 import { useNarrowLayout } from "./use-narrow-layout";
+import { RAIL_VAR, RailHandle } from "./RailHandle";
+import { type Rail, loadRailWidth, saveRailWidth } from "./rail-width";
 import { useShellCommands, VIEW_TO_SURFACE } from "./use-shell-commands";
 import { findBinderItem, useWorkspacePanes } from "./use-workspace-panes";
 import { clampZoom, findFitTarget, useZoom } from "./use-zoom";
@@ -146,9 +161,6 @@ function AppShell() {
   const ws = useWorkspace();
   const savedCopies = useSavedCopies(ws.mode === "workspace" ? ws.root : null);
   const recoveryCopies = useRecoveryCopies(ws.playId, ws.root, ws.binder);
-  // "Proscenium x.y.z is ready" when an update has downloaded, and a restart
-  // that flushes this workspace's edits before anything is installed.
-  useUpdateNotices(ws.settleForQuit, ws.confirmSaveState);
   /* Every quit — ⌘Q, the Dock, logging out, the window's close button — asks
      here first, and waits while the play keeps its words (quit.ts). */
   const quitGate = useQuitGate(ws.settleForQuit);
@@ -159,6 +171,10 @@ function AppShell() {
      document menu's Check Spelling as You Type and Settings › Writing cannot
      disagree. */
   const prefs = useSettings();
+  // "Proscenium x.y.z is ready" when an update has downloaded, and a restart
+  // that flushes this workspace's edits before anything is installed; with
+  // what the waiting update will do at quit.
+  useUpdateNotices(ws.settleForQuit, ws.confirmSaveState, prefs.installUpdatesAutomatically);
   /* The documents' spelling where the system's may not run in them (an
      iPad): the script's own checker, on the script's switch and words. */
   const proseChecker = useDocumentSpelling({
@@ -424,10 +440,6 @@ function AppShell() {
    */
   const { frontMatter: detailsNow, contentsNow } = ws;
   const galleryOpen = !!showAddPage || !!templateOf;
-  const galleryDetails = useMemo(
-    () => (galleryOpen ? { ...detailsNow, contents: contentsNow() } : detailsNow),
-    [galleryOpen, detailsNow, contentsNow],
-  );
   /** A page to edit where it stands in the script's page view: one just added, or one asked for by name. */
   const [frontPageRequest, setFrontPageRequest] = useState<{
     source: string;
@@ -450,6 +462,10 @@ function AppShell() {
         .filter((name) => (ws.castWeights.get(name)?.cues ?? 0) > 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [ws.castWeights],
+  );
+  const galleryDetails = useMemo(
+    () => (galleryOpen ? { ...detailsNow, contents: contentsNow(), cast: speakers } : detailsNow),
+    [galleryOpen, detailsNow, contentsNow, speakers],
   );
   /** A page of the open script, shown where it prints with the caret in it. */
   const openPageInScript = useCallback(
@@ -607,6 +623,19 @@ function AppShell() {
     return out;
   }, [ws.frontMatter]);
 
+  /* Play Version… (docs/app/formatting/formats-and-layout.md#FMT-185): the
+     version, where else it prints, and whether the title page, a file, has a
+     line for it yet. */
+  const titlePageFile = titlePageOf(ws.frontPages);
+  const playVersion = useMemo(
+    () => ({
+      text: ws.frontMatter.version ?? "",
+      print: ws.versionPrint,
+      titleLacksLine: !!titlePageFile && !showsVersion(titlePageFile.text),
+    }),
+    [ws.frontMatter.version, ws.versionPrint, titlePageFile],
+  );
+
   /* Every page before the script, edited where it prints in the script's page
      view (docs/app/formatting/formats-and-layout.md#FMT-169). */
   const {
@@ -648,6 +677,7 @@ function AppShell() {
         spec={playFormat}
         onSetDetails={setDetails}
         onChangeTemplate={openChangeTemplate}
+        onRemovePage={trashRow}
         at={at}
         frontMatter={frontMatter}
         material={openMaterials[source] ?? null}
@@ -727,6 +757,16 @@ function AppShell() {
   };
 
   const binderVisible = binderOpen && (!narrow || narrowRail === "binder");
+  /* Each rail's width, dragged by its edge within its range
+     (docs/app/organizing/workspace-model.md#WORK-97). */
+  const [railWidths, setRailWidths] = useState<Record<Rail, number>>(() => ({
+    binder: loadRailWidth("binder"),
+    inspector: loadRailWidth("inspector"),
+  }));
+  const setRailWidth = useCallback((rail: Rail, px: number) => {
+    setRailWidths((w) => ({ ...w, [rail]: px }));
+    saveRailWidth(rail, px);
+  }, []);
   /* Below 700 points the binder lies over the page, a drawer (window-shell.css):
      choosing something in it shows that thing, so the drawer closes, rather
      than leave the writer looking at the binder over what they opened. */
@@ -1193,7 +1233,8 @@ function AppShell() {
     toast(
       typeof wsError === "string"
         ? { kind: "error", title: wsError, code: workspaceErrorCode(wsError) }
-        : { kind: "error", ...wsError, ms: 12000 },
+        : // A detail to read stays up twice as long; a coded error without one does not.
+          { kind: "error", ...wsError, ms: wsError.detail ? 12000 : undefined },
     );
     dismissError();
   }, [wsError, toast, dismissError]);
@@ -1343,6 +1384,51 @@ function AppShell() {
   /** File › New Play… (⌘N): the Plays screen names a blank play for each new count. */
   const [newPlayAsk, setNewPlayAsk] = useState(0);
   const askNewPlay = useCallback(() => setNewPlayAsk((n) => n + 1), []);
+  /** File › Save As…, over the open play (docs/app/organizing/workspace-model.md#WORK-95). */
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const inPlay = ws.mode === "workspace" && !!ws.playTitle;
+  const askSaveAs = useCallback(() => {
+    if (inPlay) setSaveAsOpen(true);
+  }, [inPlay]);
+  /** File › Rename Play…, with what the title page says (docs/app/keeping-work/storage-and-file-format.md#STOR-208). */
+  const [renameAsk, setRenameAsk] = useState<{ dir: string; titleAsk: string | null } | null>(null);
+  const { titleOfPlay, playTitle } = ws;
+  const askRenamePlay = useCallback(() => {
+    if (!inPlay) return;
+    void titleOfPlay(playTitle).then((facts) =>
+      setRenameAsk({ dir: playTitle, titleAsk: facts.isName ? facts.title : null }),
+    );
+  }, [inPlay, titleOfPlay, playTitle]);
+  const { exportPlay } = ws;
+  const exportOpenPlay = useCallback(() => exportPlay(), [exportPlay]);
+  /** File › Save Draft…, over the open script (docs/app/keeping-work/storage-and-file-format.md#STOR-203). */
+  const [draftAsk, setDraftAsk] = useState(false);
+  const askSaveDraft = useCallback(() => {
+    if (inPlay && ws.scriptTitle) setDraftAsk(true);
+  }, [inPlay, ws.scriptTitle]);
+  const { saveDraft, showDraft } = ws;
+  /** A draft saved: said, with the way to read it. */
+  const keepDraft = useCallback(
+    async (name: string) => {
+      const res = await saveDraft(name);
+      if (res.ok) {
+        const id = res.dir;
+        toast({
+          kind: "plain",
+          title: `Saved the draft “${name.trim()}”`,
+          detail: "It is in the Drafts folder, and does not change.",
+          action: { label: "Open", run: () => showDraft(id) },
+        });
+      }
+      return res;
+    },
+    [saveDraft, showDraft, toast],
+  );
+  /* A Save the writer asked for is said aloud once it is true (docs/app/keeping-work/storage-and-file-format.md#STOR-201). */
+  const saveNoted = ws.saveNote && (ws.status === "saved" || ws.status === "idle");
+  useEffect(() => {
+    if (saveNoted) announce("Saved. Proscenium saves as you write.");
+  }, [saveNoted]);
   const { runMenuCommand } = useShellCommands(ws, {
     panes,
     binderVisible,
@@ -1359,6 +1445,10 @@ function AppShell() {
     openCastNames,
     openHistory,
     askNewPlay,
+    askSaveAs,
+    askRenamePlay,
+    askSaveDraft,
+    exportPlay: exportOpenPlay,
     toast,
     caretOrdinalRef,
     showShortcutsRef,
@@ -1399,6 +1489,10 @@ function AppShell() {
               ? {
                   onAllPlays: ws.backToVault,
                   onReveal: ws.canReveal ? () => void vault.reveal() : undefined,
+                  onSaveAs: askSaveAs,
+                  onSaveDraft: askSaveDraft,
+                  onRenamePlay: askRenamePlay,
+                  onExportPlay: exportOpenPlay,
                   formats: ws.formats,
                   activeFormatId: ws.format.id,
                   onSetFormat: ws.setFormat,
@@ -1410,6 +1504,9 @@ function AppShell() {
                   onSetSpellcheck: (on) => updateSettings({ spellcheck: on }),
                   onAddFrontPage: openAddPage,
                   onCapitalizeNames: openCastNames,
+                  version: playVersion,
+                  onSaveVersion: (text, print, titleLine) =>
+                    ws.savePlayVersion(text, print, titleLine, ws.openScriptKey),
                   onShowHistory: () => openHistory(),
                   onExport: () => setShowExport({ sidesFor: null }),
                   onExportAs: (type) => setShowExport({ sidesFor: null, type }),
@@ -1465,7 +1562,15 @@ function AppShell() {
           </section>
         )}
 
-        <div className="workspace-body">
+        <div
+          className="workspace-body"
+          style={
+            {
+              [RAIL_VAR.binder]: `${railWidths.binder}px`,
+              [RAIL_VAR.inspector]: `${railWidths.inspector}px`,
+            } as CSSProperties
+          }
+        >
           {/* No edge strip when the binder is closed: the toolbar's sidebar
             button is the one way in and out, which is where a Mac user looks
             for it (docs/app/organizing/workspace-model.md#WORK-D1). */}
@@ -1540,6 +1645,13 @@ function AppShell() {
               onSetSceneColor={ws.readOnly ? undefined : (id, color) => ws.setCard(id, { color })}
             />
           )}
+          {ws.root && ws.mode === "workspace" && binderVisible && (
+            <RailHandle
+              rail="binder"
+              width={railWidths.binder}
+              onWidth={(px) => setRailWidth("binder", px)}
+            />
+          )}
           {ws.mode === "workspace" && ws.root ? (
             /* The one `main` landmark: VoiceOver's rotor jumps binder →
              panes → inspector, and with a play open the panes were a div,
@@ -1593,6 +1705,27 @@ function AppShell() {
                   }}
                   newPlayAsk={newPlayAsk}
                   onPutBack={ws.putBackFromTrash}
+                  onRename={async (play, name, title) => {
+                    const res = await ws.renamePlay(play.dir, name, title);
+                    if (res.ok)
+                      toast({ kind: "plain", title: `“${play.title}” is now “${res.dir}”` });
+                    return res;
+                  }}
+                  titleOfPlay={ws.titleOfPlay}
+                  onDuplicate={(play, name) => ws.duplicatePlay(play.dir, name)}
+                  onNewLike={(play, name) => ws.newPlayLike(play.dir, name)}
+                  onExportPlay={(play) => ws.exportPlay(play.dir)}
+                  onAddZip={(file) => {
+                    void ws.addPlayFromZip(file).then((res) => {
+                      if (!res.ok)
+                        toast({
+                          kind: "error",
+                          title: `“${file.name}” was not added`,
+                          detail: res.said,
+                          ms: 12000,
+                        });
+                    });
+                  }}
                   onTrash={(play) => {
                     /* Asked twice already (TrashPlayAsk.tsx). The toast says
                        where it went; the question said how to have it back. */
@@ -1608,6 +1741,7 @@ function AppShell() {
                               kind: "error",
                               title: `“${play.title}” could not be moved to ${theTrash()}`,
                               detail: res.said,
+                              code: "E-PLAY-TRASH",
                               ms: 12000,
                             },
                       ),
@@ -1630,6 +1764,13 @@ function AppShell() {
                 />
               )}
             </main>
+          )}
+          {inspectorVisible && (
+            <RailHandle
+              rail="inspector"
+              width={railWidths.inspector}
+              onWidth={(px) => setRailWidth("inspector", px)}
+            />
           )}
           {inspectorVisible && (
             <Inspector
@@ -1744,6 +1885,8 @@ function AppShell() {
           formatWarnings={ws.formatWarnings}
           conflictCopies={ws.conflictCopies}
           preserved={ws.preserved}
+          saveNote={ws.saveNote}
+          updateAtQuit={prefs.installUpdatesAutomatically}
         >
           {/* Zoom lives here, not in the document menu: it is a view transform,
             not a property of the script, and buried three clicks deep it read
@@ -1759,6 +1902,56 @@ function AppShell() {
           )}
         </StatusBar>
 
+        {saveAsOpen && inPlay && (
+          <SaveAsSheet
+            playName={ws.playTitle}
+            scriptName={ws.scriptTitle || null}
+            onDraft={keepDraft}
+            onScript={ws.duplicateScript}
+            onPlay={(name) => ws.duplicatePlay(ws.playTitle, name)}
+            onFile={(kind) => {
+              if (kind === "zip") exportOpenPlay();
+              else if (kind === "fountain") ws.exportFountain();
+              else setShowExport({ sidesFor: null, ...(kind === "pdf" ? {} : { type: kind }) });
+            }}
+            onVersions={() => openHistory()}
+            onClose={() => setSaveAsOpen(false)}
+          />
+        )}
+        {draftAsk && ws.scriptTitle && (
+          <PlayNameSheet
+            title="Save Draft"
+            intro={`“${ws.scriptTitle}” as it is now, kept in the Drafts folder while you go on writing. It does not change.`}
+            initial={draftName(ws.scriptTitle)}
+            confirm="Save Draft"
+            busyLabel="Saving…"
+            onSubmit={(name) => keepDraft(name)}
+            onClose={() => setDraftAsk(false)}
+          />
+        )}
+        {ws.openDraft && (
+          <DraftSheet
+            id={ws.openDraft}
+            load={ws.draftView}
+            format={ws.format}
+            onRestore={ws.restoreDraft}
+            onWorkingCopy={ws.workingCopy}
+            onClose={() => ws.showDraft(null)}
+          />
+        )}
+        {renameAsk && (
+          <PlayNameSheet
+            title="Rename Play"
+            intro={`“${renameAsk.dir}” and its play file take the new name.`}
+            initial={renameAsk.dir}
+            unchanged={renameAsk.dir}
+            confirm="Rename"
+            busyLabel="Renaming…"
+            titleAsk={renameAsk.titleAsk}
+            onSubmit={(name, title) => ws.renamePlay(renameAsk.dir, name, title)}
+            onClose={() => setRenameAsk(null)}
+          />
+        )}
         {importQueue[0] && (
           <ImportPanel
             key={importQueue[0].id}

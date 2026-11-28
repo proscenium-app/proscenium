@@ -28,9 +28,9 @@ describe("the play's details, as a writer types them", () => {
   };
 
   test("every field of a page shows a detail, and every detail is explained", () => {
-    // Every field but the contents, which follow the script and are no detail.
+    // Every field but the contents and the cast, which follow the script and are no detail.
     for (const field of FIELD_NAMES)
-      if (field === "contents") expect(DETAIL_OF[field]).toBeUndefined();
+      if (field === "contents" || field === "cast") expect(DETAIL_OF[field]).toBeUndefined();
       else expect(DETAILS).toContain(DETAIL_OF[field]!);
     for (const detail of DETAILS) {
       expect(DETAIL_HELP[detail].help).toMatch(/\.$/);

@@ -12,7 +12,7 @@
  * numbering shortens for a one-act or a single-scene play
  * (docs/app/formatting/formats-and-layout.md#FMT-142).
  */
-import type { HeaderToken } from "../format/spec";
+import type { FormatSpec, HeaderFooterSlot, HeaderToken } from "../format/spec";
 
 /** Where a page begins: the act and scene in force, as written and as numbers. */
 export interface PagePosition {
@@ -161,8 +161,17 @@ export function enterHeading(
     : { ...at, scene: heading.text, sceneNumber: number };
 }
 
-/** The tokens that may print nothing and then take their separator with them. */
-const NUMBERS: ReadonlySet<string> = new Set<HeaderToken>(["actNumber", "actRoman", "sceneNumber"]);
+/**
+ * The tokens that may print nothing and then take their separator with them:
+ * the numbers, and the play's version, which a play may not have
+ * (docs/app/formatting/formats-and-layout.md#FMT-185).
+ */
+const NUMBERS: ReadonlySet<string> = new Set<HeaderToken>([
+  "actNumber",
+  "actRoman",
+  "sceneNumber",
+  "version",
+]);
 /** A separator between two tokens: a short run of dashes, dots, colons, slashes and spaces. */
 const SEPARATOR = /^[\s.:/·–—-]{1,3}$/;
 
@@ -188,6 +197,7 @@ export function slotValues(args: {
   title?: string;
   author?: string;
   draftDate?: string;
+  version?: string;
 }): Record<HeaderToken, string> {
   const { at } = args;
   return {
@@ -204,5 +214,61 @@ export function slotValues(args: {
       .split(/\s*\n\s*/)
       .filter(Boolean)
       .join(" "),
+    version: (args.version ?? "")
+      .split(/\s*\n\s*/)
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+/**
+ * Where a play's version prints besides its title page
+ * (docs/app/formatting/formats-and-layout.md#FMT-185): in the page header or
+ * the page footer, on one side, or nowhere else.
+ */
+export type VersionPrint = { in: "none" } | { in: "header" | "footer"; side: HeaderFooterSlot };
+
+export const VERSION_SIDES: readonly HeaderFooterSlot[] = ["left", "center", "right"];
+
+/** Whether a format already prints the version somewhere of its own. */
+function printsVersion(spec: FormatSpec): boolean {
+  return [spec.header, spec.footer].some((hf) =>
+    VERSION_SIDES.some((slot) => (hf.content[slot] ?? "").includes("{version}")),
+  );
+}
+
+/**
+ * Where the version goes when the writer has not said: the header, on the
+ * first side the format leaves empty (left, then right, then center), and
+ * beside what it prints on the left when it fills all three.
+ */
+export function defaultVersionPrint(spec: FormatSpec): VersionPrint {
+  const side = (["left", "right", "center"] as const).find((slot) => !spec.header.content[slot]);
+  return { in: "header", side: side ?? "left" };
+}
+
+/**
+ * The format with the play's version in the slot the writer chose. An empty
+ * slot prints the version alone; one the format already fills prints the
+ * version, two spaces, then what it printed, so "12." becomes "Draft 3  12.".
+ * A play with no version prints as its format does, and a format that prints
+ * the version itself is left as it is, so the version never prints twice.
+ */
+export function withVersionPrint(
+  spec: FormatSpec,
+  print: VersionPrint | null | undefined,
+  version: string | undefined,
+): FormatSpec {
+  if (!version?.trim() || printsVersion(spec)) return spec;
+  const at = print ?? defaultVersionPrint(spec);
+  if (at.in === "none") return spec;
+  const band = spec[at.in];
+  const held = band.content[at.side] ?? "";
+  return {
+    ...spec,
+    [at.in]: {
+      ...band,
+      content: { ...band.content, [at.side]: held ? `{version}  ${held}` : "{version}" },
+    },
   };
 }

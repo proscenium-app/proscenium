@@ -12,6 +12,10 @@
  * written. The sheet's margins are left off, and it is drawn smaller when the
  * pane is narrower than a line of the script, never squeezed into a narrower
  * column: an element keeps the measure the format gives it.
+ *
+ * `whole` draws all of `after` instead, with nothing marked: a saved draft
+ * read on its page (docs/app/keeping-work/storage-and-file-format.md#STOR-205),
+ * on the same read-only editor, so it is never a page anything writes in.
  */
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -20,7 +24,9 @@ import { formatCssVars, formatToCss, type FormatSpec } from "../format";
 import { marginRuleCss } from "./redline-margin";
 import { Pagination } from "./pagination";
 import { Redline, RedlineAdd, RedlineDel } from "./redline";
-import { scriptRedline } from "./redline-doc";
+import { scriptRedline, type ScriptRedline } from "./redline-doc";
+import { toEditorDoc } from "./bridge";
+import { parse } from "../fountain";
 import { playExtensions } from "./schema";
 
 const NO_META = {};
@@ -30,14 +36,27 @@ export function RedlineScript({
   after,
   format,
   label,
+  whole = false,
 }: {
   before: string;
   after: string;
   format: FormatSpec;
   /** What this is a comparison of, for the page's name. */
   label: string;
+  /** All of `after`, nothing marked: a script read, not a change. */
+  whole?: boolean;
 }) {
-  const redline = useMemo(() => scriptRedline(before, after), [before, after]);
+  const redline = useMemo(
+    (): ScriptRedline =>
+      whole
+        ? {
+            doc: toEditorDoc(parse(after).doc) as ScriptRedline["doc"],
+            changes: 0,
+            openingPages: false,
+          }
+        : scriptRedline(before, after),
+    [before, after, whole],
+  );
   const editor = useEditor({
     extensions: [...playExtensions, Pagination, RedlineAdd, RedlineDel, Redline],
     editable: false,

@@ -29,7 +29,23 @@ export const PLAY_EXT = ".proscenium";
 
 export const PLAY_KIND = "proscenium/play";
 
-export const SCHEMA_VERSION = 1;
+/**
+ * The newest play file this app reads and writes
+ * (docs/app/keeping-work/storage-and-file-format.md#STOR-D14).
+ */
+export const SCHEMA_VERSION = 2;
+/**
+ * What a new play is written as: the schema every copy of the app reads. A play
+ * moves on to `DRAFTS_SCHEMA` with its first saved draft, never before
+ * (docs/app/keeping-work/storage-and-file-format.md#STOR-204).
+ */
+export const BASE_SCHEMA = 1;
+/**
+ * A play that holds saved drafts: a copy of the app that does not know them
+ * would open a draft as a page it can write, so it opens such a play read-only
+ * instead (docs/app/keeping-work/storage-and-file-format.md#STOR-155).
+ */
+export const DRAFTS_SCHEMA = 2;
 
 /**
  * What a binder row is.
@@ -126,6 +142,13 @@ export interface ScriptData {
    * Absent: nothing follows the script's last page.
    */
   backMatter?: { folder: string };
+  /**
+   * Where the play's version prints besides its title page: the header or
+   * the footer and a side, or nowhere else
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-196). Absent: the
+   * header, on the first side its format leaves empty.
+   */
+  versionPrint?: { in: "none" } | { in: "header" | "footer"; side: "left" | "center" | "right" };
   [k: string]: unknown;
 }
 
@@ -148,6 +171,12 @@ export interface PlayFile {
   status?: string;
   /** One line, shown on the Plays screen, editable there. */
   logline?: string;
+  /**
+   * The name the play's script still carries after the play was renamed: the
+   * script named so takes the play's name when the play next opens, and this
+   * goes (docs/app/keeping-work/storage-and-file-format.md#STOR-208).
+   */
+  renamedFrom?: string;
   created: string;
   modified: string;
   generator: { app: string; version: string; [k: string]: unknown };
@@ -155,7 +184,22 @@ export interface PlayFile {
   binder: BinderItem[];
   /** Keyed by the script's BINDER id. */
   scripts: Record<string, ScriptData>;
+  /**
+   * The play's saved drafts, keyed by each draft's binder id
+   * (docs/app/keeping-work/storage-and-file-format.md#STOR-203).
+   */
+  drafts?: Record<string, DraftRecord>;
   [k: string]: unknown;
+}
+
+/** What a saved draft is (docs/app/keeping-work/storage-and-file-format.md#STOR-203). */
+export interface DraftRecord {
+  /** The binder id of the script it was saved from. */
+  of: string;
+  /** When it was saved, ISO-8601 UTC. */
+  savedAt: string;
+  /** SHA-256 of its bytes as saved: a file that no longer has them changed outside Proscenium. */
+  sha256: string;
 }
 
 export interface Loaded<T> {
@@ -300,6 +344,21 @@ export function validPlayShape(value: unknown): value is PlayFile {
       typeof c.boardNote === "string"
     );
   };
+  if (
+    value.drafts !== undefined &&
+    !(
+      object(value.drafts) &&
+      Object.entries(value.drafts).every(
+        ([key, d]) =>
+          id(key) &&
+          object(d) &&
+          id(d.of) &&
+          typeof d.savedAt === "string" &&
+          typeof d.sha256 === "string",
+      )
+    )
+  )
+    return false;
   return Object.entries(value.scripts).every(
     ([key, script]) =>
       id(key) &&
@@ -313,7 +372,21 @@ export function validPlayShape(value: unknown): value is PlayFile {
       (script.frontMatter === undefined ||
         (object(script.frontMatter) && id(script.frontMatter.folder))) &&
       (script.backMatter === undefined ||
-        (object(script.backMatter) && id(script.backMatter.folder))),
+        (object(script.backMatter) && id(script.backMatter.folder))) &&
+      (script.versionPrint === undefined || versionPrint(script.versionPrint)),
+  );
+}
+
+/** `versionPrint`: nowhere else, or a band and a side, nothing else in it (docs/app/keeping-work/storage-and-file-format.md#STOR-196). */
+function versionPrint(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  const keys = Object.keys(v).sort().join(",");
+  if (v.in === "none") return keys === "in";
+  return (
+    (v.in === "header" || v.in === "footer") &&
+    ["left", "center", "right"].includes(String(v.side)) &&
+    keys === "in,side"
   );
 }
 

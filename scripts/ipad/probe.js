@@ -64,14 +64,15 @@
    * The sample play's script: from the Plays screen on a first launch, and
    * as the app reopens it on a later one, which opens the last play.
    */
+  // The script's editor is the one on screen in the pane, holding the
+  // script's lines: the Plays screen lays scripts out in a hidden editor of
+  // its own to count their pages, which holds lines too.
+  const script = () =>
+    [...document.querySelectorAll(".paneroot .play-page .ProseMirror")].find(
+      (el) => el.querySelector(".pl-action") && el.getClientRects().length > 0,
+    );
+
   async function openThePlay() {
-    // The script's editor is the one on screen in the pane, holding the
-    // script's lines: the Plays screen lays scripts out in a hidden editor of
-    // its own to count their pages, which holds lines too.
-    const script = () =>
-      [...document.querySelectorAll(".paneroot .play-page .ProseMirror")].find(
-        (el) => el.querySelector(".pl-action") && el.getClientRects().length > 0,
-      );
     const found = await until(
       () => byText(".playrow__title", "The Weight of Water") || script(),
       "the play, or the Plays screen's row for it",
@@ -79,7 +80,19 @@
     if (found.classList.contains("playrow__title")) found.click();
     const dom = await until(script, "the script");
     await until(() => dom.editor, "the script's editor");
-    return dom;
+    // The play in place, and its script the writer's to type in. While a play
+    // loads, the pane already shows the script's element holding one blank
+    // line, not editable: a transaction sent then belongs to no play, and the
+    // load puts the script over it. A writer cannot type there, so the probe
+    // waits as a writer must. On a slow first start that wait was long enough
+    // to lose the words the typing step sent, two runs in five.
+    await until(
+      () =>
+        document.querySelector(".paneroot[data-settled]") &&
+        script()?.getAttribute("contenteditable") === "true",
+      "the play settled, and its script editable",
+    );
+    return script();
   }
 
   /**
@@ -133,9 +146,31 @@
     // Typed, and reported at once: the driver leaves the app before
     // autosave's two-second wait is over, so only leaving can keep them.
     async type() {
-      const editor = await openThePlay();
-      await type(editor, probe.words);
-      return { typed: probe.words };
+      const dom = await openThePlay();
+      const editor = dom.editor;
+      await type(dom, probe.words);
+      // Looked at once more, a moment on and still well inside autosave's
+      // wait: a launch that is still settling can put a second editor in the
+      // first one's place, and words typed into the first are then no one's
+      // to save. The step says that, where "not in the file" would blame the
+      // leaving.
+      await new Promise((done) => setTimeout(done, 600));
+      const now = script();
+      const sameScript = now === dom;
+      const sameEditor = !!now && now.editor === editor;
+      if (!now || !now.textContent.includes(probe.words))
+        throw new Error(
+          `the script lost the words 600 ms after they were typed: ${
+            !now
+              ? "no script is on screen"
+              : sameEditor
+                ? "its editor is the same one, without them"
+                : sameScript
+                  ? "its element has another editor now"
+                  : "another editor stands where it was"
+          }`,
+        );
+      return { typed: probe.words, sameScript, sameEditor };
     },
     async verify() {
       const dom = await openThePlay();

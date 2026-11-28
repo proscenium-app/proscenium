@@ -150,10 +150,12 @@ export const PLAY_TMPL: KeyTemplate = {
   id: true,
   status: true,
   logline: true,
+  renamedFrom: true,
   created: true,
   modified: true,
   generator: { app: true, version: true },
   settings: { format: true, language: true, sceneAnchors: true, autosave: true },
   binder: BINDER_ITEM_TMPL,
   scripts: SCRIPTS_TMPL,
+  drafts: { [WILDCARD]: { of: true, savedAt: true, sha256: true } },
 };

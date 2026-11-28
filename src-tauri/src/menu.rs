@@ -45,6 +45,13 @@ const FILE: &[Item] = &[
     ("all-plays", "All Plays", Some("CmdOrCtrl+Shift+O")),
     ("", "", None), // separator
     ("save", "Save", Some("CmdOrCtrl+S")),
+    // docs/app/organizing/workspace-model.md#WORK-95. A PC's Ctrl+Shift+S is
+    // Scene Heading's, so Save As has no entry in PC_KEYS.
+    ("save-as", "Save As…", Some("CmdOrCtrl+Shift+S")),
+    // docs/app/keeping-work/storage-and-file-format.md#STOR-203: the script as it is now, kept.
+    ("save-draft", "Save Draft…", None),
+    // docs/app/keeping-work/storage-and-file-format.md#STOR-208.
+    ("rename-play", "Rename Play…", None),
     ("reveal", "Reveal in Finder", None),
     ("", "", None),
     ("export-pdf", "Export PDF…", Some("CmdOrCtrl+Shift+E")),
@@ -53,6 +60,8 @@ const FILE: &[Item] = &[
     ("export-odt", "Export .odt…", None),
     // docs/app/formatting/formats-and-layout.md#FMT-171: the script and its pages as one .fountain.
     ("export-fountain", "Export Fountain…", None),
+    // docs/app/keeping-work/storage-and-file-format.md#STOR-199: the whole play as one .zip.
+    ("export-play", "Export Play…", None),
     ("print", "Print…", Some("CmdOrCtrl+P")),
 ];
 

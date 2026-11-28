@@ -21,7 +21,13 @@ import type { LessonId, Task } from "../tutorial/lessons";
 import type { ToastSpec } from "../ui";
 import type { ErrorCode } from "./error-codes";
 
-export { ERROR_CODES, workspaceErrorCode, type ErrorCode } from "./error-codes";
+export {
+  ERROR_CODES,
+  raisedError,
+  workspaceErrorCode,
+  type ErrorCode,
+  type ShownError,
+} from "./error-codes";
 export { pageErrorSignal } from "./page-error";
 
 /** An error toast was shown: kept in the local log, and reported if reports are on. */

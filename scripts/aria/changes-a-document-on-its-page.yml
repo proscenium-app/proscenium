@@ -45,6 +45,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -104,6 +105,7 @@
         - button "Changed somewhere else <time> The Weight of Water · <a burst of saves>"
       - listitem:
         - 'button "You wrote <time> The Weight of Water ACT TWO: SCENE 1 1 word added"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

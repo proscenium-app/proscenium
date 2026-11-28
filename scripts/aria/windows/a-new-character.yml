@@ -38,6 +38,7 @@
       - button "Actions for “Wren Thackeray”"
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -65,6 +66,7 @@
     - button "Insert divider":
       - img
   - paragraph: The lighthouse.
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Sheet" [selected]

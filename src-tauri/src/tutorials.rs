@@ -238,19 +238,34 @@ fn copy_file(
     relative: &str,
     destination: &str,
 ) -> io::Result<()> {
-    let from = resolve_under(source, relative, "practice copy")?;
+    copy_verified(source, target, relative, destination, "practice")
+}
+
+/// One file copied byte for byte into `target`: created through the same
+/// guarded writer as the editor, never over anything already there, and read
+/// back before it counts. `kept` names what the original is, for the message
+/// that says it was left alone. Keep as a Play copies a practice play with it
+/// (docs/app/keeping-work/storage-and-file-format.md#STOR-171), and Duplicate
+/// Play a play in the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-197).
+pub(crate) fn copy_verified(
+    source: &Path,
+    target: &impl Vault,
+    relative: &str,
+    destination: &str,
+    kept: &str,
+) -> io::Result<()> {
+    let from = resolve_under(source, relative, "copy")?;
     let bytes = std::fs::read(from)?;
-    // Same guarded writer as the editor, and a destination that must not exist.
     let result = target.write(destination, &bytes, Some(""))?;
     if !matches!(result, WriteOutcome::Ok { .. }) {
-        return Err(io::Error::other(
-            "The destination already exists. The original practice is kept.",
-        ));
+        return Err(io::Error::other(format!(
+            "The destination already exists. The original {kept} is kept."
+        )));
     }
     if target.read(destination)? != bytes {
-        return Err(io::Error::other(
-            "The copy could not be verified. The original practice is kept.",
-        ));
+        return Err(io::Error::other(format!(
+            "The copy could not be verified. The original {kept} is kept."
+        )));
     }
     Ok(())
 }

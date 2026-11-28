@@ -37,6 +37,7 @@
     - treeitem "Logline" [level=2]
   - sectionfooter
     - button "New" [haspopup]
+- separator "Resize the binder"
 - main "Play"
   - group "Open in this pane"
     - listitem "The Weight of Water"
@@ -57,6 +58,7 @@
     - none
     - paragraph
   - textbox "Script"
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Scene" [selected]

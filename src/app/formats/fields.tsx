@@ -145,6 +145,7 @@ const TOKEN_LABELS: Record<HeaderToken, string> = {
   title: "Title",
   author: "Author",
   draftDate: "Draft Date",
+  version: "Version",
   act: "Act as Written",
   scene: "Scene as Written",
 };

@@ -64,6 +64,8 @@ fn export_kind(kind: &str) -> Result<ExportKind, String> {
             "fountain",
             "Script.fountain",
         ),
+        // The whole play as one .zip (docs/app/keeping-work/storage-and-file-format.md#STOR-199).
+        "zip" => ("Export Play", ".zip", "zip", "Play.zip"),
         _ => return Err(format!("cannot export a {kind:?} file")),
     };
     Ok(ExportKind {
@@ -423,6 +425,16 @@ mod tests {
                 filter: ".fountain",
                 extension: "fountain",
                 fallback: "Script.fountain"
+            }
+        );
+        // The whole play (docs/app/keeping-work/storage-and-file-format.md#STOR-199).
+        assert_eq!(
+            export_kind("zip").unwrap(),
+            ExportKind {
+                title: "Export Play",
+                filter: ".zip",
+                extension: "zip",
+                fallback: "Play.zip"
             }
         );
         assert!(export_kind("exe").is_err());

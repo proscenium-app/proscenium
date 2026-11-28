@@ -45,6 +45,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -103,6 +104,7 @@
           - textbox "Notes — ACT ONE · SCENE 2"
         - 'cell "Color — ACT ONE · SCENE 2: Turns"':
           - 'button "Color — ACT ONE · SCENE 2: Turns"': Turns
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

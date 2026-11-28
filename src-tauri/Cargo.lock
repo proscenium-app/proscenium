@@ -2506,7 +2506,7 @@ dependencies = [
 
 [[package]]
 name = "proscenium"
-version = "1.1.0"
+version = "1.1.1"
 dependencies = [
  "backtrace",
  "base64 0.22.1",

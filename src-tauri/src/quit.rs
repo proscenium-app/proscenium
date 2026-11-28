@@ -315,13 +315,34 @@ fn watch(app: AppHandle, id: u64) {
 
 /// End a held quit: out, or called off.
 #[cfg(target_os = "macos")]
-fn finish(_app: &AppHandle, go: bool) {
+fn finish(app: &AppHandle, go: bool) {
+    // A downloaded update installs on the way out, off the main thread while
+    // AppKit holds the quit (docs/engineering/release-engineering.md#REL-133).
+    #[cfg(feature = "updater")]
+    if go && crate::updates::installs_at_quit(app).is_some() {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            crate::updates::install_at_quit(&app);
+            appkit::reply(true);
+        });
+        return;
+    }
+    let _ = app;
     appkit::reply(go);
 }
 
 #[cfg(not(target_os = "macos"))]
 fn finish(app: &AppHandle, go: bool) {
     if go {
+        // Not for a sign-out or shutdown Windows asked about: an installer
+        // started then would be cut short with the session
+        // (docs/engineering/release-engineering.md#REL-133).
+        #[cfg(all(windows, feature = "updater"))]
+        if !win::session_ending() {
+            crate::updates::install_at_quit(app);
+        }
+        #[cfg(all(not(windows), feature = "updater"))]
+        crate::updates::install_at_quit(app);
         app.exit(0);
     } else {
         // A sign-out or shutdown this held is let go of: the writer chose
@@ -362,7 +383,14 @@ pub fn quit_heard(id: u64) {
 pub fn quit_settled(app: AppHandle, id: u64, go: bool) {
     let verdict = gate().answered(id, go);
     if matches!(verdict, Verdict::Quit | Verdict::Stay) {
-        // A check's question is answered to the check, and the app stays.
+        // A check's question is answered to the check, and the app stays;
+        // what the quit would have installed on its way out is told it.
+        #[cfg(all(feature = "selftest", feature = "updater"))]
+        crate::selftest_fixture::quit_would_install(if go {
+            crate::updates::installs_at_quit(&app)
+        } else {
+            None
+        });
         #[cfg(feature = "selftest")]
         if crate::selftest_fixture::quit_answered(id, go) {
             gate().stage = Stage::Idle;
@@ -424,6 +452,13 @@ mod win {
     /// The main window, and the window procedure it had before this one.
     static WINDOW: AtomicIsize = AtomicIsize::new(0);
     static PREVIOUS: AtomicIsize = AtomicIsize::new(0);
+    /// Windows asked whether the session may end, and nobody has stayed since.
+    static ENDING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+    /// Whether this quit is a sign-out or shutdown: no installer starts then.
+    pub fn session_ending() -> bool {
+        ENDING.load(Ordering::SeqCst)
+    }
 
     fn wide(text: &str) -> Vec<u16> {
         text.encode_utf16().chain(Some(0)).collect()
@@ -457,6 +492,7 @@ mod win {
         lparam: LPARAM,
     ) -> LRESULT {
         if message == WM_QUERYENDSESSION {
+            ENDING.store(true, Ordering::SeqCst);
             if let Some(app) = super::APP.get() {
                 if request(app) != Request::Quit {
                     let reason = wide("Proscenium is keeping your words.");
@@ -474,6 +510,7 @@ mod win {
 
     /// Let a held sign-out or shutdown go on: the quit was called off.
     pub fn release() {
+        ENDING.store(false, Ordering::SeqCst);
         let hwnd = WINDOW.load(Ordering::SeqCst) as HWND;
         if !hwnd.is_null() {
             // SAFETY: the main window; no reason is not an error worth saying.

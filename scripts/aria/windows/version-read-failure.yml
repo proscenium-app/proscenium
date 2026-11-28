@@ -45,6 +45,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -71,6 +72,7 @@
         - region "What changed in The Weight of Water in this sitting":
           - paragraph: Could not read this comparison. A619 version unavailable
         - button "Restore as It Was Before…"
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

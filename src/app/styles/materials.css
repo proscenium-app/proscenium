@@ -624,7 +624,8 @@
 }
 /* The foot: a hairline across the page with its name on it, in the chrome's
    own type at its own size, since neither is a word of the page. */
-.prose .pagefoot {
+.prose .pagefoot,
+.prose .pagehead {
   display: flex;
   align-items: center;
   gap: var(--s-4);
@@ -638,19 +639,24 @@
   cursor: default;
 }
 .prose .pagefoot::before,
-.prose .pagefoot::after {
+.prose .pagefoot::after,
+.prose .pagehead::before,
+.prose .pagehead::after {
   content: "";
   flex: 1;
   border-top: 0.5px solid var(--rule-strong);
 }
-.prose .pagefoot.ProseMirror-selectednode {
+.prose .pagefoot.ProseMirror-selectednode,
+.prose .pagehead.ProseMirror-selectednode {
   color: var(--accent-text);
   outline: 1.5px solid var(--accent-text);
   outline-offset: 2px;
   border-radius: var(--r-chip);
 }
 .prose .pagefoot.ProseMirror-selectednode::before,
-.prose .pagefoot.ProseMirror-selectednode::after {
+.prose .pagefoot.ProseMirror-selectednode::after,
+.prose .pagehead.ProseMirror-selectednode::before,
+.prose .pagehead.ProseMirror-selectednode::after {
   border-top-color: var(--accent-text);
 }
 /* Forced colours drop the shade, so a field keeps an outline of its own. */

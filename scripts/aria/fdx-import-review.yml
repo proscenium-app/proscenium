@@ -34,6 +34,7 @@
       - treeitem "Draft ●" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - 'button "What this line is: Dialogue"': Dialogue
   - button "Bold": ⌘B
@@ -46,6 +47,7 @@
   - text: Page 1 of 1
   - textbox "Script"
   - 'img "Scene navigation: 1 page. On screen: <scene>"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

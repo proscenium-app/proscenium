@@ -125,6 +125,11 @@ export interface FrontMatter {
   authors?: string[];
   source?: string;
   draftDate?: string;
+  /**
+   * The play's version ("Draft 3", "Rev. 11/26/2026"), from the title page's
+   * `Version:` key (docs/app/formatting/formats-and-layout.md#FMT-185).
+   */
+  version?: string;
   contact?: string[];
   setting?: string;
   time?: string;
@@ -171,6 +176,19 @@ export interface FrontMatter {
    * title page.
    */
   contents?: string[];
+  /**
+   * The same, with no page beside an act: what a page's `{contents acts=plain}`
+   * prints (docs/app/formatting/formats-and-layout.md#FMT-184). Worked out
+   * only for a play with such a page.
+   */
+  contentsPlainActs?: string[];
+  /**
+   * Everyone who speaks, in the order they first speak, as the lines a page's
+   * `{cast}` field prints (docs/app/formatting/formats-and-layout.md#FMT-183).
+   * Worked out from the script for whoever lays the pages out, and never
+   * written to the title page.
+   */
+  cast?: string[];
   /**
    * Unknown / unmodeled title-page keys, preserved verbatim for round-trip. A
    * key named twice holds the lines of each entry, and so does a house key's

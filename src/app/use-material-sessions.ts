@@ -6,10 +6,10 @@ import {
   VaultWriteError,
   versions,
   saveProblem,
-  type SaveProblem,
   type SaveRefusal,
   type SaveSubject,
 } from "../storage";
+import type { ShownError } from "../diagnostics";
 import { findItem } from "../workspace/binder";
 import { matchingPath } from "../storage/path-key";
 import type { RecoveryBuffer } from "../storage/buffer-recovery";
@@ -62,7 +62,7 @@ interface Host {
   captureRecovery: () => void;
   setSheetStatus: (status: SaveStatus) => void;
   setActiveId: (id: string) => void;
-  setError: Dispatch<SetStateAction<string | SaveProblem | null>>;
+  setError: Dispatch<SetStateAction<string | ShownError | null>>;
   setPreserved: Dispatch<SetStateAction<string[]>>;
   saveLanded: (key: string) => void;
   /** A save of the writer's own landed: it may keep a version (docs/app/keeping-work/storage-and-file-format.md#STOR-115). */

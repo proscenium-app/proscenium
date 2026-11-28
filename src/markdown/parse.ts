@@ -31,7 +31,7 @@ import {
   MAX_MARKDOWN_NODES,
   type Budget,
 } from "./inline";
-import { FOOT_MARK } from "./page-fields";
+import { FOOT_MARK, HEAD_MARK, readEmptyLineMark, readPlaceMark, type Place } from "./page-fields";
 
 /** How a file is read. */
 export interface ParseOptions {
@@ -52,12 +52,16 @@ export interface CodeBlock {
 export interface Heading {
   kind: "heading";
   align?: "center" | "right";
+  /** Where the writer put it on its page (docs/app/formatting/formats-and-layout.md#FMT-182). */
+  place?: Place;
   level: number;
   spans: Span[];
 }
 export interface Paragraph {
   kind: "paragraph";
   align?: "center" | "right";
+  /** Where the writer put it on its page (docs/app/formatting/formats-and-layout.md#FMT-182). */
+  place?: Place;
   spans: Span[];
 }
 /** A list item: its own text, plus any lists nested underneath it. */
@@ -90,6 +94,8 @@ export type Block =
   | { kind: "managedMarker"; text: string }
   /** Where a title page's foot begins: read only from a page file. */
   | { kind: "foot" }
+  /** Where a page's head ends: read only from a page file, above its foot. */
+  | { kind: "head" }
   | CodeBlock
   | Heading
   | Paragraph
@@ -166,19 +172,28 @@ function isItem(line: string): boolean {
   return ITEM.test(line) && !RULE.test(line);
 }
 
-/** Whether the foot can still begin: a page file's, until its first foot mark. */
+/**
+ * Whether the foot can still begin: a page file's, until its first foot mark.
+ * And whether the head can still end: until its first head mark, or the foot.
+ */
 interface Foot {
   open: boolean;
+  head: boolean;
 }
 
 function isFoot(line: string, foot: Foot): boolean {
   return foot.open && line.trim() === FOOT_MARK;
 }
 
+function isHead(line: string, foot: Foot): boolean {
+  return foot.head && line.trim() === HEAD_MARK;
+}
+
 function isBlockStart(line: string, foot: Foot): boolean {
   return (
     line.trim() === MANAGED_MARK ||
     isFoot(line, foot) ||
+    isHead(line, foot) ||
     HEADING.test(line) ||
     QUOTE.test(line) ||
     RULE.test(line) ||
@@ -194,28 +209,42 @@ export function parseBlocks(source: string, options: ParseOptions = {}): Block[]
     const blocks = scanBlocks(
       source,
       { left: MAX_MARKDOWN_NODES },
-      { open: options.pageFile === true },
+      { open: options.pageFile === true, head: options.pageFile === true },
     );
-    // A line set centered or at the right and waiting for words is a comment
-    // of its own, `<!-- proscenium:line=center -->`: an empty paragraph, as a
-    // page started from a dedication's scaffold begins (src/layout/scaffolds.ts).
+    // A line with no words is a comment of its own, `<!-- proscenium:line -->`,
+    // or `line=center` for one set centered and waiting for words: an empty
+    // paragraph, as a page started from a dedication's scaffold begins
+    // (src/layout/scaffolds.ts) and as a blank row a writer leaves on a page
+    // is kept (docs/app/formatting/formats-and-layout.md#FMT-182).
     // Its own mark, never the alignment's below with nothing under it: that
     // one sets whatever paragraph follows, so an empty centered line written
     // as it would center the next paragraph when the file was read again.
+    const sole = (block: Block): string | null =>
+      block.kind === "paragraph" && block.spans.length === 1 && block.spans[0]!.kind === "text"
+        ? block.spans[0]!.text
+        : null;
     const set = blocks.map((block): Block => {
-      if (block.kind !== "paragraph" || block.spans.length !== 1 || block.spans[0]!.kind !== "text")
-        return block;
-      const line = block.spans[0]!.text.match(/^<!-- proscenium:line=(center|right) -->$/);
-      return line ? { kind: "paragraph", spans: [], align: line[1] as "center" | "right" } : block;
+      const text = sole(block);
+      const line = text === null ? null : readEmptyLineMark(text);
+      if (!line) return block;
+      return { kind: "paragraph", spans: [], ...(line === "left" ? {} : { align: line }) };
     });
     // Alignment is a narrow, inert comment; unmatched comments stay visible.
-    return set.filter((block, i) => {
-      if (block.kind !== "paragraph" || block.spans.length !== 1 || block.spans[0].kind !== "text")
-        return true;
-      const marker = block.spans[0].text.match(/^<!-- proscenium:align=(center|right) -->$/);
+    const aligned = set.filter((block, i) => {
+      const marker = sole(block)?.match(/^<!-- proscenium:align=(center|right) -->$/);
       const next = set[i + 1];
       if (!marker || !next || (next.kind !== "paragraph" && next.kind !== "heading")) return true;
       next.align = marker[1] as "center" | "right";
+      return false;
+    });
+    // So is where a block of a page was put: the line above the block, and
+    // above its alignment's.
+    return aligned.filter((block, i) => {
+      const text = sole(block);
+      const place = text === null ? null : readPlaceMark(text);
+      const next = aligned[i + 1];
+      if (!place || !next || (next.kind !== "paragraph" && next.kind !== "heading")) return true;
+      next.place = place;
       return false;
     });
   } catch (error) {
@@ -243,6 +272,14 @@ function scanBlocks(source: string, budget: Budget, foot: Foot): Block[] {
     if (isFoot(line, foot)) {
       out.push({ kind: "foot" });
       foot.open = false;
+      foot.head = false;
+      i += 1;
+      continue;
+    }
+
+    if (isHead(line, foot)) {
+      out.push({ kind: "head" });
+      foot.head = false;
       i += 1;
       continue;
     }

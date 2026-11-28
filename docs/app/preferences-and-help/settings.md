@@ -113,6 +113,12 @@ Settings has one persisted model and a sectioned sheet. This contract covers pre
      a slower track waits to pass the version already installed still shows while
      it is true. The rule is the Mac's alone: a PC's x64 is offered Beta as an Arm
      one is.
+   - <a id="SET-46"></a> **SET-46** **Updates › Install updates automatically** — a switch
+     under Check for updates automatically, on by default, whose note says a
+     downloaded update installs when the writer quits, after their work is saved,
+     and that Restart to Update installs it at once
+     (docs/engineering/release-engineering.md#REL-133). `installUpdatesAutomatically`
+     in `settings.json`; absent means on. Not shown where the store updates the copy.
    - <a id="SET-41"></a> **SET-41** **Writing › Comments › Your name** — the name the writer's comments
      and replies are signed with
      ([docs/app/writing/comments.md#COMM-52](../writing/comments.md#COMM-52)), with

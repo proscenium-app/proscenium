@@ -758,6 +758,51 @@ async fn vault_create_binary(
     vault.write(&rel, &bytes, Some("")).map_err(estr)
 }
 
+/// A file's bytes as base64, whatever they hold: an image, a PDF, a script.
+/// Export Play reads every file of a play with it
+/// (docs/app/keeping-work/storage-and-file-format.md#STOR-199); `vault_read`
+/// refuses anything that is not UTF-8.
+#[tauri::command]
+async fn vault_read_binary(
+    #[allow(unused_variables)] app: AppHandle,
+    state: ManagerState<'_>,
+    rel: String,
+) -> Result<String, String> {
+    use base64::Engine;
+    let vault = current_vault(&state)?;
+    #[cfg(feature = "selftest")]
+    let _passage =
+        selftest_fixture::pass(selftest_fixture::Op::Read, Some(&vault.root().join(&rel))).await?;
+    let bytes = match vault.read(&rel) {
+        Ok(bytes) => bytes,
+        #[cfg(mobile)]
+        Err(e)
+            if matches!(
+                e.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::WouldBlock
+            ) =>
+        {
+            fetch_evicted(&app, &vault, &rel, &e)?
+        }
+        Err(e) => return Err(estr(e)),
+    };
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+/// One file of a play copied, byte for byte, to another place in the open
+/// folder: created, never written over, and read back before it counts.
+/// Duplicate Play and New Play Like This copy a play's files with it
+/// (docs/app/keeping-work/storage-and-file-format.md#STOR-197,
+/// docs/app/keeping-work/storage-and-file-format.md#STOR-198).
+#[tauri::command]
+async fn vault_copy_file(state: ManagerState<'_>, from: String, to: String) -> Result<(), String> {
+    let vault = current_vault(&state)?;
+    #[cfg(feature = "selftest")]
+    let _passage =
+        selftest_fixture::pass(selftest_fixture::Op::Write, Some(&vault.root().join(&to))).await?;
+    tutorials::copy_verified(vault.root(), vault.as_ref(), &from, &to, "play").map_err(estr)
+}
+
 #[tauri::command]
 async fn vault_read_saved_copy(state: ManagerState<'_>, id: String) -> Result<String, String> {
     String::from_utf8(current_vault(&state)?.read_saved_copy(&id).map_err(estr)?)
@@ -1621,6 +1666,8 @@ pub fn run() {
             vault_download,
             vault_write,
             vault_create_binary,
+            vault_read_binary,
+            vault_copy_file,
             vault_saved_copies,
             vault_read_saved_copy,
             vault_exists,

@@ -39,6 +39,7 @@
     - treeitem "Logline" [level=2]
   - sectionfooter
     - button "New" [haspopup]
+- separator "Resize the binder"
 - main "Play"
   - group "Open in this pane"
     - listitem "Cast"
@@ -113,6 +114,7 @@
       - cell "WREN · SCENE 2 — silent"
       - cell "WREN · SCENE 1 — speaks"
       - cell
+- separator "Resize the inspector"
 - complementary "Inspector"
   - tablist "Inspector"
     - tab "Scene" [selected]

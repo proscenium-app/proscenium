@@ -45,6 +45,7 @@
       - treeitem "Logline" [level=2]
   - button "New"
   - text: at the top level
+- separator "Resize the binder"
 - main "Play":
   - list "Open in this pane":
   - button "Add a surface to this pane"
@@ -71,6 +72,7 @@
           - paragraph: "No comparison available: there is no record of what this file held before."
       - listitem:
         - 'button "You wrote <time> The Weight of Water ACT TWO: SCENE 1 1 word added"'
+- separator "Resize the inspector"
 - complementary "Inspector":
   - tablist "Inspector":
     - tab "Scene" [selected]

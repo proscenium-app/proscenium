@@ -61,6 +61,29 @@ export function note(event) {
 }
 
 /** A journal's lines, a torn last one (a run ended mid-write) left out. */
+/**
+ * Whether a step ended within its time: true when it did, by returning or by
+ * failing, false when the time ran out first. For a step that can wait for
+ * ever on something outside the run (a browser asked to close a page), so the
+ * run can say so and end instead of waiting with it.
+ */
+export async function endedWithin(ms, work) {
+  let late;
+  const ended = await Promise.race([
+    Promise.resolve()
+      .then(work)
+      .then(
+        () => true,
+        () => true,
+      ),
+    new Promise((resolve) => {
+      late = setTimeout(resolve, ms, false);
+    }),
+  ]);
+  clearTimeout(late);
+  return ended;
+}
+
 export function readJournal(path) {
   if (!existsSync(path)) return [];
   return readFileSync(path, "utf8")

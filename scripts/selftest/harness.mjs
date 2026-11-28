@@ -973,6 +973,7 @@ const NEEDS_UPDATER = new Set([
   "an installing update holds edits and a failure releases them",
   "settings · updates",
   "settings · updates, alpha's key",
+  "updates · a waiting update stays in the status bar, and installs at quit",
 ]);
 
 async function report(check, error, skipped = null) {

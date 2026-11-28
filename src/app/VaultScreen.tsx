@@ -29,7 +29,9 @@ import { moveToTrash, systemWords } from "../ui/system-words";
 import { keys } from "../ui/keys";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlayPages, PlaysFolderHint, VaultPlay } from "../workspace";
-import type { KeptFile } from "./useWorkspace";
+import type { KeptFile, PlayOpResult } from "./useWorkspace";
+import { PlayNameSheet } from "./PlayNameSheet";
+import type { MenuEntry } from "../ui/Menu";
 import { SAMPLE_PLAY, SAMPLE_PLAY_TITLE } from "../workspace/sample-play";
 import { useAnnouncedStatus } from "../ui/use-announced-status";
 import {
@@ -94,7 +96,27 @@ export interface VaultScreenProps {
    * offers no More Actions.
    */
   onTrash?: (play: VaultPlay) => void;
+  /**
+   * Rename a play from its row (docs/app/keeping-work/storage-and-file-format.md#STOR-208);
+   * `titleOfPlay` says whether its title page shows its name.
+   */
+  onRename?: (play: VaultPlay, name: string, title: boolean) => Promise<PlayOpResult>;
+  titleOfPlay?: (dir: string) => Promise<{ title: string | null; isName: boolean }>;
+  /** Copy a play, and open the copy (docs/app/keeping-work/storage-and-file-format.md#STOR-197). */
+  onDuplicate?: (play: VaultPlay, name: string) => Promise<PlayOpResult>;
+  /** A new play with this one's setup (docs/app/keeping-work/storage-and-file-format.md#STOR-198). */
+  onNewLike?: (play: VaultPlay, name: string) => Promise<PlayOpResult>;
+  /** The whole play as one .zip (docs/app/keeping-work/storage-and-file-format.md#STOR-199). */
+  onExportPlay?: (play: VaultPlay) => void;
+  /** A play from a .zip, added to the Plays folder (docs/app/keeping-work/storage-and-file-format.md#STOR-200). */
+  onAddZip?: (file: File) => void;
 }
+
+/** What a row's name sheet is asking for, and of which play. */
+type NameAsk =
+  | { kind: "rename"; play: VaultPlay; titleAsk: string | null }
+  | { kind: "duplicate"; play: VaultPlay }
+  | { kind: "like"; play: VaultPlay };
 
 /**
  * The statuses a play can be given: the list in Settings › General, in its order
@@ -176,6 +198,7 @@ function PlayRow({
   onOpen,
   onUpdate,
   onTrash,
+  actions = [],
 }: {
   play: VaultPlay;
   statuses: readonly string[];
@@ -185,7 +208,18 @@ function PlayRow({
   onUpdate: (dir: string, patch: { status?: string; logline?: string }) => void;
   /** Ask to move this play to the trash (docs/app/organizing/workspace-model.md#WORK-91). */
   onTrash?: () => void;
+  /** What else the row's More Actions does, above Move to Trash (docs/app/organizing/workspace-model.md#WORK-94). */
+  actions?: MenuEntry[];
 }) {
+  const entries: MenuEntry[] = [
+    ...actions,
+    ...(onTrash
+      ? [
+          ...(actions.length ? [{ kind: "sep" as const }] : []),
+          { label: `${moveToTrash()}…`, destructive: true, onSelect: onTrash },
+        ]
+      : []),
+  ];
   const [logline, setLogline] = useState(play.logline ?? "");
   const more = useRef<HTMLButtonElement | null>(null);
   const menu = useMenu();
@@ -221,7 +255,7 @@ function PlayRow({
         onClick={openFromRow}
         onContextMenu={(e) => {
           // A field keeps the system's own menu (Copy, Paste, spelling).
-          if (!onTrash || (e.target as HTMLElement).closest("input, textarea")) return;
+          if (!entries.length || (e.target as HTMLElement).closest("input, textarea")) return;
           e.preventDefault();
           menu.openAt(e.clientX, e.clientY);
         }}
@@ -264,7 +298,7 @@ function PlayRow({
         <span className="playrow__modified playrow__wide" role="cell">
           {modifiedLabel(play.modified)}
         </span>
-        {onTrash && (
+        {entries.length > 0 && (
           <span className="playrow__more" role="cell">
             <IconButton
               ref={more}
@@ -281,13 +315,13 @@ function PlayRow({
       </div>
       {/* Beside the row, not in it: a pick in the menu must not reach the
         row's click, which opens the play. */}
-      {menu.anchor && onTrash && (
+      {menu.anchor && entries.length > 0 && (
         <Menu
           anchor={menu.anchor}
           onClose={menu.close}
           label={play.title}
           width={240}
-          entries={[{ label: `${moveToTrash()}…`, destructive: true, onSelect: onTrash }]}
+          entries={entries}
         />
       )}
     </>
@@ -311,6 +345,12 @@ export function VaultScreen({
   newPlayAsk = 0,
   onPutBack,
   onTrash,
+  onRename,
+  titleOfPlay,
+  onDuplicate,
+  onNewLike,
+  onExportPlay,
+  onAddZip,
 }: VaultScreenProps) {
   const { playStatuses, showProgress } = useSettings();
   // Nothing is counted while Progress is off.
@@ -323,6 +363,35 @@ export function VaultScreen({
   const [trashOpen, setTrashOpen] = useState(false);
   /** The play whose move to the trash is being asked about. */
   const [trashing, setTrashing] = useState<VaultPlay | null>(null);
+  /** The row whose rename, copy or new play is being named. */
+  const [nameAsk, setNameAsk] = useState<NameAsk | null>(null);
+  /** A play's .zip, chosen from New Play's menu (docs/app/keeping-work/storage-and-file-format.md#STOR-200). */
+  const zipInput = useRef<HTMLInputElement | null>(null);
+  const actionsFor = (p: VaultPlay): MenuEntry[] => [
+    ...(onRename
+      ? [
+          {
+            label: "Rename…",
+            onSelect: () =>
+              void (titleOfPlay?.(p.dir) ?? Promise.resolve({ title: null, isName: false })).then(
+                (facts) =>
+                  setNameAsk({
+                    kind: "rename",
+                    play: p,
+                    titleAsk: facts.isName ? facts.title : null,
+                  }),
+              ),
+          },
+        ]
+      : []),
+    ...(onDuplicate
+      ? [{ label: "Duplicate…", onSelect: () => setNameAsk({ kind: "duplicate", play: p }) }]
+      : []),
+    ...(onNewLike
+      ? [{ label: "New Play Like This…", onSelect: () => setNameAsk({ kind: "like", play: p }) }]
+      : []),
+    ...(onExportPlay ? [{ label: "Export Play…", onSelect: () => onExportPlay(p) }] : []),
+  ];
   const headingRef = useRef<HTMLHeadingElement | null>(null);
 
   const downloading = cloud?.downloading === true;
@@ -489,6 +558,9 @@ export function VaultScreen({
               label: "Import a Draft…",
               onSelect: () => onImport(),
             },
+            ...(onAddZip
+              ? [{ label: "Add a Play from a .zip…", onSelect: () => zipInput.current?.click() }]
+              : []),
             { kind: "sep" },
             {
               label: "Open the Sample Play",
@@ -573,6 +645,7 @@ export function VaultScreen({
               onOpen={() => onOpen(p)}
               onUpdate={onUpdate}
               onTrash={onTrash ? () => setTrashing(p) : undefined}
+              actions={actionsFor(p)}
             />
           ))}
           {shown.length === 0 && plays.length > 0 && (
@@ -632,6 +705,59 @@ export function VaultScreen({
 
       {trashOpen && onPutBack && (
         <TrashSheet plays={plays} onPutBack={onPutBack} onClose={() => setTrashOpen(false)} />
+      )}
+
+      {onAddZip && (
+        <input
+          ref={zipInput}
+          type="file"
+          accept=".zip,application/zip"
+          hidden
+          aria-hidden="true"
+          tabIndex={-1}
+          data-play-zip=""
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) onAddZip(file);
+          }}
+        />
+      )}
+
+      {nameAsk?.kind === "rename" && onRename && (
+        <PlayNameSheet
+          title="Rename Play"
+          intro={`“${nameAsk.play.title}” and its play file take the new name.`}
+          initial={nameAsk.play.dir}
+          unchanged={nameAsk.play.dir}
+          confirm="Rename"
+          busyLabel="Renaming…"
+          titleAsk={nameAsk.titleAsk}
+          onSubmit={(name, title) => onRename(nameAsk.play, name, title)}
+          onClose={() => setNameAsk(null)}
+        />
+      )}
+      {nameAsk?.kind === "duplicate" && onDuplicate && (
+        <PlayNameSheet
+          title="Duplicate Play"
+          intro={`A copy of “${nameAsk.play.title}”, every file of it, as a play of its own. It opens when it is made.`}
+          initial={`${nameAsk.play.dir} copy`}
+          confirm="Duplicate"
+          busyLabel="Copying…"
+          onSubmit={(name) => onDuplicate(nameAsk.play, name)}
+          onClose={() => setNameAsk(null)}
+        />
+      )}
+      {nameAsk?.kind === "like" && onNewLike && (
+        <PlayNameSheet
+          title="New Play Like This"
+          intro={`A new play with the format, pages and folders of “${nameAsk.play.title}”, and none of its writing.`}
+          initial=""
+          confirm="Create Play"
+          busyLabel="Creating…"
+          onSubmit={(name) => onNewLike(nameAsk.play, name)}
+          onClose={() => setNameAsk(null)}
+        />
       )}
 
       {trashing && onTrash && (
